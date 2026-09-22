@@ -1,0 +1,22 @@
+{
+  "executionId": "EXEC-1789296890414",
+  "testCaseId": "TC-WF-001",
+  "targetId": "TARGET-DEFAULT",
+  "buildVersion": "local-build",
+  "environment": "local",
+  "browser": "Desktop Chromium",
+  "startTime": "2026-09-13T10:54:50.414Z",
+  "endTime": "2026-09-13T10:54:51.506Z",
+  "durationMs": 1368,
+  "status": "PASSED",
+  "evidence": {
+    "screenshots": []
+  },
+  "oracleEvaluations": [
+    {
+      "oracleId": "ORACLE-STM-01",
+      "isSatisfied": true,
+      "explanation": "Trạng thái chuyển dịch từ DRAFT sang SUBMITTED chính xác."
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "executionId": "EXEC-1789296890169",
+  "testCaseId": "TC-WF-003",
+  "targetId": "TARGET-DEFAULT",
+  "buildVersion": "local-build",
+  "environment": "local",
+  "browser": "Desktop Chromium",
+  "startTime": "2026-09-13T10:54:50.169Z",
+  "endTime": "2026-09-13T10:54:51.350Z",
+  "durationMs": 1469,
+  "status": "PASSED",
+  "evidence": {
+    "screenshots": []
+  },
+  "oracleEvaluations": [
+    {
+      "oracleId": "ORACLE-STM-SNEAK-01",
+      "isSatisfied": true,
+      "explanation": "Sneak Path bị chặn thành công, hệ thống bảo vệ toàn vẹn trạng thái."
+    }
+  ]
+}

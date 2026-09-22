@@ -1,0 +1,22 @@
+{
+  "executionId": "EXEC-1789297742186",
+  "testCaseId": "TC-AUTH-001",
+  "targetId": "TARGET-DEFAULT",
+  "buildVersion": "local-build",
+  "environment": "local",
+  "browser": "Desktop Chromium",
+  "startTime": "2026-09-13T11:09:02.186Z",
+  "endTime": "2026-09-13T11:09:03.270Z",
+  "durationMs": 1339,
+  "status": "PASSED",
+  "evidence": {
+    "screenshots": []
+  },
+  "oracleEvaluations": [
+    {
+      "oracleId": "ORACLE-AUTH-01",
+      "isSatisfied": true,
+      "explanation": "Quyền quản trị viên được xác nhận đầy đủ theo Test Oracle."
+    }
+  ]
+}

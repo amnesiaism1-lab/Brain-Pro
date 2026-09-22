@@ -1,0 +1,22 @@
+{
+  "executionId": "EXEC-1789297742131",
+  "testCaseId": "TC-TRANS-001",
+  "targetId": "TARGET-DEFAULT",
+  "buildVersion": "local-build",
+  "environment": "local",
+  "browser": "Desktop Chromium",
+  "startTime": "2026-09-13T11:09:02.131Z",
+  "endTime": "2026-09-13T11:09:03.098Z",
+  "durationMs": 1273,
+  "status": "PASSED",
+  "evidence": {
+    "screenshots": []
+  },
+  "oracleEvaluations": [
+    {
+      "oracleId": "ORACLE-TRANS-MATH-01",
+      "isSatisfied": true,
+      "explanation": "Số dư sau chuyển = Số dư trước - 250 - Phí (Thỏa mãn tuyệt đối)."
+    }
+  ]
+}

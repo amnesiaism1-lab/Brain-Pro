@@ -1,0 +1,11 @@
+import { ICognitiveCategory, IExercise, IWorkoutRoutine, IReadingText, IExerciseVariant, IExerciseSynergy, IWeeklyChallenge, IExerciseContentPoolItem } from '../types';
+export declare const COGNITIVE_CATEGORIES: ICognitiveCategory[];
+export declare const EXERCISES_METADATA: IExercise[];
+export declare const WORKOUT_ROUTINES: IWorkoutRoutine[];
+export declare const SAMPLE_READING_TEXTS: IReadingText[];
+export declare const VIETNAMESE_WORDS_DICTIONARY: string[];
+export declare const ENGLISH_WORDS_DICTIONARY: string[];
+export declare const EXERCISE_VARIANTS: IExerciseVariant[];
+export declare const EXERCISE_SYNERGIES: IExerciseSynergy[];
+export declare const WEEKLY_CHALLENGES: IWeeklyChallenge[];
+export declare const CONTENT_POOLS: IExerciseContentPoolItem[];

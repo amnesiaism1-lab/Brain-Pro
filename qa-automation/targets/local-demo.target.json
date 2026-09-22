@@ -1,0 +1,26 @@
+{
+  "targetId": "TARGET-LOCAL-DEMO",
+  "application": "OmniFlow Operations Portal",
+  "environment": "local",
+  "baseUrl": "http://localhost:3000",
+  "authStrategy": {
+    "type": "ui-login",
+    "credentialsRef": "env:LOCAL_AUTH_CREDS"
+  },
+  "dataStrategy": {
+    "type": "isolated-generator"
+  },
+  "browser": {
+    "defaultType": "chromium",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "capabilities": [
+    "RBAC_AUTHENTICATION",
+    "FINANCIAL_TRANSFERS",
+    "WORKFLOW_APPROVAL_STATE_MACHINE",
+    "AUDIT_LOG_EXPORT"
+  ]
+}

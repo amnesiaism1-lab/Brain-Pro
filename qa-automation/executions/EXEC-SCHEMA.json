@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TestExecutionRecord",
+  "type": "object",
+  "required": [
+    "executionId",
+    "testCaseId",
+    "targetId",
+    "startTime",
+    "endTime",
+    "durationMs",
+    "status"
+  ],
+  "properties": {
+    "executionId": {
+      "type": "string",
+      "description": "e.g. EXEC-20260913-0001"
+    },
+    "testCaseId": {
+      "type": "string",
+      "description": "Mã Test Case tương ứng trong RTM (e.g. TC-AUTH-001)"
+    },
+    "targetId": {
+      "type": "string",
+      "description": "Định danh môi trường Target đang chạy (e.g. TARGET-LOCAL-DEMO)"
+    },
+    "buildVersion": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string",
+      "enum": ["local", "dev", "staging", "uat", "production"]
+    },
+    "browser": {
+      "type": "string"
+    },
+    "startTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "endTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "durationMs": {
+      "type": "integer"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PASSED", "FAILED", "BLOCKED", "INCONCLUSIVE", "SKIPPED"]
+    },
+    "failureCategory": {
+      "type": "string",
+      "enum": [
+        "APPLICATION_BUG",
+        "AUTOMATION_SCRIPT_BUG",
+        "ENVIRONMENT_PROBLEM",
+        "TEST_DATA_PROBLEM",
+        "FLAKY_RACE_CONDITION",
+        "UNCLASSIFIED"
+      ]
+    },
+    "failureMessage": {
+      "type": "string"
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "tracePath": { "type": "string" },
+        "videoPath": { "type": "string" },
+        "screenshots": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "harPath": { "type": "string" },
+        "consoleLogPath": { "type": "string" }
+      }
+    },
+    "oracleEvaluations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["oracleId", "isSatisfied", "explanation"],
+        "properties": {
+          "oracleId": { "type": "string" },
+          "isSatisfied": { "type": "boolean" },
+          "explanation": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TargetEnvironmentConfig",
+  "type": "object",
+  "required": [
+    "targetId",
+    "application",
+    "environment",
+    "baseUrl",
+    "authStrategy",
+    "dataStrategy"
+  ],
+  "properties": {
+    "targetId": {
+      "type": "string",
+      "description": "Định danh duy nhất của Target (ví dụ TARGET-OMNIFLOW-STAGING)"
+    },
+    "application": {
+      "type": "string",
+      "description": "Tên ứng dụng đang được kiểm thử"
+    },
+    "environment": {
+      "type": "string",
+      "enum": ["local", "dev", "staging", "uat", "production"]
+    },
+    "baseUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "authStrategy": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["seeded-token", "ui-login", "basic-auth", "oauth-session", "mock"]
+        },
+        "credentialsRef": {
+          "type": "string"
+        }
+      }
+    },
+    "dataStrategy": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["seed-script", "db-fixtures", "api-factory", "isolated-generator"]
+        }
+      }
+    },
+    "browser": {
+      "type": "object",
+      "properties": {
+        "defaultType": {
+          "type": "string",
+          "enum": ["chromium", "firefox", "webkit"]
+        },
+        "viewport": {
+          "type": "object",
+          "properties": {
+            "width": { "type": "integer" },
+            "height": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

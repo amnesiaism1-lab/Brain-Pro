@@ -1,0 +1,26 @@
+{
+  "targetId": "TARGET-STAGING-OMNIFLOW",
+  "application": "OmniFlow Banking & Financial Operations",
+  "environment": "staging",
+  "baseUrl": "https://staging.omniflow.io",
+  "authStrategy": {
+    "type": "seeded-token",
+    "credentialsRef": "secret:STAGING_SERVICE_TOKEN"
+  },
+  "dataStrategy": {
+    "type": "api-factory"
+  },
+  "browser": {
+    "defaultType": "chromium",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    }
+  },
+  "capabilities": [
+    "REALTIME_PAYMENTS",
+    "KYC_VERIFICATION",
+    "STATE_MACHINE_WORKFLOWS",
+    "HIGH_CONCURRENCY_TRANSFER"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "name": "brain-exercises-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Adaptive Speed Reading & Brain Training Platform with Relational Architecture",
+  "scripts": {
+    "build:shared": "npm --prefix shared run build",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:shared && npm run build:backend && npm run build:frontend",
+    "vercel-build": "npm run build",
+    "start:backend": "npm --prefix backend run start:dev",
+    "start:frontend": "npm --prefix frontend run dev",
+    "typecheck": "npm --prefix shared run build && npm --prefix backend run typecheck && npm --prefix frontend run typecheck",
+    "lint": "npx oxlint shared/src frontend/src backend/src"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.10",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.10",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/passport": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.10",
+    "@nestjs/swagger": "^11.0.0",
+    "@nestjs/typeorm": "^11.0.0",
+    "bcryptjs": "^3.0.3",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "cookie-parser": "^1.4.7",
+    "helmet": "^8.3.0",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "pg": "^8.13.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "typeorm": "^0.3.20",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "oxlint": "^1.58.0",
+    "typescript": "^5.7.3"
+  }
+}

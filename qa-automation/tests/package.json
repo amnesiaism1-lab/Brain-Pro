@@ -1,0 +1,21 @@
+{
+  "name": "qa-automation-framework",
+  "version": "1.0.0",
+  "description": "Universal QA Automation Framework powered by ISTQB & Playwright",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:atomic": "playwright test tests/specs/atomic-loop.spec.ts",
+    "test:headed": "playwright test --headed",
+    "test:trace": "playwright test --trace on",
+    "report:html": "playwright show-report"
+  },
+  "keywords": ["qa", "testing", "istqb", "playwright", "automation"],
+  "author": "Antigravity QA Operating System",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.45.0",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+*/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment and sensitive secrets (CRITICAL - DO NOT COMMIT)
+.env
+*.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# IDE & OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build outputs & temporary caches
+frontend/dist/
+dist/
+qa-automation/videos/
+qa-automation/screenshots/
+qa-automation/reports/html-report/
+coverage/
+*.tsbuildinfo
+.vercel/
+.turbo/
+.npm/
+
+# Whitelist compiled artifacts needed for Vercel Serverless deployment
+!shared/dist/
+!shared/dist/**
+!backend/dist/
+!backend/dist/**

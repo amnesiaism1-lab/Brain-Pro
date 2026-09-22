@@ -1,0 +1,22 @@
+{
+  "executionId": "EXEC-1789297742289",
+  "testCaseId": "TC-TRANS-004",
+  "targetId": "TARGET-DEFAULT",
+  "buildVersion": "local-build",
+  "environment": "local",
+  "browser": "Desktop Chromium",
+  "startTime": "2026-09-13T11:09:02.289Z",
+  "endTime": "2026-09-13T11:09:03.028Z",
+  "durationMs": 1103,
+  "status": "PASSED",
+  "evidence": {
+    "screenshots": []
+  },
+  "oracleEvaluations": [
+    {
+      "oracleId": "ORACLE-TRANS-BOUNDARY-02",
+      "isSatisfied": true,
+      "explanation": "Giao dịch $0.00 bị từ chối thành công theo đúng Test Oracle."
+    }
+  ]
+}

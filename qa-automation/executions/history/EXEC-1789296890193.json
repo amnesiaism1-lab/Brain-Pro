@@ -1,0 +1,22 @@
+{
+  "executionId": "EXEC-1789296890193",
+  "testCaseId": "TC-AUTH-002",
+  "targetId": "TARGET-DEFAULT",
+  "buildVersion": "local-build",
+  "environment": "local",
+  "browser": "Desktop Chromium",
+  "startTime": "2026-09-13T10:54:50.193Z",
+  "endTime": "2026-09-13T10:54:51.403Z",
+  "durationMs": 1584,
+  "status": "PASSED",
+  "evidence": {
+    "screenshots": []
+  },
+  "oracleEvaluations": [
+    {
+      "oracleId": "ORACLE-AUTH-02",
+      "isSatisfied": true,
+      "explanation": "Hệ thống từ chối đăng nhập cho tài khoản bị khóa đúng spec."
+    }
+  ]
+}

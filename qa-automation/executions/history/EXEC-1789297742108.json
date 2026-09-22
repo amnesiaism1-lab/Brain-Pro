@@ -1,0 +1,22 @@
+{
+  "executionId": "EXEC-1789297742108",
+  "testCaseId": "TC-ATOMIC-001",
+  "targetId": "TARGET-DEFAULT",
+  "buildVersion": "local-build",
+  "environment": "local",
+  "browser": "Desktop Chromium",
+  "startTime": "2026-09-13T11:09:02.108Z",
+  "endTime": "2026-09-13T11:09:03.829Z",
+  "durationMs": 1993,
+  "status": "PASSED",
+  "evidence": {
+    "screenshots": []
+  },
+  "oracleEvaluations": [
+    {
+      "oracleId": "ORACLE-DOC-NAV-01",
+      "isSatisfied": true,
+      "explanation": "Trang Installation đã load thành công với đầy đủ mã lệnh cài đặt và tiêu đề chuẩn."
+    }
+  ]
+}

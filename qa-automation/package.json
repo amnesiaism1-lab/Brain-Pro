@@ -1,0 +1,18 @@
+{
+  "name": "qa-automation",
+  "version": "1.0.0",
+  "description": "Universal QA Operating System (ISTQB & Agentic Awesome Skills)",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test --config=tests/playwright.config.ts --project=\"Desktop Chromium\"",
+    "test:all-browsers": "playwright test --config=tests/playwright.config.ts",
+    "test:atomic": "playwright test tests/specs/atomic-loop.spec.ts --config=tests/playwright.config.ts --project=\"Desktop Chromium\"",
+    "test:headed": "playwright test --config=tests/playwright.config.ts --project=\"Desktop Chromium\" --headed",
+    "report": "playwright show-report reports/html-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.4.5"
+  }
+}

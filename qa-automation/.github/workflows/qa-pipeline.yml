@@ -1,0 +1,68 @@
+name: "QA Continuous Testing & Quality Gates Pipeline"
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Môi trường kiểm thử mục tiêu"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - local
+          - dev
+          - staging
+          - uat
+
+jobs:
+  qa-automation-run:
+    name: "Playwright E2E & Quality Gate Evaluation"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ["Desktop Chromium", "Desktop Firefox"]
+
+    steps:
+      - name: "1. Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "2. Setup Node.js v20"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: qa-automation/package-lock.json
+
+      - name: "3. Install dependencies"
+        working-directory: qa-automation
+        run: npm ci
+
+      - name: "4. Install Playwright Browsers"
+        working-directory: qa-automation
+        run: npx playwright install --with-deps chromium firefox
+
+      - name: "5. Run Test Suite & Quality Gates"
+        working-directory: qa-automation
+        env:
+          TEST_ENV: ${{ github.event.inputs.target_env || 'staging' }}
+          CI: true
+        run: |
+          npx playwright test --config=tests/playwright.config.ts --project="${{ matrix.project }}"
+
+      - name: "6. Upload Test Results & Evidence Bundle"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-evidence-report-${{ matrix.project }}
+          path: |
+            qa-automation/reports/
+            qa-automation/evidence/
+            qa-automation/executions/history/
+          retention-days: 14
