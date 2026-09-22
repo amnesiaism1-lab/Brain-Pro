@@ -17,7 +17,7 @@ export const ReadingAssessmentGame: React.FC = () => {
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [isFinished, setIsFinished] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const start = Date.now();

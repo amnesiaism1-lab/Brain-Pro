@@ -17,7 +17,7 @@ export const SpeedPacerGame: React.FC = () => {
   const [highlightWordIndex, setHighlightWordIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isFinished, setIsFinished] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!isPlaying) {

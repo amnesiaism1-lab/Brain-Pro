@@ -88,7 +88,7 @@ export const SchulteTableGame: React.FC = () => {
   const [clickEffects, setClickEffects] = useState<Record<string, 'correct' | 'wrong'>>({});
   const [isCopied, setIsCopied] = useState<boolean>(false);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(Date.now());
 
   // Personal Best key

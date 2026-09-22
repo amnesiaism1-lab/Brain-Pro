@@ -23,7 +23,7 @@ export const WordChunkingGame: React.FC = () => {
   const [elapsedSec, setElapsedSec] = useState(0);
 
   const speedMs = Math.max(180, 750 - (currentLevel * 48));
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!isPlaying) {

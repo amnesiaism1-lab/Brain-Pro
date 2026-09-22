@@ -40,7 +40,7 @@ export const RsvpSpeedReaderGame: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!isPlaying) {
