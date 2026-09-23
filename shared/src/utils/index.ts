@@ -120,42 +120,68 @@ export function generateTwinWords(
 export function generateWordSearchGrid(
   rows: number = 12,
   cols: number = 20,
-  words: string[] = ['NÃO', 'HỌC', 'MẮT']
+  words: string[] = ['NÃO', 'HỌC', 'MẮT'],
+  customAlphabet?: string
 ): {
   grid: string[][];
   placedWords: Array<{ word: string; row: number; col: number; direction: 'H' | 'V' }>;
 } {
-  const alphabet = 'AĂÂBCDĐEÊGHIKLMNOÔƠPQRSTUƯVXY';
-  const grid: string[][] = Array.from({ length: rows }, () =>
-    Array.from({ length: cols }, () => alphabet[Math.floor(Math.random() * alphabet.length)])
+  const isEnglishWords = words.length > 0 && words.every(w => /^[A-Z0-9\s]+$/i.test(w));
+  const defaultAlphabet = isEnglishWords
+    ? 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    : 'AĂÂBCDĐEÊGHIKLMNOÔƠPQRSTUƯVXY';
+  const alphabet = customAlphabet || defaultAlphabet;
+
+  const grid: (string | null)[][] = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => null)
   );
   const placedWords: Array<{ word: string; row: number; col: number; direction: 'H' | 'V' }> = [];
 
-  words.forEach((rawWord, idx) => {
-    const word = rawWord.replace(/\s+/g, '').toUpperCase();
-    const dir: 'H' | 'V' = idx % 2 === 0 ? 'H' : 'V';
-    if (dir === 'H') {
-      const maxCol = Math.max(0, cols - word.length);
-      const r = Math.min(rows - 1, idx * 3 + 1);
-      const c = Math.floor(Math.random() * (maxCol + 1));
-      for (let i = 0; i < word.length; i++) {
-        if (r < rows && c + i < cols) {
-          grid[r][c + i] = word[i];
+  const sanitizedWords = words.map(w => w.replace(/\s+/g, '').toUpperCase());
+
+  sanitizedWords.forEach((word) => {
+    let placed = false;
+    const directions: Array<'H' | 'V'> = Math.random() < 0.5 ? ['H', 'V'] : ['V', 'H'];
+
+    for (const dir of directions) {
+      if (placed) break;
+      const maxR = dir === 'H' ? rows - 1 : rows - word.length;
+      const maxC = dir === 'H' ? cols - word.length : cols - 1;
+
+      if (maxR < 0 || maxC < 0) continue;
+
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const startR = Math.floor(Math.random() * (maxR + 1));
+        const startC = Math.floor(Math.random() * (maxC + 1));
+
+        let canPlace = true;
+        for (let i = 0; i < word.length; i++) {
+          const checkR = dir === 'H' ? startR : startR + i;
+          const checkC = dir === 'H' ? startC + i : startC;
+          const currentCell = grid[checkR][checkC];
+          if (currentCell !== null && currentCell !== word[i]) {
+            canPlace = false;
+            break;
+          }
+        }
+
+        if (canPlace) {
+          for (let i = 0; i < word.length; i++) {
+            const placeR = dir === 'H' ? startR : startR + i;
+            const placeC = dir === 'H' ? startC + i : startC;
+            grid[placeR][placeC] = word[i];
+          }
+          placedWords.push({ word, row: startR, col: startC, direction: dir });
+          placed = true;
+          break;
         }
       }
-      placedWords.push({ word, row: r, col: c, direction: 'H' });
-    } else {
-      const maxRow = Math.max(0, rows - word.length);
-      const r = Math.floor(Math.random() * (maxRow + 1));
-      const c = Math.min(cols - 1, idx * 5 + 2);
-      for (let i = 0; i < word.length; i++) {
-        if (r + i < rows && c < cols) {
-          grid[r + i][c] = word[i];
-        }
-      }
-      placedWords.push({ word, row: r, col: c, direction: 'V' });
     }
   });
 
-  return { grid, placedWords };
+  const finalGrid: string[][] = grid.map(row =>
+    row.map(cell => cell !== null ? cell : alphabet[Math.floor(Math.random() * alphabet.length)])
+  );
+
+  return { grid: finalGrid, placedWords };
 }

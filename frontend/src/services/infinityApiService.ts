@@ -932,9 +932,151 @@ class InfinityApiService {
   }
 
   getAstronomyTriads(count = 6): IAstronomyTriad[] {
-    const shuffled = [...ASTRONOMY_TRIADS].sort(() => Math.random() - 0.5);
+    const shuffled = shuffleArray(ASTRONOMY_TRIADS);
     return shuffled.slice(0, count);
   }
+
+  async fetchDynamicWordSearchWords(
+    level: number,
+    count: number = 6
+  ): Promise<Array<{ word: string; clue?: string }>> {
+    // 1. For level 21 or random infinity levels, try external Datamuse API for fresh live academic topics
+    if (level === 21 || Math.random() < 0.4) {
+      const liveTopics = [
+        'neuroscience', 'astronomy', 'quantum', 'genetics', 'evolution', 
+        'cybernetics', 'oceanography', 'robotics', 'psychology', 'philosophy',
+        'cognition', 'intelligence', 'linguistics', 'ecosystem', 'universe'
+      ];
+      const pickedTopic = liveTopics[Math.floor(Math.random() * liveTopics.length)];
+
+      try {
+        const res = await fetch(`https://api.datamuse.com/words?topics=${encodeURIComponent(pickedTopic)}&max=60`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 10) {
+            const filtered = data
+              .map((item: any) => item.word.toUpperCase())
+              .filter((w: string) => w.length >= 4 && w.length <= 9 && /^[A-Z]+$/.test(w));
+            if (filtered.length >= count) {
+              const shuffled = shuffleArray(filtered);
+              return shuffled.slice(0, count).map(w => {
+                const dict = CURATED_DICTIONARY.find(d => d.word.toUpperCase() === w);
+                return {
+                  word: w,
+                  clue: dict ? dict.viMeaning.slice(0, 32) + '...' : `Chủ đề: ${pickedTopic.toUpperCase()}`
+                };
+              });
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // 2. Offline Massive Multi-Domain Pools with true Fisher-Yates shuffle
+    return this.getOfflineWordSearchWords(level, count);
+  }
+
+  getOfflineWordSearchWords(level: number, count: number = 6): Array<{ word: string; clue?: string }> {
+    if (level === 14) {
+      const shuffled = shuffleArray(BILINGUAL_WORD_PAIRS);
+      return shuffled.slice(0, count).map(b => ({
+        word: b.en.toUpperCase().replace(/\s+/g, ''),
+        clue: `Nghĩa: ${b.vi}`
+      }));
+    }
+    if (level === 15) {
+      const shuffled = shuffleArray(SYNONYM_PAIRS);
+      return shuffled.slice(0, count).map(s => ({
+        word: s.wordA.toUpperCase().replace(/\s+/g, ''),
+        clue: `≈ ${s.wordB}`
+      }));
+    }
+    if (level === 16) {
+      const shuffled = shuffleArray(ANTONYM_PAIRS);
+      return shuffled.slice(0, count).map(a => ({
+        word: a.wordA.toUpperCase().replace(/\s+/g, ''),
+        clue: `≠ ${a.wordB}`
+      }));
+    }
+    if (level === 17) {
+      const shuffled = shuffleArray(EMOJI_WORD_PAIRS);
+      return shuffled.slice(0, count).map(e => ({
+        word: e.word.toUpperCase().replace(/\s+/g, ''),
+        clue: `${e.emoji} ${e.vi}`
+      }));
+    }
+    if (level === 18) {
+      const terms = [
+        'GALAXY', 'NEBULA', 'PULSAR', 'SUPERNOVA', 'QUASAR', 'EXOPLANET', 
+        'ASTEROID', 'TELESCOPE', 'COSMOS', 'BLACKHOLE', 'STARLIGHT', 'GRAVITY',
+        'SPACETIME', 'ORBITAL', 'METEOR', 'ECLIPSE', 'SPECTRUM', 'STARDUST'
+      ];
+      return shuffleArray(terms).slice(0, count).map(w => ({
+        word: w,
+        clue: 'Vũ Trụ NASA'
+      }));
+    }
+    if (level === 19) {
+      const shuffled = shuffleArray(GEOGRAPHY_TRIADS);
+      return shuffled.slice(0, count).map(g => ({
+        word: g.capital.toUpperCase().replace(/[^A-Z]/g, ''),
+        clue: `Thủ đô: ${g.flag} ${g.country}`
+      }));
+    }
+    if (level === 20) {
+      const chemNames = [
+        'HYDROGEN', 'HELIUM', 'LITHIUM', 'CARBON', 'NITROGEN', 'OXYGEN',
+        'SILICON', 'TITANIUM', 'PLATINUM', 'URANIUM', 'COPPER', 'SILVER', 'GOLD'
+      ];
+      return shuffleArray(chemNames).slice(0, count).map(w => {
+        const item = PERIODIC_TABLE_TRIADS.find(p => p.name.toUpperCase().includes(w));
+        return {
+          word: w,
+          clue: item ? `Ký hiệu: ${item.symbol} (Z = ${item.atomicNumber})` : 'Nguyên tố Hóa học'
+        };
+      });
+    }
+    if (level === 22) {
+      // ∞-X: Omni Multi-Domain Knowledge Synthesis (Picks across diverse domains!)
+      const geo = shuffleArray(GEOGRAPHY_TRIADS)[0];
+      const chemList = ['HYDROGEN', 'HELIUM', 'LITHIUM', 'CARBON', 'NITROGEN', 'OXYGEN', 'SILICON', 'TITANIUM'];
+      const chemWord = shuffleArray(chemList)[0];
+      const chemItem = PERIODIC_TABLE_TRIADS.find(p => p.name.toUpperCase().includes(chemWord));
+      const syn = shuffleArray(SYNONYM_PAIRS)[0];
+      const bi = shuffleArray(BILINGUAL_WORD_PAIRS)[0];
+      const dict = shuffleArray(CURATED_DICTIONARY.filter(d => d.word.length >= 5 && d.word.length <= 8))[0];
+      const emo = shuffleArray(EMOJI_WORD_PAIRS)[0];
+
+      const candidates: Array<{ word: string; clue?: string }> = [
+        { word: geo.capital.toUpperCase().replace(/[^A-Z]/g, ''), clue: `Thủ đô: ${geo.flag} ${geo.country}` },
+        { word: chemWord, clue: chemItem ? `Ký hiệu: ${chemItem.symbol} (Z=${chemItem.atomicNumber})` : 'Hóa học' },
+        { word: syn.wordA.toUpperCase().replace(/\s+/g, ''), clue: `Đồng nghĩa: ≈ ${syn.wordB}` },
+        { word: bi.en.toUpperCase().replace(/\s+/g, ''), clue: `Dịch thuật: ${bi.vi}` },
+        { word: dict.word.toUpperCase().replace(/\s+/g, ''), clue: dict.viMeaning.slice(0, 30) + '...' },
+        { word: emo.word.toUpperCase().replace(/\s+/g, ''), clue: `${emo.emoji} ${emo.vi}` }
+      ];
+      return shuffleArray(candidates).slice(0, count);
+    }
+
+    // Default / Level 13 / Level 21: Full Curated Dictionary + Bilinguals
+    const pool = [
+      ...CURATED_DICTIONARY.map(d => ({ word: d.word.toUpperCase(), clue: d.viMeaning.slice(0, 32) + '...' })),
+      ...BILINGUAL_WORD_PAIRS.map(b => ({ word: b.en.toUpperCase(), clue: `Nghĩa: ${b.vi}` }))
+    ].filter(item => item.word.length >= 4 && item.word.length <= 9 && /^[A-Z]+$/.test(item.word));
+
+    return shuffleArray(pool).slice(0, count);
+  }
+}
+
+export function shuffleArray<T>(array: T[]): T[] {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = result[i];
+    result[i] = result[j];
+    result[j] = temp;
+  }
+  return result;
 }
 
 function getFlagEmoji(countryCode: string): string {

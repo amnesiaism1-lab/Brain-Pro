@@ -6,6 +6,10 @@ export declare class ExercisesController {
         success: boolean;
         data: import("@brain-exercises/shared").IExercise[];
     };
+    getWordSearchVocabulary(): {
+        success: boolean;
+        data: string[];
+    };
     getExerciseBySlug(slug: string): {
         success: boolean;
         message: string;

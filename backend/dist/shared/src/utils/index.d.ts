@@ -25,7 +25,7 @@ export declare function generateTwinWords(word: string, shouldMatch: boolean): {
     word2: string;
     isMatch: boolean;
 };
-export declare function generateWordSearchGrid(rows?: number, cols?: number, words?: string[]): {
+export declare function generateWordSearchGrid(rows?: number, cols?: number, words?: string[], customAlphabet?: string): {
     grid: string[][];
     placedWords: Array<{
         word: string;

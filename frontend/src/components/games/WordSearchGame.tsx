@@ -6,6 +6,8 @@ import { Check, Sparkles, RotateCcw, Infinity as InfinityIcon } from 'lucide-rea
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { readingContentService, THEMED_VOCABULARY } from '../../services/readingContentService';
 import { 
+  infinityApiService,
+  shuffleArray,
   CURATED_DICTIONARY, 
   SYNONYM_PAIRS,
   ANTONYM_PAIRS,
@@ -31,81 +33,49 @@ export const WordSearchGame: React.FC = () => {
   const cols = currentLevel >= 22 ? 18 : currentLevel >= 19 ? 17 : currentLevel <= 2 ? 10 : currentLevel <= 5 ? 14 : currentLevel <= 8 ? 16 : 16;
   const wordCount = currentLevel >= 22 ? 6 : currentLevel >= 19 ? 5 : currentLevel <= 2 ? 2 : currentLevel <= 5 ? 3 : currentLevel <= 8 ? 4 : 5;
 
-  const pickWords = useCallback((themeName: string) => {
+  const pickWords = useCallback((themeName: string): { words: string[]; clues: Record<string, string> } => {
     if (isInfinity) {
-      if (currentLevel === 14) {
-        // ∞-II: Bilingual (find English word from Vietnamese meaning clue)
-        const shuffled = [...BILINGUAL_WORD_PAIRS].sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, wordCount).map(b => b.en.toUpperCase().replace(/\s+/g, ''));
-      }
-      if (currentLevel === 15) {
-        // ∞-III: Synonyms
-        const synList = SYNONYM_PAIRS.map(p => p.wordA.toUpperCase().replace(/\s+/g, ''));
-        const shuffled = [...synList].sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, wordCount);
-      }
-      if (currentLevel === 16) {
-        // ∞-IV: Antonyms
-        const antList = ANTONYM_PAIRS.map(p => p.wordA.toUpperCase().replace(/\s+/g, ''));
-        const shuffled = [...antList].sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, wordCount);
-      }
-      if (currentLevel === 17) {
-        // ∞-V: Emoji pairs
-        const emoList = EMOJI_WORD_PAIRS.map(e => e.word.toUpperCase().replace(/\s+/g, ''));
-        const shuffled = [...emoList].sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, wordCount);
-      }
-      if (currentLevel === 18) {
-        // ∞-VI: NASA Cosmic Terms
-        const cosmicTerms = ['GALAXY', 'NEBULA', 'PULSAR', 'SUPERNOVA', 'QUASAR', 'EXOPLANET', 'ASTEROID', 'TELESCOPE', 'COSMOS'];
-        const shuffled = [...cosmicTerms].sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, wordCount);
-      }
-      if (currentLevel === 19) {
-        // ∞-VII: World Capitals Geography Grid
-        const capitals = GEOGRAPHY_TRIADS.map(g => g.capital.toUpperCase().replace(/[^A-Z]/g, ''));
-        const shuffled = [...capitals].sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, wordCount);
-      }
-      if (currentLevel === 20) {
-        // ∞-VIII: Chemistry Elements Grid
-        const chemNames = ['HYDROGEN', 'HELIUM', 'LITHIUM', 'CARBON', 'NITROGEN', 'OXYGEN', 'SILICON', 'TITANIUM', 'PLATINUM', 'URANIUM'];
-        const shuffled = [...chemNames].sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, wordCount);
-      }
-      if (currentLevel >= 21) {
-        // Long academic words
-        const longDict = CURATED_DICTIONARY.filter(d => d.word.length >= 6).map(d => d.word.toUpperCase());
-        const shuffled = [...longDict].sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, wordCount);
-      }
-      // English words from Curated Dictionary
-      const dictWords = CURATED_DICTIONARY.map(d => d.word.toUpperCase());
-      const shuffled = [...dictWords].sort(() => 0.5 - Math.random());
-      return shuffled.slice(0, wordCount);
+      const items = infinityApiService.getOfflineWordSearchWords(currentLevel, wordCount);
+      const words = items.map(it => it.word);
+      const clues: Record<string, string> = {};
+      items.forEach(it => {
+        if (it.clue) clues[it.word] = it.clue;
+      });
+      return { words, clues };
     }
 
     let pool: string[] = [];
     if (themeName !== 'Tổng Hợp' && THEMED_VOCABULARY[themeName]) {
-      pool = THEMED_VOCABULARY[themeName];
+      pool = [...THEMED_VOCABULARY[themeName], ...VIETNAMESE_WORDS_DICTIONARY];
     } else {
-      pool = readingContentService.getVocabularyList();
-      if (pool.length === 0) {
-        pool = VIETNAMESE_WORDS_DICTIONARY;
-      }
+      pool = [
+        ...readingContentService.getVocabularyList(),
+        ...VIETNAMESE_WORDS_DICTIONARY,
+        ...THEMED_VOCABULARY['Khoa Học Não Bộ'],
+        ...THEMED_VOCABULARY['Công Nghệ & AI'],
+        ...THEMED_VOCABULARY['Thiên Văn & Vũ Trụ'],
+        ...THEMED_VOCABULARY['Tâm Lý & Tư Duy']
+      ];
     }
 
-    const sanitized = pool
+    const sanitized = Array.from(new Set(pool
       .map(w => w.replace(/\s+/g, '').toUpperCase())
-      .filter(w => w.length >= 3 && w.length <= (currentLevel >= 9 ? 8 : 6));
-    
-    const shuffled = [...sanitized].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, wordCount);
+      .filter(w => w.length >= 3 && w.length <= (currentLevel >= 9 ? 8 : currentLevel <= 3 ? 5 : 6))
+    ));
+
+    const shuffled = shuffleArray(sanitized);
+    const chosen = shuffled.slice(0, wordCount);
+    const clues: Record<string, string> = {};
+    chosen.forEach(w => {
+      clues[w] = `Chủ đề: ${themeName}`;
+    });
+    return { words: chosen, clues };
   }, [wordCount, currentLevel, isInfinity]);
 
-  const [targetWords, setTargetWords] = useState<string[]>(() => pickWords(selectedTheme));
-  const [searchData, setSearchData] = useState(() => generateWordSearchGrid(rows, cols, targetWords));
+  const [initialData] = useState(() => pickWords(selectedTheme));
+  const [targetWords, setTargetWords] = useState<string[]>(() => initialData.words);
+  const [wordClues, setWordClues] = useState<Record<string, string>>(() => initialData.clues);
+  const [searchData, setSearchData] = useState(() => generateWordSearchGrid(rows, cols, initialData.words));
   const [foundWords, setFoundWords] = useState<string[]>([]);
   const [selectedCells, setSelectedCells] = useState<Array<{ r: number; c: number }>>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -114,8 +84,9 @@ export const WordSearchGame: React.FC = () => {
   const [hintsRemaining, setHintsRemaining] = useState(3);
 
   const startNewBoard = useCallback((themeName: string) => {
-    const newWords = pickWords(themeName);
+    const { words: newWords, clues: newClues } = pickWords(themeName);
     setTargetWords(newWords);
+    setWordClues(newClues);
     setSearchData(generateWordSearchGrid(rows, cols, newWords));
     setFoundWords([]);
     setSelectedCells([]);
@@ -123,7 +94,28 @@ export const WordSearchGame: React.FC = () => {
     setIsFinished(false);
     setHintCell(null);
     setHintsRemaining(3);
-  }, [rows, cols, pickWords]);
+
+    // Asynchronously query live Datamuse API in Infinity Mode
+    if (isInfinity) {
+      infinityApiService.fetchDynamicWordSearchWords(currentLevel, wordCount).then(dynamicItems => {
+        if (dynamicItems && dynamicItems.length >= wordCount) {
+          setFoundWords(found => {
+            if (found.length > 0) return found; // keep current board if user already matched words
+            const dynWords = dynamicItems.map(it => it.word);
+            const dynClues: Record<string, string> = {};
+            dynamicItems.forEach(it => {
+              if (it.clue) dynClues[it.word] = it.clue;
+            });
+            setTargetWords(dynWords);
+            setWordClues(dynClues);
+            setSelectedCells([]);
+            setSearchData(generateWordSearchGrid(rows, cols, dynWords));
+            return [];
+          });
+        }
+      }).catch(() => {});
+    }
+  }, [rows, cols, pickWords, isInfinity, currentLevel, wordCount]);
 
   useEffect(() => {
     startNewBoard(selectedTheme);
@@ -245,27 +237,29 @@ export const WordSearchGame: React.FC = () => {
           const placed = searchData.placedWords.find(p => p.word === word);
           const dirBadge = placed ? (placed.direction === 'H' ? '➡️ Ngang' : '⬇️ Dọc') : null;
 
-          let clueText: string | null = null;
-          if (currentLevel === 14) {
-            const bp = BILINGUAL_WORD_PAIRS.find(b => b.en.toUpperCase().replace(/\s+/g, '') === word);
-            if (bp) clueText = `Nghĩa: ${bp.vi}`;
-          } else if (currentLevel === 15) {
-            const syn = SYNONYM_PAIRS.find(s => s.wordA.toUpperCase().replace(/\s+/g, '') === word);
-            if (syn) clueText = `≈ ${syn.wordB}`;
-          } else if (currentLevel === 16) {
-            const ant = ANTONYM_PAIRS.find(a => a.wordA.toUpperCase().replace(/\s+/g, '') === word);
-            if (ant) clueText = `≠ ${ant.wordB}`;
-          } else if (currentLevel === 17) {
-            const emo = EMOJI_WORD_PAIRS.find(e => e.word.toUpperCase().replace(/\s+/g, '') === word);
-            if (emo) clueText = `${emo.emoji} ${emo.vi}`;
-          } else if (currentLevel === 19) {
-            const geo = GEOGRAPHY_TRIADS.find(g => g.capital.toUpperCase().replace(/[^A-Z]/g, '') === word);
-            if (geo) clueText = `Thủ đô của: ${geo.flag} ${geo.country}`;
-          } else if (currentLevel === 20) {
-            const elem = PERIODIC_TABLE_TRIADS.find(el => el.name.toUpperCase().includes(word));
-            if (elem) clueText = `Ký hiệu: ${elem.symbol} (Z = ${elem.atomicNumber})`;
-          } else if (dictEntry) {
-            clueText = dictEntry.viMeaning.slice(0, 32) + '...';
+          let clueText: string | null = wordClues[word] || null;
+          if (!clueText) {
+            if (currentLevel === 14) {
+              const bp = BILINGUAL_WORD_PAIRS.find(b => b.en.toUpperCase().replace(/\s+/g, '') === word);
+              if (bp) clueText = `Nghĩa: ${bp.vi}`;
+            } else if (currentLevel === 15) {
+              const syn = SYNONYM_PAIRS.find(s => s.wordA.toUpperCase().replace(/\s+/g, '') === word);
+              if (syn) clueText = `≈ ${syn.wordB}`;
+            } else if (currentLevel === 16) {
+              const ant = ANTONYM_PAIRS.find(a => a.wordA.toUpperCase().replace(/\s+/g, '') === word);
+              if (ant) clueText = `≠ ${ant.wordB}`;
+            } else if (currentLevel === 17) {
+              const emo = EMOJI_WORD_PAIRS.find(e => e.word.toUpperCase().replace(/\s+/g, '') === word);
+              if (emo) clueText = `${emo.emoji} ${emo.vi}`;
+            } else if (currentLevel === 19) {
+              const geo = GEOGRAPHY_TRIADS.find(g => g.capital.toUpperCase().replace(/[^A-Z]/g, '') === word);
+              if (geo) clueText = `Thủ đô của: ${geo.flag} ${geo.country}`;
+            } else if (currentLevel === 20) {
+              const elem = PERIODIC_TABLE_TRIADS.find(el => el.name.toUpperCase().includes(word));
+              if (elem) clueText = `Ký hiệu: ${elem.symbol} (Z = ${elem.atomicNumber})`;
+            } else if (dictEntry) {
+              clueText = dictEntry.viMeaning.slice(0, 32) + '...';
+            }
           }
 
           return (
