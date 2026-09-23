@@ -36,7 +36,7 @@ export const SpeedPacerGame: React.FC = () => {
     if (activeWordRef.current && isPlaying) {
       activeWordRef.current.scrollIntoView({
         behavior: 'smooth',
-        block: 'center'
+        block: 'nearest'
       });
     }
   }, [highlightWordIndex, isPlaying]);
@@ -74,7 +74,7 @@ export const SpeedPacerGame: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, pacerWpm, words.length, currentArticle.title]);
+  }, [isPlaying, words.length, pacerWpm, currentArticle.title, currentLevel, emitTrialEvent]);
 
   const handleSelectNewArticle = (article: IReadingText) => {
     setCurrentArticle(article);
@@ -97,41 +97,37 @@ export const SpeedPacerGame: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-2xl sm:max-w-3xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 py-4 space-y-5 sm:space-y-6 animate-fade-in pb-24">
+    <div className="w-full max-w-2xl sm:max-w-3xl md:max-w-4xl lg:max-w-5xl mx-auto px-3 sm:px-6 py-4 space-y-5 sm:space-y-6 animate-fade-in pb-24">
       {/* Top HUD */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="p-2 sm:p-2.5 rounded-2xl bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-400">
-            <Gauge className="w-5 h-5 sm:w-6 sm:h-6" />
-          </div>
-          <div>
-            <span className="text-xs text-slate-500 font-semibold block">Tốc độ nhịp</span>
-            <span className="text-base sm:text-2xl font-black text-slate-800 dark:text-white">{pacerWpm} WPM</span>
+        <div>
+          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Từ hiện tại</span>
+          <div className="text-base sm:text-2xl font-black text-brand-600 dark:text-brand-400">
+            {highlightWordIndex + 1} / {words.length}
           </div>
         </div>
 
-        <div className="text-center">
-          <button
-            onClick={() => {
-              playSound('click');
-              setIsSourceModalOpen(true);
-            }}
-            className="py-2 px-3.5 sm:px-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-200 font-extrabold text-xs sm:text-sm flex items-center gap-2 transition-all btn-press shadow-sm"
-          >
-            <BookOpen className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-            <span>Đổi bài đọc / Tải Wikipedia</span>
-          </button>
-        </div>
+        <button
+          onClick={() => {
+            playSound('click');
+            setIsSourceModalOpen(true);
+          }}
+          className="py-2 px-3 sm:px-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-200 font-extrabold text-xs sm:text-sm flex items-center gap-1.5 transition-all btn-press shadow-sm"
+        >
+          <BookOpen className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+          <span className="hidden sm:inline">Đổi bài đọc / Tải Wikipedia</span>
+          <span className="sm:hidden">Đổi bài</span>
+        </button>
 
         <div className="text-right">
-          <span className="text-xs sm:text-sm text-slate-500 font-medium">Tiến trình</span>
-          <div className="text-base sm:text-2xl font-black text-brand-600 dark:text-brand-400">
-            {Math.round(((highlightWordIndex + 1) / words.length) * 100)}%
+          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Tốc độ đọc</span>
+          <div className="text-base sm:text-2xl font-black text-slate-800 dark:text-white">
+            {pacerWpm} WPM
           </div>
         </div>
       </div>
 
-      {/* Reading Passage Text Area with Nét Thanh -> Nét Đậm Highlighting */}
+      {/* Paragraph Text Area with Stable Non-Jitter Typography */}
       <div className="rounded-3xl bg-[#FDFBF7] dark:bg-slate-900 border-2 border-[#D5CBB9] dark:border-slate-800 shadow-xl overflow-hidden flex flex-col">
         {/* Article Meta Bar */}
         <div className="px-6 py-3.5 bg-[#F5EFE6] dark:bg-slate-800/80 border-b border-[#E6DDCE] dark:border-slate-800 flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
@@ -148,30 +144,31 @@ export const SpeedPacerGame: React.FC = () => {
           </span>
         </div>
 
-        {/* Text Area Body */}
+        {/* Text Area Body with Natural Word Flow (Zero Overlap & Zero Collapse) */}
         <div 
           ref={textAreaContainerRef}
-          className="p-6 sm:p-10 md:p-12 leading-loose sm:leading-[2.6] text-lg sm:text-xl md:text-2xl text-slate-800 dark:text-slate-200 select-none max-h-[380px] sm:max-h-[440px] overflow-y-auto scroll-smooth"
+          className="p-6 sm:p-10 md:p-12 leading-[2.6] sm:leading-[3.0] text-lg sm:text-xl md:text-2xl text-slate-800 dark:text-slate-200 select-none max-h-[380px] sm:max-h-[440px] overflow-y-auto scroll-smooth"
         >
           {words.map((word, idx) => {
             const isFocused = idx === highlightWordIndex;
             const isPast = idx < highlightWordIndex;
-            const isFuture = idx > highlightWordIndex;
 
             return (
-              <span
-                key={idx}
-                ref={isFocused ? activeWordRef : undefined}
-                className={`inline-block mr-2 sm:mr-3 transition-all duration-100 px-1.5 py-0.5 rounded-lg ${
-                  isFocused
-                    ? 'font-black text-slate-950 dark:text-slate-950 bg-amber-300 dark:bg-amber-400 shadow-lg ring-4 ring-amber-400/40 scale-110 z-10 inline-block'
-                    : isPast
-                    ? 'font-normal text-slate-700 dark:text-slate-300 opacity-80'
-                    : 'font-light text-slate-400 dark:text-slate-500 opacity-50'
-                }`}
-              >
-                {word}
-              </span>
+              <React.Fragment key={idx}>
+                <span
+                  ref={isFocused ? activeWordRef : undefined}
+                  className={`inline align-baseline transition-colors duration-100 px-1 py-0.5 rounded-md font-medium ${
+                    isFocused
+                      ? 'font-bold text-slate-950 bg-amber-300 dark:bg-amber-400 shadow-sm ring-2 ring-amber-400/80'
+                      : isPast
+                      ? 'text-slate-700 dark:text-slate-200 opacity-85'
+                      : 'text-slate-400 dark:text-slate-500 opacity-40'
+                  }`}
+                >
+                  {word}
+                </span>
+                {' '}
+              </React.Fragment>
             );
           })}
         </div>

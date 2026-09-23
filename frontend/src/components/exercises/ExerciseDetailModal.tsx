@@ -244,42 +244,55 @@ export const ExerciseDetailModal: React.FC = () => {
                 <div className="absolute w-44 h-44 rounded-full border border-slate-800/30 pointer-events-none" />
                 <div className="absolute w-full h-[1px] bg-slate-800/60 pointer-events-none" />
 
-                {/* Center Fixation Reticle */}
-                <div className="relative flex flex-col items-center justify-center z-10">
+                {/* Center Fixation Crosshair & Reticle (Zero horizontal text obstruction) */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
                   <div className="w-4 h-4 rounded-full bg-rose-500 ring-4 ring-rose-500/30 shadow-lg shadow-rose-500 animate-pulse" />
-                  <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest mt-2 bg-slate-950/80 px-2 py-0.5 rounded-full border border-rose-500/30">
-                    Tâm Neo Mắt
+                  <div className="absolute w-8 h-[1px] bg-rose-500/50" />
+                  <div className="absolute h-8 w-[1px] bg-rose-500/50" />
+                </div>
+
+                {/* Relocated Bottom Badge - Eliminates Horizontal Axis Collisions */}
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+                  <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest bg-slate-950/90 px-2.5 py-0.5 rounded-full border border-rose-500/30 shadow-sm flex items-center gap-1.5 whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping inline-block" />
+                    Tâm Neo Cố Định
                   </span>
                 </div>
 
                 {/* Left Peripheral Target Marker */}
                 <div 
-                  className="absolute flex flex-col items-center transition-all duration-300 z-10"
+                  className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-300 z-10"
                   style={{ 
-                    transform: `translateX(-${Math.min(180, 50 + (exerciseLevel * 10.5))}px)` 
+                    left: `calc(50% - ${Math.max(85, Math.min(160, 68 + (exerciseLevel * 9.5)))}px)`,
+                    transform: 'translate(-50%, -50%)'
                   }}
                 >
-                  <div className={`font-mono font-black text-2xl sm:text-3xl text-cyan-400 transition-all ${
-                    isPreviewFlashing ? 'scale-125 opacity-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.9)]' : 'opacity-40 scale-95'
+                  <div className={`font-mono font-black text-2xl sm:text-3xl transition-all ${
+                    isPreviewFlashing 
+                      ? 'text-cyan-300 opacity-100 drop-shadow-[0_0_14px_rgba(34,211,238,1)]' 
+                      : 'text-cyan-500/40 opacity-40'
                   }`}>
                     {stimulusMode === 'words' ? 'NÃO' : 'A'}
                   </div>
-                  <span className="text-[9px] font-mono text-cyan-400/70 mt-1">Biên Trái</span>
+                  <span className="text-[9px] font-mono text-cyan-400/70 mt-1 whitespace-nowrap">Biên Trái</span>
                 </div>
 
                 {/* Right Peripheral Target Marker */}
                 <div 
-                  className="absolute flex flex-col items-center transition-all duration-300 z-10"
+                  className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-300 z-10"
                   style={{ 
-                    transform: `translateX(${Math.min(180, 50 + (exerciseLevel * 10.5))}px)` 
+                    left: `calc(50% + ${Math.max(85, Math.min(160, 68 + (exerciseLevel * 9.5)))}px)`,
+                    transform: 'translate(-50%, -50%)'
                   }}
                 >
-                  <div className={`font-mono font-black text-2xl sm:text-3xl text-cyan-400 transition-all ${
-                    isPreviewFlashing ? 'scale-125 opacity-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.9)]' : 'opacity-40 scale-95'
+                  <div className={`font-mono font-black text-2xl sm:text-3xl transition-all ${
+                    isPreviewFlashing 
+                      ? 'text-cyan-300 opacity-100 drop-shadow-[0_0_14px_rgba(34,211,238,1)]' 
+                      : 'text-cyan-500/40 opacity-40'
                   }`}>
                     {stimulusMode === 'words' ? 'MẮT' : 'K'}
                   </div>
-                  <span className="text-[9px] font-mono text-cyan-400/70 mt-1">Biên Phải</span>
+                  <span className="text-[9px] font-mono text-cyan-400/70 mt-1 whitespace-nowrap">Biên Phải</span>
                 </div>
               </div>
 

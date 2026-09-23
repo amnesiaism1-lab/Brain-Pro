@@ -190,12 +190,12 @@ export const RsvpSpeedReaderGame: React.FC = () => {
           </>
         )}
 
-        {/* Word Display with Red ORP Accent */}
-        <div className="flex flex-col items-center gap-3 select-none">
-          <div className="text-4xl sm:text-6xl md:text-7xl font-black font-mono tracking-tight text-slate-900 dark:text-white flex items-baseline">
-            <span className="text-right inline-block">{partLeft}</span>
-            <span className="text-red-500 font-black px-0.5 underline decoration-red-500 decoration-4 sm:decoration-8 underline-offset-8">{orpChar}</span>
-            <span className="text-left inline-block">{partRight}</span>
+        {/* Word Display with Centered Red ORP Accent (Zero horizontal jump/overlap) */}
+        <div className="flex flex-col items-center gap-3 select-none w-full">
+          <div className="w-full max-w-xl mx-auto flex items-baseline justify-center font-mono font-black text-4xl sm:text-6xl md:text-7xl text-slate-900 dark:text-white">
+            <span className="flex-1 text-right whitespace-nowrap overflow-hidden select-none">{partLeft}</span>
+            <span className="text-red-500 px-0.5 sm:px-1 underline decoration-red-500 decoration-4 sm:decoration-8 underline-offset-8 shrink-0 select-none">{orpChar}</span>
+            <span className="flex-1 text-left whitespace-nowrap overflow-hidden select-none">{partRight}</span>
           </div>
 
           {/* Dual-Word RSVP variant */}
@@ -234,24 +234,26 @@ export const RsvpSpeedReaderGame: React.FC = () => {
         </div>
 
         {showFullContext && (
-          <div className="p-5 sm:p-7 leading-relaxed text-sm sm:text-base text-slate-800 dark:text-slate-200 max-h-[180px] overflow-y-auto scroll-smooth select-none">
+          <div className="p-5 sm:p-7 leading-[2.2] sm:leading-[2.4] text-sm sm:text-base text-slate-800 dark:text-slate-200 max-h-[180px] overflow-y-auto scroll-smooth select-none">
             {words.map((w, idx) => {
               const isFocused = idx === wordIndex || (isDualWord && idx === wordIndex + 1);
               const isPast = idx < wordIndex;
               return (
-                <span
-                  key={idx}
-                  ref={isFocused ? activeWordRef : undefined}
-                  className={`inline-block mr-1.5 sm:mr-2 my-0.5 px-1 rounded transition-all duration-75 ${
-                    isFocused
-                      ? 'font-black text-slate-950 dark:text-white bg-amber-300 dark:bg-amber-400 scale-105 shadow-sm ring-2 ring-amber-400/50'
-                      : isPast
-                      ? 'font-normal text-slate-700 dark:text-slate-300 opacity-80'
-                      : 'font-light text-slate-400 dark:text-slate-500 opacity-50'
-                  }`}
-                >
-                  {w}
-                </span>
+                <React.Fragment key={idx}>
+                  <span
+                    ref={isFocused ? activeWordRef : undefined}
+                    className={`inline align-baseline px-1 py-0.5 rounded transition-colors duration-75 font-medium ${
+                      isFocused
+                        ? 'font-bold text-slate-950 bg-amber-300 dark:bg-amber-400 shadow-sm ring-2 ring-amber-400/60'
+                        : isPast
+                        ? 'text-slate-700 dark:text-slate-300 opacity-80'
+                        : 'text-slate-400 dark:text-slate-500 opacity-40'
+                    }`}
+                  >
+                    {w}
+                  </span>
+                  {' '}
+                </React.Fragment>
               );
             })}
           </div>

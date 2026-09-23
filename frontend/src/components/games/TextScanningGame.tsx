@@ -227,22 +227,24 @@ export const TextScanningGame: React.FC = () => {
           </span>
         </div>
 
-        {/* Text Area Matrix */}
-        <div className="p-6 sm:p-10 md:p-12 leading-loose sm:leading-[2.6] text-base sm:text-lg md:text-xl text-slate-800 dark:text-slate-200 select-none max-h-[420px] overflow-y-auto">
+        {/* Text Area Matrix with Natural Inline Flow (Zero Overlap & Zero Collapse) */}
+        <div className="p-6 sm:p-10 md:p-12 leading-[2.6] sm:leading-[3.0] text-base sm:text-lg md:text-xl text-slate-800 dark:text-slate-200 select-none max-h-[420px] overflow-y-auto">
           {words.map((word, idx) => {
             const isFound = foundIndices.includes(idx);
             return (
-              <span
-                key={idx}
-                onClick={() => handleWordClick(word, idx)}
-                className={`inline-block mr-1.5 sm:mr-2 px-1.5 py-0.5 rounded-lg cursor-pointer transition-all duration-150 hover:bg-amber-100 dark:hover:bg-slate-700 hover:scale-105 ${
-                  isFound
-                    ? 'bg-emerald-500 text-white font-black scale-110 shadow-lg ring-4 ring-emerald-300 z-10'
-                    : 'text-slate-800 dark:text-slate-200'
-                }`}
-              >
-                {word}
-              </span>
+              <React.Fragment key={idx}>
+                <span
+                  onClick={() => handleWordClick(word, idx)}
+                  className={`inline align-baseline px-1.5 py-0.5 rounded-md cursor-pointer transition-colors duration-150 font-medium ${
+                    isFound
+                      ? 'bg-emerald-500 text-white font-bold shadow-sm ring-2 ring-emerald-300'
+                      : 'text-slate-800 dark:text-slate-200 hover:bg-amber-200/80 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {word}
+                </span>
+                {' '}
+              </React.Fragment>
             );
           })}
         </div>

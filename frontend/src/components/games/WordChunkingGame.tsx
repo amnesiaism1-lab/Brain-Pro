@@ -45,7 +45,7 @@ export const WordChunkingGame: React.FC = () => {
     if (activeChunkRef.current && isPlaying) {
       activeChunkRef.current.scrollIntoView({
         behavior: 'smooth',
-        block: 'center'
+        block: 'nearest'
       });
     }
   }, [activeChunkIndex, isPlaying]);
@@ -161,29 +161,31 @@ export const WordChunkingGame: React.FC = () => {
           </span>
         </div>
 
-        {/* Text Area Body */}
+        {/* Text Area Body with Natural Chunk Flow (Zero Overlap & Zero Collapse) */}
         <div 
           ref={textAreaRef}
-          className="p-6 sm:p-10 md:p-12 leading-loose sm:leading-[2.8] text-lg sm:text-xl md:text-2xl text-slate-800 dark:text-slate-200 select-none max-h-[380px] sm:max-h-[440px] overflow-y-auto scroll-smooth"
+          className="p-6 sm:p-10 md:p-12 leading-[2.6] sm:leading-[3.0] text-lg sm:text-xl md:text-2xl text-slate-800 dark:text-slate-200 select-none max-h-[380px] sm:max-h-[440px] overflow-y-auto scroll-smooth"
         >
           {chunks.map((chunk, idx) => {
             const isFocused = idx === activeChunkIndex;
             const isPast = idx < activeChunkIndex;
 
             return (
-              <span
-                key={idx}
-                ref={isFocused ? activeChunkRef : undefined}
-                className={`inline-block mr-2 sm:mr-3.5 my-1 transition-all duration-150 px-2.5 py-1 rounded-xl ${
-                  isFocused
-                    ? 'font-black text-white bg-brand-600 dark:bg-brand-500 shadow-xl ring-4 ring-brand-400/50 scale-[1.04] z-10'
-                    : isPast
-                    ? 'font-normal text-slate-700 dark:text-slate-300 opacity-85'
-                    : 'font-light text-slate-400 dark:text-slate-500 opacity-50'
-                }`}
-              >
-                {chunk}
-              </span>
+              <React.Fragment key={idx}>
+                <span
+                  ref={isFocused ? activeChunkRef : undefined}
+                  className={`inline align-baseline box-decoration-clone px-2 py-0.5 rounded-lg transition-colors duration-150 font-medium ${
+                    isFocused
+                      ? 'font-bold text-white bg-brand-600 dark:bg-brand-500 shadow-sm ring-2 ring-brand-400/70'
+                      : isPast
+                      ? 'text-slate-700 dark:text-slate-200 opacity-85'
+                      : 'text-slate-400 dark:text-slate-500 opacity-40'
+                  }`}
+                >
+                  {chunk}
+                </span>
+                {' '}
+              </React.Fragment>
             );
           })}
         </div>

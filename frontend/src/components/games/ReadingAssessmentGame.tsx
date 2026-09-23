@@ -149,7 +149,7 @@ export const ReadingAssessmentGame: React.FC = () => {
               <span>&bull;</span>
               <span>Tác giả: {currentArticle.author}</span>
             </div>
-            <div className="text-base sm:text-lg md:text-xl leading-relaxed sm:leading-loose text-slate-700 dark:text-slate-300 space-y-4 whitespace-pre-line text-justify font-serif">
+            <div className="text-base sm:text-lg md:text-xl leading-relaxed sm:leading-loose text-slate-700 dark:text-slate-300 space-y-4 whitespace-pre-line text-left font-serif break-words">
               {currentArticle.content}
             </div>
           </div>
