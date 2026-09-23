@@ -29,6 +29,19 @@ if (!_Module.__hookInstalled) {
   _Module.__hookInstalled = true;
   const _originalResolveFilename = _Module._resolveFilename;
   _Module._resolveFilename = function (request, parent, isMain, options) {
+    if (request === '@brain-exercises/shared' || request.startsWith('@brain-exercises/shared/')) {
+      const candidates = [
+        _path.join(__dirname, '..', 'dist', 'shared', 'src', 'index.js'),
+        _path.join(__dirname, '..', 'shared', 'dist', 'index.js'),
+        _path.join(process.cwd(), 'dist', 'shared', 'src', 'index.js'),
+        _path.join(process.cwd(), 'shared', 'dist', 'index.js')
+      ];
+      for (const cand of candidates) {
+        if (_fs.existsSync(cand)) {
+          return cand;
+        }
+      }
+    }
     try {
       return _originalResolveFilename.call(this, request, parent, isMain, options);
     } catch (err) {
@@ -53,7 +66,11 @@ require('@nestjs/platform-express');
 
 let handler;
 try {
-  handler = require('../dist/main');
+  try {
+    handler = require('../dist/backend/src/main');
+  } catch (_err) {
+    handler = require('../dist/main');
+  }
 } catch (err) {
   console.error("Initialization crash:", err);
   handler = (req, res) => {

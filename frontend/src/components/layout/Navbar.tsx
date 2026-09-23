@@ -1,9 +1,17 @@
 import React from 'react';
-import { Home, Brain, Settings, User } from 'lucide-react';
+import { Home, Brain, Settings, User, Cloud, LogIn, LogOut } from 'lucide-react';
 import { useAppStore, MainNavTab } from '../../store/useAppStore';
 
 export const Navbar: React.FC = () => {
-  const { activeTab, setActiveTab, activeGameSlug, playSound } = useAppStore();
+  const { 
+    activeTab, 
+    setActiveTab, 
+    activeGameSlug, 
+    playSound,
+    authUser,
+    setIsAuthModalOpen,
+    logout
+  } = useAppStore();
 
   // Hide bottom nav while game is actively playing to maximize focus & screen area
   if (activeGameSlug) {
@@ -28,8 +36,16 @@ export const Navbar: React.FC = () => {
     },
     {
       id: 'user',
-      label: 'User',
-      icon: <User className="w-6 h-6" />
+      label: authUser ? 'Hồ sơ' : 'User',
+      icon: authUser?.avatarUrl ? (
+        <img 
+          src={authUser.avatarUrl} 
+          alt={authUser.username}
+          className="w-6 h-6 rounded-full object-cover ring-1 ring-brand-500" 
+        />
+      ) : (
+        <User className="w-6 h-6" />
+      )
     }
   ];
 
@@ -40,7 +56,7 @@ export const Navbar: React.FC = () => {
 
   return (
     <>
-      {/* Mobile & Tablet Fixed Bottom Navigation Bar - Exactly matching screenshots */}
+      {/* Mobile & Tablet Fixed Bottom Navigation Bar */}
       <nav 
         id="app-bottom-nav" 
         className="fixed bottom-0 left-0 right-0 z-40 bg-[#ECE5D8] dark:bg-slate-900 border-t border-[#D5CBB9] dark:border-slate-800 shadow-lg md:hidden"
@@ -102,10 +118,63 @@ export const Navbar: React.FC = () => {
           })}
         </nav>
 
-        <div className="p-3.5 rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-[#D5CBB9]/50 dark:border-slate-700/50 text-xs text-slate-500 dark:text-slate-400">
-          <p className="font-bold text-slate-700 dark:text-slate-200">Khoa Học Nhận Thức</p>
-          <p className="mt-1 leading-relaxed text-[11px]">Rèn luyện phản xạ thị giác & mở rộng trường quan sát ngoại vi mỗi ngày.</p>
-        </div>
+        {/* User Account Card at Bottom of Desktop Sidebar */}
+        {authUser ? (
+          <div className="p-3 rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-[#D5CBB9]/50 dark:border-slate-700/50 flex items-center justify-between gap-2.5">
+            <div 
+              onClick={() => handleSelect('user')}
+              className="flex items-center gap-2.5 cursor-pointer flex-1 truncate group"
+            >
+              {authUser.avatarUrl ? (
+                <img 
+                  src={authUser.avatarUrl} 
+                  alt={authUser.username}
+                  className="w-8 h-8 rounded-full object-cover ring-2 ring-brand-500 shrink-0" 
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs font-black shrink-0">
+                  {authUser.username[0]?.toUpperCase() || 'U'}
+                </div>
+              )}
+              <div className="truncate text-left">
+                <p className="text-xs font-bold text-slate-800 dark:text-white truncate group-hover:text-brand-600 transition-colors">
+                  {authUser.username}
+                </p>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Supabase Cloud
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => logout()}
+              title="Đăng xuất"
+              className="p-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-rose-500 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="p-3.5 rounded-2xl bg-gradient-to-br from-brand-50 to-amber-50 dark:from-slate-800 dark:to-slate-850 border border-brand-200 dark:border-slate-700 space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-brand-700 dark:text-brand-300">
+              <Cloud className="w-4 h-4" />
+              <span>Đồng Bộ Đám Mây</span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+              Đăng nhập Google để lưu điểm và đồng bộ đa thiết bị.
+            </p>
+            <button
+              onClick={() => {
+                playSound('click');
+                setIsAuthModalOpen(true);
+              }}
+              className="w-full py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-sm btn-press"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Đăng nhập Google</span>
+            </button>
+          </div>
+        )}
       </aside>
     </>
   );

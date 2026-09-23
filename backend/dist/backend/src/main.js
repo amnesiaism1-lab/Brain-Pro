@@ -1,15 +1,19 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = handler;
 const core_1 = require("@nestjs/core");
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const platform_express_1 = require("@nestjs/platform-express");
-const helmet_1 = require("helmet");
-const cookie_parser_1 = require("cookie-parser");
-const express_1 = require("express");
+const helmet_1 = __importDefault(require("helmet"));
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
+const express_1 = __importDefault(require("express"));
 const app_module_1 = require("./app.module");
-const server = (0, express_1.default)();
+const expressFn = express_1.default;
+const server = (typeof expressFn === 'function' ? expressFn : expressFn?.default)();
 let isInitialized = false;
 async function bootstrapServer() {
     if (!isInitialized) {

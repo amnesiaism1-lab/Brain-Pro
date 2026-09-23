@@ -116,6 +116,32 @@ interface AppState {
   
   // Sound Synthesis helper
   playSound: (type: 'correct' | 'wrong' | 'click' | 'victory') => void;
+
+  // Authentication & Supabase Cloud Sync
+  authUser: IAuthUser | null;
+  authToken: string | null;
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (open: boolean) => void;
+  authModalMode: 'login' | 'register';
+  setAuthModalMode: (mode: 'login' | 'register') => void;
+  loginWithGoogle: (credential: string) => Promise<boolean>;
+  loginGuestFallback: (email?: string, name?: string) => Promise<boolean>;
+  logout: () => void;
+  syncWithCloud: () => Promise<void>;
+  isSyncing: boolean;
+}
+
+export interface IAuthUser {
+  id: string;
+  email: string;
+  username: string;
+  avatarUrl?: string;
+  totalXp: number;
+  currentLevel: number;
+  currentStreak: number;
+  bestStreak: number;
+  authProvider?: string;
+  createdAt?: string;
 }
 
 // Simple Web Audio API Synthesizer (No external assets required!)
@@ -221,7 +247,139 @@ export const useAppStore = create<AppState>((set, get) => {
     return createInitialMasteriesMap();
   })();
 
+  let initialAuthToken: string | null = null;
+  let initialAuthUser: IAuthUser | null = null;
+  try {
+    initialAuthToken = localStorage.getItem('brain_pro_auth_token');
+    const rawUser = localStorage.getItem('brain_pro_auth_user');
+    if (rawUser) initialAuthUser = JSON.parse(rawUser);
+  } catch {}
+
   return {
+    // Auth state & Cloud Sync
+    authUser: initialAuthUser,
+    authToken: initialAuthToken,
+    isAuthModalOpen: false,
+    setIsAuthModalOpen: (open) => set({ isAuthModalOpen: open }),
+    authModalMode: 'login',
+    setAuthModalMode: (mode) => set({ authModalMode: mode }),
+    isSyncing: false,
+
+    loginWithGoogle: async (credential: string) => {
+      set({ isSyncing: true });
+      try {
+        const state = get();
+        const res = await fetch('/api/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            credential,
+            guestTelemetry: {
+              xp: state.xp,
+              level: state.level,
+              streak: state.streak,
+              bestStreak: state.bestStreak
+            }
+          })
+        });
+        const json = await res.json();
+        if (json.success && json.data) {
+          const { user, token } = json.data;
+          try {
+            localStorage.setItem('brain_pro_auth_token', token);
+            localStorage.setItem('brain_pro_auth_user', JSON.stringify(user));
+          } catch {}
+
+          const mergedXp = Math.max(state.xp, user.totalXp);
+          const mergedLevel = Math.max(state.level, user.currentLevel);
+          const mergedStreak = Math.max(state.streak, user.currentStreak);
+
+          set({
+            authUser: user,
+            authToken: token,
+            xp: mergedXp,
+            level: mergedLevel,
+            streak: mergedStreak,
+            bestStreak: Math.max(state.bestStreak, user.bestStreak || mergedStreak),
+            isAuthModalOpen: false,
+            isSyncing: false
+          });
+          state.playSound('victory');
+          return true;
+        }
+        set({ isSyncing: false });
+        return false;
+      } catch (err) {
+        console.error('Google login error:', err);
+        set({ isSyncing: false });
+        return false;
+      }
+    },
+
+    loginGuestFallback: async (email?: string, name?: string) => {
+      const state = get();
+      const mockUser: IAuthUser = {
+        id: 'user-' + Date.now(),
+        email: email || 'master@brainexercises.pro',
+        username: name || email?.split('@')[0] || 'BrainMaster',
+        totalXp: state.xp,
+        currentLevel: state.level,
+        currentStreak: state.streak,
+        bestStreak: state.bestStreak,
+        authProvider: 'demo'
+      };
+      try {
+        localStorage.setItem('brain_pro_auth_user', JSON.stringify(mockUser));
+        localStorage.setItem('brain_pro_auth_token', 'token-demo-' + Date.now());
+      } catch {}
+      set({
+        authUser: mockUser,
+        authToken: 'token-demo-' + Date.now(),
+        isAuthModalOpen: false
+      });
+      state.playSound('victory');
+      return true;
+    },
+
+    logout: () => {
+      try {
+        localStorage.removeItem('brain_pro_auth_token');
+        localStorage.removeItem('brain_pro_auth_user');
+      } catch {}
+      set({
+        authUser: null,
+        authToken: null
+      });
+      get().playSound('click');
+    },
+
+    syncWithCloud: async () => {
+      const { authToken, xp, level, streak, bestStreak } = get();
+      if (!authToken) return;
+      set({ isSyncing: true });
+      try {
+        const res = await fetch('/api/auth/sync', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ xp, level, streak, bestStreak })
+        });
+        const json = await res.json();
+        if (json.success && json.data) {
+          set(state => ({
+            authUser: state.authUser ? { ...state.authUser, ...json.data } : null,
+            isSyncing: false
+          }));
+        } else {
+          set({ isSyncing: false });
+        }
+      } catch {
+        set({ isSyncing: false });
+      }
+    },
+
     activeTab: 'home',
     setActiveTab: (tab) => set({ activeTab: tab }),
     selectedExerciseSlug: null,
@@ -496,11 +654,15 @@ export const useAppStore = create<AppState>((set, get) => {
         }
       }
 
-      // 7. Background Async Attempt Sync to Backend
+      // 7. Background Async Attempt Sync to Backend (Supabase Cloud Sync)
       try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (state.authToken) {
+          headers['Authorization'] = `Bearer ${state.authToken}`;
+        }
         fetch('/api/attempts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             exerciseSlug: attempt.exerciseSlug,
             difficultyLevel: currentLevel,
@@ -508,7 +670,8 @@ export const useAppStore = create<AppState>((set, get) => {
             accuracyRate: attempt.accuracyRate,
             timeSpentSec: attempt.timeSpentSec,
             effectiveWpm: attempt.effectiveWpm,
-            rawMetricsJson: attempt.rawMetricsJson
+            rawMetricsJson: attempt.rawMetricsJson,
+            userId: state.authUser?.id
           })
         }).catch(err => {
           console.warn('Background attempt sync postponed:', err);

@@ -154,14 +154,15 @@ export class DataStoreService implements OnModuleInit {
     return this.readingTexts.find(t => t.id === id);
   }
 
-  saveGameAttempt(attemptDto: IGameAttemptRequest): IGameAttemptResponse {
+  saveGameAttempt(attemptDto: IGameAttemptRequest, userId?: string): IGameAttemptResponse {
     const id = `att-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const targetUserId = userId || this.currentUser.id;
     
     // Save to memory
     this.attempts.push({
       ...attemptDto,
       id,
-      userId: this.currentUser.id,
+      userId: targetUserId,
       createdAt: new Date()
     });
 
@@ -187,7 +188,7 @@ export class DataStoreService implements OnModuleInit {
 
     // Persist to Supabase if connected (async)
     if (this.isSupabaseConnected && this.pgPool) {
-      this.persistAttemptToSupabase(id, attemptDto, xpEarned, relationEvents).catch(err => {
+      this.persistAttemptToSupabase(id, attemptDto, xpEarned, relationEvents, targetUserId).catch(err => {
         console.warn('Async Supabase persistence error:', err);
       });
     }
@@ -209,9 +210,11 @@ export class DataStoreService implements OnModuleInit {
     id: string, 
     attemptDto: IGameAttemptRequest, 
     xpEarned: number,
-    relationEvents?: IRelationEvent[]
+    relationEvents?: IRelationEvent[],
+    targetUserId?: string
   ) {
     if (!this.pgPool) return;
+    const finalUserId = targetUserId || this.currentUser.id;
 
     // 1. Insert into game_attempts
     await this.pgPool.query(`
@@ -219,7 +222,7 @@ export class DataStoreService implements OnModuleInit {
         (user_id, exercise_slug, difficulty_level, score, accuracy_rate, time_spent_sec, effective_wpm, raw_metrics_json)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `, [
-      this.currentUser.id,
+      finalUserId,
       attemptDto.exerciseSlug,
       attemptDto.difficultyLevel,
       attemptDto.score,
@@ -236,7 +239,7 @@ export class DataStoreService implements OnModuleInit {
           current_level = GREATEST(current_level, FLOOR(SQRT((total_xp + $1) / 100)) + 1),
           updated_at = NOW()
       WHERE id = $2
-    `, [xpEarned, this.currentUser.id]);
+    `, [xpEarned, finalUserId]);
 
     // 3. Persist relation evidence and update user_relation_mastery
     if (relationEvents && relationEvents.length > 0) {
@@ -246,7 +249,7 @@ export class DataStoreService implements OnModuleInit {
             (user_id, attempt_id, exercise_slug, level, trial_id, relation_id, relation_weight, entities_json, state_before, state_after, response_ms, correct)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         `, [
-          this.currentUser.id,
+          finalUserId,
           id,
           ev.exerciseSlug,
           ev.level,
@@ -432,6 +435,134 @@ export class DataStoreService implements OnModuleInit {
   }
 
   getCurrentUser() {
+    return this.currentUser;
+  }
+
+  async findOrCreateGoogleUser(payload: {
+    googleId: string;
+    email: string;
+    name: string;
+    avatarUrl?: string;
+    guestXp?: number;
+    guestLevel?: number;
+    guestStreak?: number;
+  }) {
+    if (this.isSupabaseConnected && this.pgPool) {
+      try {
+        const checkRes = await this.pgPool.query(
+          `SELECT * FROM users WHERE google_id = $1 OR email = $2 LIMIT 1`,
+          [payload.googleId, payload.email]
+        );
+
+        if (checkRes.rows.length > 0) {
+          const existing = checkRes.rows[0];
+          const guestXp = payload.guestXp || 0;
+          const mergedXp = (existing.total_xp || 0) + guestXp;
+          const mergedLevel = Math.max(existing.current_level || 1, payload.guestLevel || 1, Math.floor(Math.sqrt(mergedXp / 100)) + 1);
+          const mergedStreak = Math.max(existing.current_streak || 0, payload.guestStreak || 0);
+
+          const updateRes = await this.pgPool.query(
+            `UPDATE users 
+             SET google_id = COALESCE(google_id, $1),
+                 avatar_url = COALESCE($2, avatar_url),
+                 username = COALESCE(username, $3),
+                 auth_provider = 'google',
+                 total_xp = $4,
+                 current_level = $5,
+                 current_streak = $6,
+                 updated_at = NOW()
+             WHERE id = $7
+             RETURNING *`,
+            [
+              payload.googleId,
+              payload.avatarUrl || null,
+              payload.name || existing.username,
+              mergedXp,
+              mergedLevel,
+              mergedStreak,
+              existing.id
+            ]
+          );
+          return updateRes.rows[0];
+        } else {
+          const initialXp = payload.guestXp || 0;
+          const initialLevel = Math.max(1, payload.guestLevel || 1, Math.floor(Math.sqrt(initialXp / 100)) + 1);
+          const initialStreak = payload.guestStreak || 0;
+
+          const insertRes = await this.pgPool.query(
+            `INSERT INTO users 
+               (email, username, avatar_url, google_id, auth_provider, total_xp, current_level, current_streak, best_streak)
+             VALUES ($1, $2, $3, $4, 'google', $5, $6, $7, $7)
+             RETURNING *`,
+            [
+              payload.email,
+              payload.name || payload.email.split('@')[0],
+              payload.avatarUrl || null,
+              payload.googleId,
+              initialXp,
+              initialLevel,
+              initialStreak
+            ]
+          );
+
+          const newUser = insertRes.rows[0];
+          await this.pgPool.query(
+            `INSERT INTO user_profiles (user_id, preferred_language, target_wpm, daily_goal_minutes)
+             VALUES ($1, 'vi', 450, 15)
+             ON CONFLICT (user_id) DO NOTHING`,
+            [newUser.id]
+          ).catch(() => {});
+
+          return newUser;
+        }
+      } catch (err) {
+        console.warn('Supabase findOrCreateGoogleUser error, falling back to memory:', err);
+      }
+    }
+
+    // In-memory fallback
+    this.currentUser = {
+      ...this.currentUser,
+      email: payload.email,
+      username: payload.name || payload.email.split('@')[0],
+      totalXp: (this.currentUser.totalXp || 0) + (payload.guestXp || 0),
+      currentLevel: Math.max(this.currentUser.currentLevel, payload.guestLevel || 1),
+      currentStreak: Math.max(this.currentUser.currentStreak, payload.guestStreak || 0)
+    };
+    return this.currentUser;
+  }
+
+  async getUserById(userId: string) {
+    if (this.isSupabaseConnected && this.pgPool) {
+      try {
+        const res = await this.pgPool.query(`SELECT * FROM users WHERE id = $1 LIMIT 1`, [userId]);
+        if (res.rows.length > 0) return res.rows[0];
+      } catch (err) {
+        console.warn('Supabase getUserById error:', err);
+      }
+    }
+    return this.currentUser;
+  }
+
+  async syncUserProfile(userId: string, data: { xp: number; level: number; streak: number; bestStreak?: number }) {
+    if (this.isSupabaseConnected && this.pgPool) {
+      try {
+        const res = await this.pgPool.query(
+          `UPDATE users
+           SET total_xp = GREATEST(total_xp, $1),
+               current_level = GREATEST(current_level, $2),
+               current_streak = GREATEST(current_streak, $3),
+               best_streak = GREATEST(best_streak, $4),
+               updated_at = NOW()
+           WHERE id = $5
+           RETURNING *`,
+          [data.xp, data.level, data.streak, data.bestStreak || data.streak, userId]
+        );
+        if (res.rows.length > 0) return res.rows[0];
+      } catch (err) {
+        console.warn('Supabase syncUserProfile error:', err);
+      }
+    }
     return this.currentUser;
   }
 

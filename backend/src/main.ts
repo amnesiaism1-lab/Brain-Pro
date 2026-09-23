@@ -7,7 +7,8 @@ import cookieParser from 'cookie-parser';
 import express from 'express';
 import { AppModule } from './app.module';
 
-const server = express();
+const expressFn: any = express;
+const server = (typeof expressFn === 'function' ? expressFn : expressFn?.default)();
 let isInitialized = false;
 
 async function bootstrapServer() {

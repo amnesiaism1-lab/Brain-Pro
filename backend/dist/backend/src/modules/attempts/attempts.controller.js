@@ -15,20 +15,32 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AttemptsController = void 0;
 const common_1 = require("@nestjs/common");
 const data_store_service_1 = require("../../database/data-store.service");
+const auth_service_1 = require("../auth/auth.service");
 const shared_1 = require("@brain-exercises/shared");
 let AttemptsController = class AttemptsController {
     dataStore;
-    constructor(dataStore) {
+    authService;
+    constructor(dataStore, authService) {
         this.dataStore = dataStore;
+        this.authService = authService;
     }
-    recordAttempt(body) {
+    async recordAttempt(body, authHeader) {
         if (body.rawMetricsJson) {
             const val = (0, shared_1.validateRawMetricsJson)(body.rawMetricsJson);
             if (!val.valid) {
                 throw new common_1.BadRequestException(val.error || `Invalid rawMetricsJson or exceeded limit (${shared_1.MAX_RELATION_EVENTS_PER_ATTEMPT})`);
             }
         }
-        const result = this.dataStore.saveGameAttempt(body);
+        let targetUserId = body.userId;
+        if (!targetUserId && authHeader && authHeader.startsWith('Bearer ')) {
+            try {
+                const user = await this.authService.validateToken(authHeader.substring(7));
+                targetUserId = user?.id;
+            }
+            catch {
+            }
+        }
+        const result = this.dataStore.saveGameAttempt(body, targetUserId);
         return {
             success: true,
             data: result
@@ -39,12 +51,14 @@ exports.AttemptsController = AttemptsController;
 __decorate([
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Headers)('authorization')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
 ], AttemptsController.prototype, "recordAttempt", null);
 exports.AttemptsController = AttemptsController = __decorate([
     (0, common_1.Controller)('attempts'),
-    __metadata("design:paramtypes", [data_store_service_1.DataStoreService])
+    __metadata("design:paramtypes", [data_store_service_1.DataStoreService,
+        auth_service_1.AuthService])
 ], AttemptsController);
 //# sourceMappingURL=attempts.controller.js.map

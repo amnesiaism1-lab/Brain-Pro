@@ -14,16 +14,50 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
+const auth_service_1 = require("./auth.service");
 const data_store_service_1 = require("../../database/data-store.service");
 let AuthController = class AuthController {
+    authService;
     dataStore;
-    constructor(dataStore) {
+    constructor(authService, dataStore) {
+        this.authService = authService;
         this.dataStore = dataStore;
     }
-    getCurrentUser() {
+    async loginWithGoogle(body) {
+        const result = await this.authService.loginWithGoogle(body);
+        return {
+            success: true,
+            data: result
+        };
+    }
+    async getCurrentUser(authHeader) {
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.substring(7);
+            try {
+                const user = await this.authService.validateToken(token);
+                return {
+                    success: true,
+                    data: user
+                };
+            }
+            catch {
+            }
+        }
         return {
             success: true,
             data: this.dataStore.getCurrentUser()
+        };
+    }
+    async syncTelemetry(authHeader, body) {
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            throw new common_1.UnauthorizedException('Yêu cầu đăng nhập để đồng bộ dữ liệu đám mây.');
+        }
+        const token = authHeader.substring(7);
+        const user = await this.authService.validateToken(token);
+        const updated = await this.authService.syncTelemetry(user.id, body);
+        return {
+            success: true,
+            data: updated
         };
     }
     login(body) {
@@ -31,7 +65,7 @@ let AuthController = class AuthController {
         return {
             success: true,
             data: {
-                token: 'mock-jwt-token-brainexercises-2026',
+                token: 'token-brainexercises-' + Date.now(),
                 user: {
                     ...user,
                     email: body.email || user.email
@@ -44,7 +78,7 @@ let AuthController = class AuthController {
         return {
             success: true,
             data: {
-                token: 'mock-jwt-token-brainexercises-2026',
+                token: 'token-brainexercises-' + Date.now(),
                 user: {
                     ...user,
                     email: body.email || user.email,
@@ -53,14 +87,36 @@ let AuthController = class AuthController {
             }
         };
     }
+    logout() {
+        return {
+            success: true,
+            message: 'Đăng xuất thành công.'
+        };
+    }
 };
 exports.AuthController = AuthController;
 __decorate([
-    (0, common_1.Get)('me'),
+    (0, common_1.Post)('google'),
+    __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "loginWithGoogle", null);
+__decorate([
+    (0, common_1.Get)('me'),
+    __param(0, (0, common_1.Headers)('authorization')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
 ], AuthController.prototype, "getCurrentUser", null);
+__decorate([
+    (0, common_1.Post)('sync'),
+    __param(0, (0, common_1.Headers)('authorization')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "syncTelemetry", null);
 __decorate([
     (0, common_1.Post)('login'),
     __param(0, (0, common_1.Body)()),
@@ -75,8 +131,15 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "register", null);
+__decorate([
+    (0, common_1.Post)('logout'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "logout", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)('auth'),
-    __metadata("design:paramtypes", [data_store_service_1.DataStoreService])
+    __metadata("design:paramtypes", [auth_service_1.AuthService,
+        data_store_service_1.DataStoreService])
 ], AuthController);
 //# sourceMappingURL=auth.controller.js.map

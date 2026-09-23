@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
+const jwt_1 = require("@nestjs/jwt");
 const data_store_service_1 = require("./database/data-store.service");
 const exercises_controller_1 = require("./modules/exercises/exercises.controller");
 const attempts_controller_1 = require("./modules/attempts/attempts.controller");
@@ -16,12 +17,18 @@ const reading_assessment_controller_1 = require("./modules/reading-assessment/re
 const analytics_controller_1 = require("./modules/analytics/analytics.controller");
 const reminders_controller_1 = require("./modules/reminders/reminders.controller");
 const auth_controller_1 = require("./modules/auth/auth.controller");
+const auth_service_1 = require("./modules/auth/auth.service");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
-        imports: [],
+        imports: [
+            jwt_1.JwtModule.register({
+                secret: process.env.JWT_SECRET || 'brain-exercises-pro-secret-2026',
+                signOptions: { expiresIn: '30d' }
+            })
+        ],
         controllers: [
             exercises_controller_1.ExercisesController,
             attempts_controller_1.AttemptsController,
@@ -31,8 +38,8 @@ exports.AppModule = AppModule = __decorate([
             reminders_controller_1.RemindersController,
             auth_controller_1.AuthController
         ],
-        providers: [data_store_service_1.DataStoreService],
-        exports: [data_store_service_1.DataStoreService]
+        providers: [data_store_service_1.DataStoreService, auth_service_1.AuthService],
+        exports: [data_store_service_1.DataStoreService, auth_service_1.AuthService]
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

@@ -1,8 +1,52 @@
+import { AuthService } from './auth.service';
 import { DataStoreService } from '../../database/data-store.service';
 export declare class AuthController {
+    private readonly authService;
     private readonly dataStore;
-    constructor(dataStore: DataStoreService);
-    getCurrentUser(): {
+    constructor(authService: AuthService, dataStore: DataStoreService);
+    loginWithGoogle(body: {
+        credential?: string;
+        accessToken?: string;
+        guestTelemetry?: {
+            xp?: number;
+            level?: number;
+            streak?: number;
+            bestStreak?: number;
+        };
+    }): Promise<{
+        success: boolean;
+        data: {
+            token: string;
+            user: {
+                id: any;
+                email: any;
+                username: any;
+                avatarUrl: any;
+                totalXp: any;
+                currentLevel: any;
+                currentStreak: any;
+                bestStreak: any;
+                authProvider: string;
+                createdAt: any;
+            };
+            message: string;
+        };
+    }>;
+    getCurrentUser(authHeader?: string): Promise<{
+        success: boolean;
+        data: {
+            id: any;
+            email: any;
+            username: any;
+            avatarUrl: any;
+            totalXp: any;
+            currentLevel: any;
+            currentStreak: any;
+            bestStreak: any;
+            authProvider: any;
+            createdAt: any;
+        };
+    } | {
         success: boolean;
         data: {
             id: string;
@@ -23,7 +67,22 @@ export declare class AuthController {
                 autoDifficultyDefault: boolean;
             };
         };
-    };
+    }>;
+    syncTelemetry(authHeader: string | undefined, body: {
+        xp: number;
+        level: number;
+        streak: number;
+        bestStreak?: number;
+    }): Promise<{
+        success: boolean;
+        data: {
+            id: any;
+            totalXp: any;
+            currentLevel: any;
+            currentStreak: any;
+            bestStreak: any;
+        };
+    }>;
     login(body: {
         email: string;
     }): {
@@ -78,5 +137,9 @@ export declare class AuthController {
                 };
             };
         };
+    };
+    logout(): {
+        success: boolean;
+        message: string;
     };
 }

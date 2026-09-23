@@ -20,7 +20,7 @@ export declare class DataStoreService implements OnModuleInit {
     getRoutineByCode(code: string): IWorkoutRoutine | undefined;
     getReadingTexts(): IReadingText[];
     getReadingTextById(id: string): IReadingText | undefined;
-    saveGameAttempt(attemptDto: IGameAttemptRequest): IGameAttemptResponse;
+    saveGameAttempt(attemptDto: IGameAttemptRequest, userId?: string): IGameAttemptResponse;
     private persistAttemptToSupabase;
     saveAssessment(dto: IUserAssessmentRequest): IUserAssessmentResponse;
     getUserStats(): IUserStats;
@@ -69,6 +69,22 @@ export declare class DataStoreService implements OnModuleInit {
             autoDifficultyDefault: boolean;
         };
     };
+    findOrCreateGoogleUser(payload: {
+        googleId: string;
+        email: string;
+        name: string;
+        avatarUrl?: string;
+        guestXp?: number;
+        guestLevel?: number;
+        guestStreak?: number;
+    }): Promise<any>;
+    getUserById(userId: string): Promise<any>;
+    syncUserProfile(userId: string, data: {
+        xp: number;
+        level: number;
+        streak: number;
+        bestStreak?: number;
+    }): Promise<any>;
     getReminders(): IUserReminder[];
     updateReminders(reminders: IUserReminder[]): IUserReminder[];
 }
