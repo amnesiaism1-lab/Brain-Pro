@@ -8,7 +8,7 @@ import {
   FileSearch
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import { EXERCISES_METADATA, CognitiveCategoryCode } from '@brain-exercises/shared';
+import { EXERCISES_METADATA, CognitiveCategoryCode, INFINITY_ROMAN_NUMERALS, getInfinityLabel } from '@brain-exercises/shared';
 
 // Map slugs to representative custom graphic icons matching app screenshots
 function renderExerciseIcon(slug: string) {
@@ -236,7 +236,10 @@ export const ExercisesListView: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
         {filteredExercises.map((exercise) => {
           const exLevel = getExerciseLevel(exercise.slug as any);
-          const stageName = exLevel >= 9 ? 'Siêu Phàm' : exLevel >= 5 ? 'Bứt Phá' : 'Khởi Động';
+          const isInfinity = exLevel >= 13;
+          const stageName = isInfinity 
+            ? `Vô Cực (${INFINITY_ROMAN_NUMERALS[exLevel - 13]})` 
+            : exLevel >= 9 ? 'Siêu Phàm' : exLevel >= 5 ? 'Bứt Phá' : 'Khởi Động';
           const isSynergyCandidate = lastPlayedSlug && lastPlayedSlug !== exercise.slug && (
             (lastPlayedSlug === 'schulte-table' && exercise.slug === 'peripheral-vision') ||
             (lastPlayedSlug === 'peripheral-vision' && exercise.slug === 'schulte-table') ||
@@ -252,11 +255,17 @@ export const ExercisesListView: React.FC = () => {
               className={`w-full bg-[#F5EFE6] dark:bg-slate-800/95 border rounded-3xl p-4 sm:p-5 flex items-start gap-4 shadow-sm hover:shadow-xl hover:border-brand-500 transition-all duration-300 cursor-pointer btn-press group relative overflow-hidden ${
                 highlightedSlug === exercise.slug 
                   ? 'border-brand-500 ring-4 ring-brand-500/40 shadow-xl scale-[1.02]' 
-                  : 'border-[#D5CBB9] dark:border-slate-700'
+                  : isInfinity
+                    ? 'border-purple-300 dark:border-purple-800/70 hover:border-purple-500'
+                    : 'border-[#D5CBB9] dark:border-slate-700'
               }`}
             >
               {/* Left Deep Blue Square Icon Box */}
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-brand-600 dark:bg-brand-700 flex items-center justify-center shrink-0 shadow-lg shadow-brand-600/25 group-hover:scale-105 transition-transform overflow-hidden">
+              <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center shrink-0 shadow-lg group-hover:scale-105 transition-transform overflow-hidden ${
+                isInfinity 
+                  ? 'bg-gradient-to-br from-purple-600 via-pink-600 to-amber-500 shadow-purple-500/30'
+                  : 'bg-brand-600 dark:bg-brand-700 shadow-brand-600/25'
+              }`}>
                 {renderExerciseIcon(exercise.slug)}
               </div>
 
@@ -280,14 +289,16 @@ export const ExercisesListView: React.FC = () => {
                     {exercise.categoryName}
                   </span>
                   <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                    Cấp {exLevel}/12
+                    {exLevel <= 12 ? `Cấp ${exLevel}/12` : `${getInfinityLabel(exLevel)}`}
                   </span>
                   <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-md ${
-                    exLevel >= 9 
-                      ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' 
-                      : exLevel >= 5
-                        ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
-                        : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+                    isInfinity
+                      ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700'
+                      : exLevel >= 9 
+                        ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' 
+                        : exLevel >= 5
+                          ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                          : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
                   }`}>
                     {stageName}
                   </span>

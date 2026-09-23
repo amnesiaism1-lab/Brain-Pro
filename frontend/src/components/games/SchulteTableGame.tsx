@@ -49,9 +49,21 @@ export const SchulteTableGame: React.FC = () => {
   const lastClickTimeRef = useRef<number>(Date.now());
 
   const effectiveLevel = getExerciseLevel('schulte-table') || currentLevel;
+  const isInfinity = effectiveLevel >= 13;
+  const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
   // Determine initial mode based on level progression
   const initialMode: SchulteMode = useMemo(() => {
+    if (effectiveLevel === 13) return 'alphabet';
+    if (effectiveLevel === 14) return 'gorbov';
+    if (effectiveLevel === 15) return 'alphabet';
+    if (effectiveLevel === 16) return 'reverse';
+    if (effectiveLevel === 17) return 'fading';
+    if (effectiveLevel === 18) return 'rotating';
+    if (effectiveLevel === 19) return 'rotating';
+    if (effectiveLevel === 20) return 'fading';
+    if (effectiveLevel === 21) return 'gorbov';
+    if (effectiveLevel === 22) return 'rotating';
     if (effectiveLevel === 8) return 'reverse';
     if (effectiveLevel === 9) return 'gorbov';
     if (effectiveLevel === 10) return 'rotating';
@@ -61,6 +73,16 @@ export const SchulteTableGame: React.FC = () => {
 
   // Determine initial size
   const initialSize = useMemo(() => {
+    if (effectiveLevel === 13) return 5;
+    if (effectiveLevel === 14) return 7;
+    if (effectiveLevel === 15) return 5;
+    if (effectiveLevel === 16) return 7;
+    if (effectiveLevel === 17) return 6;
+    if (effectiveLevel === 18) return 6;
+    if (effectiveLevel === 19) return 6;
+    if (effectiveLevel === 20) return 5;
+    if (effectiveLevel === 21) return 7;
+    if (effectiveLevel === 22) return 7;
     if (effectiveLevel <= 2) return 3;
     if (effectiveLevel <= 4) return 5;
     if (effectiveLevel <= 6) return 6;
@@ -82,7 +104,10 @@ export const SchulteTableGame: React.FC = () => {
   
   // Target tracking
   const [currentTarget, setCurrentTarget] = useState<number>(1);
-  const [alphabetType, setAlphabetType] = useState<'vi' | 'latin'>('vi');
+  const [alphabetType, setAlphabetType] = useState<'vi' | 'latin'>(() => {
+    if (effectiveLevel >= 13) return 'latin';
+    return 'vi';
+  });
   const [alphabetIndex, setAlphabetIndex] = useState<number>(0);
   const [currentLetterTarget, setCurrentLetterTarget] = useState<string>('A');
   const [gorbovTarget, setGorbovTarget] = useState<{ color: 'red' | 'black'; num: number }>({ color: 'red', num: 1 });
@@ -216,7 +241,9 @@ export const SchulteTableGame: React.FC = () => {
       const sec = Math.round((Date.now() - startTimeRef.current) / 1000);
       setElapsedSec(sec);
 
-      if (mode === 'rotating' && sec > 0 && sec % 12 === 0) {
+      const rotateInterval = effectiveLevel === 22 ? 5 : effectiveLevel >= 18 ? 8 : 12;
+      const shouldRotate = mode === 'rotating' || (isInfinity && [18, 19, 21, 22].includes(effectiveLevel));
+      if (shouldRotate && sec > 0 && sec % rotateInterval === 0) {
         setRotationDeg(prev => prev + 90);
       }
     }, 1000);
@@ -467,8 +494,34 @@ export const SchulteTableGame: React.FC = () => {
   // Progress percentage
   const progressPercent = Math.min(100, Math.round((currentFoundCount / totalItems) * 100));
 
+  const isFading = mode === 'fading' || (isInfinity && [17, 19, 20, 22].includes(effectiveLevel));
+
   return (
     <div className="w-full max-w-4xl mx-auto px-2 sm:px-4 py-2 sm:py-4 space-y-4 sm:space-y-6 animate-fade-in pb-24">
+      {/* Infinity Level Badge Banner */}
+      {isInfinity && (
+        <div className="rounded-2xl p-3 bg-gradient-to-r from-purple-900/60 via-indigo-900/50 to-pink-900/50 border border-purple-500/40 text-purple-200 text-xs shadow-lg backdrop-blur-md flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-400/30">
+              ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
+            </span>
+            <span className="font-semibold text-white">
+              {effectiveLevel === 13 ? 'English Alpha-Schulte (A-Y Latin 5x5)' :
+               effectiveLevel === 14 ? 'Color-Code Gorbov Schulte (Đỏ 1-25 / Đen 24-1 7x7)' :
+               effectiveLevel === 15 ? 'Alphabet Focus Latin (5x5)' :
+               effectiveLevel === 16 ? 'Reverse Schulte (49→1 7x7)' :
+               effectiveLevel === 17 ? 'Phantom Fading Schulte (6x6)' :
+               effectiveLevel === 18 ? 'Fast Rotating Schulte (Xoay 90° mỗi 8s)' :
+               effectiveLevel === 19 ? 'Rotating + Fading Combo (6x6 xoay + ẩn dần)' :
+               effectiveLevel === 20 ? 'Fading Latin Alphabet (5x5)' :
+               effectiveLevel === 21 ? 'Rotating Gorbov Schulte (7x7 xoay không gian)' :
+               'Chaos Schulte (7x7 Vô cực xoay nhanh + ẩn ô)'}
+            </span>
+          </div>
+          <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
+        </div>
+      )}
+
       {/* Top Controls & Mode Switcher Bar */}
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-3xl p-3 sm:p-4 shadow-lg">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -799,7 +852,9 @@ export const SchulteTableGame: React.FC = () => {
                       gridSize >= 6 ? 'text-sm sm:text-lg' : gridSize === 5 ? 'text-lg sm:text-2xl' : 'text-2xl sm:text-4xl'
                     } ${
                       isFound
-                        ? 'bg-slate-200/40 dark:bg-slate-700/20 text-slate-300 dark:text-slate-600 scale-95 cursor-default'
+                        ? isFading
+                          ? 'bg-slate-100/60 dark:bg-slate-800/40 text-slate-400/30 border border-dashed border-slate-300/40 scale-95 cursor-default'
+                          : 'bg-slate-200/40 dark:bg-slate-700/20 text-slate-300 dark:text-slate-600 scale-95 cursor-default'
                         : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 hover:bg-brand-50 hover:border-brand-500 hover:shadow-lg hover:scale-105 active:scale-95'
                     } ${
                       isHint ? 'ring-4 ring-amber-400 scale-110 z-10 animate-bounce' : ''
@@ -835,7 +890,7 @@ export const SchulteTableGame: React.FC = () => {
                         : 'text-2xl sm:text-4xl md:text-5xl'
                     } ${
                       isFound
-                        ? mode === 'fading'
+                        ? isFading
                           ? 'bg-slate-100/60 dark:bg-slate-800/40 text-slate-400/30 border border-dashed border-slate-300/40 scale-95 cursor-default'
                           : 'bg-slate-200/40 dark:bg-slate-700/20 text-slate-300 dark:text-slate-600 scale-95 cursor-default'
                         : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 hover:bg-brand-50 hover:border-brand-500 hover:shadow-lg hover:scale-105 active:scale-95'

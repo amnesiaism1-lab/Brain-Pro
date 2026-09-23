@@ -8,6 +8,14 @@ import {
   IWeeklyChallenge,
   IExerciseContentPoolItem
 } from '../types';
+import { 
+  INFINITY_LEVEL_CONFIGS, 
+  INFINITY_ROMAN_NUMERALS, 
+  getInfinityTier, 
+  getInfinityLabel 
+} from './infinityConfigs';
+
+export * from './infinityConfigs';
 
 export const COGNITIVE_CATEGORIES: ICognitiveCategory[] = [
   {
@@ -624,6 +632,20 @@ export const EXERCISES_METADATA: IExercise[] = [
     ]
   }
 ];
+
+// Automatically enrich EXERCISES_METADATA with 10 Infinity Levels (13 to 22: ∞-I to ∞-X)
+EXERCISES_METADATA.forEach(ex => {
+  const infConfigs = INFINITY_LEVEL_CONFIGS[ex.slug];
+  if (infConfigs && infConfigs.length > 0) {
+    ex.maxDifficultyLevel = 22;
+    const existingLevels = new Set(ex.levelConfigs.map(c => c.level));
+    infConfigs.forEach(cfg => {
+      if (!existingLevels.has(cfg.level)) {
+        ex.levelConfigs.push(cfg);
+      }
+    });
+  }
+});
 
 export const WORKOUT_ROUTINES: IWorkoutRoutine[] = [
   {

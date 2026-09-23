@@ -41,9 +41,29 @@ export interface ICognitiveCategory {
   sortOrder: number;
 }
 
+export type InfinityTier = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+
+export type InfinityPatternMode = 
+  | 'fibonacci' 
+  | 'mirror' 
+  | 'chaos' 
+  | 'rhythm' 
+  | 'pendulum' 
+  | 'cascade' 
+  | 'infinite';
+
+export interface IInfinityMetadata {
+  tier: InfinityTier;
+  romanNumeral: string; // '∞-I' to '∞-X'
+  enTheme?: string;
+  apiSource?: string;
+  pattern?: InfinityPatternMode;
+  externalEntityRelation?: string;
+}
+
 export interface IExerciseLevelConfig {
   id?: string;
-  level: number; // 1 to 12
+  level: number; // 1 to 22 (1-12 Standard, 13-22 Infinity ∞-I to ∞-X)
   gridRows?: number;
   gridCols?: number;
   targetItemCount?: number;
@@ -52,6 +72,8 @@ export interface IExerciseLevelConfig {
   variantCode?: string;
   variantName?: string;
   parametersJson?: Record<string, unknown>;
+  infinityTier?: InfinityTier;
+  infinityMetadata?: IInfinityMetadata;
 }
 
 export interface IExerciseVariant {
@@ -216,6 +238,7 @@ export interface IReadingText {
   content: string;
   previewExcerpt: string;
   author: string;
+  language?: 'vi' | 'en';
   questions?: IReadingQuestion[];
 }
 

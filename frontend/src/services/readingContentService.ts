@@ -87,6 +87,66 @@ const STOP_WORDS = new Set([
   'lại', 'qua', 'bởi', 'vào', 'ra', 'về', 'tại', 'đó', 'kia', 'ở'
 ]);
 
+export const ENGLISH_INFINITY_READING_TEXTS: IReadingText[] = [
+  {
+    id: 'text-inf-neuroplasticity',
+    title: 'Neuroplasticity and the Adaptive Mind',
+    category: 'Cognitive Science (EN)',
+    wordCount: 220,
+    difficultyLevel: 8,
+    content: 'Neuroplasticity is the remarkable capacity of the human nervous system to undergo structural and functional reorganization in response to experiential demands and environmental learning. For decades, traditional neuroscience adhered to the dogma that the adult human brain was a static, hardwired organ with fixed neural circuitry. However, modern neuroimaging studies have definitively overturned this assumption. When individuals engage in targeted cognitive challenges, such as speed reading, peripheral visual expansion, and working memory recall, synaptic density increases within the prefrontal cortex and hippocampus. Dendritic branching multiplies, myelin sheaths thicken to accelerate action potential conduction velocities, and dormant synaptic pathways become active. This bidirectional adaptability demonstrates that cognitive capabilities are not genetically predetermined ceilings, but dynamic baselines subject to continuous optimization. Deliberate mental training reorganizes neural topography, enhancing cognitive agility and processing speed throughout life.',
+    previewExcerpt: 'Neuroplasticity is the remarkable capacity of the human nervous system to undergo structural and functional reorganization...',
+    author: 'Cognitive Research Institute',
+    questions: [
+      {
+        id: 'q-inf-1',
+        questionOrder: 1,
+        questionText: 'What was the traditional dogma regarding the adult human brain?',
+        optionA: 'It possessed limitless regenerative powers',
+        optionB: 'It was a static, hardwired organ with fixed circuitry',
+        optionC: 'It lacked synaptic connections in the cortex',
+        optionD: 'It could only learn through auditory stimuli',
+        correctOption: 'B',
+        explanation: 'For decades, traditional neuroscience adhered to the dogma that the adult human brain was a static, hardwired organ.'
+      },
+      {
+        id: 'q-inf-2',
+        questionOrder: 2,
+        questionText: 'Which anatomical change accelerates action potential conduction velocity?',
+        optionA: 'Thickening of myelin sheaths',
+        optionB: 'Reduction of dendritic branching',
+        optionC: 'Dormancy of synaptic pathways',
+        optionD: 'Contraction of the hippocampus',
+        correctOption: 'A',
+        explanation: 'Myelin sheaths thicken to accelerate action potential conduction velocities.'
+      }
+    ]
+  },
+  {
+    id: 'text-inf-quantum-cosmos',
+    title: 'Quantum Entanglement and Spacetime Horizons',
+    category: 'Quantum Physics (EN)',
+    wordCount: 215,
+    difficultyLevel: 9,
+    content: 'Quantum entanglement represents one of the most profound and enigmatic features of fundamental physics. When two subatomic particles become entangled, their quantum states are intrinsically correlated regardless of the spatial distance separating them. Measuring the spin polarization of particle Alpha instantaneously collapses the quantum wave function of particle Beta, even if separated by billions of light-years across the observable cosmos. Albert Einstein famously questioned this non-local behavior as spooky action at a distance, suspecting hidden variables. Nevertheless, rigorous experimental validations of Bell inequality violations have consistently demonstrated that local realism cannot describe quantum reality. In contemporary astrophysics, theorists propose that quantum entanglement may constitute the fundamental fabric from which spacetime geometry itself emerges.',
+    previewExcerpt: 'Quantum entanglement represents one of the most profound and enigmatic features of fundamental physics...',
+    author: 'Astrophysical Society',
+    questions: [
+      {
+        id: 'q-inf-3',
+        questionOrder: 1,
+        questionText: 'How did Albert Einstein famously characterize quantum non-local correlation?',
+        optionA: 'The cosmic wave horizon',
+        optionB: 'Spooky action at a distance',
+        optionC: 'Holographic entanglement',
+        optionD: 'Subatomic particle decay',
+        correctOption: 'B',
+        explanation: 'Albert Einstein famously questioned this non-local behavior as spooky action at a distance.'
+      }
+    ]
+  }
+];
+
 const WIKI_CACHE_KEY = 'brain_pro_wiki_texts_cache';
 
 class ReadingContentService {
@@ -110,11 +170,11 @@ class ReadingContentService {
   }
 
   /**
-   * Return all available texts: built-in curated + user cached Wikipedia & custom texts
+   * Return all available texts: built-in curated + English infinity + user cached Wikipedia & custom texts
    */
   public getAllTexts(): IReadingText[] {
     const cached = this.getCachedTexts();
-    return [...SAMPLE_READING_TEXTS, ...cached];
+    return [...SAMPLE_READING_TEXTS, ...ENGLISH_INFINITY_READING_TEXTS, ...cached];
   }
 
   /**

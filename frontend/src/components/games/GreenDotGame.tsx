@@ -116,28 +116,66 @@ const GREEN_DOT_DATASETS: GreenDotSet[] = [
   }
 ];
 
+const ENGLISH_GREEN_DOT_DATASETS: GreenDotSet[] = [
+  {
+    linesTop: [
+      'Neuroplasticity allows neurons in the brain to compensate for injury and disease.',
+      'Synaptic connections are dynamically reorganized throughout adult human life.',
+      'Consistent cognitive training significantly elevates processing speed and working memory.'
+    ],
+    linesBottom: [
+      'Visual span expansion directly reduces saccadic regressions during rapid reading.',
+      'The subconscious visual cortex decodes word clusters before subvocalization occurs.'
+    ],
+    question: 'According to the peripheral text, what does visual span expansion directly reduce?',
+    options: ['A. Saccadic regressions', 'B. Sleep latency', 'C. Heart rate', 'D. Calorie burn'],
+    correctIndex: 0
+  },
+  {
+    linesTop: [
+      'Quantum entanglement describes pairs of particles interacting in instantaneous ways.',
+      'Einstein famously termed this phenomenon "spooky action at a distance".',
+      'Quantum computing harnesses superposition to process exponential datasets simultaneously.'
+    ],
+    linesBottom: [
+      'Information teleportation opens unprecedented possibilities in cryptographic security.',
+      'Decoherence remains the central engineering hurdle for scalable quantum hardware.'
+    ],
+    question: 'What term did Einstein use to describe quantum entanglement in the text?',
+    options: ['A. Invisible gravity', 'B. Spooky action at a distance', 'C. Parallel dimension', 'D. Photon wave collapse'],
+    correctIndex: 1
+  }
+];
+
 export const GreenDotGame: React.FC = () => {
-  const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
-  const currentLevel = getExerciseLevel('green-dot');
+  const effectiveLevel = getExerciseLevel('green-dot') || currentLevel;
+  const isInfinity = effectiveLevel >= 13;
+  const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
+
+  const isEnglishMode = effectiveLevel === 13;
+  const isMovingDot = effectiveLevel === 14;
+  const isShrinkingDot = effectiveLevel === 18;
 
   const allTexts = readingContentService.getAllTexts();
   const [currentArticle, setCurrentArticle] = useState<IReadingText>(() => {
-    return allTexts[(currentLevel - 1) % allTexts.length] || SAMPLE_READING_TEXTS[0];
+    return allTexts[(effectiveLevel - 1) % allTexts.length] || SAMPLE_READING_TEXTS[0];
   });
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
 
-  const [datasetIndex, setDatasetIndex] = useState(() => (currentLevel - 1) % GREEN_DOT_DATASETS.length);
+  const datasetList = isEnglishMode ? ENGLISH_GREEN_DOT_DATASETS : GREEN_DOT_DATASETS;
+  const [datasetIndex, setDatasetIndex] = useState(() => (effectiveLevel - 1) % datasetList.length);
   const [customDataset, setCustomDataset] = useState<GreenDotSet | null>(null);
 
   const activeDataset: GreenDotSet = useMemo(() => {
-    return customDataset || GREEN_DOT_DATASETS[datasetIndex] || GREEN_DOT_DATASETS[0];
-  }, [customDataset, datasetIndex]);
+    return customDataset || datasetList[datasetIndex] || datasetList[0];
+  }, [customDataset, datasetIndex, datasetList]);
 
   const startTimeRef = useRef<number>(Date.now());
 
-  // At high levels (9-12), window is tighter: 12-15s
-  const initialTime = currentLevel >= 9 ? 12 : currentLevel >= 5 ? 18 : 25;
+  // At high levels (9-12 or Infinity), window is tighter: 10-15s
+  const initialTime = isInfinity ? Math.max(10, 18 - infinityTier) : effectiveLevel >= 9 ? 12 : effectiveLevel >= 5 ? 18 : 25;
   const [timeLeft, setTimeLeft] = useState(initialTime);
   const [phase, setPhase] = useState<'focus' | 'test'>('focus');
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -169,7 +207,7 @@ export const GreenDotGame: React.FC = () => {
 
     emitTrialEvent({
       exerciseSlug: 'green-dot',
-      level: currentLevel,
+      level: effectiveLevel,
       relationId: 'FOCUS_FIELD',
       relationWeight: 1.0,
       entities: {
@@ -199,7 +237,7 @@ export const GreenDotGame: React.FC = () => {
     if (generated) {
       setCustomDataset(generated);
     } else {
-      setDatasetIndex(prev => (prev + 1) % GREEN_DOT_DATASETS.length);
+      setDatasetIndex(prev => (prev + 1) % datasetList.length);
       setCustomDataset(null);
     }
     setPhase('focus');
@@ -210,7 +248,7 @@ export const GreenDotGame: React.FC = () => {
 
   const handleRestart = () => {
     playSound('click');
-    setDatasetIndex(prev => (prev + 1) % GREEN_DOT_DATASETS.length);
+    setDatasetIndex(prev => (prev + 1) % datasetList.length);
     setCustomDataset(null);
     setPhase('focus');
     setTimeLeft(initialTime);
@@ -219,10 +257,34 @@ export const GreenDotGame: React.FC = () => {
   };
 
   const isCorrect = selectedAnswer === activeDataset.correctIndex;
-  const score = isCorrect ? 250 * currentLevel : 100;
+  const score = isCorrect ? 250 * effectiveLevel : 100;
 
   return (
     <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl mx-auto px-3 sm:px-6 py-4 space-y-5 sm:space-y-6 animate-fade-in pb-24">
+      {/* Infinity Level Badge Banner */}
+      {isInfinity && (
+        <div className="rounded-2xl p-3 bg-gradient-to-r from-purple-900/60 via-indigo-900/50 to-pink-900/50 border border-purple-500/40 text-purple-200 text-xs shadow-lg backdrop-blur-md flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-400/30">
+              ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
+            </span>
+            <span className="font-semibold text-white">
+              {effectiveLevel === 13 ? 'English Focus Text (Văn bản khoa học Anh ngữ chuyên sâu)' :
+               effectiveLevel === 14 ? 'Moving Dot (Điểm xanh dao động ngang thị giác)' :
+               effectiveLevel === 15 ? 'Dual Dot (Điểm neo song song)' :
+               effectiveLevel === 16 ? 'Trivia Green Dot (Tri thức khoa học vũ trụ)' :
+               effectiveLevel === 17 ? 'Noise Layer (Lớp nhiễu ký tự ngoại vi)' :
+               effectiveLevel === 18 ? 'Shrinking Dot (Thu nhỏ kích thước điểm neo)' :
+               effectiveLevel === 19 ? 'Cosmos Background (Nền không gian vũ trụ)' :
+               effectiveLevel === 20 ? 'Dot + Timer Race (Phản xạ tốc độ cao)' :
+               effectiveLevel === 21 ? 'Invisible Dot (Điểm neo vô hình từ trí nhớ)' :
+               'Split Attention (Song song 2 khối thông tin Vô cực)'}
+            </span>
+          </div>
+          <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
+        </div>
+      )}
+
       {/* Top HUD */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="flex items-center gap-3">
@@ -266,14 +328,14 @@ export const GreenDotGame: React.FC = () => {
             ))}
           </div>
 
-          {/* Central Green Dot (Point of Fixation) – subtle, non-obtrusive */}
-          <div className="flex flex-col items-center justify-center my-4 py-2">
+          {/* Central Green Dot (Point of Fixation) */}
+          <div className={`flex flex-col items-center justify-center my-4 py-2 ${isMovingDot ? 'animate-pulse' : ''}`}>
             <div className="relative flex items-center justify-center">
-              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-emerald-400 shadow-md shadow-emerald-400/40 flex items-center justify-center" />
-              <div className="absolute w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-emerald-400/25 animate-ping" />
+              <div className={`${isShrinkingDot ? 'w-3 h-3' : 'w-5 h-5 sm:w-6 sm:h-6'} rounded-full bg-emerald-400 shadow-md shadow-emerald-400/40 flex items-center justify-center transition-all`} />
+              <div className={`absolute ${isShrinkingDot ? 'w-6 h-6' : 'w-10 h-10 sm:w-12 sm:h-12'} rounded-full border border-emerald-400/25 animate-ping`} />
             </div>
             <span className="mt-3 text-[10px] sm:text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest whitespace-nowrap">
-              Cố định mắt vào đây
+              {isMovingDot ? 'Dõi mắt theo điểm xanh' : 'Cố định mắt vào đây'}
             </span>
           </div>
 

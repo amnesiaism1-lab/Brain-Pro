@@ -8,14 +8,20 @@ import { ReadingTextSourceModal } from '../common/ReadingTextSourceModal';
 import { readingContentService } from '../../services/readingContentService';
 
 export const ReadingAssessmentGame: React.FC = () => {
-  const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const lastAnsTimeRef = useRef<number>(Date.now());
-  const currentLevel = getExerciseLevel('reading-assessment');
+  const effectiveLevel = getExerciseLevel('reading-assessment') || currentLevel;
+  const isInfinity = effectiveLevel >= 13;
+  const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
   const allTexts = readingContentService.getAllTexts();
+  const englishTexts = allTexts.filter(t => t.language === 'en');
   const [currentArticle, setCurrentArticle] = useState<IReadingText>(() => {
-    return allTexts[(currentLevel - 1) % allTexts.length] || SAMPLE_READING_TEXTS[0];
+    if (isInfinity && englishTexts.length > 0) {
+      return englishTexts[(effectiveLevel - 13) % englishTexts.length];
+    }
+    return allTexts[(effectiveLevel - 1) % allTexts.length] || SAMPLE_READING_TEXTS[0];
   });
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
 
@@ -59,7 +65,7 @@ export const ReadingAssessmentGame: React.FC = () => {
 
     emitTrialEvent({
       exerciseSlug: 'reading-assessment',
-      level: currentLevel,
+      level: effectiveLevel,
       relationId: 'CONTEXT_MEANING',
       relationWeight: 1.0,
       entities: {
@@ -108,6 +114,30 @@ export const ReadingAssessmentGame: React.FC = () => {
 
   return (
     <div className="w-full max-w-2xl sm:max-w-3xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 py-4 space-y-6 animate-fade-in pb-24">
+      {/* Infinity Level Badge Banner */}
+      {isInfinity && (
+        <div className="rounded-2xl p-3 bg-gradient-to-r from-purple-900/60 via-indigo-900/50 to-pink-900/50 border border-purple-500/40 text-purple-200 text-xs shadow-lg backdrop-blur-md flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-400/30">
+              ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
+            </span>
+            <span className="font-semibold text-white">
+              {effectiveLevel === 13 ? 'English Reading (Văn bản khoa học Anh ngữ chuyên sâu)' :
+               effectiveLevel === 14 ? 'Bilingual Assessment (Văn bản & câu hỏi song ngữ)' :
+               effectiveLevel === 15 ? 'Speed + Comprehension Race (Tốc độ đọc & thấu hiểu)' :
+               effectiveLevel === 16 ? 'News Flash Assessment (Đánh giá đọc tin tức thực tế)' :
+               effectiveLevel === 17 ? 'Fact vs Fiction (Phát hiện luận điểm sai lệch)' :
+               effectiveLevel === 18 ? 'Inference Test (Tư duy suy luận sâu đa tầng)' :
+               effectiveLevel === 19 ? 'Noisy Text Assessment (Lọc nhiễu từ vựng văn bản)' :
+               effectiveLevel === 20 ? 'Wikipedia Deep Dive (Kho tàng tri thức thế giới)' :
+               effectiveLevel === 21 ? 'Multi-Text Compare (Đối chiếu 2 văn bản cùng chủ đề)' :
+               'Live Article Blitz (Thực chiến bài đọc mới Vô cực)'}
+            </span>
+          </div>
+          <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
+        </div>
+      )}
+
       {/* Top HUD */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div>

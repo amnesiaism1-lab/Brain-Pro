@@ -1,4 +1,5 @@
 import { ICognitiveCategory, IExercise, IWorkoutRoutine, IReadingText, IExerciseVariant, IExerciseSynergy, IWeeklyChallenge, IExerciseContentPoolItem } from '../types';
+export * from './infinityConfigs';
 export declare const COGNITIVE_CATEGORIES: ICognitiveCategory[];
 export declare const EXERCISES_METADATA: IExercise[];
 export declare const WORKOUT_ROUTINES: IWorkoutRoutine[];

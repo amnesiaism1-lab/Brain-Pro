@@ -9,6 +9,16 @@ export interface ICognitiveCategory {
     iconName: string;
     sortOrder: number;
 }
+export type InfinityTier = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+export type InfinityPatternMode = 'fibonacci' | 'mirror' | 'chaos' | 'rhythm' | 'pendulum' | 'cascade' | 'infinite';
+export interface IInfinityMetadata {
+    tier: InfinityTier;
+    romanNumeral: string;
+    enTheme?: string;
+    apiSource?: string;
+    pattern?: InfinityPatternMode;
+    externalEntityRelation?: string;
+}
 export interface IExerciseLevelConfig {
     id?: string;
     level: number;
@@ -20,6 +30,8 @@ export interface IExerciseLevelConfig {
     variantCode?: string;
     variantName?: string;
     parametersJson?: Record<string, unknown>;
+    infinityTier?: InfinityTier;
+    infinityMetadata?: IInfinityMetadata;
 }
 export interface IExerciseVariant {
     id: string;
@@ -168,6 +180,7 @@ export interface IReadingText {
     content: string;
     previewExcerpt: string;
     author: string;
+    language?: 'vi' | 'en';
     questions?: IReadingQuestion[];
 }
 export interface IUserAssessmentRequest {

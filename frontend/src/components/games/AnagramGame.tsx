@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { VIETNAMESE_WORDS_DICTIONARY, generateAnagram } from '@brain-exercises/shared';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { VIETNAMESE_WORDS_DICTIONARY, generateAnagram, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Sparkles, Infinity as InfinityIcon, BookOpen, Lightbulb } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { readingContentService, THEMED_VOCABULARY } from '../../services/readingContentService';
+import { CURATED_DICTIONARY, EMOJI_WORD_PAIRS, SYNONYM_PAIRS } from '../../services/infinityApiService';
 
 export const AnagramGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, enableHints, playSound } = useAppStore();
@@ -12,10 +13,39 @@ export const AnagramGame: React.FC = () => {
   const lastWordTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('anagram') || currentLevel;
 
+  const isInfinity = effectiveLevel >= 13;
+  const infinityTier = getInfinityTier(effectiveLevel);
+
+  // Standard Themes
   const themes = ['Tất cả', 'Khoa Học Não Bộ', 'Công Nghệ & AI', 'Thiên Văn & Vũ Trụ', 'Tâm Lý & Tư Duy'];
   const [selectedTheme, setSelectedTheme] = useState<string>('Tất cả');
-  
-  const combinedDict = React.useMemo(() => {
+
+  // Infinity specific word targets
+  const currentInfinityItem = useMemo(() => {
+    if (!isInfinity) return null;
+    if (effectiveLevel === 15) {
+      // ∞-III: Visual Emoji
+      const emojis = EMOJI_WORD_PAIRS;
+      return emojis[Math.floor(Math.random() * emojis.length)];
+    }
+    if (effectiveLevel === 14) {
+      // ∞-II: Synonyms
+      const syn = SYNONYM_PAIRS[Math.floor(Math.random() * SYNONYM_PAIRS.length)];
+      return { word: syn.wordA, clue: `Từ đồng nghĩa với "${syn.wordB}": ${syn.commonMeaning}` };
+    }
+    // Default English Dictionary Words
+    const entry = CURATED_DICTIONARY[Math.floor(Math.random() * CURATED_DICTIONARY.length)];
+    return { word: entry.word, clue: entry.viMeaning, phonetic: entry.phonetic };
+  }, [isInfinity, effectiveLevel]);
+
+  const combinedDict = useMemo(() => {
+    if (isInfinity) {
+      if (effectiveLevel === 15) {
+        return EMOJI_WORD_PAIRS.map(e => e.word.toUpperCase());
+      }
+      return CURATED_DICTIONARY.map(d => d.word.toUpperCase());
+    }
+
     let extra: string[] = [];
     if (selectedTheme !== 'Tất cả' && THEMED_VOCABULARY[selectedTheme]) {
       extra = THEMED_VOCABULARY[selectedTheme];
@@ -25,24 +55,36 @@ export const AnagramGame: React.FC = () => {
     const merged = selectedTheme === 'Tất cả' ? [...VIETNAMESE_WORDS_DICTIONARY, ...extra] : extra;
     const sanitized = Array.from(new Set(merged.map(w => w.toUpperCase())));
     return sanitized.length > 0 ? sanitized : ['TRÍ TUỆ', 'NÃO BỘ', 'TƯ DUY', 'KÝ ỨC'];
-  }, [selectedTheme]);
+  }, [selectedTheme, isInfinity, effectiveLevel]);
 
-  const wordPool = effectiveLevel <= 3 
-    ? combinedDict.filter(w => w.replace(/\s+/g, '').length <= 4)
-    : effectiveLevel <= 6 
-      ? combinedDict.filter(w => w.replace(/\s+/g, '').length <= 7)
-      : combinedDict;
+  const wordPool = useMemo(() => {
+    if (isInfinity) return combinedDict;
+    if (effectiveLevel <= 3) return combinedDict.filter(w => w.replace(/\s+/g, '').length <= 4);
+    if (effectiveLevel <= 6) return combinedDict.filter(w => w.replace(/\s+/g, '').length <= 7);
+    return combinedDict;
+  }, [combinedDict, effectiveLevel, isInfinity]);
 
   const [currentIndex, setCurrentIndex] = useState(() => Math.floor(Math.random() * 100));
   const activeWordPool = wordPool.length > 0 ? wordPool : combinedDict;
-  const targetWord = (activeWordPool[currentIndex % activeWordPool.length] || 'TRÍ TUỆ').replace(/\s+/g, '');
+  const rawTarget = activeWordPool[currentIndex % activeWordPool.length] || 'NEURON';
+  const targetWord = rawTarget.replace(/\s+/g, '');
+
   const [selectedLetters, setSelectedLetters] = useState<string[]>([]);
   const [availableTiles, setAvailableTiles] = useState<Array<{ id: number; char: string; used: boolean }>>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [scoreAcc, setScoreAcc] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [round, setRound] = useState(1);
-  const maxRounds = 4;
+  const maxRounds = effectiveLevel === 22 ? 20 : 5;
+
+  const currentHint = useMemo(() => {
+    if (!isInfinity) return null;
+    const foundDict = CURATED_DICTIONARY.find(d => d.word.toUpperCase() === targetWord);
+    if (foundDict) return foundDict.viMeaning;
+    const foundEmoji = EMOJI_WORD_PAIRS.find(e => e.word.toUpperCase() === targetWord);
+    if (foundEmoji) return `${foundEmoji.emoji} ${foundEmoji.vi}`;
+    return null;
+  }, [isInfinity, targetWord]);
 
   const setupRound = (word: string) => {
     const data = generateAnagram(word);
@@ -65,7 +107,7 @@ export const AnagramGame: React.FC = () => {
     const nextSelected = [...selectedLetters, char];
     setSelectedLetters(nextSelected);
 
-    // Check if fully formed
+    // Check if word formation complete
     if (nextSelected.length === targetWord.length) {
       const formedWord = nextSelected.join('');
       const isCorrect = formedWord === targetWord;
@@ -91,7 +133,7 @@ export const AnagramGame: React.FC = () => {
 
       if (isCorrect) {
         playSound('correct');
-        setScoreAcc(s => s + 100 * effectiveLevel);
+        setScoreAcc(s => s + 120 * effectiveLevel);
         if (round >= maxRounds) {
           setIsFinished(true);
         } else {
@@ -100,7 +142,6 @@ export const AnagramGame: React.FC = () => {
         }
       } else {
         playSound('wrong');
-        // Reset after short flash
         setTimeout(() => {
           setupRound(targetWord);
         }, 600);
@@ -108,135 +149,129 @@ export const AnagramGame: React.FC = () => {
     }
   };
 
-  const handleUndo = () => {
+  const handleResetCurrent = () => {
     playSound('click');
     setupRound(targetWord);
   };
 
-  // Keyboard support: Type letters directly
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (isFinished) return;
-      if (e.key === 'Backspace') {
-        e.preventDefault();
-        handleUndo();
-        return;
-      }
-
-      const keyChar = e.key.toUpperCase();
-      // Find first unused tile matching this character
-      const matchTile = availableTiles.find(t => !t.used && t.char === keyChar);
-      if (matchTile) {
-        e.preventDefault();
-        handleTileClick(matchTile.id, matchTile.char);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [availableTiles, selectedLetters, isFinished, targetWord]);
-
   return (
-    <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl mx-auto px-4 py-4 space-y-6 animate-fade-in pb-24">
-      {/* HUD */}
-      <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
+    <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl mx-auto px-3 sm:px-6 py-4 space-y-5 sm:space-y-6 animate-fade-in pb-24">
+      {/* Top HUD */}
+      <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md">
         <div>
-          <span className="text-xs sm:text-sm text-slate-500 font-medium">Vòng chơi</span>
-          <div className="text-xl sm:text-2xl font-black text-brand-600 dark:text-brand-400">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs sm:text-sm text-slate-500 font-semibold">Điểm số</span>
+            {isInfinity && (
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white flex items-center gap-1">
+                <InfinityIcon className="w-3 h-3" />
+                {getInfinityLabel(effectiveLevel)}
+              </span>
+            )}
+          </div>
+          <div className="text-2xl sm:text-3xl font-black text-brand-600 dark:text-brand-400 mt-0.5">
+            {scoreAcc}
+          </div>
+        </div>
+
+        <div className="text-center">
+          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Vòng</span>
+          <div className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white mt-0.5">
             {round} / {maxRounds}
           </div>
         </div>
 
-        {/* Theme Pills */}
-        <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto max-w-md">
-          {themes.map(t => (
-            <button
-              key={t}
-              onClick={() => {
-                playSound('click');
-                setSelectedTheme(t);
-                setCurrentIndex(i => i + 1);
-              }}
-              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                selectedTheme === t
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-
         <div className="text-right">
-          <span className="text-xs sm:text-sm text-slate-500 font-medium">Thời gian</span>
-          <div className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white">
+          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Thời gian</span>
+          <div className="text-2xl sm:text-3xl font-black text-amber-500 mt-0.5">
             {elapsedSec}s
           </div>
         </div>
       </div>
 
+      {/* Infinity Hint or Emoji Clue Card */}
+      {currentHint && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-800 flex items-center gap-3 shadow-sm animate-fade-in">
+          <Lightbulb className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0" />
+          <div>
+            <span className="text-[11px] font-bold text-purple-500 uppercase tracking-wider block">
+              Gợi Ý Nghĩa Tiếng Việt / Biểu Tượng
+            </span>
+            <span className="text-xs sm:text-sm font-black text-purple-900 dark:text-purple-200">
+              {currentHint}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Answer Slots Display */}
-      <div className="text-center space-y-3">
-        <span className="text-xs sm:text-sm text-slate-500 font-medium uppercase tracking-wider">Từ cần sắp xếp</span>
-        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 min-h-[70px]">
-          {Array.from({ length: targetWord.length }).map((_, idx) => (
-            <div
-              key={idx}
-              className="w-12 h-14 sm:w-16 sm:h-20 md:w-20 md:h-24 rounded-2xl sm:rounded-3xl border-2 border-brand-500/50 bg-white dark:bg-slate-800 flex items-center justify-center text-xl sm:text-3xl md:text-4xl font-black text-slate-800 dark:text-white shadow-md"
-            >
-              {selectedLetters[idx] || (enableHints && idx === 0 ? <span className="opacity-30 text-amber-500">{targetWord[0]}</span> : '')}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Scrambled Clickable Letter Tiles */}
-      <div className="space-y-4">
-        <span className="text-xs sm:text-sm text-center block text-slate-500 font-medium">
-          Bấm chọn hoặc gõ phím các chữ cái bên dưới:
+      <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-3xl border-2 border-slate-200 dark:border-slate-700 shadow-lg flex flex-col items-center justify-center min-h-[160px] space-y-4">
+        <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+          {isInfinity ? 'TỪ VỰNG TIẾNG ANH ĐANG GHÉP' : 'TỪ ĐANG GHÉP'}
         </span>
-        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-          {availableTiles.map((tile) => (
-            <button
-              key={tile.id}
-              disabled={tile.used}
-              onClick={() => handleTileClick(tile.id, tile.char)}
-              className={`w-14 h-14 sm:w-18 sm:h-18 md:w-22 md:h-22 rounded-2xl sm:rounded-3xl font-black text-xl sm:text-3xl md:text-4xl flex items-center justify-center transition-all duration-150 btn-press ${
-                tile.used
-                  ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-800 opacity-40 cursor-default scale-95'
-                  : 'bg-brand-600 hover:bg-brand-700 text-white shadow-lg shadow-brand-600/30 border border-brand-500 active:scale-95'
-              }`}
-            >
-              {tile.char}
-            </button>
-          ))}
+
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+          {Array.from({ length: targetWord.length }).map((_, idx) => {
+            const letter = selectedLetters[idx];
+            return (
+              <div
+                key={idx}
+                className={`w-12 h-14 sm:w-14 sm:h-16 rounded-2xl border-2 flex items-center justify-center font-mono font-black text-2xl sm:text-3xl transition-all shadow-sm ${
+                  letter
+                    ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-300 scale-105'
+                    : 'border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-900/50'
+                }`}
+              >
+                {letter || ''}
+              </div>
+            );
+          })}
         </div>
       </div>
 
+      {/* Scrambled Available Letter Tiles */}
+      <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-3.5 pt-2">
+        {availableTiles.map((tile) => (
+          <button
+            key={tile.id}
+            disabled={tile.used}
+            onClick={() => handleTileClick(tile.id, tile.char)}
+            className={`w-12 h-14 sm:w-14 sm:h-16 rounded-2xl font-mono font-black text-xl sm:text-2xl shadow-md transition-all duration-150 btn-press flex items-center justify-center ${
+              tile.used
+                ? 'opacity-20 pointer-events-none scale-90 bg-slate-200 dark:bg-slate-700 text-slate-400'
+                : isInfinity
+                ? 'bg-gradient-to-br from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-purple-500/25 ring-2 ring-purple-300 dark:ring-purple-800'
+                : 'bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-brand-500 text-slate-800 dark:text-white'
+            }`}
+          >
+            {tile.char}
+          </button>
+        ))}
+      </div>
+
+      {/* Reset Current Word Button */}
       <div className="flex justify-center pt-2">
         <button
-          onClick={handleUndo}
-          className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-200 dark:bg-slate-700 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-300 transition-colors btn-press"
+          onClick={handleResetCurrent}
+          className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 transition-colors"
         >
-          <RotateCcw className="w-5 h-5" />
-          Xếp lại từ đầu (Backspace)
+          <RotateCcw className="w-3.5 h-3.5" />
+          Xếp lại chữ cái
         </button>
       </div>
 
       {isFinished && (
         <GameResultModal
-          score={scoreAcc + 200}
-          accuracyRate={95}
+          score={scoreAcc}
+          accuracyRate={100}
           timeSpentSec={elapsedSec}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();
-            setRound(1);
-            setCurrentIndex(i => i + 1);
-            setElapsedSec(0);
             setScoreAcc(0);
+            setRound(1);
+            setElapsedSec(0);
             setIsFinished(false);
+            setCurrentIndex(i => i + 1);
           }}
           onClose={() => setActiveGameSlug(null)}
         />

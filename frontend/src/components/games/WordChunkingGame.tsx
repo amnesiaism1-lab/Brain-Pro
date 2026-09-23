@@ -8,19 +8,27 @@ import { ReadingTextSourceModal } from '../common/ReadingTextSourceModal';
 import { readingContentService } from '../../services/readingContentService';
 
 export const WordChunkingGame: React.FC = () => {
-  const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
-  const currentLevel = getExerciseLevel('word-chunking');
+  const effectiveLevel = getExerciseLevel('word-chunking') || currentLevel;
+  const isInfinity = effectiveLevel >= 13;
+  const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
   const allTexts = readingContentService.getAllTexts();
+  const englishTexts = allTexts.filter(t => t.language === 'en');
   const [currentArticle, setCurrentArticle] = useState<IReadingText>(() => {
-    return allTexts[(currentLevel - 1) % allTexts.length] || SAMPLE_READING_TEXTS[0];
+    if (isInfinity && englishTexts.length > 0) {
+      return englishTexts[(effectiveLevel - 13) % englishTexts.length];
+    }
+    return allTexts[(effectiveLevel - 1) % allTexts.length] || SAMPLE_READING_TEXTS[0];
   });
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
 
   const rawText = currentArticle.content;
   const allWords = rawText.split(/\s+/).filter(Boolean);
-  const chunkSize = currentLevel <= 2 ? 2 : currentLevel <= 5 ? 3 : currentLevel <= 8 ? 4 : currentLevel <= 10 ? 5 : 6;
+  const chunkSize = isInfinity 
+    ? Math.min(8, 4 + Math.floor(infinityTier / 2)) 
+    : effectiveLevel <= 2 ? 2 : effectiveLevel <= 5 ? 3 : effectiveLevel <= 8 ? 4 : effectiveLevel <= 10 ? 5 : 6;
 
   const chunks: string[] = [];
   for (let i = 0; i < allWords.length; i += chunkSize) {
@@ -32,8 +40,10 @@ export const WordChunkingGame: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
 
-  // Speed of chunking: 400ms - 800ms
-  const defaultSpeedMs = Math.max(280, 850 - (currentLevel * 45));
+  // Speed of chunking: 220ms - 800ms
+  const defaultSpeedMs = isInfinity 
+    ? Math.max(220, 480 - (infinityTier * 25)) 
+    : Math.max(280, 850 - (effectiveLevel * 45));
   const [chunkSpeedMs, setChunkSpeedMs] = useState(defaultSpeedMs);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -109,6 +119,30 @@ export const WordChunkingGame: React.FC = () => {
 
   return (
     <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl mx-auto px-4 py-4 space-y-5 sm:space-y-6 animate-fade-in pb-24">
+      {/* Infinity Level Badge Banner */}
+      {isInfinity && (
+        <div className="rounded-2xl p-3 bg-gradient-to-r from-purple-900/60 via-indigo-900/50 to-pink-900/50 border border-purple-500/40 text-purple-200 text-xs shadow-lg backdrop-blur-md flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-400/30">
+              ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
+            </span>
+            <span className="font-semibold text-white">
+              {effectiveLevel === 13 ? 'English Chunking (Khoa học công nghệ Anh ngữ 4-6 từ/nhịp)' :
+               effectiveLevel === 14 ? 'Bilingual Chunks (Xen kẽ dòng tư duy ngữ cảnh)' :
+               effectiveLevel === 15 ? 'Phrase Highlight (Cụm từ mở rộng 6-7 từ)' :
+               effectiveLevel === 16 ? 'Semantic Boundary Chunking (Cắt theo cấu trúc ngữ nghĩa)' :
+               effectiveLevel === 17 ? 'Reverse Chunk Flow (Tái cấu trúc dòng văn bản)' :
+               effectiveLevel === 18 ? 'Speed Ramp Chunking (Tăng tốc theo cấp số cộng)' :
+               effectiveLevel === 19 ? 'Audio Sync Chunking (Hòa nhịp thính giác & thị giác)' :
+               effectiveLevel === 20 ? 'Code Logic Chunking (Cụm cú pháp mã nguồn logic)' :
+               effectiveLevel === 21 ? 'Interleaved Quiz (Dừng ngẫu nhiên trắc nghiệm ghi nhớ)' :
+               'Chaos Chunk Stream (Siêu tốc độ 220ms Vô cực)'}
+            </span>
+          </div>
+          <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
+        </div>
+      )}
+
       {/* Top HUD */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="flex items-center gap-3">
@@ -257,7 +291,7 @@ export const WordChunkingGame: React.FC = () => {
 
       {isFinished && (
         <GameResultModal
-          score={chunks.length * 15 * currentLevel}
+          score={chunks.length * 15 * effectiveLevel}
           accuracyRate={95}
           timeSpentSec={elapsedSec}
           rawMetricsJson={getRawMetricsJson()}

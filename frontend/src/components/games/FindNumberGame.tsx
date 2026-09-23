@@ -3,32 +3,69 @@ import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { calculateGameScore } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { numberToRoman } from '../../services/infinityApiService';
+
+const isPrime = (n: number): boolean => {
+  if (n <= 1) return false;
+  if (n <= 3) return true;
+  if (n % 2 === 0 || n % 3 === 0) return false;
+  for (let i = 5; i * i <= n; i += 6) {
+    if (n % i === 0 || n % (i + 2) === 0) return false;
+  }
+  return true;
+};
+
+const FIBONACCI_SET = new Set([1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233]);
 
 export const FindNumberGame: React.FC = () => {
   const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const lastClickRef = useRef<number>(Date.now());
-  const currentLevel = getExerciseLevel('find-number');
-  const gridSize = currentLevel <= 2 ? 4 : currentLevel <= 5 ? 5 : currentLevel <= 8 ? 6 : 7;
+  const effectiveLevel = getExerciseLevel('find-number') || 1;
+  const isInfinity = effectiveLevel >= 13;
+  const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
+
+  const gridSize = effectiveLevel >= 22 ? 8 : effectiveLevel >= 13 ? 7 : effectiveLevel <= 2 ? 4 : effectiveLevel <= 5 ? 5 : effectiveLevel <= 8 ? 6 : 7;
   const totalCells = gridSize * gridSize;
 
   const [numbers, setNumbers] = useState<number[]>([]);
   const [targetNumber, setTargetNumber] = useState<number>(9);
   const [foundCount, setFoundCount] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(30);
+  const [timeLeft, setTimeLeft] = useState(isInfinity ? 40 : 30);
   const [isFinished, setIsFinished] = useState(false);
-  const isMathTarget = currentLevel >= 10;
+  
+  const isMathTarget = effectiveLevel >= 10 && effectiveLevel <= 12;
+  const isPrimeTarget = effectiveLevel === 14;
+  const isFibonacciTarget = effectiveLevel === 15;
+  const isBinaryTarget = effectiveLevel === 18;
+  const isRomanTarget = effectiveLevel === 13;
+  const isSpeedSurge = effectiveLevel === 20;
+
   const [mathConditionText, setMathConditionText] = useState<string>('Số chia hết cho 3');
 
   const generateBoard = () => {
     const list: number[] = [];
-    const maxVal = currentLevel <= 2 ? 20 : currentLevel <= 5 ? 50 : currentLevel <= 8 ? 99 : 200;
+    const maxVal = effectiveLevel <= 2 ? 20 : effectiveLevel <= 5 ? 50 : effectiveLevel <= 8 ? 99 : 150;
     for (let i = 0; i < totalCells; i++) {
       list.push(Math.floor(Math.random() * maxVal) + 1);
     }
     
-    if (isMathTarget) {
-      // Ensure at least 3 matching numbers exist in grid
+    if (isPrimeTarget) {
+      // Ensure at least 3 primes exist
+      const primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
+      list[0] = primes[Math.floor(Math.random() * primes.length)];
+      list[1] = primes[Math.floor(Math.random() * primes.length)];
+      list[2] = primes[Math.floor(Math.random() * primes.length)];
+      setMathConditionText('Tìm số nguyên tố (Prime Number)');
+      setTargetNumber(0);
+    } else if (isFibonacciTarget) {
+      const fibs = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89];
+      list[0] = fibs[Math.floor(Math.random() * fibs.length)];
+      list[1] = fibs[Math.floor(Math.random() * fibs.length)];
+      list[2] = fibs[Math.floor(Math.random() * fibs.length)];
+      setMathConditionText('Tìm số thuộc dãy Fibonacci (1, 2, 3, 5, 8...)');
+      setTargetNumber(0);
+    } else if (isMathTarget) {
       const validNumbers = list.filter(n => n % 3 === 0);
       if (validNumbers.length < 3) {
         list[0] = 3 * (Math.floor(Math.random() * 20) + 1);
@@ -36,10 +73,16 @@ export const FindNumberGame: React.FC = () => {
         list[2] = 3 * (Math.floor(Math.random() * 20) + 1);
       }
       setMathConditionText('Tìm số chia hết cho 3');
-      setTargetNumber(0); // Flag that we use math condition
+      setTargetNumber(0);
     } else {
       const randTarget = list[Math.floor(Math.random() * list.length)];
       setTargetNumber(randTarget);
+    }
+
+    // Shuffle list
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
     }
     setNumbers(list);
   };
@@ -58,22 +101,32 @@ export const FindNumberGame: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [currentLevel]);
+  }, [effectiveLevel]);
 
   const handleCellClick = (num: number) => {
     if (isFinished) return;
-    const isCorrect = isMathTarget ? (num % 3 === 0) : (num === targetNumber);
+    let isCorrect = false;
+    if (isPrimeTarget) {
+      isCorrect = isPrime(num);
+    } else if (isFibonacciTarget) {
+      isCorrect = FIBONACCI_SET.has(num);
+    } else if (isMathTarget) {
+      isCorrect = (num % 3 === 0);
+    } else {
+      isCorrect = (num === targetNumber);
+    }
+
     const now = Date.now();
     const respMs = Math.min(10000, Math.max(50, now - lastClickRef.current));
     lastClickRef.current = now;
 
     emitTrialEvent({
       exerciseSlug: 'find-number',
-      level: currentLevel,
-      relationId: isMathTarget ? 'RULE_ACTION' : 'TARGET_DISTRACTOR',
+      level: effectiveLevel,
+      relationId: (isMathTarget || isPrimeTarget || isFibonacciTarget) ? 'RULE_ACTION' : 'TARGET_DISTRACTOR',
       relationWeight: 1.0,
       entities: {
-        target: isMathTarget ? 'chia hết cho 3' : String(targetNumber),
+        target: isPrimeTarget ? 'prime' : isFibonacciTarget ? 'fibonacci' : isMathTarget ? 'div3' : String(targetNumber),
         distractor: String(num)
       },
       stateBefore: `found:${foundCount}`,
@@ -85,36 +138,77 @@ export const FindNumberGame: React.FC = () => {
     if (isCorrect) {
       playSound('correct');
       setFoundCount(c => c + 1);
+      if (isSpeedSurge) {
+        setTimeLeft(t => Math.min(60, t + 2));
+      }
       generateBoard();
     } else {
       playSound('wrong');
+      if (isSpeedSurge) {
+        setTimeLeft(t => Math.max(1, t - 3));
+      }
     }
   };
 
   const score = calculateGameScore({
-    level: currentLevel,
+    level: effectiveLevel,
     accuracyRate: 95,
-    timeLimitSec: 30,
-    timeSpentSec: 30 - timeLeft,
+    timeLimitSec: isInfinity ? 40 : 30,
+    timeSpentSec: isInfinity ? 40 - timeLeft : 30 - timeLeft,
     baseScore: foundCount * 25
   });
 
   return (
     <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-3xl mx-auto px-4 py-4 space-y-6 animate-fade-in pb-24">
+      {/* Infinity Level Badge Banner */}
+      {isInfinity && (
+        <div className="rounded-2xl p-3 bg-gradient-to-r from-purple-900/60 via-indigo-900/50 to-pink-900/50 border border-purple-500/40 text-purple-200 text-xs shadow-lg backdrop-blur-md flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-400/30">
+              ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
+            </span>
+            <span className="font-semibold text-white">
+              {effectiveLevel === 13 ? 'Roman Numeral Hunt (Nhận diện số La Mã XIV, XLII...)' :
+               effectiveLevel === 14 ? 'Prime Only (Quét và tìm số nguyên tố)' :
+               effectiveLevel === 15 ? 'Fibonacci Hunt (Tìm chuỗi Fibonacci 1,2,3,5,8...)' :
+               effectiveLevel === 16 ? 'Equation Grid (Giải toán ma trận nhanh)' :
+               effectiveLevel === 17 ? 'Trivia Number (Tri thức số học & vũ trụ)' :
+               effectiveLevel === 18 ? 'Binary Decode (Giải mã số nhị phân)' :
+               effectiveLevel === 19 ? 'Dual Number Filter (Lọc mục tiêu đa tầng)' :
+               effectiveLevel === 20 ? 'Speed Surge (+2s khi đúng, -3s khi sai)' :
+               effectiveLevel === 21 ? 'Negative Space Number (Lọc nhiễu không gian)' :
+               'Chaos Number (Lưới 8x8 Vô cực phản xạ siêu tốc)'}
+            </span>
+          </div>
+          <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
+        </div>
+      )}
+
       {/* Top HUD */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="flex items-center gap-3 sm:gap-4">
-          <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-brand-600 text-white font-black text-xl sm:text-3xl flex items-center justify-center shadow-lg shadow-brand-600/30 px-1 text-center">
-            {isMathTarget ? '÷3' : targetNumber}
+          <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-brand-600 text-white font-black text-xl sm:text-2xl flex items-center justify-center shadow-lg shadow-brand-600/30 px-1 text-center">
+            {isRomanTarget ? numberToRoman(targetNumber) :
+             isPrimeTarget ? 'PRIME' :
+             isFibonacciTarget ? 'FIBO' :
+             isBinaryTarget ? targetNumber.toString(2) :
+             isMathTarget ? '÷3' : targetNumber}
           </div>
           <div>
             <span className="text-xs sm:text-sm text-slate-500 font-medium">
-              {isMathTarget ? 'Quy tắc số học đích' : 'Số mục tiêu cần tìm'}
+              {isRomanTarget ? 'Số La Mã (Tìm số tương ứng)' :
+               (isPrimeTarget || isFibonacciTarget || isMathTarget) ? 'Quy tắc số học đích' : 
+               isBinaryTarget ? 'Số nhị phân (Tìm số thập phân)' :
+               'Số mục tiêu cần tìm'}
             </span>
             <div className="text-sm sm:text-base font-bold text-slate-800 dark:text-white">
-              {isMathTarget ? <strong className="text-indigo-600 dark:text-indigo-400">{mathConditionText}</strong> : <>Đã tìm thấy: <strong className="text-brand-600 text-base sm:text-lg">{foundCount}</strong></>}
+              {(isMathTarget || isPrimeTarget || isFibonacciTarget) ? (
+                <strong className="text-indigo-600 dark:text-indigo-400">{mathConditionText}</strong>
+              ) : (
+                <>Đã tìm thấy: <strong className="text-brand-600 text-base sm:text-lg">{foundCount}</strong></>
+              )}
             </div>
-            {isMathTarget && (
+            {(isMathTarget || isPrimeTarget || isFibonacciTarget) && (
               <div className="text-xs font-semibold text-slate-500">
                 Đã giải đúng: <strong className="text-brand-600">{foundCount}</strong>
               </div>
@@ -149,12 +243,12 @@ export const FindNumberGame: React.FC = () => {
         <GameResultModal
           score={score}
           accuracyRate={95}
-          timeSpentSec={30}
+          timeSpentSec={isInfinity ? 40 - timeLeft : 30 - timeLeft}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();
             setFoundCount(0);
-            setTimeLeft(30);
+            setTimeLeft(isInfinity ? 40 : 30);
             setIsFinished(false);
             generateBoard();
           }}

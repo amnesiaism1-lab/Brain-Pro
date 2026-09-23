@@ -8,19 +8,28 @@ export const SpatialMemoryGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const effectiveLevel = getExerciseLevel('spatial-memory') || currentLevel;
+  const isInfinity = effectiveLevel >= 13;
+  const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
   const gridSize = useMemo(() => {
-    if (effectiveLevel <= 2) return 3; // 3x3 = 9 blocks
-    if (effectiveLevel <= 5) return 4; // 4x4 = 16 blocks
-    if (effectiveLevel <= 9) return 5; // 5x5 = 25 blocks
-    return 6; // 6x6 = 36 blocks for level 10-12
+    if (effectiveLevel >= 19) return 6;
+    if (effectiveLevel >= 13) return 5;
+    if (effectiveLevel <= 2) return 3;
+    if (effectiveLevel <= 5) return 4;
+    if (effectiveLevel <= 9) return 5;
+    return 6;
   }, [effectiveLevel]);
 
   const targetSequenceLength = useMemo(() => {
-    return Math.min(13, 2 + effectiveLevel); // from 3 up to 13
-  }, [effectiveLevel]);
+    if (isInfinity) return Math.min(14, 4 + infinityTier);
+    return Math.min(13, 2 + effectiveLevel);
+  }, [effectiveLevel, isInfinity, infinityTier]);
 
-  const isReverseOrder = effectiveLevel === 8 || effectiveLevel === 9;
+  const isReverseOrder = effectiveLevel === 8 || effectiveLevel === 9 || effectiveLevel === 16;
+  const isColorCorsi = effectiveLevel === 13;
+  const isLetterCorsi = effectiveLevel === 14;
+
+  const CORSI_COLORS = ['#F59E0B', '#3B82F6', '#EC4899', '#10B981', '#8B5CF6', '#EF4444', '#06B6D4'];
 
   const [sequence, setSequence] = useState<number[]>([]);
   const [activeHighlightIndex, setActiveHighlightIndex] = useState<number | null>(null);
@@ -49,6 +58,9 @@ export const SpatialMemoryGame: React.FC = () => {
     setUserInputs([]);
     setIsShowingSequence(true);
 
+    const stepIntervalMs = isInfinity ? 600 : 850;
+    const highlightMs = isInfinity ? 380 : 500;
+
     // Playback sequence animation
     let step = 0;
     const interval = setInterval(() => {
@@ -61,14 +73,14 @@ export const SpatialMemoryGame: React.FC = () => {
         // Turn off highlight shortly after
         setTimeout(() => {
           setActiveHighlightIndex(null);
-        }, 500);
+        }, highlightMs);
       } else {
         clearInterval(interval);
         setActiveHighlightIndex(null);
         setIsShowingSequence(false);
       }
-    }, 850);
-  }, [totalBlocks, targetSequenceLength, playSound]);
+    }, stepIntervalMs);
+  }, [totalBlocks, targetSequenceLength, playSound, isInfinity]);
 
   useEffect(() => {
     startNewSequence(currentRound);
@@ -137,13 +149,38 @@ export const SpatialMemoryGame: React.FC = () => {
   const gridClass = useMemo(() => {
     if (gridSize === 3) return 'grid-cols-3';
     if (gridSize === 4) return 'grid-cols-4';
-    return 'grid-cols-5';
+    if (gridSize === 5) return 'grid-cols-5';
+    return 'grid-cols-6';
   }, [gridSize]);
 
   const accuracyRate = Math.max(50, Math.min(100, Math.round(100 - (mistakes * 10))));
 
   return (
     <div className="w-full max-w-xl sm:max-w-2xl md:max-w-2xl lg:max-w-3xl mx-auto px-3 sm:px-6 py-4 space-y-5 sm:space-y-6 animate-fade-in pb-24">
+      {/* Infinity Level Badge Banner */}
+      {isInfinity && (
+        <div className="rounded-2xl p-3 bg-gradient-to-r from-purple-900/60 via-indigo-900/50 to-pink-900/50 border border-purple-500/40 text-purple-200 text-xs shadow-lg backdrop-blur-md flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-400/30">
+              ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
+            </span>
+            <span className="font-semibold text-white">
+              {effectiveLevel === 13 ? 'Color Corsi (Khối sáng đa sắc màu rực rỡ)' :
+               effectiveLevel === 14 ? 'Letter Spatial (Khối phát sáng kèm ký tự Latin)' :
+               effectiveLevel === 15 ? 'Ascending Magnitude (Bấm theo giá trị tăng dần)' :
+               effectiveLevel === 16 ? 'Mirror Corsi (Phản chiếu không gian lật ngược)' :
+               effectiveLevel === 17 ? 'Diagonal Sequence (Ma trận đường chéo)' :
+               effectiveLevel === 18 ? 'Shape Corsi (Biến hình dạng khối)' :
+               effectiveLevel === 19 ? 'Expanding Grid 6x6 (Lưới mở rộng cực đại)' :
+               effectiveLevel === 20 ? 'Dual Track Spatial (Bộ nhớ 2 chiều song song)' :
+               effectiveLevel === 21 ? 'Interference Corsi (Nhiễu loạn thị giác cực hạn)' :
+               'Chaos Matrix Corsi (Tốc độ flash 380ms Vô cực)'}
+            </span>
+          </div>
+          <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
+        </div>
+      )}
+
       {/* Top HUD */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md">
         <div>
@@ -192,21 +229,30 @@ export const SpatialMemoryGame: React.FC = () => {
         {Array.from({ length: totalBlocks }).map((_, idx) => {
           const isHighlighted = activeHighlightIndex === idx;
           const isUserTapped = userInputs.includes(idx);
+          const colorForBlock = isColorCorsi ? CORSI_COLORS[idx % CORSI_COLORS.length] : undefined;
 
           return (
             <button
               key={`block-${idx}`}
               onClick={() => handleBlockClick(idx)}
               disabled={isShowingSequence}
+              style={{
+                backgroundColor: isHighlighted && colorForBlock ? colorForBlock : undefined
+              }}
               className={`w-full h-full aspect-square rounded-2xl sm:rounded-3xl font-black text-xl transition-all duration-150 btn-press relative flex items-center justify-center ${
                 isHighlighted
-                  ? 'bg-amber-400 border-4 border-white shadow-xl shadow-amber-400/80 scale-105 z-10'
+                  ? colorForBlock 
+                    ? 'border-4 border-white shadow-xl scale-105 z-10 text-white' 
+                    : 'bg-amber-400 border-4 border-white shadow-xl shadow-amber-400/80 scale-105 z-10'
                   : isUserTapped
                   ? 'bg-brand-500 border-2 border-brand-300 text-white shadow-md'
                   : 'bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 hover:border-brand-400 hover:scale-[1.02] active:scale-95'
               }`}
             >
-              {isHighlighted && <Sparkles className="w-8 h-8 text-white animate-spin" />}
+              {isHighlighted && !isLetterCorsi && <Sparkles className="w-8 h-8 text-white animate-spin" />}
+              {isHighlighted && isLetterCorsi && (
+                <span className="text-2xl font-black text-white">{String.fromCharCode(65 + (idx % 26))}</span>
+              )}
             </button>
           );
         })}

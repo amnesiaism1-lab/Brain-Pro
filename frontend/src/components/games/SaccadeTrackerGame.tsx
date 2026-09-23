@@ -11,10 +11,16 @@ export const SaccadeTrackerGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const effectiveLevel = getExerciseLevel('saccade-tracker') || currentLevel;
+  const isInfinity = effectiveLevel >= 13;
+  const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
-  const isColorSwitch = effectiveLevel === 11;
+  const isColorSwitch = effectiveLevel === 11 || effectiveLevel === 14;
+  const isVowelTrigger = effectiveLevel === 13;
 
   const jumpIntervalMs = useMemo(() => {
+    if (effectiveLevel >= 22) return 240;
+    if (effectiveLevel >= 18) return 280;
+    if (effectiveLevel >= 13) return 320;
     switch (effectiveLevel) {
       case 1: return 1200;
       case 2: return 1050;
@@ -34,12 +40,16 @@ export const SaccadeTrackerGame: React.FC = () => {
 
   // Dynamic target symbol per session
   const [targetSymbol, setTargetSymbol] = useState<string>(() => 
-    TARGET_CANDIDATES[Math.floor(Math.random() * TARGET_CANDIDATES.length)]
+    isVowelTrigger ? 'VOWELS' : TARGET_CANDIDATES[Math.floor(Math.random() * TARGET_CANDIDATES.length)]
   );
 
+  const VOWELS = ['A', 'E', 'I', 'O', 'U'];
+  const CONSONANTS = ['B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'R', 'S', 'T', 'V', 'W', 'Z'];
+
   const distractors = useMemo(() => {
+    if (isVowelTrigger) return CONSONANTS;
     return ALL_DISTRACTOR_SYMBOLS.filter(s => s !== targetSymbol);
-  }, [targetSymbol]);
+  }, [targetSymbol, isVowelTrigger]);
 
   const [position, setPosition] = useState({ x: 50, y: 50 });
   const [currentSymbol, setCurrentSymbol] = useState('A');
@@ -61,10 +71,17 @@ export const SaccadeTrackerGame: React.FC = () => {
     const newY = 10 + Math.random() * 80;
 
     // 25% chance of being the target
-    const isTargetNow = Math.random() < 0.25;
-    const symbol = isTargetNow 
-      ? targetSymbol 
-      : distractors[Math.floor(Math.random() * distractors.length)];
+    const isTargetNow = Math.random() < 0.28;
+    let symbol = '';
+    if (isVowelTrigger) {
+      symbol = isTargetNow 
+        ? VOWELS[Math.floor(Math.random() * VOWELS.length)]
+        : CONSONANTS[Math.floor(Math.random() * CONSONANTS.length)];
+    } else {
+      symbol = isTargetNow 
+        ? targetSymbol 
+        : distractors[Math.floor(Math.random() * distractors.length)];
+    }
 
     setPosition({ x: newX, y: newY });
     setCurrentSymbol(symbol);
@@ -73,7 +90,7 @@ export const SaccadeTrackerGame: React.FC = () => {
     if (isTargetNow) {
       setTargetAppearanceTime(Date.now());
     }
-  }, [targetSymbol, distractors]);
+  }, [targetSymbol, distractors, isVowelTrigger]);
 
   useEffect(() => {
     jumpTarget();
@@ -175,28 +192,54 @@ export const SaccadeTrackerGame: React.FC = () => {
 
   return (
     <div className="w-full max-w-2xl sm:max-w-3xl md:max-w-4xl lg:max-w-5xl mx-auto px-3 sm:px-6 py-4 space-y-5 sm:space-y-6 animate-fade-in pb-24">
+      {/* Infinity Level Badge Banner */}
+      {isInfinity && (
+        <div className="rounded-2xl p-3 bg-gradient-to-r from-purple-900/60 via-indigo-900/50 to-pink-900/50 border border-purple-500/40 text-purple-200 text-xs shadow-lg backdrop-blur-md flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-400/30">
+              ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
+            </span>
+            <span className="font-semibold text-white">
+              {effectiveLevel === 13 ? 'Letter Target (Chỉ bấm khi gặp nguyên âm A, E, I, O, U)' :
+               effectiveLevel === 14 ? 'Dual Target Color Filter (Lọc mục tiêu theo màu)' :
+               effectiveLevel === 15 ? 'Fibonacci Jump (Nhịp nhảy biến thiên phi tuyến tính)' :
+               effectiveLevel === 16 ? 'Stroop Saccade (Xung đột ý niệm & vị trí)' :
+               effectiveLevel === 17 ? 'Predictive Lock (Dự đoán quỹ đạo nhảy tiếp theo)' :
+               effectiveLevel === 18 ? 'Memory Flash Saccade (Tốc độ quét 280ms)' :
+               effectiveLevel === 19 ? 'Multiplying Target Field (Đa mục tiêu phân tán)' :
+               effectiveLevel === 20 ? 'Color Shift (Mục tiêu đổi màu liên tục)' :
+               effectiveLevel === 21 ? 'Gravity Parabolic Field (Quỹ đạo cong vật lý)' :
+               'Chaos Swarm Saccade (Chuyển động hỗn loạn 240ms Vô cực)'}
+            </span>
+          </div>
+          <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
+        </div>
+      )}
+
       {/* Top HUD */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-rose-500 text-white font-black text-2xl flex items-center justify-center shadow-lg shadow-rose-500/30">
-            {targetSymbol}
+            {isVowelTrigger ? 'V' : targetSymbol}
           </div>
           <div>
             <span className="text-xs sm:text-sm text-slate-500 font-semibold block">Mục tiêu bắt buộc</span>
             <span className="text-sm sm:text-base font-black text-rose-600 dark:text-rose-400">
-              Ký tự "{targetSymbol}"
+              {isVowelTrigger ? 'Nguyên âm (A, E, I, O, U)' : `Ký tự "${targetSymbol}"`}
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleNewTarget}
-            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 transition-all btn-press"
-            title="Đổi ký tự mục tiêu ngẫu nhiên"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          {!isVowelTrigger && (
+            <button
+              onClick={handleNewTarget}
+              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 transition-all btn-press"
+              title="Đổi ký tự mục tiêu ngẫu nhiên"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          )}
 
           <div className="text-center">
             <span className="text-xs sm:text-sm text-slate-500 font-semibold">Phản xạ TB</span>
@@ -217,7 +260,7 @@ export const SaccadeTrackerGame: React.FC = () => {
       {/* Instruction Tip */}
       <div className="text-center text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium flex items-center justify-center gap-2">
         <Eye className="w-5 h-5 text-brand-500" />
-        <span>Di chuyển mắt theo mục tiêu. Bấm phản xạ ngay khi thấy ký tự <strong className="text-rose-600 font-black">"{targetSymbol}"</strong>!</span>
+        <span>Di chuyển mắt theo mục tiêu. Bấm phản xạ ngay khi thấy {isVowelTrigger ? <strong className="text-rose-600 font-black">Nguyên âm (A, E, I, O, U)</strong> : <strong className="text-rose-600 font-black">"{targetSymbol}"</strong>}!</span>
       </div>
 
       {/* Ocular Tracking Arena */}
@@ -256,7 +299,7 @@ export const SaccadeTrackerGame: React.FC = () => {
         className="w-full py-5 sm:py-6 rounded-3xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 active:scale-95 text-white font-black text-xl sm:text-2xl shadow-xl shadow-rose-500/30 flex items-center justify-center gap-3 transition-transform btn-press"
       >
         <Zap className="w-7 h-7 animate-bounce" />
-        <span>BẤM KHI THẤY "{targetSymbol}" (Phím Cách)</span>
+        <span>BẤM KHI THẤY {isVowelTrigger ? 'NGUYÊN ÂM' : `"${targetSymbol}"`} (Phím Cách)</span>
       </button>
 
       {isFinished && (

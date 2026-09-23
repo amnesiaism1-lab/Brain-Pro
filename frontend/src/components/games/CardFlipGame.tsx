@@ -3,13 +3,29 @@ import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { 
   Brain, Zap, Sparkles, Star, Flame, Eye, Target, Compass, 
-  Heart, Gem, Sun, Moon, Rocket, Feather, Crown, RefreshCw
+  Heart, Gem, Sun, Moon, Rocket, Feather, Crown, RefreshCw,
+  Infinity as InfinityIcon, Globe
 } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { 
+  infinityApiService, 
+  BILINGUAL_WORD_PAIRS, 
+  EMOJI_WORD_PAIRS, 
+  SYNONYM_PAIRS, 
+  POS_TRIADS, 
+  NASA_OFFLINE_CARDS 
+} from '../../services/infinityApiService';
+import { INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
 
 interface CardItem {
   id: string;
   symbolIndex: number;
+  matchKey: string;
+  cardType: 'icon' | 'word_en' | 'word_vi' | 'emoji' | 'triad_noun' | 'triad_verb' | 'triad_adj' | 'space';
+  displayText: string;
+  subText?: string;
+  emoji?: string;
+  colorClass?: string;
   isFlipped: boolean;
   isMatched: boolean;
   isTrap?: boolean;
@@ -39,17 +55,25 @@ export const CardFlipGame: React.FC = () => {
   const lastMatchTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('card-flip') || currentLevel;
 
-  const isTripleMatch = effectiveLevel === 9;
-  const isShuffleTrap = effectiveLevel === 10;
+  // Level-specific mode flags
+  const isInfinity = effectiveLevel >= 13;
+  const infinityTier = getInfinityTier(effectiveLevel);
+
+  // Standard modes
+  const isTripleMatch = effectiveLevel === 9 || effectiveLevel === 17; // Level 9 or ∞-V (Triad Match)
+  const isShuffleTrap = effectiveLevel === 10 || effectiveLevel === 19; // Level 10 or ∞-VII (Matrix Drift)
+  const isSpeedDecay = effectiveLevel === 20; // ∞-VIII: Rapid Decay Flash
 
   const pairCount = useMemo(() => {
+    if (effectiveLevel === 17) return 6; // 6 triads of 3 = 18 cards
     if (isTripleMatch) return 6; // 6 sets of 3 = 18 cards
     if (effectiveLevel <= 2) return 6; // 12 cards
     if (effectiveLevel <= 4) return 8; // 16 cards
     if (effectiveLevel <= 6) return 10; // 20 cards
     if (effectiveLevel === 7) return 12; // 24 cards
-    if (effectiveLevel === 8) return 15; // 30 cards
-    return 16; // 32 cards for high levels
+    if (effectiveLevel === 8) return 14; // 28 cards
+    if (effectiveLevel >= 13) return 12; // 24 cards for high levels
+    return 16; // 32 cards
   }, [effectiveLevel, isTripleMatch]);
 
   const initialTimeLimit = useMemo(() => {
@@ -57,6 +81,7 @@ export const CardFlipGame: React.FC = () => {
     if (effectiveLevel <= 4) return 50;
     if (effectiveLevel <= 6) return 60;
     if (effectiveLevel <= 8) return 75;
+    if (effectiveLevel >= 13) return 85;
     return 85;
   }, [effectiveLevel]);
 
@@ -71,34 +96,252 @@ export const CardFlipGame: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
 
   const initGame = useCallback(() => {
-    const selectedIconIndices: number[] = [];
-    const availablePool = Array.from({ length: CARD_ICONS.length }, (_, i) => i);
-    
-    // Fisher-Yates shuffle pool
-    for (let i = availablePool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [availablePool[i], availablePool[j]] = [availablePool[j], availablePool[i]];
-    }
-
-    for (let i = 0; i < pairCount; i++) {
-      selectedIconIndices.push(availablePool[i % availablePool.length]);
-    }
-
     const cardDeck: CardItem[] = [];
-    selectedIconIndices.forEach((symIdx, idx) => {
-      // If triple match, create 3 of each symbol
-      const copies = isTripleMatch ? 3 : 2;
-      for (let c = 0; c < copies; c++) {
-        cardDeck.push({
-          id: `card-${idx}-${c}-${Math.random()}`,
-          symbolIndex: symIdx,
-          isFlipped: false,
-          isMatched: false
-        });
-      }
-    });
 
-    // Shuffle deck
+    if (!isInfinity) {
+      // Standard Icon Matching (Levels 1-12)
+      const selectedIconIndices: number[] = [];
+      const availablePool = Array.from({ length: CARD_ICONS.length }, (_, i) => i);
+      
+      for (let i = availablePool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [availablePool[i], availablePool[j]] = [availablePool[j], availablePool[i]];
+      }
+
+      for (let i = 0; i < pairCount; i++) {
+        selectedIconIndices.push(availablePool[i % availablePool.length]);
+      }
+
+      selectedIconIndices.forEach((symIdx, idx) => {
+        const copies = isTripleMatch ? 3 : 2;
+        for (let c = 0; c < copies; c++) {
+          cardDeck.push({
+            id: `card-${idx}-${c}-${Math.random()}`,
+            symbolIndex: symIdx,
+            matchKey: `icon-${symIdx}`,
+            cardType: 'icon',
+            displayText: CARD_ICONS[symIdx].name,
+            isFlipped: false,
+            isMatched: false
+          });
+        }
+      });
+    } else {
+      // Infinity Levels (13 to 22)
+      switch (effectiveLevel) {
+        case 13: {
+          // ∞-I: English Word Pairs (12 pairs = 24 cards)
+          const enPairs = infinityApiService.getBilingualPairs(pairCount);
+          enPairs.forEach((pair, idx) => {
+            for (let c = 0; c < 2; c++) {
+              cardDeck.push({
+                id: `card-en-${idx}-${c}-${Math.random()}`,
+                symbolIndex: idx % CARD_ICONS.length,
+                matchKey: pair.en,
+                cardType: 'word_en',
+                displayText: pair.en,
+                subText: pair.category,
+                isFlipped: false,
+                isMatched: false
+              });
+            }
+          });
+          break;
+        }
+
+        case 14: {
+          // ∞-II: VI-EN Translation Pairs (Side A: Vietnamese, Side B: English)
+          const biPairs = infinityApiService.getBilingualPairs(pairCount);
+          biPairs.forEach((pair, idx) => {
+            // Card A: Vietnamese
+            cardDeck.push({
+              id: `card-vi-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: pair.en,
+              cardType: 'word_vi',
+              displayText: pair.vi,
+              subText: 'Tiếng Việt',
+              isFlipped: false,
+              isMatched: false
+            });
+            // Card B: English
+            cardDeck.push({
+              id: `card-en-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: pair.en,
+              cardType: 'word_en',
+              displayText: pair.en,
+              subText: 'English',
+              isFlipped: false,
+              isMatched: false
+            });
+          });
+          break;
+        }
+
+        case 15: {
+          // ∞-III: Emoji-Word Bridge (Side A: Emoji, Side B: English Word)
+          const emojiPairs = infinityApiService.getEmojiWordPairs(pairCount);
+          emojiPairs.forEach((pair, idx) => {
+            // Card A: Emoji
+            cardDeck.push({
+              id: `card-em-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: pair.word,
+              cardType: 'emoji',
+              displayText: pair.emoji,
+              emoji: pair.emoji,
+              subText: 'Biểu Tượng',
+              isFlipped: false,
+              isMatched: false
+            });
+            // Card B: English word
+            cardDeck.push({
+              id: `card-w-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: pair.word,
+              cardType: 'word_en',
+              displayText: pair.word,
+              subText: pair.vi,
+              isFlipped: false,
+              isMatched: false
+            });
+          });
+          break;
+        }
+
+        case 16: {
+          // ∞-IV: Semantic Synonym Pairs (Side A: Word A, Side B: Word B)
+          const synPairs = infinityApiService.getSynonymPairs(pairCount);
+          synPairs.forEach((pair, idx) => {
+            const mKey = `syn-${pair.wordA}-${pair.wordB}`;
+            cardDeck.push({
+              id: `card-synA-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: mKey,
+              cardType: 'word_en',
+              displayText: pair.wordA,
+              subText: pair.commonMeaning,
+              isFlipped: false,
+              isMatched: false
+            });
+            cardDeck.push({
+              id: `card-synB-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: mKey,
+              cardType: 'word_en',
+              displayText: pair.wordB,
+              subText: pair.commonMeaning,
+              isFlipped: false,
+              isMatched: false
+            });
+          });
+          break;
+        }
+
+        case 17: {
+          // ∞-V: Parts of Speech Triad (Noun + Verb + Adjective)
+          const triads = infinityApiService.getPosTriads(6);
+          triads.forEach((triad, idx) => {
+            const mKey = `triad-${idx}`;
+            cardDeck.push({
+              id: `card-noun-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: mKey,
+              cardType: 'triad_noun',
+              displayText: triad.noun,
+              subText: 'DANH TỪ',
+              isFlipped: false,
+              isMatched: false
+            });
+            cardDeck.push({
+              id: `card-verb-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: mKey,
+              cardType: 'triad_verb',
+              displayText: triad.verb,
+              subText: 'ĐỘNG TỪ',
+              isFlipped: false,
+              isMatched: false
+            });
+            cardDeck.push({
+              id: `card-adj-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: mKey,
+              cardType: 'triad_adj',
+              displayText: triad.adjective,
+              subText: 'TÍNH TỪ',
+              isFlipped: false,
+              isMatched: false
+            });
+          });
+          break;
+        }
+
+        case 18:
+        case 21: {
+          // ∞-VI / ∞-IX: NASA Cosmic Astronomy Cards
+          const spaceCards = infinityApiService.getNasaCards(8);
+          spaceCards.forEach((item, idx) => {
+            const mKey = item.enLabel;
+            cardDeck.push({
+              id: `card-spaceA-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: mKey,
+              cardType: 'space',
+              displayText: item.enLabel,
+              emoji: item.emoji,
+              subText: 'Vũ Trụ NASA',
+              isFlipped: false,
+              isMatched: false
+            });
+            cardDeck.push({
+              id: `card-spaceB-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: mKey,
+              cardType: 'space',
+              displayText: item.viLabel,
+              emoji: item.emoji,
+              subText: 'NASA APOD',
+              isFlipped: false,
+              isMatched: false
+            });
+          });
+          break;
+        }
+
+        default: {
+          // ∞-VII, ∞-VIII, ∞-X: Dynamic Hybrid Vocabulary Deck
+          const biPairs = infinityApiService.getBilingualPairs(pairCount);
+          biPairs.forEach((pair, idx) => {
+            const isVi = Math.random() < 0.5;
+            cardDeck.push({
+              id: `card-dynA-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: pair.en,
+              cardType: 'word_en',
+              displayText: pair.en,
+              subText: pair.category,
+              isFlipped: false,
+              isMatched: false
+            });
+            cardDeck.push({
+              id: `card-dynB-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: pair.en,
+              cardType: isVi ? 'word_vi' : 'word_en',
+              displayText: isVi ? pair.vi : pair.en,
+              subText: isVi ? 'Dịch Nghĩa' : 'Vocabulary',
+              isFlipped: false,
+              isMatched: false
+            });
+          });
+          break;
+        }
+      }
+    }
+
+    // Shuffle deck (Fisher-Yates)
     for (let i = cardDeck.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [cardDeck[i], cardDeck[j]] = [cardDeck[j], cardDeck[i]];
@@ -113,13 +356,13 @@ export const CardFlipGame: React.FC = () => {
     setScore(0);
     setTimeLeft(initialTimeLimit);
     setIsFinished(false);
-  }, [pairCount, initialTimeLimit, isTripleMatch]);
+  }, [pairCount, initialTimeLimit, isTripleMatch, isInfinity, effectiveLevel]);
 
   useEffect(() => {
     initGame();
   }, [initGame]);
 
-  // Countdown timer & Shuffle Trap
+  // Countdown timer & Shuffle Trap / Matrix Drift
   useEffect(() => {
     if (isFinished) return;
     const timer = setInterval(() => {
@@ -130,8 +373,8 @@ export const CardFlipGame: React.FC = () => {
           return 0;
         }
 
-        // Shuffle trap at level 10: every 10s shuffle unmatched unrevealed cards
-        if (isShuffleTrap && t > 1 && t % 10 === 0) {
+        // Shuffle trap at level 10 or ∞-VII: every 8-10s shuffle unmatched unrevealed cards
+        if (isShuffleTrap && t > 1 && t % 8 === 0) {
           setCards(prev => {
             const indicesToShuffle: number[] = [];
             prev.forEach((c, idx) => {
@@ -139,7 +382,6 @@ export const CardFlipGame: React.FC = () => {
             });
             if (indicesToShuffle.length > 2) {
               const updated = [...prev];
-              // Shuffle the items at these indices
               for (let i = indicesToShuffle.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 const idxA = indicesToShuffle[i];
@@ -161,6 +403,22 @@ export const CardFlipGame: React.FC = () => {
     return () => clearInterval(timer);
   }, [isFinished, isShuffleTrap]);
 
+  // Speed Decay for Level 20 (∞-VIII): Flipped cards close after 2 seconds if not matched
+  useEffect(() => {
+    if (!isSpeedDecay || flippedIndices.length === 0 || isProcessing) return;
+    const decayTimer = setTimeout(() => {
+      setCards(prev => {
+        const updated = [...prev];
+        flippedIndices.forEach(idx => {
+          if (!updated[idx].isMatched) updated[idx].isFlipped = false;
+        });
+        return updated;
+      });
+      setFlippedIndices([]);
+    }, 2000);
+    return () => clearTimeout(decayTimer);
+  }, [isSpeedDecay, flippedIndices, isProcessing]);
+
   const requiredMatches = isTripleMatch ? 3 : 2;
 
   const handleCardClick = (index: number) => {
@@ -180,8 +438,8 @@ export const CardFlipGame: React.FC = () => {
       setIsProcessing(true);
       setFlipsCount(c => c + 1);
 
-      const firstSymbol = newCards[newFlipped[0]].symbolIndex;
-      const isAllMatched = newFlipped.every(idx => newCards[idx].symbolIndex === firstSymbol);
+      const firstKey = newCards[newFlipped[0]].matchKey;
+      const isAllMatched = newFlipped.every(idx => newCards[idx].matchKey === firstKey);
       const now = Date.now();
       const respMs = Math.min(15000, Math.max(100, now - lastMatchTimeRef.current));
       lastMatchTimeRef.current = now;
@@ -189,9 +447,9 @@ export const CardFlipGame: React.FC = () => {
       emitTrialEvent({
         exerciseSlug: 'card-flip',
         level: effectiveLevel,
-        relationId: 'SPATIAL_TRANSFORM',
+        relationId: isInfinity ? 'IDENTITY_MATCH' : 'SPATIAL_TRANSFORM',
         relationWeight: 1.0,
-        entities: { symbol: firstSymbol, flippedIndices: newFlipped, isMatched: isAllMatched },
+        entities: { matchKey: firstKey, flippedIndices: newFlipped, isMatched: isAllMatched },
         stateBefore: `matched:${matchedPairsCount}`,
         stateAfter: isAllMatched ? `matched:${matchedPairsCount + 1}` : `matched:${matchedPairsCount}`,
         responseMs: respMs,
@@ -203,7 +461,7 @@ export const CardFlipGame: React.FC = () => {
         playSound('correct');
         const nextCombo = combo + 1;
         setCombo(nextCombo);
-        const addedScore = (isTripleMatch ? 250 : 150) + (nextCombo * 40) + (effectiveLevel * 20);
+        const addedScore = (isTripleMatch ? 300 : 160) + (nextCombo * 45) + (effectiveLevel * 25);
         setScore(s => s + addedScore);
 
         setTimeout(() => {
@@ -219,7 +477,8 @@ export const CardFlipGame: React.FC = () => {
           setFlippedIndices([]);
           setIsProcessing(false);
 
-          if (nextMatchedCount >= pairCount) {
+          const totalRequiredSets = isTripleMatch ? Math.floor(cards.length / 3) : Math.floor(cards.length / 2);
+          if (nextMatchedCount >= totalRequiredSets) {
             setIsFinished(true);
           }
         }, 400);
@@ -254,21 +513,34 @@ export const CardFlipGame: React.FC = () => {
     ? Math.min(100, Math.round((matchedPairsCount / flipsCount) * 100)) 
     : 100;
 
+  const totalRequiredSets = isTripleMatch ? Math.floor(cards.length / 3) : Math.floor(cards.length / 2);
+
   return (
     <div className="w-full max-w-2xl sm:max-w-3xl md:max-w-4xl lg:max-w-5xl mx-auto px-3 sm:px-6 py-4 space-y-5 sm:space-y-6 animate-fade-in pb-24">
       {/* Top HUD */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md">
         <div>
-          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Điểm (Chuỗi: x{combo})</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs sm:text-sm text-slate-500 font-semibold">Điểm số</span>
+            {isInfinity && (
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white flex items-center gap-1">
+                <InfinityIcon className="w-3 h-3" />
+                {getInfinityLabel(effectiveLevel)}
+              </span>
+            )}
+          </div>
           <div className="text-2xl sm:text-3xl font-black text-brand-600 dark:text-brand-400 mt-0.5">
             {score}
+            {combo > 1 && <span className="text-xs text-amber-500 ml-1.5 font-bold">x{combo}</span>}
           </div>
         </div>
 
         <div className="text-center">
-          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Ghép đôi</span>
+          <span className="text-xs sm:text-sm text-slate-500 font-semibold">
+            {isTripleMatch ? 'Bộ 3 đã ghép' : 'Ghép đôi'}
+          </span>
           <div className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white mt-0.5">
-            {matchedPairsCount} / {pairCount}
+            {matchedPairsCount} / {totalRequiredSets}
           </div>
         </div>
 
@@ -282,13 +554,27 @@ export const CardFlipGame: React.FC = () => {
 
       {/* Instruction Tip */}
       <div className="text-center text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
-        Lật mở từng thẻ để ghép cặp các biểu tượng giống nhau. Lật đúng liên tiếp để nhân điểm combo!
+        {isInfinity ? (
+          effectiveLevel === 14 ? (
+            '🌌 Cấp Vô Cực ∞-II: Ghép cặp từ Tiếng Việt với từ Tiếng Anh dịch nghĩa tương ứng!'
+          ) : effectiveLevel === 15 ? (
+            '🌌 Cấp Vô Cực ∞-III: Ghép Biểu tượng Emoji với từ vựng Tiếng Anh miêu tả biểu tượng!'
+          ) : effectiveLevel === 16 ? (
+            '🌌 Cấp Vô Cực ∞-IV: Ghép các từ Đồng Nghĩa (Synonyms) Tiếng Anh có chung ngữ nghĩa!'
+          ) : effectiveLevel === 17 ? (
+            '🌌 Cấp Vô Cực ∞-V: Lật mở trọn vẹn Bộ 3: Danh Từ + Động Từ + Tính Từ cùng chủ đề!'
+          ) : (
+            '🌌 Cấp Vô Cực: Lật mở và kết nối các cặp thực thể song ngữ, ghi nhớ thần tốc!'
+          )
+        ) : (
+          'Lật mở từng thẻ để ghép cặp các biểu tượng giống nhau. Lật đúng liên tiếp để nhân điểm combo!'
+        )}
       </div>
 
       {/* 3D Card Grid */}
       <div className={`grid ${gridColsClass} gap-2.5 sm:gap-4 perspective-1000`}>
         {cards.map((card, idx) => {
-          const iconMeta = CARD_ICONS[card.symbolIndex];
+          const iconMeta = CARD_ICONS[card.symbolIndex % CARD_ICONS.length];
           const IconComp = iconMeta.icon;
 
           return (
@@ -309,17 +595,23 @@ export const CardFlipGame: React.FC = () => {
               >
                 {/* Back of Card (Hidden Face) */}
                 <div 
-                  className={`absolute inset-0 rounded-2xl sm:rounded-3xl flex items-center justify-center border-2 border-brand-200 dark:border-brand-900/60 bg-gradient-to-br from-brand-500 via-brand-600 to-indigo-600 text-white font-black shadow-lg backface-hidden ${
-                    !card.isMatched && 'hover:scale-[1.04] active:scale-95 transition-transform'
-                  }`}
+                  className={`absolute inset-0 rounded-2xl sm:rounded-3xl flex items-center justify-center border-2 border-brand-200 dark:border-brand-900/60 text-white font-black shadow-lg backface-hidden ${
+                    isInfinity 
+                      ? 'bg-gradient-to-br from-purple-700 via-purple-600 to-pink-600'
+                      : 'bg-gradient-to-br from-brand-500 via-brand-600 to-indigo-600'
+                  } ${!card.isMatched && 'hover:scale-[1.04] active:scale-95 transition-transform'}`}
                   style={{ backfaceVisibility: 'hidden' }}
                 >
-                  <Sparkles className="w-7 h-7 sm:w-9 sm:h-9 opacity-80 group-hover:rotate-12 transition-transform" />
+                  {isInfinity ? (
+                    <InfinityIcon className="w-6 h-6 sm:w-8 sm:h-8 opacity-90 group-hover:rotate-180 transition-transform duration-700" />
+                  ) : (
+                    <Sparkles className="w-7 h-7 sm:w-9 sm:h-9 opacity-80 group-hover:rotate-12 transition-transform" />
+                  )}
                 </div>
 
-                {/* Front of Card (Revealed Symbol) */}
+                {/* Front of Card (Revealed Symbol / Text / Emoji) */}
                 <div 
-                  className={`absolute inset-0 rounded-2xl sm:rounded-3xl flex items-center justify-center border-2 shadow-lg backface-hidden transition-all ${
+                  className={`absolute inset-0 rounded-2xl sm:rounded-3xl flex items-center justify-center p-2 border-2 shadow-lg backface-hidden transition-all ${
                     card.isMatched 
                       ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 opacity-90' 
                       : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
@@ -329,7 +621,34 @@ export const CardFlipGame: React.FC = () => {
                     transform: 'rotateY(180deg)'
                   }}
                 >
-                  <IconComp className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 ${card.isMatched ? 'text-emerald-500 scale-110' : iconMeta.color} transition-transform`} />
+                  {card.cardType === 'icon' ? (
+                    <IconComp className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 ${card.isMatched ? 'text-emerald-500 scale-110' : iconMeta.color} transition-transform`} />
+                  ) : card.cardType === 'emoji' ? (
+                    <div className="flex flex-col items-center justify-center text-center">
+                      <span className="text-3xl sm:text-4xl">{card.emoji}</span>
+                      {card.subText && (
+                        <span className="text-[8px] sm:text-[9px] font-bold text-purple-600 dark:text-purple-400 mt-0.5 uppercase tracking-wider">
+                          {card.subText}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center px-1">
+                      {card.emoji && <span className="text-xl sm:text-2xl mb-0.5">{card.emoji}</span>}
+                      <span className={`font-black text-xs sm:text-sm tracking-tight leading-tight uppercase ${
+                        card.isMatched 
+                          ? 'text-emerald-600 dark:text-emerald-400' 
+                          : 'text-slate-800 dark:text-white'
+                      }`}>
+                        {card.displayText}
+                      </span>
+                      {card.subText && (
+                        <span className="text-[8px] sm:text-[9px] font-bold text-purple-600 dark:text-purple-400 mt-0.5 uppercase tracking-wider">
+                          {card.subText}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

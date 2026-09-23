@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Play, ChevronLeft, Eye, Crosshair, Sparkles, Zap, Trophy, Target, 
-  BarChart3, Settings2, Info, CheckCircle2, ShieldCheck, Flame, BookOpen, Type
+  BarChart3, Settings2, Info, CheckCircle2, ShieldCheck, Flame, BookOpen, Type,
+  Infinity as InfinityIcon, Globe, Layers, Cpu, Orbit
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import { EXERCISES_METADATA } from '@brain-exercises/shared';
+import { EXERCISES_METADATA, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
 
 export const ExerciseDetailModal: React.FC = () => {
   const { 
@@ -77,9 +78,28 @@ export const ExerciseDetailModal: React.FC = () => {
     ? Math.round(exerciseAttempts.reduce((s, a) => s + (a.accuracyRate || 95), 0) / exerciseAttempts.length)
     : 94;
 
-  const allLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+  const allStandardLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+  const allInfinityLevels = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
+
+  const [levelTierTab, setLevelTierTab] = useState<'standard' | 'infinity'>(() => {
+    return exerciseLevel >= 13 ? 'infinity' : 'standard';
+  });
+
+  useEffect(() => {
+    if (exerciseLevel >= 13) {
+      setLevelTierTab('infinity');
+    }
+  }, [exerciseLevel]);
   
   const stageInfo = useMemo(() => {
+    if (exerciseLevel >= 13) {
+      const tierNum = exerciseLevel - 12;
+      return {
+        name: `Giai đoạn IV: VÔ CỰC (${INFINITY_ROMAN_NUMERALS[tierNum - 1]})`,
+        badgeColor: 'bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-amber-500/20 text-purple-700 dark:text-purple-300 border-purple-400 dark:border-purple-600 shadow-sm shadow-purple-500/20',
+        stageDesc: 'Khám phá chiều không gian nhận thức vô hạn: Song ngữ VI/EN, biến thể quan hệ thực thể, API thời gian thực và xung đột đa giác quan.'
+      };
+    }
     if (exerciseLevel >= 9) {
       return {
         name: 'Giai đoạn III: Siêu Phàm (Biến Thể Đột Phá)',
@@ -143,7 +163,7 @@ export const ExerciseDetailModal: React.FC = () => {
             {exercise.categoryName}
           </span>
           <span className="text-xs font-black text-slate-500 hidden sm:inline">
-            Cấp {exerciseLevel}/12
+            {exerciseLevel <= 12 ? `Cấp ${exerciseLevel}/12` : `${getInfinityLabel(exerciseLevel)} (Vô Cực)`}
           </span>
         </div>
       </div>
@@ -157,8 +177,13 @@ export const ExerciseDetailModal: React.FC = () => {
                 <Eye className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                  {exercise.title}
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>{exercise.title}</span>
+                  {exerciseLevel >= 13 && (
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm shadow-purple-500/30">
+                      VÔ CỰC
+                    </span>
+                  )}
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500">
                   {exercise.subtitle}
@@ -170,12 +195,20 @@ export const ExerciseDetailModal: React.FC = () => {
           <div className="flex items-center gap-3 shrink-0 self-start sm:self-center">
             <div className="text-right">
               <span className="text-[11px] text-slate-400 block font-medium">Tiến trình thành thạo</span>
-              <span className="text-sm font-black text-brand-600 dark:text-brand-400">
-                Cấp {exerciseLevel} / 12
+              <span className={`text-sm font-black ${exerciseLevel >= 13 ? 'text-purple-600 dark:text-purple-400' : 'text-brand-600 dark:text-brand-400'}`}>
+                {exerciseLevel <= 12 ? `Cấp ${exerciseLevel} / 12` : `${getInfinityLabel(exerciseLevel)} (Cấp ${exerciseLevel}/22)`}
               </span>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-indigo-600 text-white font-black text-lg flex items-center justify-center shadow-lg shadow-brand-500/25">
-              {exerciseLevel}
+            <div className={`w-12 h-12 rounded-2xl font-black text-lg flex items-center justify-center shadow-lg transition-all ${
+              exerciseLevel >= 13
+                ? 'bg-gradient-to-br from-purple-600 via-pink-600 to-amber-500 text-white shadow-purple-500/30 ring-2 ring-purple-300 dark:ring-purple-700'
+                : 'bg-gradient-to-br from-brand-500 to-indigo-600 text-white shadow-brand-500/25'
+            }`}>
+              {exerciseLevel >= 13 ? (
+                <span className="font-mono text-sm tracking-tighter">{INFINITY_ROMAN_NUMERALS[exerciseLevel - 13]}</span>
+              ) : (
+                exerciseLevel
+              )}
             </div>
           </div>
         </div>
@@ -320,12 +353,17 @@ export const ExerciseDetailModal: React.FC = () => {
             </div>
           )}
 
-          {/* Section 1: Level Progression Timeline (1 to 12) */}
+          {/* Section 1: Level Progression Timeline (Standard 1-12 & Infinity 13-22) */}
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-3xl border border-[#D5CBB9] dark:border-slate-800 p-5 sm:p-6 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
-                  Chọn Cấp Độ Huấn Luyện (1 – 12)
+                <h4 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>Chọn Cấp Độ Huấn Luyện</span>
+                  {levelTierTab === 'infinity' && (
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white">
+                      VÔ CỰC (13 – 22)
+                    </span>
+                  )}
                 </h4>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {stageInfo.stageDesc}
@@ -336,45 +374,154 @@ export const ExerciseDetailModal: React.FC = () => {
               </span>
             </div>
 
-            {/* 12 Levels Carousel / Grid with Stage Accents */}
-            <div className="grid grid-cols-6 sm:grid-cols-12 gap-2 sm:gap-2.5 pt-2">
-              {allLevels.map((lvl) => {
-                const isSelected = exerciseLevel === lvl;
-                const isStage3 = lvl >= 9;
-                const isStage2 = lvl >= 5 && lvl <= 8;
+            {/* Segmented Switcher: Cấp Độ Chuẩn vs Cấp Độ Vô Cực */}
+            <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80">
+              <button
+                type="button"
+                onClick={() => {
+                  playSound('click');
+                  setLevelTierTab('standard');
+                }}
+                className={`py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all ${
+                  levelTierTab === 'standard'
+                    ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>CẤP ĐỘ CHUẨN (1 – 12)</span>
+              </button>
 
-                return (
-                  <button
-                    key={lvl}
-                    onClick={() => {
-                      playSound('click');
-                      setExerciseLevel(exercise.slug, lvl);
-                    }}
-                    className={`h-13 sm:h-14 rounded-2xl font-black text-sm sm:text-base flex flex-col items-center justify-center transition-all duration-150 btn-press relative ${
-                      isSelected
-                        ? isStage3
-                          ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/40 ring-4 ring-purple-300 dark:ring-purple-900 scale-105'
-                          : isStage2
-                            ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/40 ring-4 ring-brand-300 dark:ring-brand-900 scale-105'
-                            : 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/40 ring-4 ring-emerald-300 dark:ring-emerald-900 scale-105'
-                        : isStage3
-                          ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 border border-purple-200 dark:border-purple-800'
-                          : isStage2
-                            ? 'bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 hover:bg-brand-100 border border-brand-200 dark:border-brand-800'
-                            : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800'
-                    }`}
-                  >
-                    <span>{lvl}</span>
-                    <span className="text-[9px] font-semibold opacity-75">
-                      {isStage3 ? 'Siêu' : isStage2 ? 'Bứt' : 'Khởi'}
-                    </span>
-                  </button>
-                );
-              })}
+              <button
+                type="button"
+                onClick={() => {
+                  playSound('click');
+                  setLevelTierTab('infinity');
+                }}
+                className={`py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all ${
+                  levelTierTab === 'infinity'
+                    ? 'bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white shadow-md shadow-purple-500/25'
+                    : 'text-purple-600 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-200'
+                }`}
+              >
+                <InfinityIcon className="w-3.5 h-3.5" />
+                <span>CẤP ĐỘ VÔ CỰC (∞-I – ∞-X)</span>
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] bg-amber-400 text-slate-900 font-extrabold uppercase">
+                  MỚI
+                </span>
+              </button>
             </div>
 
-            {/* Stage III Breakthrough Variant Banner */}
-            {currentConfig.variantName && (
+            {/* Level Buttons Grid: Standard (1-12) or Infinity (13-22) */}
+            {levelTierTab === 'standard' ? (
+              <div className="grid grid-cols-6 sm:grid-cols-12 gap-2 sm:gap-2.5 pt-1 animate-fade-in">
+                {allStandardLevels.map((lvl) => {
+                  const isSelected = exerciseLevel === lvl;
+                  const isStage3 = lvl >= 9;
+                  const isStage2 = lvl >= 5 && lvl <= 8;
+
+                  return (
+                    <button
+                      key={lvl}
+                      onClick={() => {
+                        playSound('click');
+                        setExerciseLevel(exercise.slug, lvl);
+                      }}
+                      className={`h-13 sm:h-14 rounded-2xl font-black text-sm sm:text-base flex flex-col items-center justify-center transition-all duration-150 btn-press relative ${
+                        isSelected
+                          ? isStage3
+                            ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/40 ring-4 ring-purple-300 dark:ring-purple-900 scale-105'
+                            : isStage2
+                              ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/40 ring-4 ring-brand-300 dark:ring-brand-900 scale-105'
+                              : 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/40 ring-4 ring-emerald-300 dark:ring-emerald-900 scale-105'
+                          : isStage3
+                            ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 border border-purple-200 dark:border-purple-800'
+                            : isStage2
+                              ? 'bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 hover:bg-brand-100 border border-brand-200 dark:border-brand-800'
+                              : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800'
+                      }`}
+                    >
+                      <span>{lvl}</span>
+                      <span className="text-[9px] font-semibold opacity-75">
+                        {isStage3 ? 'Siêu' : isStage2 ? 'Bứt' : 'Khởi'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 sm:gap-2.5 pt-1 animate-fade-in">
+                {allInfinityLevels.map((lvl) => {
+                  const isSelected = exerciseLevel === lvl;
+                  const tierNum = lvl - 12;
+                  const roman = INFINITY_ROMAN_NUMERALS[tierNum - 1];
+
+                  return (
+                    <button
+                      key={lvl}
+                      onClick={() => {
+                        playSound('click');
+                        setExerciseLevel(exercise.slug, lvl);
+                      }}
+                      className={`h-14 sm:h-16 rounded-2xl font-black text-xs sm:text-sm flex flex-col items-center justify-center transition-all duration-150 btn-press relative ${
+                        isSelected
+                          ? 'bg-gradient-to-br from-purple-600 via-pink-600 to-amber-500 text-white shadow-xl shadow-purple-600/50 ring-4 ring-pink-300 dark:ring-purple-900 scale-105 z-10'
+                          : 'bg-purple-50/70 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 border border-purple-200 dark:border-purple-800/60'
+                      }`}
+                    >
+                      <span className="font-mono text-sm sm:text-base font-black tracking-tighter">{roman}</span>
+                      <span className="text-[9px] font-semibold opacity-85">Cấp {lvl}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Infinity Paradigm Card (When in Infinity Level 13-22) */}
+            {exerciseLevel >= 13 && currentConfig && (
+              <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-purple-950/60 via-slate-900/90 to-purple-900/40 border-2 border-purple-500/40 shadow-xl space-y-3 animate-scale-up relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 pointer-events-none opacity-10">
+                  <InfinityIcon className="w-32 h-32 text-purple-400" />
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 relative z-10">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                      <InfinityIcon className="w-4 h-4" />
+                    </span>
+                    <h5 className="text-sm sm:text-base font-black text-purple-100">
+                      {currentConfig.variantName || `Cấp Độ Vô Cực ${getInfinityLabel(exerciseLevel)}`}
+                    </h5>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {currentConfig.infinityMetadata?.apiSource && (
+                      <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 uppercase tracking-wider flex items-center gap-1">
+                        <Globe className="w-3 h-3" />
+                        {currentConfig.infinityMetadata.apiSource.toUpperCase()} API
+                      </span>
+                    )}
+                    {currentConfig.infinityMetadata?.pattern && (
+                      <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider flex items-center gap-1">
+                        <Orbit className="w-3 h-3" />
+                        {currentConfig.infinityMetadata.pattern.toUpperCase()}
+                      </span>
+                    )}
+                    {currentConfig.infinityMetadata?.enTheme && (
+                      <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/40 uppercase tracking-wider flex items-center gap-1">
+                        <BookOpen className="w-3 h-3" />
+                        SONG NGỮ
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p className="text-xs text-purple-200/90 leading-relaxed relative z-10">
+                  {currentConfig.infinityMetadata?.enTheme ? `${currentConfig.infinityMetadata.enTheme}. ` : ''}
+                  Kích hoạt cơ chế mở rộng giới hạn não bộ: xử lý song ngữ, thay đổi quan hệ thực thể cốt lõi, và phản xạ siêu tốc.
+                </p>
+              </div>
+            )}
+
+            {/* Stage III Breakthrough Variant Banner (Standard Levels 9-12) */}
+            {exerciseLevel <= 12 && currentConfig.variantName && (
               <div className="p-3.5 rounded-2xl bg-purple-50 dark:bg-purple-950/50 border border-purple-300 dark:border-purple-800 flex items-center gap-2.5 animate-scale-up">
                 <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0" />
                 <div>

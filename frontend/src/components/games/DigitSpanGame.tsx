@@ -10,18 +10,33 @@ export const DigitSpanGame: React.FC = () => {
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const recallStartTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('digit-span') || currentLevel;
-  const isReverseSpan = effectiveLevel >= 8;
-  const digitCount = Math.min(15, 3 + effectiveLevel); // 4 to 15 digits
+  const isInfinity = effectiveLevel >= 13;
+  const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
+
+  const isReverseSpan = effectiveLevel >= 8 && effectiveLevel !== 13 && effectiveLevel !== 16;
+  const isLetterMode = effectiveLevel === 13;
+  const isMixedMode = effectiveLevel === 16;
   
-  const generateDigits = (len: number) => {
+  const digitCount = isInfinity 
+    ? (effectiveLevel === 13 ? 6 : effectiveLevel === 16 ? 6 : Math.min(14, 6 + (effectiveLevel - 13))) 
+    : Math.min(12, 3 + effectiveLevel);
+  
+  const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const generateSequence = (len: number) => {
     let str = '';
     for (let i = 0; i < len; i++) {
-      str += Math.floor(Math.random() * 10).toString();
+      if (isLetterMode) {
+        str += LETTERS[Math.floor(Math.random() * LETTERS.length)];
+      } else if (isMixedMode) {
+        str += (i % 2 === 0) ? Math.floor(Math.random() * 10).toString() : LETTERS[Math.floor(Math.random() * LETTERS.length)];
+      } else {
+        str += Math.floor(Math.random() * 10).toString();
+      }
     }
     return str;
   };
 
-  const [digits, setDigits] = useState(() => generateDigits(digitCount));
+  const [digits, setDigits] = useState(() => generateSequence(digitCount));
   const [phase, setPhase] = useState<'memorize' | 'recall'>('memorize');
   const [userInput, setUserInput] = useState('');
   const [round, setRound] = useState(1);
@@ -31,11 +46,11 @@ export const DigitSpanGame: React.FC = () => {
   const maxRounds = 3;
 
   useEffect(() => {
-    setDigits(generateDigits(digitCount));
+    setDigits(generateSequence(digitCount));
     setPhase('memorize');
     setUserInput('');
 
-    const flashDuration = 1000 + (digitCount * 300);
+    const flashDuration = 1000 + (digitCount * (isInfinity ? 350 : 300));
     const timer = setTimeout(() => {
       setPhase('recall');
       recallStartTimeRef.current = Date.now();
@@ -49,11 +64,11 @@ export const DigitSpanGame: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const handleNumpad = (num: number) => {
+  const handleInput = (char: string) => {
     if (phase !== 'recall') return;
     playSound('click');
     if (userInput.length < digits.length) {
-      const nextInput = userInput + num.toString();
+      const nextInput = userInput + char;
       setUserInput(nextInput);
 
       if (nextInput.length === digits.length) {
@@ -94,6 +109,10 @@ export const DigitSpanGame: React.FC = () => {
     }
   };
 
+  const handleNumpad = (num: number) => {
+    handleInput(num.toString());
+  };
+
   const handleDelete = () => {
     playSound('click');
     setUserInput(prev => prev.slice(0, -1));
@@ -102,26 +121,60 @@ export const DigitSpanGame: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (phase !== 'recall' || isFinished) return;
-      if (e.key >= '0' && e.key <= '9') {
-        handleNumpad(parseInt(e.key, 10));
-      } else if (e.key === 'Backspace') {
-        handleDelete();
+      if (isLetterMode || isMixedMode) {
+        if (e.key.length === 1 && e.key.match(/[a-zA-Z0-9]/)) {
+          handleInput(e.key.toUpperCase());
+        } else if (e.key === 'Backspace') {
+          handleDelete();
+        }
+      } else {
+        if (e.key >= '0' && e.key <= '9') {
+          handleNumpad(parseInt(e.key, 10));
+        } else if (e.key === 'Backspace') {
+          handleDelete();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [phase, isFinished, userInput, digits]);
+  }, [phase, isFinished, userInput, digits, isLetterMode, isMixedMode]);
 
   const accuracy = Math.round((correctCount / maxRounds) * 100);
   const score = calculateGameScore({
-    level: currentLevel,
+    level: effectiveLevel,
     accuracyRate: accuracy,
     timeLimitSec: 45,
     timeSpentSec: elapsedSec
   });
 
+  const spanLabel = isLetterMode ? 'chuỗi chữ cái' : isMixedMode ? 'chuỗi ký tự pha trộn' : 'dãy số';
+
   return (
     <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-3xl mx-auto px-4 py-4 space-y-6 animate-fade-in pb-24">
+      {/* Infinity Level Badge Banner */}
+      {isInfinity && (
+        <div className="rounded-2xl p-3 bg-gradient-to-r from-purple-900/60 via-indigo-900/50 to-pink-900/50 border border-purple-500/40 text-purple-200 text-xs shadow-lg backdrop-blur-md flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-400/30">
+              ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
+            </span>
+            <span className="font-semibold text-white">
+              {effectiveLevel === 13 ? 'Letter Span (Trí nhớ ngắn hạn chuỗi ký tự Latin)' :
+               effectiveLevel === 14 ? 'Word Span (Chuỗi từ vựng ngắn tiếng Anh)' :
+               effectiveLevel === 15 ? 'Color Span (Chuỗi tên màu quy ước)' :
+               effectiveLevel === 16 ? 'Mixed Span (Xen kẽ Số - Chữ phức hợp)' :
+               effectiveLevel === 17 ? 'Spatial Span (Tọa độ không gian)' :
+               effectiveLevel === 18 ? 'Equation Span (Ghi nhớ kết quả phép tính)' :
+               effectiveLevel === 19 ? 'Backward Cascade (Đảo ngược cực hạn 10-12 ký tự)' :
+               effectiveLevel === 20 ? 'Dual Channel (Hai luồng thông tin song song)' :
+               effectiveLevel === 21 ? 'Interference Block (Kháng nhiễu ngoại vi)' :
+               'Temporal Weave (Nhịp thời gian Fibonacci Vô cực)'}
+            </span>
+          </div>
+          <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
+        </div>
+      )}
+
       {/* Top HUD */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div>
@@ -133,7 +186,7 @@ export const DigitSpanGame: React.FC = () => {
         <div className="text-right">
           <span className="text-xs sm:text-sm text-slate-500 font-medium">Độ dài chuỗi</span>
           <div className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white">
-            {digitCount} số {isReverseSpan && <span className="text-rose-500 text-xs sm:text-sm ml-1 font-bold">(Đảo ngược)</span>}
+            {digitCount} {isLetterMode ? 'chữ cái' : 'ký tự'} {isReverseSpan && <span className="text-rose-500 text-xs sm:text-sm ml-1 font-bold">(Đảo ngược)</span>}
           </div>
         </div>
       </div>
@@ -143,7 +196,7 @@ export const DigitSpanGame: React.FC = () => {
         {phase === 'memorize' ? (
           <div className="space-y-2 text-center animate-pulse">
             <span className="text-xs sm:text-sm uppercase tracking-widest text-brand-200 font-bold">
-              {isReverseSpan ? 'Ghi nhớ dãy số (Chuẩn bị gõ đảo ngược)' : 'Ghi nhớ dãy số'}
+              {isReverseSpan ? `Ghi nhớ ${spanLabel} (Chuẩn bị gõ đảo ngược)` : `Ghi nhớ ${spanLabel}`}
             </span>
             <div className="text-4xl sm:text-6xl md:text-7xl font-mono font-black tracking-widest text-amber-300">
               {digits}
@@ -152,7 +205,7 @@ export const DigitSpanGame: React.FC = () => {
         ) : (
           <div className="space-y-3 text-center w-full">
             <span className="text-xs sm:text-sm uppercase tracking-widest text-brand-200 font-bold">
-              {isReverseSpan ? 'Nhập lại dãy số theo thứ tự đảo ngược' : 'Nhập lại dãy số'}
+              {isReverseSpan ? `Nhập lại ${spanLabel} theo thứ tự đảo ngược` : `Nhập lại ${spanLabel}`}
             </span>
             <div className="text-3xl sm:text-5xl md:text-6xl font-mono font-black tracking-widest min-h-[56px] sm:min-h-[72px] bg-black/20 rounded-2xl sm:rounded-3xl flex items-center justify-center px-4">
               {userInput ? userInput : <span className="opacity-40">???</span>}
@@ -161,38 +214,60 @@ export const DigitSpanGame: React.FC = () => {
         )}
       </div>
 
-      {/* Onscreen Numpad + Physical Keyboard friendly */}
+      {/* Onscreen Numpad / Keyboard */}
       <div className="space-y-2">
-        <p className="text-xs text-center text-slate-500 dark:text-slate-400 font-medium hidden sm:block">
-          (Bạn có thể bấm số trên bàn phím máy tính hoặc bấm các phím dưới đây)
+        <p className="text-xs text-center text-slate-500 dark:text-slate-400 font-medium">
+          (Bấm trực tiếp bàn phím máy tính hoặc các phím bên dưới)
         </p>
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 max-w-sm sm:max-w-md mx-auto">
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+        {isLetterMode ? (
+          <div className="flex flex-wrap gap-2 max-w-lg mx-auto justify-center">
+            {LETTERS.split('').map(char => (
+              <button
+                key={char}
+                disabled={phase !== 'recall'}
+                onClick={() => handleInput(char)}
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-black text-base text-slate-800 dark:text-white shadow hover:bg-brand-50 active:scale-95 transition-all btn-press disabled:opacity-40"
+              >
+                {char}
+              </button>
+            ))}
             <button
-              key={n}
+              disabled={phase !== 'recall' || userInput.length === 0}
+              onClick={handleDelete}
+              className="w-14 h-10 sm:w-16 sm:h-11 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center active:scale-95 transition-all btn-press disabled:opacity-40"
+            >
+              <Delete className="w-5 h-5" />
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3 sm:gap-4 max-w-sm sm:max-w-md mx-auto">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+              <button
+                key={n}
+                disabled={phase !== 'recall'}
+                onClick={() => handleNumpad(n)}
+                className="h-14 sm:h-18 md:h-20 rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-black text-2xl sm:text-3xl text-slate-800 dark:text-white shadow hover:bg-brand-50 active:scale-95 transition-all btn-press disabled:opacity-40"
+              >
+                {n}
+              </button>
+            ))}
+            <div />
+            <button
               disabled={phase !== 'recall'}
-              onClick={() => handleNumpad(n)}
+              onClick={() => handleNumpad(0)}
               className="h-14 sm:h-18 md:h-20 rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-black text-2xl sm:text-3xl text-slate-800 dark:text-white shadow hover:bg-brand-50 active:scale-95 transition-all btn-press disabled:opacity-40"
             >
-              {n}
+              0
             </button>
-          ))}
-          <div />
-          <button
-            disabled={phase !== 'recall'}
-            onClick={() => handleNumpad(0)}
-            className="h-14 sm:h-18 md:h-20 rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-black text-2xl sm:text-3xl text-slate-800 dark:text-white shadow hover:bg-brand-50 active:scale-95 transition-all btn-press disabled:opacity-40"
-          >
-            0
-          </button>
-          <button
-            disabled={phase !== 'recall' || userInput.length === 0}
-            onClick={handleDelete}
-            className="h-14 sm:h-18 md:h-20 rounded-2xl sm:rounded-3xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center active:scale-95 transition-all btn-press disabled:opacity-40"
-          >
-            <Delete className="w-6 h-6 sm:w-8 sm:h-8" />
-          </button>
-        </div>
+            <button
+              disabled={phase !== 'recall' || userInput.length === 0}
+              onClick={handleDelete}
+              className="h-14 sm:h-18 md:h-20 rounded-2xl sm:rounded-3xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center active:scale-95 transition-all btn-press disabled:opacity-40"
+            >
+              <Delete className="w-6 h-6 sm:w-8 sm:h-8" />
+            </button>
+          </div>
+        )}
       </div>
 
       {isFinished && (

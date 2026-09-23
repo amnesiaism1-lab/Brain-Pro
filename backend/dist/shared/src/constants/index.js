@@ -1,6 +1,22 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CONTENT_POOLS = exports.WEEKLY_CHALLENGES = exports.EXERCISE_SYNERGIES = exports.EXERCISE_VARIANTS = exports.ENGLISH_WORDS_DICTIONARY = exports.VIETNAMESE_WORDS_DICTIONARY = exports.SAMPLE_READING_TEXTS = exports.WORKOUT_ROUTINES = exports.EXERCISES_METADATA = exports.COGNITIVE_CATEGORIES = void 0;
+const infinityConfigs_1 = require("./infinityConfigs");
+__exportStar(require("./infinityConfigs"), exports);
 exports.COGNITIVE_CATEGORIES = [
     {
         id: 'cat-1',
@@ -615,6 +631,18 @@ exports.EXERCISES_METADATA = [
         ]
     }
 ];
+exports.EXERCISES_METADATA.forEach(ex => {
+    const infConfigs = infinityConfigs_1.INFINITY_LEVEL_CONFIGS[ex.slug];
+    if (infConfigs && infConfigs.length > 0) {
+        ex.maxDifficultyLevel = 22;
+        const existingLevels = new Set(ex.levelConfigs.map(c => c.level));
+        infConfigs.forEach(cfg => {
+            if (!existingLevels.has(cfg.level)) {
+                ex.levelConfigs.push(cfg);
+            }
+        });
+    }
+});
 exports.WORKOUT_ROUTINES = [
     {
         id: 'routine-quick',

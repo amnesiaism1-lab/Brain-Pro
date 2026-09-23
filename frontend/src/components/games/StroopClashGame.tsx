@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
-import { Zap, AlertTriangle } from 'lucide-react';
+import { Zap, AlertTriangle, Infinity as InfinityIcon, Volume2 } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { speakWord } from '../../services/infinityApiService';
+import { INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
 
 interface ColorDef {
   id: string;
   nameVi: string;
+  nameEn: string;
   hex: string;
   twText: string;
   twBg: string;
@@ -14,12 +17,21 @@ interface ColorDef {
 }
 
 const COLOR_PALETTE: ColorDef[] = [
-  { id: 'red', nameVi: 'ĐỎ', hex: '#EF4444', twText: 'text-red-500', twBg: 'bg-red-500', twBorder: 'border-red-500' },
-  { id: 'blue', nameVi: 'XANH BIỂN', hex: '#3B82F6', twText: 'text-blue-500', twBg: 'bg-blue-500', twBorder: 'border-blue-500' },
-  { id: 'green', nameVi: 'XANH LÁ', hex: '#10B981', twText: 'text-emerald-500', twBg: 'bg-emerald-500', twBorder: 'border-emerald-500' },
-  { id: 'yellow', nameVi: 'VÀNG', hex: '#F59E0B', twText: 'text-amber-500', twBg: 'bg-amber-500', twBorder: 'border-amber-500' },
-  { id: 'purple', nameVi: 'TÍM', hex: '#8B5CF6', twText: 'text-purple-500', twBg: 'bg-purple-500', twBorder: 'border-purple-500' },
-  { id: 'orange', nameVi: 'CAM', hex: '#F97316', twText: 'text-orange-500', twBg: 'bg-orange-500', twBorder: 'border-orange-500' }
+  { id: 'red', nameVi: 'ĐỎ', nameEn: 'RED', hex: '#EF4444', twText: 'text-red-500', twBg: 'bg-red-500', twBorder: 'border-red-500' },
+  { id: 'blue', nameVi: 'XANH BIỂN', nameEn: 'BLUE', hex: '#3B82F6', twText: 'text-blue-500', twBg: 'bg-blue-500', twBorder: 'border-blue-500' },
+  { id: 'green', nameVi: 'XANH LÁ', nameEn: 'GREEN', hex: '#10B981', twText: 'text-emerald-500', twBg: 'bg-emerald-500', twBorder: 'border-emerald-500' },
+  { id: 'yellow', nameVi: 'VÀNG', nameEn: 'YELLOW', hex: '#F59E0B', twText: 'text-amber-500', twBg: 'bg-amber-500', twBorder: 'border-amber-500' },
+  { id: 'purple', nameVi: 'TÍM', nameEn: 'PURPLE', hex: '#8B5CF6', twText: 'text-purple-500', twBg: 'bg-purple-500', twBorder: 'border-purple-500' },
+  { id: 'orange', nameVi: 'CAM', nameEn: 'ORANGE', hex: '#F97316', twText: 'text-orange-500', twBg: 'bg-orange-500', twBorder: 'border-orange-500' }
+];
+
+const EMOTION_WORDS = [
+  { text: 'ANGER', mood: 'negative' },
+  { text: 'JOY', mood: 'positive' },
+  { text: 'FEAR', mood: 'negative' },
+  { text: 'CALM', mood: 'positive' },
+  { text: 'PANIC', mood: 'negative' },
+  { text: 'HOPE', mood: 'positive' }
 ];
 
 export const StroopClashGame: React.FC = () => {
@@ -27,8 +39,51 @@ export const StroopClashGame: React.FC = () => {
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const effectiveLevel = getExerciseLevel('stroop-clash') || currentLevel;
 
-  const totalTrials = 15;
+  const isInfinity = effectiveLevel >= 13;
+  const infinityTier = getInfinityTier(effectiveLevel);
+
+  const totalTrials = effectiveLevel >= 13 ? 18 : 15;
+
+  const [trialIndex, setTrialIndex] = useState(0);
+  const [wordItem, setWordItem] = useState<{
+    text: string;
+    inkColor: ColorDef;
+    borderColor?: ColorDef;
+    spokenColor?: ColorDef;
+    isExclusionTarget?: boolean;
+    displayLang: 'vi' | 'en';
+  } | null>(null);
+
+  const [trialStartTime, setTrialStartTime] = useState<number>(0);
+  const [reactionTimes, setReactionTimes] = useState<number[]>([]);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [score, setScore] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [isFinished, setIsFinished] = useState(false);
+  const [flashFeedback, setFlashFeedback] = useState<'CORRECT' | 'WRONG' | 'TIMEOUT' | null>(null);
+
+  // Standard modes
+  const isReverseStroop = effectiveLevel === 9;
+  const isTripleStroop = effectiveLevel === 10;
+  const isAlternating = effectiveLevel === 11;
+
+  // Infinity modes
+  const isEnglishStroop = effectiveLevel === 13;
+  const isBilingualStroop = effectiveLevel === 14;
+  const isAudioStroop = effectiveLevel === 15;
+  const is4WayStroop = effectiveLevel === 16;
+  const isMotionStroop = effectiveLevel === 17;
+  const isEmotionStroop = effectiveLevel === 18;
+  const isExclusionStroop = effectiveLevel === 19;
+  const isHyperSpeed = effectiveLevel === 20;
+  const isChaosStroop = effectiveLevel === 22;
+
+  // Reaction Window Calculation
   const reactionWindowMs = useMemo(() => {
+    if (isHyperSpeed) {
+      // Ramp down from 1200ms by 50ms per trial to minimum 400ms
+      return Math.max(400, 1200 - (trialIndex * 50));
+    }
     switch (effectiveLevel) {
       case 1: return 3500;
       case 2: return 3000;
@@ -38,35 +93,36 @@ export const StroopClashGame: React.FC = () => {
       case 6: return 1800;
       case 7: return 1600;
       case 8: return 1450;
-      case 9: return 1500; // Đảo ngược quy tắc: cần thời gian ức chế thói quen đọc mực
-      case 10: return 1400; // Tam trùng xung đột: cần nhận biết viền và bỏ qua chữ + mực
-      case 11: return 1300; // Luân phiên luật chữ & màu
-      case 12: return 1200; // Cực hạn phản xạ
-      default: return 2000;
+      case 9: return 1500;
+      case 10: return 1400;
+      case 11: return 1300;
+      case 12: return 1200;
+      case 13: return 1600; // English Stroop
+      case 14: return 1500; // Bilingual Alternation
+      case 15: return 1800; // Audio Conflict (extra time to process audio)
+      case 16: return 1500; // 4-Way Multi
+      case 17: return 1500; // Motion
+      case 18: return 1400; // Emotion
+      case 19: return 1800; // Exclusion logic
+      case 20: return 600;  // Hyper-speed
+      case 21: return 1300; // Directional
+      case 22: return 1200; // Chaos
+      default: return 1600;
     }
-  }, [effectiveLevel]);
+  }, [effectiveLevel, isHyperSpeed, trialIndex]);
 
-  const isReverseStroop = effectiveLevel === 9;
-  const isTripleStroop = effectiveLevel === 10;
-  const isAlternating = effectiveLevel === 11;
-
-  const [trialIndex, setTrialIndex] = useState(0);
-  const [wordItem, setWordItem] = useState<{ text: string; inkColor: ColorDef; borderColor?: ColorDef } | null>(null);
-  const [trialStartTime, setTrialStartTime] = useState<number>(0);
-  const [reactionTimes, setReactionTimes] = useState<number[]>([]);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [score, setScore] = useState(0);
-  const [combo, setCombo] = useState(0);
-  const [isFinished, setIsFinished] = useState(false);
-  const [flashFeedback, setFlashFeedback] = useState<'CORRECT' | 'WRONG' | 'TIMEOUT' | null>(null);
-
-  // Current instruction rule
-  const currentTargetType = useMemo<'INK' | 'TEXT' | 'BORDER'>(() => {
+  // Current Target Instruction Type
+  const currentTargetType = useMemo<'INK' | 'TEXT' | 'BORDER' | 'EXCLUSION'>(() => {
+    if (isExclusionStroop) return 'EXCLUSION';
     if (isTripleStroop) return 'BORDER';
     if (isReverseStroop) return 'TEXT';
     if (isAlternating) return trialIndex % 2 === 0 ? 'INK' : 'TEXT';
+    if (isChaosStroop) {
+      const modes: Array<'INK' | 'TEXT' | 'BORDER'> = ['INK', 'TEXT', 'BORDER'];
+      return modes[trialIndex % modes.length];
+    }
     return 'INK';
-  }, [isTripleStroop, isReverseStroop, isAlternating, trialIndex]);
+  }, [isExclusionStroop, isTripleStroop, isReverseStroop, isAlternating, isChaosStroop, trialIndex]);
 
   const nextTrial = useCallback((index: number) => {
     if (index >= totalTrials) {
@@ -74,12 +130,20 @@ export const StroopClashGame: React.FC = () => {
       return;
     }
 
+    // Determine language
+    let lang: 'vi' | 'en' = 'vi';
+    if (isEnglishStroop || isEmotionStroop || isAudioStroop || effectiveLevel >= 20) {
+      lang = 'en';
+    } else if (isBilingualStroop) {
+      lang = index % 2 === 0 ? 'vi' : 'en';
+    }
+
     // Pick text color, ink color, and optional border color
     const textIdx = Math.floor(Math.random() * COLOR_PALETTE.length);
     let inkIdx = Math.floor(Math.random() * COLOR_PALETTE.length);
     
-    // 75% chance of conflict (Stroop effect)
-    if (Math.random() < 0.75 && inkIdx === textIdx) {
+    // 80% chance of conflict
+    if (Math.random() < 0.8 && inkIdx === textIdx) {
       inkIdx = (inkIdx + 1) % COLOR_PALETTE.length;
     }
 
@@ -88,15 +152,35 @@ export const StroopClashGame: React.FC = () => {
       borderIdx = (borderIdx + 2) % COLOR_PALETTE.length;
     }
 
-    setWordItem({
-      text: COLOR_PALETTE[textIdx].nameVi,
+    let spokenIdx = Math.floor(Math.random() * COLOR_PALETTE.length);
+    if (spokenIdx === inkIdx) {
+      spokenIdx = (spokenIdx + 1) % COLOR_PALETTE.length;
+    }
+
+    let displayString = lang === 'en' ? COLOR_PALETTE[textIdx].nameEn : COLOR_PALETTE[textIdx].nameVi;
+    if (isEmotionStroop) {
+      displayString = EMOTION_WORDS[textIdx % EMOTION_WORDS.length].text;
+    }
+
+    const item = {
+      text: displayString,
       inkColor: COLOR_PALETTE[inkIdx],
-      borderColor: COLOR_PALETTE[borderIdx]
-    });
+      borderColor: COLOR_PALETTE[borderIdx],
+      spokenColor: COLOR_PALETTE[spokenIdx],
+      isExclusionTarget: isExclusionStroop,
+      displayLang: lang
+    };
+
+    setWordItem(item);
     setTrialIndex(index);
     setTrialStartTime(Date.now());
     setFlashFeedback(null);
-  }, [totalTrials]);
+
+    // Audio Stroop speech synthesis
+    if (isAudioStroop) {
+      speakWord(COLOR_PALETTE[spokenIdx].nameEn, 'en', 1.1);
+    }
+  }, [totalTrials, isEnglishStroop, isEmotionStroop, isAudioStroop, isBilingualStroop, isExclusionStroop, effectiveLevel]);
 
   useEffect(() => {
     nextTrial(0);
@@ -107,16 +191,15 @@ export const StroopClashGame: React.FC = () => {
     if (isFinished || !wordItem) return;
 
     const timer = setTimeout(() => {
-      // Timeout reached!
       playSound('wrong');
       setCombo(0);
       setFlashFeedback('TIMEOUT');
 
-      const expectedTarget = currentTargetType === 'TEXT'
-        ? wordItem.text
+      const expectedColor = currentTargetType === 'TEXT'
+        ? COLOR_PALETTE.find(c => c.nameEn === wordItem.text || c.nameVi === wordItem.text) || wordItem.inkColor
         : currentTargetType === 'BORDER' && wordItem.borderColor
-        ? wordItem.borderColor.nameVi
-        : wordItem.inkColor.nameVi;
+        ? wordItem.borderColor
+        : wordItem.inkColor;
 
       emitTrialEvent({
         exerciseSlug: 'stroop-clash',
@@ -124,49 +207,74 @@ export const StroopClashGame: React.FC = () => {
         relationId: 'INHIBITION',
         relationWeight: 1.0,
         entities: {
-          target: expectedTarget,
-          distractor: wordItem.text,
-          rule: currentTargetType,
-          timedOut: true
+          text: wordItem.text,
+          ink: wordItem.inkColor.id,
+          border: wordItem.borderColor?.id,
+          expected: expectedColor.id,
+          choice: 'TIMEOUT'
         },
-        stateBefore: 'inhibited_conflict',
-        stateAfter: 'stroop_timeout',
+        stateBefore: `combo:${combo}`,
+        stateAfter: 'combo:0',
         responseMs: reactionWindowMs,
         correct: false
       });
 
       setTimeout(() => {
         nextTrial(trialIndex + 1);
-      }, 500);
+      }, 700);
     }, reactionWindowMs);
 
     return () => clearTimeout(timer);
-  }, [trialIndex, wordItem, reactionWindowMs, isFinished, playSound, nextTrial, currentTargetType, effectiveLevel, emitTrialEvent]);
+  }, [trialStartTime, isFinished, wordItem, reactionWindowMs, trialIndex, currentTargetType, combo, effectiveLevel]);
 
-  const handleChoice = (selectedColor: ColorDef) => {
-    if (isFinished || !wordItem) return;
-    const now = Date.now();
-    const rt = now - trialStartTime;
+  const handleSelectColor = (selectedColor: ColorDef) => {
+    if (isFinished || !wordItem || flashFeedback) return;
 
+    const reactionTime = Date.now() - trialStartTime;
     let isCorrect = false;
-    if (currentTargetType === 'TEXT') {
-      isCorrect = selectedColor.nameVi === wordItem.text;
+
+    if (currentTargetType === 'EXCLUSION') {
+      // Correct if selected color is NEITHER the written color word nor the ink color
+      const matchingWordColor = COLOR_PALETTE.find(c => c.nameEn === wordItem.text || c.nameVi === wordItem.text);
+      const isWordMatch = matchingWordColor && selectedColor.id === matchingWordColor.id;
+      const isInkMatch = selectedColor.id === wordItem.inkColor.id;
+      isCorrect = !isWordMatch && !isInkMatch;
+    } else if (currentTargetType === 'TEXT') {
+      const matchingWordColor = COLOR_PALETTE.find(c => c.nameEn === wordItem.text || c.nameVi === wordItem.text);
+      isCorrect = matchingWordColor ? selectedColor.id === matchingWordColor.id : false;
     } else if (currentTargetType === 'BORDER' && wordItem.borderColor) {
       isCorrect = selectedColor.id === wordItem.borderColor.id;
     } else {
       isCorrect = selectedColor.id === wordItem.inkColor.id;
     }
 
+    setReactionTimes(prev => [...prev, reactionTime]);
+
+    emitTrialEvent({
+      exerciseSlug: 'stroop-clash',
+      level: effectiveLevel,
+      relationId: 'INHIBITION',
+      relationWeight: 1.0,
+      entities: {
+        text: wordItem.text,
+        ink: wordItem.inkColor.id,
+        border: wordItem.borderColor?.id,
+        rule: currentTargetType,
+        choice: selectedColor.id
+      },
+      stateBefore: `combo:${combo}`,
+      stateAfter: isCorrect ? `combo:${combo + 1}` : 'combo:0',
+      responseMs: reactionTime,
+      correct: isCorrect
+    });
+
     if (isCorrect) {
       playSound('correct');
       const nextCombo = combo + 1;
       setCombo(nextCombo);
       setCorrectCount(c => c + 1);
-      setReactionTimes(prev => [...prev, rt]);
-      
-      // Speed bonus: faster reaction gives more points
-      const speedFactor = Math.max(1, Math.round((reactionWindowMs - rt) / 15));
-      const addedScore = 50 + (effectiveLevel * 10) + speedFactor + (nextCombo * 10);
+      const speedBonus = Math.max(0, Math.floor((reactionWindowMs - reactionTime) / 10));
+      const addedScore = 120 + (nextCombo * 25) + speedBonus + (effectiveLevel * 15);
       setScore(s => s + addedScore);
       setFlashFeedback('CORRECT');
     } else {
@@ -175,155 +283,146 @@ export const StroopClashGame: React.FC = () => {
       setFlashFeedback('WRONG');
     }
 
-    emitTrialEvent({
-      exerciseSlug: 'stroop-clash',
-      level: effectiveLevel,
-      relationId: 'INHIBITION',
-      relationWeight: 1.0,
-      entities: {
-        target: wordItem.inkColor.nameVi,
-        distractor: wordItem.text,
-        rule: currentTargetType
-      },
-      stateBefore: 'inhibited_conflict',
-      stateAfter: isCorrect ? 'correct_response' : 'stroop_interference',
-      responseMs: rt,
-      correct: isCorrect
-    });
-
     setTimeout(() => {
       nextTrial(trialIndex + 1);
-    }, 250);
+    }, 450);
   };
 
+  const accuracyRate = trialIndex > 0 ? Math.round((correctCount / trialIndex) * 100) : 100;
   const avgReactionTime = reactionTimes.length > 0 
     ? Math.round(reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length) 
     : 0;
 
-  const accuracyRate = trialIndex > 0 ? Math.round((correctCount / trialIndex) * 100) : 100;
+  // Use English names on buttons if English/Bilingual mode is active
+  const useEnButtons = isEnglishStroop || (wordItem?.displayLang === 'en');
 
   return (
-    <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl mx-auto px-3 sm:px-6 py-4 space-y-5 sm:space-y-7 animate-fade-in pb-24">
+    <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl mx-auto px-3 sm:px-6 py-4 space-y-5 sm:space-y-6 animate-fade-in pb-24">
       {/* Top HUD */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md">
         <div>
-          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Điểm số (Chuỗi: x{combo})</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs sm:text-sm text-slate-500 font-semibold">Điểm số</span>
+            {isInfinity && (
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white flex items-center gap-1">
+                <InfinityIcon className="w-3 h-3" />
+                {getInfinityLabel(effectiveLevel)}
+              </span>
+            )}
+          </div>
           <div className="text-2xl sm:text-3xl font-black text-brand-600 dark:text-brand-400 mt-0.5">
             {score}
+            {combo > 1 && <span className="text-xs text-amber-500 ml-1.5 font-bold">x{combo}</span>}
           </div>
         </div>
 
         <div className="text-center">
-          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Lượt kiểm tra</span>
+          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Vòng đấu</span>
           <div className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white mt-0.5">
-            {Math.min(trialIndex + 1, totalTrials)} / {totalTrials}
+            {trialIndex + 1} / {totalTrials}
           </div>
         </div>
 
         <div className="text-right">
-          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Phản xạ TB</span>
-          <div className="text-xl sm:text-2xl font-mono font-black text-amber-500 mt-0.5">
-            {avgReactionTime ? `${avgReactionTime}ms` : '--'}
+          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Tốc độ TB</span>
+          <div className="text-xl sm:text-2xl font-black text-emerald-500 mt-0.5 font-mono">
+            {avgReactionTime}ms
           </div>
         </div>
       </div>
 
-      {/* Warning / Instruction Banner */}
-      <div className={`rounded-2xl p-3.5 sm:p-4 flex items-center gap-3 text-xs sm:text-sm font-medium border ${
-        currentTargetType === 'TEXT'
-          ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-800 text-purple-800 dark:text-purple-200'
-          : currentTargetType === 'BORDER'
-          ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800 text-indigo-800 dark:text-indigo-200'
-          : 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-200'
-      }`}>
-        <AlertTriangle className="w-6 h-6 flex-shrink-0 text-amber-500" />
-        <div>
-          {currentTargetType === 'TEXT' ? (
-            <span><strong>ĐẢO QUY TẮC:</strong> Chọn đúng <span className="underline font-black">Ý NGHĨA CỦA CHỮ</span>, bỏ qua màu sắc hiển thị!</span>
-          ) : currentTargetType === 'BORDER' ? (
-            <span><strong>TAM TRÙNG XUNG ĐỘT:</strong> Bấm chọn đúng <span className="underline font-black">MÀU CỦA VIỀN NGOÀI</span>!</span>
-          ) : (
-            <span><strong>QUY TẮC STROOP:</strong> Chọn đúng <span className="underline font-black">MÀU MỰC HIỂN THỊ</span>, bỏ qua chữ viết!</span>
-          )}
+      {/* Dynamic Rule Banner */}
+      <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <Zap className="w-5 h-5 text-amber-500 shrink-0" />
+          <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-white">
+            QUY TẮC HIỆN TẠI:
+          </span>
         </div>
+        <span className={`text-xs sm:text-sm font-black px-3 py-1 rounded-xl shadow-sm uppercase ${
+          currentTargetType === 'EXCLUSION'
+            ? 'bg-rose-500 text-white animate-pulse'
+            : currentTargetType === 'TEXT'
+            ? 'bg-blue-600 text-white'
+            : currentTargetType === 'BORDER'
+            ? 'bg-purple-600 text-white'
+            : 'bg-emerald-600 text-white'
+        }`}>
+          {currentTargetType === 'EXCLUSION'
+            ? 'CHỌN MÀU NGOẠI TRỪ (KHÔNG PHẢI CHỮ & MỰC)'
+            : currentTargetType === 'TEXT'
+            ? 'CHỌN THEO Ý NGHĨA CHỮ'
+            : currentTargetType === 'BORDER'
+            ? 'CHỌN THEO MÀU VIỀN KHUNG'
+            : 'CHỌN THEO MÀU MỰC IN'}
+        </span>
       </div>
 
-      {/* Trial Countdown Timer Bar */}
-      <div className="w-full bg-slate-200 dark:bg-slate-700/60 h-2 sm:h-2.5 rounded-full overflow-hidden shadow-inner relative">
+      {/* Auditory Conflict Indicator (Level 15: ∞-III) */}
+      {isAudioStroop && (
+        <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-800 flex items-center justify-center gap-2 text-xs font-black text-purple-700 dark:text-purple-300 animate-pulse">
+          <Volume2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+          <span>BỎ QUA GIỌNG NÓI PHÁT RA — CHỈ CHỌN THEO MÀU MỰC TRÊN MÀN HÌNH!</span>
+        </div>
+      )}
+
+      {/* Main Stimulus Card */}
+      {wordItem && (
         <div 
-          key={trialIndex}
-          className="h-full rounded-full animate-timer-shrink bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500"
-          style={{ animationDuration: `${reactionWindowMs}ms` }}
-        />
-      </div>
-
-      {/* Presentation Word Box */}
-      <div 
-        className={`h-56 sm:h-72 md:h-80 rounded-3xl flex flex-col items-center justify-center p-6 sm:p-8 shadow-2xl border-4 transition-all duration-150 relative overflow-hidden ${
-          flashFeedback === 'CORRECT' ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500' :
-          flashFeedback === 'WRONG' || flashFeedback === 'TIMEOUT' ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 shake' :
-          currentTargetType === 'BORDER' && wordItem?.borderColor
-            ? 'bg-white dark:bg-slate-800'
-            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-        }`}
-        style={currentTargetType === 'BORDER' && wordItem?.borderColor && !flashFeedback ? {
-          borderColor: wordItem.borderColor.hex,
-          borderWidth: '10px',
-          boxShadow: `0 0 28px ${wordItem.borderColor.hex}44`
-        } : undefined}
-      >
-        {/* Rule Indicator Badge on Card */}
-        <div className="mb-2 sm:mb-4">
-          {currentTargetType === 'BORDER' && wordItem?.borderColor ? (
-            <span 
-              className="px-3.5 py-1 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider shadow-sm flex items-center gap-1.5"
-              style={{ 
-                backgroundColor: `${wordItem.borderColor.hex}22`, 
-                color: wordItem.borderColor.hex, 
-                border: `1.5px solid ${wordItem.borderColor.hex}` 
+          className={`h-48 sm:h-56 rounded-3xl flex flex-col items-center justify-center relative shadow-xl transition-all duration-200 select-none overflow-hidden ${
+            wordItem.borderColor ? `border-8 ${wordItem.borderColor.twBorder}` : 'border-4 border-slate-200 dark:border-slate-700'
+          } ${
+            flashFeedback === 'CORRECT' 
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 ring-4 ring-emerald-500' 
+              : flashFeedback === 'WRONG' || flashFeedback === 'TIMEOUT'
+              ? 'bg-rose-50 dark:bg-rose-950/40 ring-4 ring-rose-500'
+              : 'bg-white dark:bg-slate-900'
+          } ${isMotionStroop ? 'animate-pulse' : ''}`}
+        >
+          {/* Reaction Progress Bar */}
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <div 
+              key={trialIndex}
+              className="h-full bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500 animate-[linear_shrink]"
+              style={{
+                animationDuration: `${reactionWindowMs}ms`,
+                animationFillMode: 'forwards',
+                animationTimingFunction: 'linear'
               }}
-            >
-              <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: wordItem.borderColor.hex }} />
-              CHỌN MÀU CỦA VIỀN NGOÀI
-            </span>
-          ) : currentTargetType === 'TEXT' ? (
-            <span className="px-3.5 py-1 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-300">
-              CHỌN Ý NGHĨA CỦA CHỮ
-            </span>
-          ) : (
-            <span className="px-3.5 py-1 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300">
-              CHỌN MÀU MỰC HIỂN THỊ
-            </span>
-          )}
-        </div>
+            />
+          </div>
 
-        {wordItem && (
+          {/* Central Conflict Word */}
           <span 
-            className="text-5xl sm:text-7xl md:text-8xl font-black tracking-wider uppercase drop-shadow-md select-none animate-scale-up"
-            style={{ color: wordItem.inkColor.hex }}
+            className={`text-4xl sm:text-6xl md:text-7xl font-black tracking-wider transition-transform ${wordItem.inkColor.twText} ${
+              isMotionStroop ? 'hover:scale-105' : ''
+            }`}
           >
             {wordItem.text}
           </span>
-        )}
 
-        {flashFeedback === 'TIMEOUT' && (
-          <span className="text-sm font-bold text-rose-500 mt-3 animate-bounce">
-            Hết thời gian ({reactionWindowMs}ms)!
-          </span>
-        )}
-      </div>
+          {flashFeedback && (
+            <div className={`text-xs font-black px-3 py-1 rounded-full mt-3 uppercase tracking-widest ${
+              flashFeedback === 'CORRECT' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+            }`}>
+              {flashFeedback === 'CORRECT' ? 'CHÍNH XÁC +1' : flashFeedback === 'TIMEOUT' ? 'HẾT THỜI GIAN!' : 'BỊ LỪA RỒI!'}
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Color Selection Buttons */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
-        {COLOR_PALETTE.map(color => (
+      {/* Answer Color Buttons Grid */}
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 sm:gap-3 pt-2">
+        {COLOR_PALETTE.map((color) => (
           <button
             key={color.id}
-            onClick={() => handleChoice(color)}
-            className="py-4 sm:py-5 md:py-6 px-3 rounded-2xl sm:rounded-3xl font-black text-base sm:text-lg md:text-xl text-white shadow-lg btn-press hover:shadow-xl hover:scale-[1.03] transition-all flex flex-col items-center justify-center gap-1.5"
-            style={{ backgroundColor: color.hex }}
+            onClick={() => handleSelectColor(color)}
+            className="h-16 sm:h-20 rounded-2xl flex flex-col items-center justify-center gap-1.5 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all btn-press shadow-sm hover:shadow-md group"
           >
-            <Zap className="w-5 h-5 opacity-80" />
-            <span>{color.nameVi}</span>
+            <div className={`w-5 h-5 rounded-full ${color.twBg} shadow-sm group-hover:scale-110 transition-transform`} />
+            <span className="text-[11px] sm:text-xs font-black text-slate-700 dark:text-slate-200 tracking-tight uppercase">
+              {useEnButtons ? color.nameEn : color.nameVi}
+            </span>
           </button>
         ))}
       </div>
@@ -332,7 +431,7 @@ export const StroopClashGame: React.FC = () => {
         <GameResultModal
           score={score}
           accuracyRate={accuracyRate}
-          timeSpentSec={Math.round((reactionTimes.reduce((a, b) => a + b, 0)) / 1000) || 15}
+          timeSpentSec={Math.round((reactionTimes.reduce((a, b) => a + b, 0)) / 1000)}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();
