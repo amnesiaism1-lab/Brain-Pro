@@ -42,9 +42,20 @@ export const Header: React.FC = () => {
   const handleBack = () => {
     playSound('click');
     if (activeGameSlug) {
+      // Quay lại từ trong bài tập về trang cấp độ (ExerciseDetailModal)
+      const currentSlug = activeGameSlug;
       setActiveGameSlug(null);
+      setSelectedExerciseSlug(currentSlug);
     } else if (selectedExerciseSlug) {
+      // Quay lại từ trang cấp độ về danh sách bài tập, cuộn mượt về đúng thẻ vừa chọn
+      const lastSlug = selectedExerciseSlug;
       setSelectedExerciseSlug(null);
+      setTimeout(() => {
+        const el = document.getElementById(`exercise-card-${lastSlug}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 60);
     }
   };
 

@@ -25,6 +25,8 @@ interface AppState {
   setActiveTab: (tab: MainNavTab) => void;
   selectedExerciseSlug: ExerciseSlug | null;
   setSelectedExerciseSlug: (slug: ExerciseSlug | null) => void;
+  lastViewedExerciseSlug: ExerciseSlug | null;
+  setLastViewedExerciseSlug: (slug: ExerciseSlug | null) => void;
   activeGameSlug: ExerciseSlug | null;
   setActiveGameSlug: (slug: ExerciseSlug | null) => void;
   
@@ -223,7 +225,12 @@ export const useAppStore = create<AppState>((set, get) => {
     activeTab: 'home',
     setActiveTab: (tab) => set({ activeTab: tab }),
     selectedExerciseSlug: null,
-    setSelectedExerciseSlug: (slug) => set({ selectedExerciseSlug: slug }),
+    lastViewedExerciseSlug: null,
+    setLastViewedExerciseSlug: (slug) => set({ lastViewedExerciseSlug: slug }),
+    setSelectedExerciseSlug: (slug) => set((state) => ({ 
+      selectedExerciseSlug: slug,
+      lastViewedExerciseSlug: slug !== null ? slug : state.lastViewedExerciseSlug 
+    })),
     activeGameSlug: null,
     setActiveGameSlug: (slug) => set({ activeGameSlug: slug }),
 

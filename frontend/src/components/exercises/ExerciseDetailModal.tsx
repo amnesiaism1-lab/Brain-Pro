@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play } from 'lucide-react';
+import { Play, ChevronLeft } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { EXERCISES_METADATA } from '@brain-exercises/shared';
 
@@ -30,7 +30,7 @@ export const ExerciseDetailModal: React.FC = () => {
 
   const handleStartGame = () => {
     playSound('click');
-    setSelectedExerciseSlug(null);
+    // Giữ lại selectedExerciseSlug để khi quay lại từ bài tập sẽ trở về đúng trang cấp độ này
     setActiveGameSlug(exercise.slug);
   };
 
@@ -45,6 +45,29 @@ export const ExerciseDetailModal: React.FC = () => {
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 animate-fade-in pb-28">
+      {/* Top Navigation Row: Back to List */}
+      <div className="flex items-center justify-between pb-4">
+        <button
+          onClick={() => {
+            playSound('click');
+            const lastSlug = exercise.slug;
+            setSelectedExerciseSlug(null);
+            setTimeout(() => {
+              const el = document.getElementById(`exercise-card-${lastSlug}`);
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }, 60);
+          }}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-[#D5CBB9] dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-400 hover:border-brand-500 shadow-sm transition-all active:scale-95"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          <span>Quay lại danh sách bài tập</span>
+        </button>
+        <span className="text-xs font-bold text-slate-500 hidden sm:inline">
+          {exercise.categoryName} &bull; Cấp {exerciseLevel}/12
+        </span>
+      </div>
       {/* 2 Sub-tabs: CÀI ĐẶT | THỐNG KÊ */}
       <div className="flex border-b border-[#D5CBB9] dark:border-slate-800 mb-6">
         <button

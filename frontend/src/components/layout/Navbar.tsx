@@ -103,8 +103,8 @@ export const Navbar: React.FC = () => {
         </nav>
 
         <div className="p-3.5 rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-[#D5CBB9]/50 dark:border-slate-700/50 text-xs text-slate-500 dark:text-slate-400">
-          <p className="font-medium text-slate-700 dark:text-slate-200">Khoa Học Thần Kinh</p>
-          <p className="mt-1 leading-relaxed text-[11px]">Tái cấu trúc phản xạ thị giác & mở rộng góc nhìn ngoại biên mỗi ngày.</p>
+          <p className="font-bold text-slate-700 dark:text-slate-200">Khoa Học Nhận Thức</p>
+          <p className="mt-1 leading-relaxed text-[11px]">Rèn luyện phản xạ thị giác & mở rộng trường quan sát ngoại vi mỗi ngày.</p>
         </div>
       </aside>
     </>

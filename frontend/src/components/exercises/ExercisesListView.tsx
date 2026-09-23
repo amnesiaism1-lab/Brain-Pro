@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Shuffle, 
   Grid, 
@@ -167,8 +167,30 @@ function renderExerciseIcon(slug: string) {
 }
 
 export const ExercisesListView: React.FC = () => {
-  const { setSelectedExerciseSlug, getExerciseLevel, lastPlayedSlug, playSound } = useAppStore();
+  const { 
+    setSelectedExerciseSlug, 
+    getExerciseLevel, 
+    lastPlayedSlug, 
+    lastViewedExerciseSlug,
+    playSound 
+  } = useAppStore();
   const [selectedCategory, setSelectedCategory] = useState<CognitiveCategoryCode | 'ALL'>('ALL');
+  const [highlightedSlug, setHighlightedSlug] = useState<string | null>(null);
+
+  // Restore scroll to the last viewed exercise card seamlessly
+  useEffect(() => {
+    if (lastViewedExerciseSlug) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`exercise-card-${lastViewedExerciseSlug}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setHighlightedSlug(lastViewedExerciseSlug);
+          setTimeout(() => setHighlightedSlug(null), 1800);
+        }
+      }, 70);
+      return () => clearTimeout(timer);
+    }
+  }, [lastViewedExerciseSlug]);
 
   const categories: Array<{ id: CognitiveCategoryCode | 'ALL'; label: string }> = [
     { id: 'ALL', label: `Tất cả (${EXERCISES_METADATA.length})` },
@@ -225,8 +247,13 @@ export const ExercisesListView: React.FC = () => {
           return (
             <div
               key={exercise.id}
+              id={`exercise-card-${exercise.slug}`}
               onClick={() => handleOpenDetail(exercise.slug)}
-              className="w-full bg-[#F5EFE6] dark:bg-slate-800/95 border border-[#D5CBB9] dark:border-slate-700 rounded-3xl p-4 sm:p-5 flex items-start gap-4 shadow-sm hover:shadow-xl hover:border-brand-500 transition-all duration-200 cursor-pointer btn-press group relative overflow-hidden"
+              className={`w-full bg-[#F5EFE6] dark:bg-slate-800/95 border rounded-3xl p-4 sm:p-5 flex items-start gap-4 shadow-sm hover:shadow-xl hover:border-brand-500 transition-all duration-300 cursor-pointer btn-press group relative overflow-hidden ${
+                highlightedSlug === exercise.slug 
+                  ? 'border-brand-500 ring-4 ring-brand-500/40 shadow-xl scale-[1.02]' 
+                  : 'border-[#D5CBB9] dark:border-slate-700'
+              }`}
             >
               {/* Left Deep Blue Square Icon Box */}
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-brand-600 dark:bg-brand-700 flex items-center justify-center shrink-0 shadow-lg shadow-brand-600/25 group-hover:scale-105 transition-transform overflow-hidden">

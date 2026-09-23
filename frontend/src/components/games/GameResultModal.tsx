@@ -33,7 +33,9 @@ export const GameResultModal: React.FC<GameResultProps> = ({
     activeGameSlug,
     activeSynergy,
     playSound,
-    setActiveDebriefEvents
+    setActiveDebriefEvents,
+    setSelectedExerciseSlug,
+    setActiveGameSlug
   } = useAppStore();
 
   const currentLevel = activeGameSlug ? getExerciseLevel(activeGameSlug) : 1;
@@ -71,8 +73,29 @@ export const GameResultModal: React.FC<GameResultProps> = ({
     if (activeWorkoutRoutine) {
       nextWorkoutStep();
     } else {
-      onClose();
+      if (activeGameSlug) {
+        const slug = activeGameSlug;
+        setActiveGameSlug(null);
+        setSelectedExerciseSlug(slug);
+      } else {
+        onClose();
+      }
     }
+  };
+
+  const handleBackToList = () => {
+    playSound('click');
+    const slug = activeGameSlug;
+    setActiveGameSlug(null);
+    setSelectedExerciseSlug(null);
+    setTimeout(() => {
+      if (slug) {
+        const el = document.getElementById(`exercise-card-${slug}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    }, 60);
   };
 
   return (
@@ -154,20 +177,29 @@ export const GameResultModal: React.FC<GameResultProps> = ({
             onClick={handleNext}
             className="w-full py-3.5 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-extrabold rounded-2xl shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 btn-press"
           >
-            <span>{activeWorkoutRoutine ? 'Bài tiếp theo trong gói' : 'Hoàn tất'}</span>
+            <span>{activeWorkoutRoutine ? 'Bài tiếp theo trong gói' : 'Về trang cấp độ & cài đặt'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
 
-          <button
-            onClick={() => {
-              playSound('click');
-              onRestart();
-            }}
-            className="w-full py-2.5 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300 font-bold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Luyện tập lại cấp này
-          </button>
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              onClick={() => {
+                playSound('click');
+                onRestart();
+              }}
+              className="py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Luyện lại cấp này
+            </button>
+
+            <button
+              onClick={handleBackToList}
+              className="py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <span>Về danh sách</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
