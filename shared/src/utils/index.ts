@@ -86,7 +86,7 @@ export function calculateRecommendedNextLevel(
   timeLimitSec: number
 ): number {
   if (accuracyRate >= 90 && timeSpentSec <= timeLimitSec * 0.75) {
-    return Math.min(8, currentLevel + 1);
+    return Math.min(22, currentLevel + 1);
   }
   if (accuracyRate < 60 || timeSpentSec >= timeLimitSec) {
     return Math.max(1, currentLevel - 1);

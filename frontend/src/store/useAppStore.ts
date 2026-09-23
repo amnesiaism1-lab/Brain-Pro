@@ -43,7 +43,7 @@ interface AppState {
   enableHints: boolean;
   setEnableHints: (enabled: boolean) => void;
 
-  // Per-exercise Mastery & Progression (1 to 12)
+  // Per-exercise Mastery & Progression (1 to 22)
   exerciseMasteries: Record<string, IUserExerciseMastery>;
   getExerciseLevel: (slug: ExerciseSlug) => number;
   setExerciseLevel: (slug: ExerciseSlug, level: number) => void;
@@ -398,7 +398,7 @@ export const useAppStore = create<AppState>((set, get) => {
     setIsRemindersOpen: (open) => set({ isRemindersOpen: open }),
 
     currentLevel: 1,
-    setCurrentLevel: (level) => set({ currentLevel: Math.min(12, Math.max(1, level)) }),
+    setCurrentLevel: (level) => set({ currentLevel: Math.min(22, Math.max(1, level)) }),
     autoDifficulty: true,
     setAutoDifficulty: (enabled) => set({ autoDifficulty: enabled }),
     enableHints: true,
@@ -416,7 +416,7 @@ export const useAppStore = create<AppState>((set, get) => {
       return state.exerciseMasteries[slug]?.currentLevel || state.currentLevel || 1;
     },
     setExerciseLevel: (slug: ExerciseSlug, level: number) => {
-      const targetLevel = Math.min(12, Math.max(1, level));
+      const targetLevel = Math.min(22, Math.max(1, level));
       set(state => {
         const prev = state.exerciseMasteries[slug] || {
           exerciseSlug: slug,
@@ -580,7 +580,7 @@ export const useAppStore = create<AppState>((set, get) => {
         return c;
       });
 
-      // 4. Per-exercise Adaptive DDA (1 to 12)
+      // 4. Per-exercise Adaptive DDA (1 to 22)
       const prevMastery = state.exerciseMasteries[attempt.exerciseSlug] || {
         exerciseSlug: attempt.exerciseSlug,
         currentLevel,
@@ -602,7 +602,7 @@ export const useAppStore = create<AppState>((set, get) => {
           nextWins += 1;
           nextLosses = 0;
           if (nextWins >= 2) {
-            nextLevel = Math.min(12, nextLevel + 1);
+            nextLevel = Math.min(22, nextLevel + 1);
             nextWins = 0;
           }
         } else if (attempt.accuracyRate < 60) {

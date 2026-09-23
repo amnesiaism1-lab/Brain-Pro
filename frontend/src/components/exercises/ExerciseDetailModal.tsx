@@ -86,9 +86,7 @@ export const ExerciseDetailModal: React.FC = () => {
   });
 
   useEffect(() => {
-    if (exerciseLevel >= 13) {
-      setLevelTierTab('infinity');
-    }
+    setLevelTierTab(exerciseLevel >= 13 ? 'infinity' : 'standard');
   }, [exerciseLevel]);
   
   const stageInfo = useMemo(() => {
@@ -381,6 +379,9 @@ export const ExerciseDetailModal: React.FC = () => {
                 onClick={() => {
                   playSound('click');
                   setLevelTierTab('standard');
+                  if (exerciseLevel >= 13) {
+                    setExerciseLevel(exercise.slug, 12);
+                  }
                 }}
                 className={`py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all ${
                   levelTierTab === 'standard'
@@ -397,6 +398,9 @@ export const ExerciseDetailModal: React.FC = () => {
                 onClick={() => {
                   playSound('click');
                   setLevelTierTab('infinity');
+                  if (exerciseLevel < 13) {
+                    setExerciseLevel(exercise.slug, 13);
+                  }
                 }}
                 className={`py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all ${
                   levelTierTab === 'infinity'

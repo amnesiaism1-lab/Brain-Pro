@@ -37,7 +37,7 @@ export const ActiveGameContainer: React.FC = () => {
   const exercise = EXERCISES_METADATA.find(e => e.slug === activeGameSlug);
   const currentLvl = getExerciseLevel(activeGameSlug);
   const levelConfig = exercise?.levelConfigs.find(c => c.level === currentLvl);
-  const isSuperTier = currentLvl >= 9;
+  const isSuperTier = currentLvl >= 9 && currentLvl <= 12;
 
   const renderGame = () => {
     switch (activeGameSlug) {

@@ -40,7 +40,7 @@ export function evaluateCognitiveDda(
   const isTimeout = timeSpentSec >= timeLimitSec;
 
   if (accuracyRate >= 90 && isFast && primaryAcc >= 0.85) {
-    nextLevel = Math.min(12, currentLevel + 1);
+    nextLevel = Math.min(22, currentLevel + 1);
     reason = `Làm chủ tốt quan hệ chính (${primaryId}), sẵn sàng nâng độ khó.`;
     if (primaryTier >= 3) {
       interferenceActive = true;
