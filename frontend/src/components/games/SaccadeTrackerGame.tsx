@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
-import { Eye, Zap, RotateCcw } from 'lucide-react';
+import { Eye, Zap, RotateCcw, Volume2 } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { cognitiveAudioEngine } from '../../services/infinityApiService';
 
 const TARGET_CANDIDATES = ['X', '★', '◆', '▲', '✦', 'Ω', '⚡', 'Z', '7', 'Đ'];
 const ALL_DISTRACTOR_SYMBOLS = ['A', 'B', 'C', 'D', 'E', 'G', 'H', 'K', 'M', 'P', 'R', 'S', 'T', 'O', 'V', 'N', 'Y'];
@@ -18,7 +19,9 @@ export const SaccadeTrackerGame: React.FC = () => {
   const isColorGated = effectiveLevel === 14;
   const isAntiSaccade = effectiveLevel === 15 || effectiveLevel === 22;
   const isParityTrigger = effectiveLevel === 19;
-  const isHyperSaccade = effectiveLevel === 20 || effectiveLevel === 22;
+  const isHyperSaccade = effectiveLevel === 20;
+  const isBinauralSaccade = effectiveLevel === 21;
+  const isCrossModalConflict = effectiveLevel === 22;
 
   const jumpIntervalMs = useMemo(() => {
     if (isHyperSaccade) return 200;
@@ -107,7 +110,16 @@ export const SaccadeTrackerGame: React.FC = () => {
     if (isTargetNow) {
       setTargetAppearanceTime(Date.now());
     }
-  }, [targetSymbol, distractors, isVowelTrigger, isParityTrigger, isColorGated, isAntiSaccade]);
+
+    if (isBinauralSaccade) {
+      const pan: -1 | 1 = newX < 50 ? -1 : 1;
+      cognitiveAudioEngine.playBinauralClick(pan, 640, 70);
+    } else if (isCrossModalConflict) {
+      // Audio click in opposite ear to create spatial cross-modal conflict!
+      const pan: -1 | 1 = newX < 50 ? 1 : -1;
+      cognitiveAudioEngine.playBinauralClick(pan, 850, 70);
+    }
+  }, [targetSymbol, distractors, isVowelTrigger, isParityTrigger, isColorGated, isAntiSaccade, isBinauralSaccade, isCrossModalConflict]);
 
   useEffect(() => {
     jumpTarget();
@@ -254,9 +266,9 @@ export const SaccadeTrackerGame: React.FC = () => {
                effectiveLevel === 17 ? 'Stroop Saccade (Xung đột ý niệm & vị trí)' :
                effectiveLevel === 18 ? 'Audio-Visual Synced (Đồng bộ thị giác & âm thanh)' :
                effectiveLevel === 19 ? 'Parity Trigger (Chỉ bấm khi gặp SỐ CHẴN 0,2,4,6,8)' :
-               effectiveLevel === 20 ? 'Hyper Saccade (Tốc độ nhảy 200ms cực đại)' :
-               effectiveLevel === 21 ? 'Dynamic Vector Trajectory (Quỹ đạo chuyển động liên tục)' :
-               'Anti-Saccade Chaos Stream (200ms Anti-Saccade Vô cực)'}
+               effectiveLevel === 20 ? 'Hyper Saccade (Tốc độ nhảy 200ms phản xạ cực đại)' :
+               effectiveLevel === 21 ? 'Binaural Saccade Beacon (Âm thanh 3D lập thể panned tai trái/phải định hướng nhảy)' :
+               'Cross-Modal Sensory Conflict (Tiếng click ở tai ĐỐI NGHỊCH mắt - Ức chế nhiễu giác quan cực hạn)'}
             </span>
           </div>
           <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>

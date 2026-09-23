@@ -182,41 +182,41 @@ export const CardFlipGame: React.FC = () => {
         }
 
         case 15: {
-          // ∞-III: Triad Concept Matching (Card 1: EN Word, Card 2: VI Meaning, Card 3: Symbol Emoji)
-          const triads = infinityApiService.getTriadConcepts(6);
-          triads.forEach((tc, idx) => {
-            const mKey = `triad-concept-${tc.id}`;
-            // Card A: English Word
+          // ∞-III: World Geography Triad Matching (Card 1: Country, Card 2: Capital, Card 3: Flag Emoji)
+          const geoTriads = infinityApiService.getGeographyTriads(6);
+          geoTriads.forEach((geo, idx) => {
+            const mKey = `geo-triad-${geo.id}`;
+            // Card A: Country
             cardDeck.push({
-              id: `card-tc-en-${idx}-${Math.random()}`,
-              symbolIndex: idx % CARD_ICONS.length,
-              matchKey: mKey,
-              cardType: 'word_en',
-              displayText: tc.word,
-              subText: 'Từ Tiếng Anh',
-              isFlipped: false,
-              isMatched: false
-            });
-            // Card B: Vietnamese Meaning
-            cardDeck.push({
-              id: `card-tc-vi-${idx}-${Math.random()}`,
+              id: `card-geo-cnt-${idx}-${Math.random()}`,
               symbolIndex: idx % CARD_ICONS.length,
               matchKey: mKey,
               cardType: 'word_vi',
-              displayText: tc.viMeaning,
-              subText: 'Nghĩa Tiếng Việt',
+              displayText: geo.country,
+              subText: geo.continent,
               isFlipped: false,
               isMatched: false
             });
-            // Card C: Symbol Emoji
+            // Card B: Capital
             cardDeck.push({
-              id: `card-tc-sym-${idx}-${Math.random()}`,
+              id: `card-geo-cap-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: mKey,
+              cardType: 'word_en',
+              displayText: geo.capital,
+              subText: 'Thủ Đô',
+              isFlipped: false,
+              isMatched: false
+            });
+            // Card C: Flag Emoji
+            cardDeck.push({
+              id: `card-geo-flag-${idx}-${Math.random()}`,
               symbolIndex: idx % CARD_ICONS.length,
               matchKey: mKey,
               cardType: 'emoji',
-              displayText: tc.symbol,
-              emoji: tc.symbol,
-              subText: tc.category,
+              displayText: geo.flag,
+              emoji: geo.flag,
+              subText: 'Quốc Kỳ',
               isFlipped: false,
               isMatched: false
             });
@@ -254,37 +254,40 @@ export const CardFlipGame: React.FC = () => {
         }
 
         case 17: {
-          // ∞-V: Parts of Speech Triad (Noun + Verb + Adjective)
-          const triads = infinityApiService.getPosTriads(6);
-          triads.forEach((triad, idx) => {
-            const mKey = `triad-${idx}`;
+          // ∞-V: Chemistry Elements Triad (Card 1: Symbol, Card 2: Element Name & Group, Card 3: Atomic Number Z)
+          const chemTriads = infinityApiService.getPeriodicTableTriads(6);
+          chemTriads.forEach((elem, idx) => {
+            const mKey = `chem-triad-${elem.symbol}`;
+            // Card A: Symbol
             cardDeck.push({
-              id: `card-noun-${idx}-${Math.random()}`,
+              id: `card-chem-sym-${idx}-${Math.random()}`,
               symbolIndex: idx % CARD_ICONS.length,
               matchKey: mKey,
-              cardType: 'triad_noun',
-              displayText: triad.noun,
-              subText: 'DANH TỪ',
+              cardType: 'word_en',
+              displayText: elem.symbol,
+              subText: 'Ký Hiệu Hóa Học',
               isFlipped: false,
               isMatched: false
             });
+            // Card B: Name
             cardDeck.push({
-              id: `card-verb-${idx}-${Math.random()}`,
+              id: `card-chem-name-${idx}-${Math.random()}`,
               symbolIndex: idx % CARD_ICONS.length,
               matchKey: mKey,
-              cardType: 'triad_verb',
-              displayText: triad.verb,
-              subText: 'ĐỘNG TỪ',
+              cardType: 'word_vi',
+              displayText: elem.name,
+              subText: elem.category,
               isFlipped: false,
               isMatched: false
             });
+            // Card C: Atomic Number
             cardDeck.push({
-              id: `card-adj-${idx}-${Math.random()}`,
+              id: `card-chem-num-${idx}-${Math.random()}`,
               symbolIndex: idx % CARD_ICONS.length,
               matchKey: mKey,
-              cardType: 'triad_adj',
-              displayText: triad.adjective,
-              subText: 'TÍNH TỪ',
+              cardType: 'emoji',
+              displayText: `Z = ${elem.atomicNumber}`,
+              subText: elem.funFact,
               isFlipped: false,
               isMatched: false
             });
@@ -765,15 +768,17 @@ export const CardFlipGame: React.FC = () => {
             effectiveLevel === 14 ? (
               '🌌 Cấp Vô Cực ∞-II: Ghép cặp từ Tiếng Việt với từ Tiếng Anh dịch nghĩa tương ứng!'
             ) : effectiveLevel === 15 ? (
-              '🌌 Cấp Vô Cực ∞-III (Tam Hợp): Lật mở trọn vẹn Bộ 3: Từ Tiếng Anh + Nghĩa Tiếng Việt + Biểu tượng!'
+              '🌌 Cấp Vô Cực ∞-III (Tam Hợp Địa Lý): Lật mở trọn vẹn Bộ 3: Tên Quốc Gia + Thủ Đô + Quốc Kỳ!'
             ) : effectiveLevel === 16 ? (
               '🌌 Cấp Vô Cực ∞-IV: Ghép các từ Đồng Nghĩa (Synonyms) Tiếng Anh có chung ngữ nghĩa!'
             ) : effectiveLevel === 17 ? (
-              '🌌 Cấp Vô Cực ∞-V: Lật mở trọn vẹn Bộ 3: Danh Từ + Động Từ + Tính Từ cùng chủ đề!'
+              '🌌 Cấp Vô Cực ∞-V (Tam Hợp Hóa Học): Lật mở trọn vẹn Bộ 3: Ký Hiệu + Tên Nguyên Tố + Số Hiệu Z!'
             ) : effectiveLevel === 18 ? (
               '🌌 Cấp Vô Cực ∞-VI: Thẻ Thiên Văn NASA - Bàn cờ chuyển động dịch chuyển theo quỹ đạo!'
+            ) : effectiveLevel === 20 ? (
+              '🌌 Cấp Vô Cực ∞-VIII: Trí nhớ phân rã nhanh (Flash Decay) - Thẻ tự động úp lại sau 2 giây!'
             ) : (
-              '🌌 Cấp Vô Cực: Lật mở và kết nối các cặp thực thể song ngữ, ghi nhớ thần tốc!'
+              '🌌 Cấp Vô Cực: Lật mở và kết nối các cặp thực thể tri thức đa lĩnh vực, ghi nhớ thần tốc!'
             )
           ) : (
             'Lật mở từng thẻ để ghép cặp các biểu tượng giống nhau. Lật đúng liên tiếp để nhân điểm combo!'

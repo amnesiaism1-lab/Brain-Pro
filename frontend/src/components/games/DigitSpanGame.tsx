@@ -4,9 +4,23 @@ import { GameResultModal } from './GameResultModal';
 import { calculateGameScore } from '@brain-exercises/shared';
 import { Delete } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
-import { speakWord } from '../../services/infinityApiService';
+import { speakWord, cognitiveAudioEngine } from '../../services/infinityApiService';
 
 const SHORT_WORDS = ['CAT', 'SUN', 'SKY', 'MAP', 'SEA', 'STAR', 'MOON', 'PEN', 'TREE', 'BIRD'];
+const PITCH_NOTES: Record<string, 'C4' | 'D4' | 'E4' | 'G4' | 'A4'> = {
+  '1': 'C4',
+  '2': 'D4',
+  '3': 'E4',
+  '4': 'G4',
+  '5': 'A4'
+};
+const PITCH_LABELS: Record<string, string> = {
+  '1': 'Đô (C4)',
+  '2': 'Rê (D4)',
+  '3': 'Mi (E4)',
+  '4': 'Sol (G4)',
+  '5': 'La (A4)'
+};
 
 export const DigitSpanGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
@@ -23,10 +37,11 @@ export const DigitSpanGame: React.FC = () => {
   const isAudioSpan = effectiveLevel === 17;
   const isReverseAlphanumeric = effectiveLevel === 19;
   const isRsvpMode = effectiveLevel === 20 || effectiveLevel === 22;
-  const isReverseSpan = (effectiveLevel >= 8 && effectiveLevel !== 13 && effectiveLevel !== 14 && effectiveLevel !== 16 && effectiveLevel !== 17) || isReverseAlphanumeric;
+  const isPitchSpan = effectiveLevel === 21; // ∞-IX: Absolute Musical Pitch Span
+  const isReverseSpan = (effectiveLevel >= 8 && effectiveLevel !== 13 && effectiveLevel !== 14 && effectiveLevel !== 16 && effectiveLevel !== 17 && !isPitchSpan) || isReverseAlphanumeric;
   
   const digitCount = isInfinity 
-    ? (isLetterMode ? 6 : isWordMode ? 4 : isMixedMode ? 6 : isAudioSpan ? 5 : isReverseAlphanumeric ? 6 : isRsvpMode ? 8 : Math.min(12, 6 + (effectiveLevel - 13))) 
+    ? (isLetterMode ? 6 : isWordMode ? 4 : isMixedMode ? 6 : isAudioSpan ? 5 : isPitchSpan ? 5 : isReverseAlphanumeric ? 6 : isRsvpMode ? 8 : Math.min(12, 6 + (effectiveLevel - 13))) 
     : Math.min(12, 3 + effectiveLevel);
   
   const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -34,6 +49,14 @@ export const DigitSpanGame: React.FC = () => {
     if (isWordMode) {
       const shuffled = [...SHORT_WORDS].sort(() => Math.random() - 0.5);
       return shuffled.slice(0, len).join(' ');
+    }
+    if (isPitchSpan) {
+      let str = '';
+      const noteKeys = ['1', '2', '3', '4', '5'];
+      for (let i = 0; i < len; i++) {
+        str += noteKeys[Math.floor(Math.random() * noteKeys.length)];
+      }
+      return str;
     }
     let str = '';
     for (let i = 0; i < len; i++) {
@@ -73,10 +96,22 @@ export const DigitSpanGame: React.FC = () => {
       }, 300);
     }
 
+    // Pitch span playback
+    if (isPitchSpan) {
+      seq.split('').forEach((char, idx) => {
+        setTimeout(() => {
+          const note = PITCH_NOTES[char];
+          if (note) cognitiveAudioEngine.playMusicalNote(note, 450);
+        }, 400 + (idx * 650));
+      });
+    }
+
     const flashDuration = isRsvpMode 
       ? (seq.length * 350) + 600
       : isAudioSpan 
       ? (seq.length * 1000) + 800
+      : isPitchSpan
+      ? (seq.length * 650) + 1200
       : 1000 + (digitCount * (isInfinity ? 350 : 300));
 
     const timer = setTimeout(() => {
@@ -85,7 +120,7 @@ export const DigitSpanGame: React.FC = () => {
     }, flashDuration);
 
     return () => clearTimeout(timer);
-  }, [round, effectiveLevel, digitCount]);
+  }, [round, effectiveLevel, digitCount, isPitchSpan]);
 
   // RSVP animation tick
   useEffect(() => {
@@ -104,6 +139,9 @@ export const DigitSpanGame: React.FC = () => {
   const handleInput = (char: string) => {
     if (phase !== 'recall') return;
     playSound('click');
+    if (isPitchSpan && PITCH_NOTES[char]) {
+      cognitiveAudioEngine.playMusicalNote(PITCH_NOTES[char], 280);
+    }
     if (userInput.length < digits.length) {
       const nextInput = userInput + char;
       setUserInput(nextInput);
@@ -204,7 +242,7 @@ export const DigitSpanGame: React.FC = () => {
                effectiveLevel === 18 ? 'Color Sequence Span (Chuỗi màu quy ước)' :
                effectiveLevel === 19 ? 'Reverse Alphanumeric (Đảo ngược chuỗi số và chữ phức hợp)' :
                effectiveLevel === 20 ? 'RSVP Rapid Serial Stream (Chớp từng ký tự 320ms)' :
-               effectiveLevel === 21 ? 'Dual Channel Span (Đa kênh trí nhớ làm việc)' :
+               effectiveLevel === 21 ? 'Absolute Musical Pitch Span (Trí nhớ cao độ âm thanh C4-D4-E4-G4-A4)' :
                'Adaptive Ceiling Stream (Dãy siêu tốc 8-12 ký tự)'}
             </span>
           </div>
@@ -230,7 +268,7 @@ export const DigitSpanGame: React.FC = () => {
         <div className="text-right">
           <span className="text-xs sm:text-sm text-slate-500 font-medium">Độ dài chuỗi</span>
           <div className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white">
-            {digitCount} {isLetterMode ? 'chữ cái' : isWordMode ? 'từ' : 'ký tự'} {isReverseSpan && <span className="text-rose-500 text-xs sm:text-sm ml-1 font-bold">(Đảo ngược)</span>}
+            {digitCount} {isPitchSpan ? 'nốt nhạc' : isLetterMode ? 'chữ cái' : isWordMode ? 'từ' : 'ký tự'} {isReverseSpan && <span className="text-rose-500 text-xs sm:text-sm ml-1 font-bold">(Đảo ngược)</span>}
           </div>
         </div>
       </div>
@@ -239,7 +277,21 @@ export const DigitSpanGame: React.FC = () => {
       <div className="h-56 sm:h-64 md:h-72 rounded-3xl bg-brand-600 dark:bg-brand-700 text-white flex flex-col items-center justify-center p-6 sm:p-8 shadow-2xl relative overflow-hidden border-2 border-brand-400">
         {phase === 'memorize' ? (
           <div className="space-y-2 text-center animate-pulse">
-            {isAudioSpan ? (
+            {isPitchSpan ? (
+              <>
+                <span className="text-xs sm:text-sm uppercase tracking-widest text-brand-200 font-bold flex items-center justify-center gap-1.5">
+                  🎵 LẮNG NGHE GIAI ĐIỆU CAO ĐỘ TUYỆT ĐỐI
+                </span>
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                  {digits.split('').map((char, idx) => (
+                    <span key={idx} className="px-3 py-1.5 rounded-xl bg-white/20 backdrop-blur-md text-amber-300 font-mono font-black text-lg sm:text-xl border border-white/30 shadow">
+                      {PITCH_LABELS[char] || char}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-brand-100 mt-2 font-medium">Ghi nhớ chuỗi nốt theo âm sắc phát ra</p>
+              </>
+            ) : isAudioSpan ? (
               <>
                 <span className="text-xs sm:text-sm uppercase tracking-widest text-brand-200 font-bold">
                   🎧 LẮNG NGHE CHUỖI SỐ QUA TAI NGHE / LOA
@@ -275,7 +327,21 @@ export const DigitSpanGame: React.FC = () => {
               {isReverseSpan ? `Nhập lại ${spanLabel} theo thứ tự đảo ngược` : `Nhập lại ${spanLabel}`}
             </span>
             <div className="text-3xl sm:text-5xl md:text-6xl font-mono font-black tracking-widest min-h-[56px] sm:min-h-[72px] bg-black/20 rounded-2xl sm:rounded-3xl flex items-center justify-center px-4">
-              {userInput ? userInput : <span className="opacity-40">???</span>}
+              {userInput ? (
+                isPitchSpan ? (
+                  <div className="flex gap-2">
+                    {userInput.split('').map((c, i) => (
+                      <span key={i} className="text-amber-300 text-lg sm:text-2xl font-bold bg-white/10 px-2 py-1 rounded-lg">
+                        {PITCH_LABELS[c] || c}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  userInput
+                )
+              ) : (
+                <span className="opacity-40">???</span>
+              )}
             </div>
           </div>
         )}
@@ -286,7 +352,28 @@ export const DigitSpanGame: React.FC = () => {
         <p className="text-xs text-center text-slate-500 dark:text-slate-400 font-medium">
           (Bấm trực tiếp bàn phím máy tính hoặc các phím bên dưới)
         </p>
-        {isLetterMode ? (
+        {isPitchSpan ? (
+          <div className="flex flex-wrap gap-2.5 max-w-md mx-auto justify-center">
+            {['1', '2', '3', '4', '5'].map(key => (
+              <button
+                key={key}
+                disabled={phase !== 'recall'}
+                onClick={() => handleInput(key)}
+                className="px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-800 border-2 border-indigo-200 dark:border-indigo-700 font-black text-base text-indigo-700 dark:text-indigo-300 shadow hover:bg-indigo-50 active:scale-95 transition-all btn-press disabled:opacity-40 flex flex-col items-center justify-center min-w-[72px]"
+              >
+                <span className="text-base sm:text-lg">🎵 Phím {key}</span>
+                <span className="text-[11px] text-slate-500 font-semibold">{PITCH_LABELS[key]}</span>
+              </button>
+            ))}
+            <button
+              disabled={phase !== 'recall' || userInput.length === 0}
+              onClick={handleDelete}
+              className="w-16 h-14 rounded-2xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center active:scale-95 transition-all btn-press disabled:opacity-40"
+            >
+              <Delete className="w-6 h-6" />
+            </button>
+          </div>
+        ) : isLetterMode ? (
           <div className="flex flex-wrap gap-2 max-w-lg mx-auto justify-center">
             {LETTERS.split('').map(char => (
               <button

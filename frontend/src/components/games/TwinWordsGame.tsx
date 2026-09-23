@@ -11,7 +11,9 @@ import {
   ANTONYM_PAIRS,
   EMOJI_WORD_PAIRS,
   FALSE_FRIENDS,
-  POS_TRIADS
+  POS_TRIADS,
+  GEOGRAPHY_TRIADS,
+  PERIODIC_TABLE_TRIADS
 } from '../../services/infinityApiService';
 import { Infinity as InfinityIcon, Sparkles } from 'lucide-react';
 
@@ -166,17 +168,27 @@ export const TwinWordsGame: React.FC = () => {
       }
 
     } else if (currentLevel === 22) {
-      // ∞-X: Rapid Multi-Domain Cognitive Synthesis
-      const randDomain = Math.floor(Math.random() * 4);
+      // ∞-X: Rapid Multi-Domain Cognitive Synthesis (Language + Geography + Chemistry + Symbols)
+      const randDomain = Math.floor(Math.random() * 6);
       if (randDomain === 0) {
         const bp = BILINGUAL_WORD_PAIRS[Math.floor(Math.random() * BILINGUAL_WORD_PAIRS.length)];
         setPair({ word1: bp.vi.toUpperCase(), word2: shouldMatch ? bp.en.toUpperCase() : 'COSMIC', isMatch: shouldMatch });
         setSubLabels({ labelA: 'VIỆT', labelB: 'ANH', prompt: 'Khớp nghĩa dịch thuật VI-EN?' });
       } else if (randDomain === 1) {
+        const geo = GEOGRAPHY_TRIADS[Math.floor(Math.random() * GEOGRAPHY_TRIADS.length)];
+        const otherGeo = GEOGRAPHY_TRIADS[(GEOGRAPHY_TRIADS.indexOf(geo) + 3) % GEOGRAPHY_TRIADS.length];
+        setPair({ word1: `${geo.flag} ${geo.country.toUpperCase()}`, word2: shouldMatch ? geo.capital.toUpperCase() : otherGeo.capital.toUpperCase(), isMatch: shouldMatch });
+        setSubLabels({ labelA: 'QUỐC GIA', labelB: 'THỦ ĐÔ', prompt: 'Thủ đô này có CHÍNH XÁC thuộc về Quốc gia hiển thị?' });
+      } else if (randDomain === 2) {
+        const elem = PERIODIC_TABLE_TRIADS[Math.floor(Math.random() * PERIODIC_TABLE_TRIADS.length)];
+        const otherElem = PERIODIC_TABLE_TRIADS[(PERIODIC_TABLE_TRIADS.indexOf(elem) + 4) % PERIODIC_TABLE_TRIADS.length];
+        setPair({ word1: elem.symbol, word2: shouldMatch ? elem.name.toUpperCase() : otherElem.name.toUpperCase(), isMatch: shouldMatch });
+        setSubLabels({ labelA: 'KÝ HIỆU HÓA HỌC', labelB: 'TÊN NGUYÊN TỐ', prompt: 'Ký hiệu hóa học có tương ứng với Nguyên tố?' });
+      } else if (randDomain === 3) {
         const syn = SYNONYM_PAIRS[Math.floor(Math.random() * SYNONYM_PAIRS.length)];
         setPair({ word1: syn.wordA.toUpperCase(), word2: shouldMatch ? syn.wordB.toUpperCase() : 'RANDOM', isMatch: shouldMatch });
         setSubLabels({ labelA: 'TỪ A', labelB: 'TỪ B', prompt: 'Đồng nghĩa (Synonyms)?' });
-      } else if (randDomain === 2) {
+      } else if (randDomain === 4) {
         const ant = ANTONYM_PAIRS[Math.floor(Math.random() * ANTONYM_PAIRS.length)];
         setPair({ word1: ant.wordA.toUpperCase(), word2: shouldMatch ? ant.wordB.toUpperCase() : 'HARMONY', isMatch: shouldMatch });
         setSubLabels({ labelA: 'TỪ A', labelB: 'TỪ B', prompt: 'Trái nghĩa (Antonyms)?' });

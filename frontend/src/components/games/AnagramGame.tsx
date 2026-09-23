@@ -6,6 +6,7 @@ import { RotateCcw, Sparkles, Infinity as InfinityIcon, BookOpen, Lightbulb, Clo
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { readingContentService, THEMED_VOCABULARY } from '../../services/readingContentService';
 import { 
+  infinityApiService,
   CURATED_DICTIONARY, 
   EMOJI_WORD_PAIRS, 
   SYNONYM_PAIRS,
@@ -97,6 +98,21 @@ export const AnagramGame: React.FC = () => {
   const maxRounds = isEndlessWave ? 25 : 5;
 
   const [hintsUsedInRound, setHintsUsedInRound] = useState(0);
+  const [datamuseAssociations, setDatamuseAssociations] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!isInfinity || !targetWord) {
+      setDatamuseAssociations([]);
+      return;
+    }
+    let isMounted = true;
+    infinityApiService.getDatamuseAssociations(targetWord).then((words: string[]) => {
+      if (isMounted && words && words.length > 0) {
+        setDatamuseAssociations(words.filter((w: string) => w !== targetWord && w.length <= 10).slice(0, 3));
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, [isInfinity, targetWord]);
 
   const currentHint = useMemo(() => {
     if (!isInfinity) return null;
@@ -291,15 +307,25 @@ export const AnagramGame: React.FC = () => {
 
       {/* Infinity Hint or Emoji Clue Card */}
       {currentHint && (
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-800 flex items-center gap-3 shadow-sm animate-fade-in">
-          <Lightbulb className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0" />
-          <div>
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-800 flex items-start gap-3 shadow-sm animate-fade-in">
+          <Lightbulb className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
             <span className="text-[11px] font-bold text-purple-500 uppercase tracking-wider block">
               Gợi Ý Nghĩa Tiếng Việt & Ngữ Cảnh Học Thuật
             </span>
-            <span className="text-xs sm:text-sm font-black text-purple-900 dark:text-purple-200">
+            <div className="text-xs sm:text-sm font-black text-purple-900 dark:text-purple-200">
               {currentHint}
-            </span>
+            </div>
+            {datamuseAssociations.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] font-bold text-indigo-700 dark:text-indigo-300">
+                <span className="text-indigo-500">🌐 Liên tưởng ngữ cảnh (Datamuse):</span>
+                {datamuseAssociations.map((w, i) => (
+                  <span key={i} className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-900/60 font-mono text-[10px] text-indigo-800 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-700">
+                    {w}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

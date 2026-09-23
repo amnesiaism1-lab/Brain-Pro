@@ -11,7 +11,9 @@ import {
   ANTONYM_PAIRS,
   BILINGUAL_WORD_PAIRS,
   EMOJI_WORD_PAIRS,
-  NASA_OFFLINE_CARDS
+  NASA_OFFLINE_CARDS,
+  GEOGRAPHY_TRIADS,
+  PERIODIC_TABLE_TRIADS
 } from '../../services/infinityApiService';
 
 export const WordSearchGame: React.FC = () => {
@@ -58,6 +60,18 @@ export const WordSearchGame: React.FC = () => {
         // ∞-VI: NASA Cosmic Terms
         const cosmicTerms = ['GALAXY', 'NEBULA', 'PULSAR', 'SUPERNOVA', 'QUASAR', 'EXOPLANET', 'ASTEROID', 'TELESCOPE', 'COSMOS'];
         const shuffled = [...cosmicTerms].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, wordCount);
+      }
+      if (currentLevel === 19) {
+        // ∞-VII: World Capitals Geography Grid
+        const capitals = GEOGRAPHY_TRIADS.map(g => g.capital.toUpperCase().replace(/[^A-Z]/g, ''));
+        const shuffled = [...capitals].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, wordCount);
+      }
+      if (currentLevel === 20) {
+        // ∞-VIII: Chemistry Elements Grid
+        const chemNames = ['HYDROGEN', 'HELIUM', 'LITHIUM', 'CARBON', 'NITROGEN', 'OXYGEN', 'SILICON', 'TITANIUM', 'PLATINUM', 'URANIUM'];
+        const shuffled = [...chemNames].sort(() => 0.5 - Math.random());
         return shuffled.slice(0, wordCount);
       }
       if (currentLevel >= 21) {
@@ -244,6 +258,12 @@ export const WordSearchGame: React.FC = () => {
           } else if (currentLevel === 17) {
             const emo = EMOJI_WORD_PAIRS.find(e => e.word.toUpperCase().replace(/\s+/g, '') === word);
             if (emo) clueText = `${emo.emoji} ${emo.vi}`;
+          } else if (currentLevel === 19) {
+            const geo = GEOGRAPHY_TRIADS.find(g => g.capital.toUpperCase().replace(/[^A-Z]/g, '') === word);
+            if (geo) clueText = `Thủ đô của: ${geo.flag} ${geo.country}`;
+          } else if (currentLevel === 20) {
+            const elem = PERIODIC_TABLE_TRIADS.find(el => el.name.toUpperCase().includes(word));
+            if (elem) clueText = `Ký hiệu: ${elem.symbol} (Z = ${elem.atomicNumber})`;
           } else if (dictEntry) {
             clueText = dictEntry.viMeaning.slice(0, 32) + '...';
           }

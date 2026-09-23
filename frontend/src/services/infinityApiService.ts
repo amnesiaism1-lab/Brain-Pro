@@ -847,6 +847,102 @@ class InfinityApiService {
     const shuffled = [...TRIAD_CONCEPTS].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, count);
   }
+
+  async getDatamuseAssociations(word: string): Promise<string[]> {
+    const upper = word.trim().toUpperCase();
+    const cached = getCache<string[]>(`assoc_${upper}`);
+    if (cached) return cached;
+
+    try {
+      const res = await fetch(`https://api.datamuse.com/words?rel_trg=${encodeURIComponent(word.toLowerCase())}&max=6`);
+      if (res.ok) {
+        const list = await res.json();
+        if (Array.isArray(list) && list.length > 0) {
+          const words = list.map((item: any) => item.word.toUpperCase());
+          setCache(`assoc_${upper}`, words);
+          return words;
+        }
+      }
+    } catch {}
+
+    const fallbackSyn = await this.getSynonyms(word);
+    return fallbackSyn.length > 0 ? fallbackSyn : ['MIND', 'COGNITION'];
+  }
+
+  async getDatamuseAntonyms(word: string): Promise<string[]> {
+    const upper = word.trim().toUpperCase();
+    const cached = getCache<string[]>(`ant_${upper}`);
+    if (cached) return cached;
+
+    try {
+      const res = await fetch(`https://api.datamuse.com/words?rel_ant=${encodeURIComponent(word.toLowerCase())}&max=5`);
+      if (res.ok) {
+        const list = await res.json();
+        if (Array.isArray(list) && list.length > 0) {
+          const words = list.map((item: any) => item.word.toUpperCase());
+          setCache(`ant_${upper}`, words);
+          return words;
+        }
+      }
+    } catch {}
+
+    const off = ANTONYM_PAIRS.filter(p => p.wordA === upper || p.wordB === upper);
+    return off.map(p => p.wordA === upper ? p.wordB : p.wordA);
+  }
+
+  async fetchRestCountriesTriads(count = 8): Promise<IGeographyTriad[]> {
+    const cached = getCache<IGeographyTriad[]>('geo_triads_online');
+    if (cached && cached.length >= count) {
+      return [...cached].sort(() => Math.random() - 0.5).slice(0, count);
+    }
+
+    try {
+      const res = await fetch('https://restcountries.com/v3.1/all?fields=name,capital,flags,cca2');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 20) {
+          const list: IGeographyTriad[] = data
+            .filter((c: any) => c.name?.common && c.capital?.[0] && c.flags?.png)
+            .map((c: any, idx: number) => ({
+              id: `geo-api-${c.cca2 || idx}`,
+              country: c.name.common,
+              capital: c.capital[0],
+              flag: c.cca2 ? getFlagEmoji(c.cca2) : '🏳️',
+              continent: c.region || 'Thế Giới'
+            }));
+          if (list.length > 10) {
+            setCache('geo_triads_online', list, 86400 * 30);
+            return [...list].sort(() => Math.random() - 0.5).slice(0, count);
+          }
+        }
+      }
+    } catch {}
+
+    return this.getGeographyTriads(count);
+  }
+
+  getGeographyTriads(count = 8): IGeographyTriad[] {
+    const shuffled = [...GEOGRAPHY_TRIADS].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
+  }
+
+  getPeriodicTableTriads(count = 8): IElementTriad[] {
+    const shuffled = [...PERIODIC_TABLE_TRIADS].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
+  }
+
+  getAstronomyTriads(count = 6): IAstronomyTriad[] {
+    const shuffled = [...ASTRONOMY_TRIADS].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
+  }
+}
+
+function getFlagEmoji(countryCode: string): string {
+  const codePoints = countryCode
+    .toUpperCase()
+    .split('')
+    .map(char => 127397 + char.charCodeAt(0));
+  return String.fromCodePoint(...codePoints);
 }
 
 export interface ITriadCard {
@@ -856,6 +952,30 @@ export interface ITriadCard {
   subtext: string;
   type: 'word' | 'meaning' | 'symbol';
   icon?: string;
+}
+
+export interface IGeographyTriad {
+  id: string;
+  country: string;
+  capital: string;
+  flag: string;
+  continent: string;
+  subtext?: string;
+}
+
+export interface IElementTriad {
+  symbol: string;
+  name: string;
+  atomicNumber: number;
+  category: string;
+  funFact: string;
+}
+
+export interface IAstronomyTriad {
+  name: string;
+  classification: string;
+  trait: string;
+  symbol: string;
 }
 
 export const TRIAD_CONCEPTS = [
@@ -868,6 +988,157 @@ export const TRIAD_CONCEPTS = [
   { id: 'triad-7', word: 'HEURISTIC', viMeaning: 'Suy nghiệm tư duy', symbol: '💡', category: 'Khoa học nhận thức' },
   { id: 'triad-8', word: 'EQUILIBRIUM', viMeaning: 'Cân bằng động lực', symbol: '⚖️', category: 'Nội môi & Vật lý' },
 ];
+
+export const GEOGRAPHY_TRIADS: IGeographyTriad[] = [
+  { id: 'geo-vn', country: 'Việt Nam', capital: 'Hà Nội', flag: '🇻🇳', continent: 'Đông Nam Á' },
+  { id: 'geo-jp', country: 'Nhật Bản (Japan)', capital: 'Tokyo', flag: '🇯🇵', continent: 'Đông Á' },
+  { id: 'geo-fr', country: 'Pháp (France)', capital: 'Paris', flag: '🇫🇷', continent: 'Châu Âu' },
+  { id: 'geo-de', country: 'Đức (Germany)', capital: 'Berlin', flag: '🇩🇪', continent: 'Châu Âu' },
+  { id: 'geo-gb', country: 'Anh Quốc (UK)', capital: 'London', flag: '🇬🇧', continent: 'Châu Âu' },
+  { id: 'geo-us', country: 'Hoa Kỳ (USA)', capital: 'Washington D.C.', flag: '🇺🇸', continent: 'Bắc Mỹ' },
+  { id: 'geo-ca', country: 'Canada', capital: 'Ottawa', flag: '🇨🇦', continent: 'Bắc Mỹ' },
+  { id: 'geo-au', country: 'Australia', capital: 'Canberra', flag: '🇦🇺', continent: 'Châu Đại Dương' },
+  { id: 'geo-kr', country: 'Hàn Quốc (Korea)', capital: 'Seoul', flag: '🇰🇷', continent: 'Đông Á' },
+  { id: 'geo-it', country: 'Ý (Italy)', capital: 'Rome', flag: '🇮🇹', continent: 'Nam Âu' },
+  { id: 'geo-es', country: 'Tây Ban Nha (Spain)', capital: 'Madrid', flag: '🇪🇸', continent: 'Nam Âu' },
+  { id: 'geo-br', country: 'Brazil', capital: 'Brasília', flag: '🇧🇷', continent: 'Nam Mỹ' },
+  { id: 'geo-eg', country: 'Ai Cập (Egypt)', capital: 'Cairo', flag: '🇪🇬', continent: 'Bắc Phi' },
+  { id: 'geo-in', country: 'Ấn Độ (India)', capital: 'New Delhi', flag: '🇮🇳', continent: 'Nam Á' },
+  { id: 'geo-ar', country: 'Argentina', capital: 'Buenos Aires', flag: '🇦🇷', continent: 'Nam Mỹ' },
+  { id: 'geo-ch', country: 'Thụy Sĩ (Switzerland)', capital: 'Bern', flag: '🇨🇭', continent: 'Trung Âu' },
+  { id: 'geo-se', country: 'Thụy Điển (Sweden)', capital: 'Stockholm', flag: '🇸🇪', continent: 'Bắc Âu' },
+  { id: 'geo-no', country: 'Na Uy (Norway)', capital: 'Oslo', flag: '🇳🇴', continent: 'Bắc Âu' },
+  { id: 'geo-gr', country: 'Hy Lạp (Greece)', capital: 'Athens', flag: '🇬🇷', continent: 'Nam Âu' },
+  { id: 'geo-mx', country: 'Mexico', capital: 'Mexico City', flag: '🇲🇽', continent: 'Bắc Mỹ' },
+  { id: 'geo-za', country: 'Nam Phi (South Africa)', capital: 'Pretoria', flag: '🇿🇦', continent: 'Nam Phi' },
+  { id: 'geo-nz', country: 'New Zealand', capital: 'Wellington', flag: '🇳🇿', continent: 'Châu Đại Dương' },
+  { id: 'geo-th', country: 'Thái Lan (Thailand)', capital: 'Bangkok', flag: '🇹🇭', continent: 'Đông Nam Á' },
+  { id: 'geo-sg', country: 'Singapore', capital: 'Singapore', flag: '🇸🇬', continent: 'Đông Nam Á' },
+  { id: 'geo-id', country: 'Indonesia', capital: 'Jakarta', flag: '🇮🇩', continent: 'Đông Nam Á' },
+  { id: 'geo-nl', country: 'Hà Lan (Netherlands)', capital: 'Amsterdam', flag: '🇳🇱', continent: 'Tây Âu' },
+  { id: 'geo-pt', country: 'Bồ Đào Nha (Portugal)', capital: 'Lisbon', flag: '🇵🇹', continent: 'Nam Âu' },
+  { id: 'geo-tr', country: 'Thổ Nhĩ Kỳ (Turkey)', capital: 'Ankara', flag: '🇹🇷', continent: 'Âu-Á' },
+  { id: 'geo-at', country: 'Áo (Austria)', capital: 'Vienna', flag: '🇦🇹', continent: 'Trung Âu' },
+  { id: 'geo-dk', country: 'Đan Mạch (Denmark)', capital: 'Copenhagen', flag: '🇩🇰', continent: 'Bắc Âu' },
+];
+
+export const PERIODIC_TABLE_TRIADS: IElementTriad[] = [
+  { symbol: 'H', name: 'Hydrogen (Hiđrô)', atomicNumber: 1, category: 'Phi kim', funFact: 'Nguyên tố nhẹ và phổ biến nhất vũ trụ' },
+  { symbol: 'He', name: 'Helium (Heli)', atomicNumber: 2, category: 'Khí hiếm', funFact: 'Không cháy, nhẹ hơn không khí' },
+  { symbol: 'Li', name: 'Lithium (Liti)', atomicNumber: 3, category: 'Kim loại kiềm', funFact: 'Thành phần cốt lõi trong pin ion hiện đại' },
+  { symbol: 'C', name: 'Carbon (Cacbon)', atomicNumber: 6, category: 'Phi kim', funFact: 'Nền tảng của toàn bộ sự sống hữu cơ' },
+  { symbol: 'N', name: 'Nitrogen (Nitơ)', atomicNumber: 7, category: 'Phi kim', funFact: 'Chiếm 78% thể tích bầu khí quyển Trái Đất' },
+  { symbol: 'O', name: 'Oxygen (Oxy)', atomicNumber: 8, category: 'Phi kim', funFact: 'Duy trì sự hô hấp và các phản ứng cháy' },
+  { symbol: 'Ne', name: 'Neon (Neon)', atomicNumber: 10, category: 'Khí hiếm', funFact: 'Phát ánh sáng đỏ cam rực rỡ trong ống phóng điện' },
+  { symbol: 'Na', name: 'Sodium (Natri)', atomicNumber: 11, category: 'Kim loại kiềm', funFact: 'Thành phần chính của muối ăn NaCl' },
+  { symbol: 'Mg', name: 'Magnesium (Magie)', atomicNumber: 12, category: 'Kim loại kiềm thổ', funFact: 'Cháy với ngọn lửa trắng lóa mắt' },
+  { symbol: 'Al', name: 'Aluminium (Nhôm)', atomicNumber: 13, category: 'Kim loại cơ bản', funFact: 'Nhẹ và chống gỉ, vật liệu chế tạo máy bay' },
+  { symbol: 'Si', name: 'Silicon (Silic)', atomicNumber: 14, category: 'Á kim', funFact: 'Chất bán dẫn xương sống của ngành vi mạch chip' },
+  { symbol: 'P', name: 'Phosphorus (Photpho)', atomicNumber: 15, category: 'Phi kim', funFact: 'Thành phần cấu trúc DNA và màng tế bào' },
+  { symbol: 'S', name: 'Sulfur (Lưu huỳnh)', atomicNumber: 16, category: 'Phi kim', funFact: 'Chất rắn tinh thể màu vàng tươi ở miệng núi lửa' },
+  { symbol: 'Cl', name: 'Chlorine (Clo)', atomicNumber: 17, category: 'Halogen', funFact: 'Khí màu vàng lục có tính khử trùng cực mạnh' },
+  { symbol: 'K', name: 'Potassium (Kali)', atomicNumber: 19, category: 'Kim loại kiềm', funFact: 'Thiết yếu cho dẫn truyền xung thần kinh não bộ' },
+  { symbol: 'Ca', name: 'Calcium (Canxi)', atomicNumber: 20, category: 'Kim loại kiềm thổ', funFact: 'Cấu tạo nên khung xương và men răng' },
+  { symbol: 'Ti', name: 'Titanium (Titan)', atomicNumber: 22, category: 'Kim loại chuyển tiếp', funFact: 'Cực bền, nhẹ và tương thích sinh học cao' },
+  { symbol: 'Fe', name: 'Iron (Sắt)', atomicNumber: 26, category: 'Kim loại chuyển tiếp', funFact: 'Trung tâm của phân tử Hemoglobin chở oxy trong máu' },
+  { symbol: 'Cu', name: 'Copper (Đồng)', atomicNumber: 29, category: 'Kim loại chuyển tiếp', funFact: 'Dẫn điện xuất sắc, kim loại đầu tiên con người dùng' },
+  { symbol: 'Zn', name: 'Zinc (Kẽm)', atomicNumber: 30, category: 'Kim loại chuyển tiếp', funFact: 'Cần thiết cho hơn 300 enzyme trao đổi chất' },
+  { symbol: 'Ag', name: 'Silver (Bạc)', atomicNumber: 47, category: 'Kim loại chuyển tiếp', funFact: 'Nguyên tố dẫn điện và phản xạ ánh sáng tốt nhất' },
+  { symbol: 'Pt', name: 'Platinum (Bạch kim)', atomicNumber: 78, category: 'Kim loại quý', funFact: 'Chất xúc tác hóa học trơ, không bị ăn mòn' },
+  { symbol: 'Au', name: 'Gold (Vàng)', atomicNumber: 79, category: 'Kim loại quý', funFact: 'Kim loại quý dẻo nhất, không bị oxy hóa' },
+  { symbol: 'U', name: 'Uranium (Urani)', atomicNumber: 92, category: 'Actinit phóng xạ', funFact: 'Nhiên liệu hạt nhân có mật độ năng lượng khổng lồ' },
+];
+
+export const ASTRONOMY_TRIADS: IAstronomyTriad[] = [
+  { name: 'Mặt Trời (Sun)', classification: 'Sao lùn vàng (G-type)', trait: 'Nhiệt độ bề mặt 5.500°C, tâm 15 triệu °C', symbol: '☀️' },
+  { name: 'Sao Thủy (Mercury)', classification: 'Hành tinh đất đá', trait: 'Biên độ nhiệt ngày đêm chênh lệch 600°C', symbol: '☿' },
+  { name: 'Sao Kim (Venus)', classification: 'Hành tinh đất đá', trait: 'Nóng nhất Hệ Mặt Trời (465°C) do hiệu ứng nhà kính', symbol: '♀' },
+  { name: 'Trái Đất (Earth)', classification: 'Hành tinh đất đá', trait: 'Nơi duy nhất xác nhận có sự sống và nước lỏng', symbol: '🌍' },
+  { name: 'Sao Hỏa (Mars)', classification: 'Hành tinh đất đá', trait: 'Có núi lửa Olympus Mons cao nhất Hệ Mặt Trời (22km)', symbol: '♂' },
+  { name: 'Sao Mộc (Jupiter)', classification: 'Khí khổng lồ', trait: 'Hành tinh lớn nhất, có Vết Đỏ Lớn tồn tại hàng thế kỷ', symbol: '♃' },
+  { name: 'Sao Thổ (Saturn)', classification: 'Khí khổng lồ', trait: 'Hệ thống vành đai băng đá tráng lệ và rộng lớn nhất', symbol: '♄' },
+  { name: 'Sao Thiên Vương (Uranus)', classification: 'Băng khổng lồ', trait: 'Trục quay nghiêng 98° gần như lăn ngang trên quỹ đạo', symbol: '♅' },
+  { name: 'Sao Hải Vương (Neptune)', classification: 'Băng khổng lồ', trait: 'Có những cơn cuồng phong mạnh nhất Hệ Mặt Trời (2.100 km/h)', symbol: '♆' },
+  { name: 'Mặt Trăng (Moon)', classification: 'Vệ tinh tự nhiên', trait: 'Khóa thủy triều với Trái Đất, chỉ hướng một mặt về ta', symbol: '🌕' },
+  { name: 'Hố Đen (Black Hole)', classification: 'Thiên thể kỳ dị hấp dẫn', trait: 'Trọng trường cực hạn đến mức ánh sáng không thể thoát', symbol: '🕳️' },
+  { name: 'Sao Xung (Pulsar)', classification: 'Sao neutron quay nhanh', trait: 'Quay hàng trăm vòng/giây phát chùm sóng điện từ hẹp', symbol: '💫' },
+];
+
+export class CognitiveAudioEngine {
+  private ctx: AudioContext | null = null;
+
+  private initContext(): AudioContext | null {
+    if (typeof window === 'undefined') return null;
+    if (!this.ctx) {
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtxClass) {
+        this.ctx = new AudioCtxClass();
+      }
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+    return this.ctx;
+  }
+
+  playTone(freq: number, durationMs = 300, pan = 0, type: OscillatorType = 'sine', volume = 0.18): void {
+    try {
+      const ctx = this.initContext();
+      if (!ctx) return;
+
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+
+      gainNode.gain.setValueAtTime(0.001, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(volume, ctx.currentTime + 0.03);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + (durationMs / 1000));
+
+      if (ctx.createStereoPanner) {
+        const panner = ctx.createStereoPanner();
+        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), ctx.currentTime);
+        osc.connect(panner);
+        panner.connect(gainNode);
+      } else {
+        osc.connect(gainNode);
+      }
+
+      gainNode.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + (durationMs / 1000) + 0.05);
+    } catch {}
+  }
+
+  playMusicalNote(note: 'C4' | 'D4' | 'E4' | 'F4' | 'G4' | 'A4' | 'B4' | 'C5' | 'D5' | 'E5', durationMs = 380): void {
+    const noteFrequencies: Record<string, number> = {
+      C4: 261.63,
+      D4: 293.66,
+      E4: 329.63,
+      F4: 349.23,
+      G4: 392.00,
+      A4: 440.00,
+      B4: 493.88,
+      C5: 523.25,
+      D5: 587.33,
+      E5: 659.25,
+    };
+    const freq = noteFrequencies[note] || 440.0;
+    this.playTone(freq, durationMs, 0, 'triangle', 0.22);
+  }
+
+  playBinauralClick(pan: -1 | 1, freq = 680, durationMs = 90): void {
+    this.playTone(freq, durationMs, pan, 'sine', 0.25);
+  }
+
+  playStroopPitch(type: 'high' | 'low'): void {
+    const freq = type === 'high' ? 880 : 220;
+    this.playTone(freq, 280, 0, 'sine', 0.22);
+  }
+}
+
+export const cognitiveAudioEngine = new CognitiveAudioEngine();
 
 export function splitWordIntoSyllables(word: string): string[] {
   const upper = word.toUpperCase().trim().replace(/[^A-Z]/g, '');
@@ -900,4 +1171,5 @@ export function splitWordIntoSyllables(word: string): string[] {
 }
 
 export const infinityApiService = new InfinityApiService();
+
 
