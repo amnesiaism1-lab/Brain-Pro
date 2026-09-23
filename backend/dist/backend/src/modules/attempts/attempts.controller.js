@@ -15,12 +15,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AttemptsController = void 0;
 const common_1 = require("@nestjs/common");
 const data_store_service_1 = require("../../database/data-store.service");
+const shared_1 = require("@brain-exercises/shared");
 let AttemptsController = class AttemptsController {
     dataStore;
     constructor(dataStore) {
         this.dataStore = dataStore;
     }
     recordAttempt(body) {
+        if (body.rawMetricsJson) {
+            const val = (0, shared_1.validateRawMetricsJson)(body.rawMetricsJson);
+            if (!val.valid) {
+                throw new common_1.BadRequestException(val.error || `Invalid rawMetricsJson or exceeded limit (${shared_1.MAX_RELATION_EVENTS_PER_ATTEMPT})`);
+            }
+        }
         const result = this.dataStore.saveGameAttempt(body);
         return {
             success: true,

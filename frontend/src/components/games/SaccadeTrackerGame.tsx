@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { Eye, Zap } from 'lucide-react';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 const DISTRACTOR_SYMBOLS = ['A', 'B', 'C', 'D', 'E', 'G', 'H', 'K', 'M', 'P', 'R', 'S', 'T'];
 const TARGET_SYMBOL = 'X';
 
 export const SaccadeTrackerGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const effectiveLevel = getExerciseLevel('saccade-tracker') || currentLevel;
 
   const isColorSwitch = effectiveLevel === 11;
@@ -100,6 +102,18 @@ export const SaccadeTrackerGame: React.FC = () => {
       setHitsCount(h => h + 1);
       setReactionTimes(prev => [...prev, rt]);
       
+      emitTrialEvent({
+        exerciseSlug: 'saccade-tracker',
+        level: effectiveLevel,
+        relationId: 'TARGET_POSITION',
+        relationWeight: 1.0,
+        entities: { target: TARGET_SYMBOL, position: `${Math.round(position.x)}%,${Math.round(position.y)}%`, rt },
+        stateBefore: `hits:${hitsCount}`,
+        stateAfter: `hits:${hitsCount + 1}`,
+        responseMs: rt,
+        correct: true
+      });
+
       const speedBonus = Math.max(10, Math.round((jumpIntervalMs - rt) / 5));
       const addedScore = 100 + speedBonus + (nextCombo * 15);
       setScore(s => s + addedScore);
@@ -109,8 +123,20 @@ export const SaccadeTrackerGame: React.FC = () => {
       playSound('wrong');
       setCombo(0);
       setFalseAlarms(f => f + 1);
+
+      emitTrialEvent({
+        exerciseSlug: 'saccade-tracker',
+        level: effectiveLevel,
+        relationId: 'INHIBITION',
+        relationWeight: 1.0,
+        entities: { distractor: currentSymbol, position: `${Math.round(position.x)}%,${Math.round(position.y)}%` },
+        stateBefore: `falseAlarms:${falseAlarms}`,
+        stateAfter: `falseAlarms:${falseAlarms + 1}`,
+        responseMs: jumpIntervalMs,
+        correct: false
+      });
     }
-  }, [isFinished, isTarget, targetAppearanceTime, playSound, combo, jumpIntervalMs]);
+  }, [isFinished, isTarget, targetAppearanceTime, playSound, combo, jumpIntervalMs, effectiveLevel, hitsCount, falseAlarms, currentSymbol, position, emitTrialEvent]);
 
   // Keyboard shortcut: Spacebar to react
   useEffect(() => {
@@ -207,7 +233,9 @@ export const SaccadeTrackerGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={35}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
             setScore(0);
             setCombo(0);
             setHitsCount(0);

@@ -1,0 +1,1174 @@
+[ĐÃ CHỈNH — 2026-09-23]
+Bản đánh giá gốc bên dưới giữ hướng “quan hệ là đơn vị huấn luyện”.
+Kế hoạch triển khai đã sửa cho khớp repo (19 slug, metadata ≠ runtime, backend in-memory, không Dual N-Back/MOT/Hanoi), siết ontology 12 quan hệ, spine 6 bài, cấm claim y khoa:
+→ KE_HOACH_PHAT_TRIEN_DAY_DU.md
+
+---
+
+GitHub 
+amnesiaism1-lab/Brain-Pro phân tích dự án , lập kế hoạch sáng tạo , chỉnh sửa , phát triển cho hợp lý cho từng chức năng cả về giao diện lẫn logic đầy đủ để não học dần đc về quan hệ trong từng bài tập luyện các mối quan hệ chính nào ở từng bài , có thể kết nối thêm thực thể nào không đó và dần dần ở não cúng hình thành mạng lưới quan hệ tốc độ cao giúp não thực sự phát triển   
+
+Mình đã phân tích repo hiện tại theo đúng hướng bạn đang xây: không xem các bài chỉ là mini-game, mà xem mỗi bài như một “node huấn luyện một loại quan hệ”, sau đó dùng các bài khác để tái kích hoạt cùng quan hệ trong ngữ cảnh khác.
+
+Điểm quan trọng nhất mình thấy là Brain-Pro hiện đã có nền móng khá tốt: React/Vite frontend, NestJS backend, shared metadata, 19 game component, level 1–12, mastery theo từng bài, attempt history, synergy, workout routine và content pool. Nhưng phần lớn “synergy” hiện đang là phần thưởng XP + gợi ý bài tiếp theo, chưa phải một cognitive relationship engine thật sự. README và model hiện cũng đang tổ chức bài chủ yếu theo 5 nhóm như Memory, Attention, Reaction, Peripheral Vision, Speed Reading. Brain-Pro GitHub
+
+1. Ý tưởng cốt lõi mình đề xuất
+
+Đừng để hệ thống suy nghĩ:
+
+“Schulte = bài thị giác”
+“Digit Span = bài trí nhớ”
+“Stroop = bài phản xạ”
+
+Mà nên chuyển sang:
+
+Schulte = luyện quan hệ Target → Position + Order → State + Focus → Peripheral Field
+
+Digit Span = luyện Item → Sequence + Sequence → Recall State
+
+Stroop = luyện Stimulus → Rule + Rule → Action + Conflict → Inhibition
+
+Anagram = luyện Character → Position + Position → Word + Partial Pattern → Whole
+
+Tức là:
+
+Game chỉ là giao diện biểu diễn.
+Quan hệ mới là đơn vị huấn luyện.
+
+Đây rất gần với bộ 3 framework mà bạn đang dùng:
+
+Lens	Brain-Pro sẽ dùng để làm gì
+State	não/người chơi đang ở trạng thái nào
+Relation	thông tin nào liên kết với thông tin nào
+Dynamics	khi một trạng thái thay đổi thì quan hệ nào buộc hệ thống/người chơi phải cập nhật
+2. Kiến trúc mới: Cognitive Relationship Graph
+
+Mình đề xuất thêm một tầng nằm giữa Exercise và GameAttempt.
+
+Hiện nay:
+
+User
+  ↓
+Exercise
+  ↓
+Level
+  ↓
+Attempt
+
+Nên biến thành:
+
+User
+ ↓
+Cognitive Profile
+ ↓
+Relationship Mastery Graph
+ ↓
+Exercise
+ ↓
+Relationship Challenge
+ ↓
+Game State
+ ↓
+Attempt
+ ↓
+Relationship Evidence
+ ↓
+Mastery Update
+
+Trong đó một lượt chơi không chỉ trả về:
+
+score
+accuracy
+time
+
+mà còn trả về:
+
+what relationship was exercised
+how strongly it was exercised
+what state transition happened
+where the relationship failed
+3. Thực thể mới quan trọng nhất
+
+Mình sẽ thêm khoảng 6 thực thể.
+
+CognitiveRelation
+
+Ví dụ:
+
+type CognitiveRelationType =
+  | 'IDENTITY'
+  | 'ORDER'
+  | 'POSITION'
+  | 'SEQUENCE'
+  | 'SIMILARITY'
+  | 'DIFFERENCE'
+  | 'CAUSE_EFFECT'
+  | 'RULE_ACTION'
+  | 'TARGET_DISTRACTOR'
+  | 'WHOLE_PART'
+  | 'PART_WHOLE'
+  | 'SPATIAL'
+  | 'TEMPORAL'
+  | 'INHIBITION'
+  | 'PREDICTION'
+  | 'TRANSFORMATION'
+  | 'CONTEXT'
+  | 'MULTI_RELATION';
+
+Sau đó mỗi bài có:
+
+relationships: [
+  'TARGET_POSITION',
+  'ORDER',
+  'DISTRACTOR_INHIBITION'
+]
+4. Một điểm mình muốn thay đổi rất mạnh: level không chỉ là “khó hơn”
+
+Hiện repo có rất nhiều level rất đẹp về mặt game design:
+
+level 1 → level 12
+
+nhưng phần lớn progression đang theo:
+
+grid lớn hơn
+time nhỏ hơn
+nhiều item hơn
+
+Điều đó tốt cho game, nhưng chưa đủ cho “relationship learning”.
+
+Mình sẽ chuyển progression thành:
+
+L1 = một quan hệ
+L2 = cùng quan hệ + nhiễu
+L3 = cùng quan hệ + tốc độ
+L4 = hai quan hệ
+L5 = hai quan hệ + chuyển trạng thái
+L6 = ba quan hệ
+L7 = quan hệ ẩn
+L8 = đổi luật
+L9 = quan hệ xung đột
+L10 = quan hệ đa tầng
+L11 = cross-domain transfer
+L12 = novel composition
+
+Đây mới là thứ có thể tạo ra cảm giác:
+
+“Não bắt đầu nhìn thấy cấu trúc trước khi nhìn thấy chi tiết.”
+
+5. Bản đồ quan hệ cho từng bài
+
+Mình đề xuất biến toàn bộ Brain-Pro thành Relationship Curriculum.
+
+A. Schulte Table
+
+Thực thể:
+
+Target Number
+Grid Cell
+Center Fixation
+Neighboring Cells
+Order
+Time
+
+Quan hệ chính:
+
+Number → Position
+Number → Next Number
+Center → Peripheral Item
+Wrong Click → Penalty State
+Progression
+Level	Quan hệ chính
+1	Number → Position
+2	Number → Position + distractor
+3	Number → Next Number
+4	Order → Search
+5	Center → Peripheral Field
+6	Target → Dynamic Position
+7	Position → Expected Next Position
+8	Forward ↔ Reverse
+9	Red → increasing / Black → decreasing
+10	Rotation → Position update
+11	Visibility → Memory
+12	Two centers → two relational streams
+UI mới
+
+Không nên chỉ hiện:
+
+“Tìm số 17”
+
+Mà nên có một Focus Core ở trung tâm.
+
+        peripheral field
+
+             [17]
+
+       ● FOCUS CORE ●
+
+Next relation:
+17 → 18
+
+Ở level cao, UI không nói quá nhiều. Người chơi phải suy ra relation.
+
+6. Digit Span
+
+Đây là bài rất tốt để trở thành “relation foundation”.
+
+Thực thể:
+
+Digit
+Position
+Sequence
+Previous Digit
+Next Digit
+Recall State
+
+Quan hệ:
+
+Digit → Position
+Digit → Digit
+Position → Position
+Sequence → Recall
+Progression
+L1:
+4 → 7 → 2
+
+L3:
+4 → 7 → 2 → 9 → 1
+
+L5:
+A sequence must be reconstructed
+
+L7:
+Forward ↔ Reverse
+
+L9:
+1234
+→
+reconstruct reverse
+
+L10:
+1 A 4 B 7 C
+
+L11:
+transform before recall
+
+L12:
+visual + auditory sequence
+
+Điểm rất quan trọng:
+
+đừng chỉ tăng số lượng digit.
+
+Hãy tăng:
+
+loại quan hệ mà digit tạo ra.
+
+7. Twin Words
+
+Hiện bài này thực ra rất thích hợp để luyện:
+
+Similarity
+Difference
+Identity
+Feature detection
+
+Tạo relation chain:
+
+Word
+ ├── letters
+ ├── positions
+ ├── phonetic structure
+ └── semantic class
+
+Level cao không nên chỉ:
+
+giống / khác
+
+Mà:
+
+A B
+
+Same word?
+Same letters?
+Same order?
+Same meaning?
+Same category?
+One transformation?
+
+Ví dụ:
+
+MÁY TÍNH
+MÁY TÍNH
+
+→ identity
+
+MÁY TÍNH
+MÁY TINH
+
+→ orthographic difference
+
+MÁY TÍNH
+COMPUTER
+
+→ semantic equivalence
+
+Đây là lúc một game bắt đầu nối vào Anagram + Word Search + Reading.
+
+8. Anagram
+
+Anagram không nên chỉ là:
+
+letters → word
+
+mà nên là:
+
+parts → relationships → structure → whole
+
+Ví dụ:
+
+T R Í  T U Ệ
+
+Người chơi phải phát hiện:
+
+character → position
+position → syllable
+syllable → word
+word → phrase
+Level cao
+
+Thay vì chỉ scramble toàn bộ:
+
+TRÍ TUỆ
+
+hãy tạo:
+
+TRÍ _Ệ
+_ UỆ
+T _ Í
+
+Người chơi reconstruct từ partial relations.
+
+Level 12:
+
+TRÍ TUỆ NHÂN TẠO
+
+sang:
+
+AI
+
+tức là:
+
+surface pattern → semantic abstraction
+9. Find Letter
+
+Bài này nên trở thành “laboratory” của:
+
+Target
+vs
+Distractor
+
+Đây là quan hệ rất quan trọng.
+
+Hiện logic của repo đã có target/distractor khá rõ, nhưng mình sẽ biến nó thành dữ liệu đo lường riêng.
+
+Ví dụ:
+
+interface TargetDistractorEvent {
+  target: string;
+  distractor: string;
+  similarity: number;
+  responseMs: number;
+  decision: 'accept' | 'reject';
+}
+
+Lúc đó app có thể biết:
+
+Người chơi không đơn giản “chậm”, mà chậm đặc biệt khi target gần distractor về hình dạng.
+
+Đó là relationship-specific weakness.
+
+10. Find Number
+
+Mình sẽ biến nó từ:
+
+search exact number
+
+thành:
+
+search relation
+
+Ví dụ:
+
+L1
+Find 7
+L3
+Find numbers > 50
+L5
+Find numbers divisible by 3
+L7
+Find 3 → 6 → 9
+L9
+Find numbers related by rule X
+L12
+Find sequence satisfying:
+A < B
+B = A + 7
+C is between A and B
+
+Tức là từ:
+
+object matching
+
+sang:
+
+relation matching
+
+Đây là bước cực kỳ quan trọng.
+
+11. Even/Odd + Stroop
+
+Hai game này nên trở thành Rule Engine Training.
+
+Hiện EvenOddGame đã có:
+
+normal rule
+inverse rule
+prime mode
+calculation rule
+pattern switch
+
+Đây là nền móng cực tốt.
+
+Nhưng thay vì chỉ:
+
+stimulus → button
+
+hãy mô hình:
+
+Stimulus
+ ↓
+Current Rule
+ ↓
+Interpretation
+ ↓
+Action
+ ↓
+Outcome
+ ↓
+New State
+
+Ví dụ:
+
+7
+rule = EVEN → left
+
+sau đó:
+
+7 + red border
+rule inversion
+→ right
+
+Tiếp:
+
+new rule
+
+→ người chơi phải cập nhật relationship graph trong đầu.
+
+Đây chính là dynamic relation training.
+
+12. Spatial Memory
+
+Nó nên nối trực tiếp với Schulte.
+
+Schulte:
+
+number → position
+
+Spatial Memory:
+
+position → sequence
+
+Kết hợp:
+
+number
+   ↓
+position
+   ↓
+sequence
+   ↓
+recall
+
+Đây là một relation chain cực mạnh.
+
+Ví dụ:
+
+3 → (row 2,col 4)
+7 → (row 4,col 1)
+2 → (row 1,col 5)
+
+Sau đó yêu cầu:
+
+reconstruct numbers
+
+hoặc ngược lại:
+
+reconstruct positions
+13. Green Dot
+
+Mình sẽ không coi nó là một game riêng.
+
+Nó nên là attention state controller.
+
+Focused
+↓
+Peripheral
+↓
+Distractor appears
+↓
+Maintain focus
+↓
+Target detected
+
+Sau đó dùng nó để “tiêm” trạng thái vào các game khác.
+
+Ví dụ:
+
+Schulte + Peripheral Attention
+
+hoặc:
+
+Reading + Green Dot fixation
+
+Như vậy Green Dot trở thành một relation modifier, không phải mini-game độc lập.
+
+14. Word Search
+
+Bài này cực kỳ quan trọng vì nó nối:
+
+Character
+→ Position
+→ Direction
+→ Word
+→ Goal
+
+Nên level cao nên chuyển từ:
+
+tìm WORD
+
+sang:
+
+tìm pattern
+
+rồi:
+
+tìm relation
+
+Ví dụ:
+
+Find all words
+that are semantically related to “brain”.
+
+Từ:
+
+visual search
+
+sang:
+
+semantic network search
+
+Đây chính là cầu nối tới Reading.
+
+15. Word Chunking
+
+Bài này nên luyện:
+
+Word → Chunk
+Chunk → Meaning
+Chunk → Chunk
+
+Ví dụ:
+
+the / quick / brown / fox
+
+sang:
+
+the quick / brown fox
+
+sang:
+
+the quick brown / fox jumps
+
+sau đó:
+
+semantic chunk
+
+tức là người chơi không chỉ “nhìn nhiều từ”.
+
+Mà học:
+
+một cụm có thể trở thành một node nhận thức duy nhất.
+
+16. RSVP
+
+RSVP nên trở thành tầng temporal relation.
+
+Hiện tại:
+
+word → next word
+
+Mình muốn:
+
+word
+ ↓
+context
+ ↓
+prediction
+ ↓
+meaning
+
+Level thấp:
+
+word → word
+
+Level cao:
+
+word → expected word
+
+Level rất cao:
+
+word → semantic state
+
+và sau 30–40 từ:
+
+“Câu vừa rồi đang nói gì?”
+
+Đây là cách nối:
+
+Reading
++
+Working Memory
++
+Prediction
+
+thành một hệ thống.
+
+17. Reading Assessment
+
+Đây phải trở thành integration test của toàn bộ mạng lưới.
+
+Không chỉ đo:
+
+WPM
+comprehension
+
+mà đo:
+
+visual scan
++
+chunking
++
+working memory
++
+semantic relation
++
+prediction
++
+retrieval
+
+Ví dụ sau một đoạn đọc:
+
+A → B
+B → C
+What caused C?
+
+hoặc:
+
+Which two concepts are related?
+
+Thế là người chơi phải dùng các relation đã luyện trong game khác.
+
+18. Kiến trúc “Relationship Mastery”
+
+Đây là phần mình nghĩ sẽ làm Brain-Pro khác hoàn toàn.
+
+Thay vì:
+
+exerciseMasteries: {
+  schulte: level 7
+}
+
+thêm:
+
+relationshipMasteries: {
+  TARGET_POSITION: {...},
+  ORDER_SEQUENCE: {...},
+  SIMILARITY_DIFFERENCE: {...},
+  RULE_ACTION: {...},
+  POSITION_SEQUENCE: {...},
+  TARGET_DISTRACTOR: {...},
+  PART_WHOLE: {...},
+  PREDICTION: {...}
+}
+
+Mỗi relation có:
+
+interface IRelationshipMastery {
+  relationId: string;
+
+  exposureCount: number;
+
+  accuracy: number;
+
+  responseMs: number;
+
+  stability: number;
+
+  transferScore: number;
+
+  interferenceScore: number;
+
+  currentTier: number;
+}
+19. Quan trọng nhất: Transfer Score
+
+Đây mới là thứ mình muốn Brain-Pro có.
+
+Ví dụ:
+
+Schulte
+    ↓
+target → position
+    ↓
+Spatial Memory
+    ↓
+position → sequence
+    ↓
+Mental Rotation
+
+Nếu người chơi làm tốt relation ở Schulte nhưng kém ở Spatial Memory:
+
+relation mastered locally
+but
+not transferred
+
+App sẽ nhận ra:
+
+“Bạn nhớ quan hệ trong một ngữ cảnh, nhưng chưa chuyển được nó sang ngữ cảnh khác.”
+
+Đây mới là network learning.
+
+20. Tôi sẽ thiết kế workout không theo “bài”, mà theo “relation chain”
+
+Ví dụ:
+
+Workout: FOCUS → ORDER → MEMORY
+Green Dot
+   ↓
+Schulte
+   ↓
+Digit Span
+   ↓
+Spatial Memory
+
+Não học:
+
+focus
+ ↓
+locate
+ ↓
+order
+ ↓
+encode
+ ↓
+retrieve
+Workout: FILTER → RULE → ACTION
+Find Letter
+   ↓
+Stroop
+   ↓
+Even/Odd
+
+Chuỗi:
+
+signal
+ ↓
+filter
+ ↓
+interpret rule
+ ↓
+inhibit wrong response
+ ↓
+act
+Workout: VISUAL → LEXICAL → SEMANTIC
+Schulte
+ ↓
+Word Search
+ ↓
+Word Chunking
+ ↓
+RSVP
+ ↓
+Reading Assessment
+
+Chuỗi:
+
+location
+ ↓
+symbol
+ ↓
+word
+ ↓
+chunk
+ ↓
+meaning
+ ↓
+comprehension
+
+Đây chính là kiểu workout bạn đang tìm.
+
+21. Một thay đổi UI rất đáng làm
+
+Hiện ActiveGameContainer đã có:
+
+Synergy Toast
+Suggested Next Game
+
+Mình sẽ thay bằng một Relation HUD.
+
+Ví dụ:
+
+┌────────────────────────────────────┐
+│ RELATION TRAINING                  │
+│                                    │
+│ Target → Position                  │
+│ Order → Next Target                │
+│ Focus → Peripheral Field           │
+│                                    │
+│ Current chain                      │
+│ ● Locate → ● Order → ○ Recall     │
+└────────────────────────────────────┘
+
+Nhưng không hiển thị toàn bộ relation ngay từ đầu.
+
+Lúc đầu:
+
+TRAINING MODE
+
+Cuối game mới:
+
+You just exercised:
+
+Target → Position
+Order → Position
+Position → Next Target
+
+Strong:
+Target → Position
+
+Weak:
+Position → Next Target
+
+Đây mới là feedback có giá trị.
+
+22. “Brain Map” trên Profile
+
+Profile hiện tại nên bỏ kiểu:
+
+Memory 82
+Attention 74
+Reaction 89
+
+và thêm graph:
+
+                Prediction
+                   │
+                   │
+Similarity ── Working Memory ── Sequence
+     │                │             │
+     │                │             │
+Target ─────── Attention ─────── Order
+     │                              │
+     └──────── Position ────────────┘
+
+Node càng sáng = mastery cao.
+
+Edge càng dày = quan hệ đã được củng cố ở nhiều bài.
+
+Edge mờ = biết trong một game nhưng chưa transfer.
+
+Đây sẽ là hình ảnh trực quan nhất của thứ bạn đang muốn xây.
+
+23. Một khái niệm rất quan trọng: Relationship Reuse
+
+Ví dụ ORDER xuất hiện ở:
+
+Schulte
+Digit Span
+Spatial Memory
+Word Chunking
+RSVP
+Reading
+
+Như vậy người dùng không học:
+
+6 kỹ năng
+
+mà vô tình học:
+
+ORDER
+
+ở 6 ngữ cảnh.
+
+Sau đó não phải bắt đầu trừu tượng hóa:
+
+6 games
+ ↓
+same structure
+ ↓
+one abstract relation
+
+Đó chính là thứ mình nghĩ phù hợp nhất với mục tiêu bạn đang tìm.
+
+24. Lộ trình phát triển repo
+Phase 1 — Refactor nền
+
+Giữ toàn bộ game hiện tại.
+
+Thêm:
+
+CognitiveRelation
+RelationshipMastery
+RelationEvidence
+RelationGraph
+
+Không phá game.
+
+Phase 2 — Gắn relation vào từng game
+
+Ví dụ:
+
+SCHULTE_RELATIONS = [
+  TARGET_POSITION,
+  ORDER,
+  FOCUS_PERIPHERY
+]
+DIGIT_SPAN_RELATIONS = [
+  SEQUENCE,
+  POSITION_ORDER,
+  RECALL
+]
+Phase 3 — Event instrumentation
+
+Mỗi action ghi:
+
+target
+distractor
+position
+responseMs
+stateBefore
+stateAfter
+relation
+correct
+Phase 4 — Relation-specific adaptive difficulty
+
+Không còn:
+
+accuracy < 60 → level down
+
+đơn thuần.
+
+Mà:
+
+weak relation = increase exposure
+strong relation = introduce interference
+
+Ví dụ:
+
+TargetPosition = 95%
+OrderSequence = 65%
+
+thì không hạ toàn bộ Schulte.
+
+Thay vào đó:
+
+tăng difficulty của OrderSequence.
+
+25. Phase 5 — Cross-game transfer
+
+Ví dụ:
+
+Schulte
+↓
+Position mastery = high
+
+App phát hiện:
+
+Spatial Memory
+↓
+Position recall = low
+
+→ tạo một workout:
+
+Schulte 45s
+→ Spatial Memory 60s
+→ Schulte altered 45s
+→ Spatial Memory reverse 60s
+
+Đây là training relationship transfer.
+
+26. Phase 6 — Generative Relationship Challenges
+
+Đây mới là phần “sáng tạo” nhất.
+
+Không cần viết hàng trăm game.
+
+Chỉ cần có:
+
+Entity generator
+Relation generator
+State generator
+Constraint generator
+
+sau đó tạo challenge mới.
+
+Ví dụ:
+
+Entity:
+numbers
+
+Relations:
+sequence + position + inversion
+
+State:
+visible → hidden
+
+Constraint:
+reverse
+
+Game:
+automatically generated
+
+Ngày hôm sau:
+
+Entity:
+letters
+
+Relation:
+similarity + difference
+
+State:
+visible → moving
+
+Constraint:
+dual target
+
+Game vẫn mới nhưng cấu trúc nhận thức cốt lõi được tái sử dụng.
+
+27. Mạng lưới cuối cùng mình muốn Brain-Pro đạt tới
+                    Prediction
+                    /        \
+              Context       Sequence
+                 |              |
+           Meaning          Working Memory
+             /   \             |
+         Chunk   Word       Order
+           |       |          |
+           |    Similarity    |
+           |       |          |
+        Semantic  Difference  |
+             \      |        /
+              \   Attention /
+                \    |    /
+                 Target
+                    |
+                 Position
+                /   |   \
+          Spatial  Search  Saccade
+             |
+          Movement
+
+                    RULE
+                     |
+              Interpretation
+                 /       \
+            Inhibition   Action
+                 \       /
+                 Reaction
+
+Mỗi game chỉ chạm vào một vùng.
+
+Workout nối các vùng.
+
+Attempt cung cấp evidence.
+
+Mastery cập nhật node + edge.
+
+Adaptive engine chọn relation yếu nhất hoặc relation chưa transfer.
+
+28. Và đây là thay đổi triết lý quan trọng nhất
+
+Brain-Pro không nên hỏi:
+
+“Người dùng đã giỏi bài Schulte chưa?”
+
+Mà nên hỏi:
+
+“Người dùng đã làm chủ những quan hệ nào mà Schulte đang sử dụng?”
+
+Rồi tiếp:
+
+“Những quan hệ đó đã xuất hiện trong bao nhiêu ngữ cảnh?”
+
+“Có thể chuyển quan hệ đó sang một bài hoàn toàn khác chưa?”
+
+“Quan hệ nào đang là nút thắt của mạng lưới?”
+
+Khi đó hệ thống sẽ chuyển từ:
+
+Game Collection
+
+thành:
+
+Cognitive Relationship Training System
+
+và đây là hướng mình thấy phù hợp nhất với mục tiêu “não dần hình thành mạng lưới quan hệ tốc độ cao” mà bạn đang nói đến.
+
+Một lưu ý khoa học: mình sẽ tránh trong sản phẩm những tuyên bố kiểu “tăng IQ”, “tái cấu trúc synapse X%”, hay suy luận rằng điểm game đồng nghĩa trực tiếp với thay đổi não bộ. Repo hiện có khá nhiều câu mô tả theo hướng mạnh như vậy; nên tách game metric, cognitive proxy, và claim khoa học thành ba lớp khác nhau.
+
+Thứ tự mình sẽ triển khai trong repo này
+1. CognitiveRelation model
+2. RelationshipMastery
+3. RelationEvidence/event tracking
+4. Relation-aware DDA
+5. Cross-game transfer
+6. Relationship Workout Engine
+7. Brain Graph UI
+8. Generative relation challenges
+9. Scientific metric/reporting cleanup
+
+Và không nên viết lại 19 game cùng lúc. Nên lấy 6 bài làm “xương sống” trước:
+
+Schulte
+↓
+Digit Span
+↓
+Spatial Memory
+↓
+Find Letter
+↓
+Stroop
+↓
+RSVP / Reading Assessment
+
+vì 6 bài này có thể tạo thành một mạng rất đẹp:
+
+Position
+→ Order
+→ Sequence
+→ Memory
+→ Target/Distractor
+→ Rule/Inhibition
+→ Prediction
+→ Meaning
+
+Sau khi xương sống này chạy tốt, Word Search, Anagram, Twin Words, Word Chunking, Saccade, Peripheral Vision, Green Dot sẽ trở thành các “nhánh” gắn vào cùng mạng thay vì các game độc lập.

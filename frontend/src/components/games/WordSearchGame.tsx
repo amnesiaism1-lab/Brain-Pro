@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { generateWordSearchGrid, calculateGameScore, VIETNAMESE_WORDS_DICTIONARY } from '@brain-exercises/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { Check } from 'lucide-react';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const WordSearchGame: React.FC = () => {
   const { getExerciseLevel, enableHints, setActiveGameSlug, playSound } = useAppStore();
+  const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
+  const lastMatchTimeRef = useRef<number>(Date.now());
   const currentLevel = getExerciseLevel('word-search');
   
   // Level scaling: 1-2: 8x10 (2 words), 3-5: 10x14 (3 words), 6-8: 12x16 (4 words), 9-10: 13x16 (5 words), 11-12: 14x18 (6-7 words)
@@ -57,6 +60,22 @@ export const WordSearchGame: React.FC = () => {
     const matched = targetWords.find(w => !foundWords.includes(w) && (w === selectedString || w === reversedString));
     if (matched) {
       playSound('correct');
+      const now = Date.now();
+      const respMs = Math.min(20000, Math.max(200, now - lastMatchTimeRef.current));
+      lastMatchTimeRef.current = now;
+
+      emitTrialEvent({
+        exerciseSlug: 'word-search',
+        level: currentLevel,
+        relationId: 'SPATIAL_TRANSFORM',
+        relationWeight: 1.0,
+        entities: { target: matched, cellsCount: nextCells.length },
+        stateBefore: `found:${foundWords.length}`,
+        stateAfter: `found:${foundWords.length + 1}`,
+        responseMs: respMs,
+        correct: true
+      });
+
       const updatedFound = [...foundWords, matched];
       setFoundWords(updatedFound);
       setSelectedCells([]);
@@ -146,7 +165,9 @@ export const WordSearchGame: React.FC = () => {
           score={score}
           accuracyRate={100}
           timeSpentSec={elapsedSec}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
             setSearchData(generateWordSearchGrid(rows, cols, targetWords));
             setFoundWords([]);
             setSelectedCells([]);

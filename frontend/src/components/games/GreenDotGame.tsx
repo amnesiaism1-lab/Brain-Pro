@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 interface GreenDotSet {
   linesTop: string[];
@@ -71,8 +72,10 @@ const GREEN_DOT_DATASETS: GreenDotSet[] = [
 
 export const GreenDotGame: React.FC = () => {
   const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const currentLevel = getExerciseLevel('green-dot');
   const [datasetIndex, setDatasetIndex] = useState(() => Math.floor(Math.random() * GREEN_DOT_DATASETS.length));
+  const startTimeRef = useRef<number>(Date.now());
   const currentDataset = GREEN_DOT_DATASETS[datasetIndex];
 
   // At high levels (9-12), window is tighter: 12-15s
@@ -102,7 +105,27 @@ export const GreenDotGame: React.FC = () => {
   const handleSelectOption = (idx: number) => {
     playSound('click');
     setSelectedAnswer(idx);
-    if (idx === currentDataset.correctIndex) {
+    const correct = idx === currentDataset.correctIndex;
+    const now = Date.now();
+    const respMs = Math.min(30000, Math.max(100, now - startTimeRef.current));
+
+    emitTrialEvent({
+      exerciseSlug: 'green-dot',
+      level: currentLevel,
+      relationId: 'FOCUS_FIELD',
+      relationWeight: 1.0,
+      entities: {
+        question: currentDataset.question,
+        chosen: currentDataset.options[idx],
+        correctAnswer: currentDataset.options[currentDataset.correctIndex]
+      },
+      stateBefore: 'phase:focus',
+      stateAfter: 'phase:test',
+      responseMs: respMs,
+      correct
+    });
+
+    if (correct) {
       playSound('correct');
     } else {
       playSound('wrong');
@@ -187,7 +210,10 @@ export const GreenDotGame: React.FC = () => {
           score={score}
           accuracyRate={isCorrect ? 100 : 50}
           timeSpentSec={25}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
+            startTimeRef.current = Date.now();
             setDatasetIndex(prev => (prev + 1) % GREEN_DOT_DATASETS.length);
             setTimeLeft(25);
             setPhase('focus');

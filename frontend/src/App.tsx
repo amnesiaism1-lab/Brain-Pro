@@ -10,9 +10,20 @@ import { ProfileView } from './components/profile/ProfileView';
 import { SettingsView } from './components/settings/SettingsView';
 import { HowToTrainModal } from './components/modals/HowToTrainModal';
 import { RemindersModal } from './components/modals/RemindersModal';
+import { RelationDebriefModal } from './components/cognition/RelationDebriefModal';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { useOfflineSync } from './hooks/useOfflineSync';
 
 export const App: React.FC = () => {
-  const { activeTab, selectedExerciseSlug, activeGameSlug, darkMode } = useAppStore();
+  const { 
+    activeTab, 
+    selectedExerciseSlug, 
+    activeGameSlug, 
+    darkMode,
+    activeDebriefEvents,
+    setActiveDebriefEvents
+  } = useAppStore();
+  useOfflineSync();
 
   useEffect(() => {
     if (darkMode) {
@@ -44,17 +55,25 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen bg-[#ECE5D8] dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col ${!activeGameSlug ? 'md:pl-64' : ''} transition-colors duration-200`}>
-      <Header />
-      <main className="flex-1 w-full">
-        {renderCurrentView()}
-      </main>
-      <Navbar />
+    <ErrorBoundary>
+      <div className={`min-h-screen bg-[#ECE5D8] dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col ${!activeGameSlug ? 'md:pl-64' : ''} transition-colors duration-200`}>
+        <Header />
+        <main className="flex-1 w-full">
+          {renderCurrentView()}
+        </main>
+        <Navbar />
 
-      {/* Global Modals */}
-      <HowToTrainModal />
-      <RemindersModal />
-    </div>
+        {/* Global Modals */}
+        <HowToTrainModal />
+        <RemindersModal />
+        {activeDebriefEvents && activeDebriefEvents.length > 0 && (
+          <RelationDebriefModal
+            events={activeDebriefEvents}
+            onClose={() => setActiveDebriefEvents(null)}
+          />
+        )}
+      </div>
+    </ErrorBoundary>
   );
 };
 

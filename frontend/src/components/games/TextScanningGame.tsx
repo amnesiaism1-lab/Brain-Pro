@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { SAMPLE_READING_TEXTS, calculateGameScore } from '@brain-exercises/shared';
 import { Search } from 'lucide-react';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const TextScanningGame: React.FC = () => {
   const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
+  const lastScanTimeRef = useRef<number>(Date.now());
   const currentLevel = getExerciseLevel('text-scanning');
   const [textIndex, setTextIndex] = useState(() => (currentLevel - 1) % SAMPLE_READING_TEXTS.length);
   const rawText = (SAMPLE_READING_TEXTS[textIndex] || SAMPLE_READING_TEXTS[0]).content;
@@ -35,7 +38,24 @@ export const TextScanningGame: React.FC = () => {
   const handleWordClick = (word: string, idx: number) => {
     playSound('click');
     const cleanWord = word.replace(/[.,()—]/g, '');
-    if (cleanWord.toLowerCase().includes(targetWord.toLowerCase())) {
+    const isCorrect = cleanWord.toLowerCase().includes(targetWord.toLowerCase());
+    const now = Date.now();
+    const respMs = Math.min(20000, Math.max(100, now - lastScanTimeRef.current));
+    lastScanTimeRef.current = now;
+
+    emitTrialEvent({
+      exerciseSlug: 'text-scanning',
+      level: currentLevel,
+      relationId: 'TARGET_DISTRACTOR',
+      relationWeight: 1.0,
+      entities: { target: targetWord, clicked: cleanWord, index: idx },
+      stateBefore: 'search',
+      stateAfter: isCorrect ? 'found' : 'search',
+      responseMs: respMs,
+      correct: isCorrect
+    });
+
+    if (isCorrect) {
       playSound('correct');
       setFoundIndex(idx);
       setTimeout(() => {
@@ -105,7 +125,9 @@ export const TextScanningGame: React.FC = () => {
           score={score}
           accuracyRate={100}
           timeSpentSec={elapsedSec}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
             setTextIndex(t => (t + 1) % SAMPLE_READING_TEXTS.length);
             setElapsedSec(0);
             setFoundIndex(null);

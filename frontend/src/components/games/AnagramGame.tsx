@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { VIETNAMESE_WORDS_DICTIONARY, generateAnagram } from '@brain-exercises/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { RotateCcw } from 'lucide-react';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const AnagramGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, enableHints, playSound } = useAppStore();
+  const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
+  const lastWordTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('anagram') || currentLevel;
   
   const wordPool = effectiveLevel <= 3 
@@ -48,7 +51,24 @@ export const AnagramGame: React.FC = () => {
     // Check if fully formed
     if (nextSelected.length === targetWord.length) {
       const formedWord = nextSelected.join('');
-      if (formedWord === targetWord) {
+      const isCorrect = formedWord === targetWord;
+      const now = Date.now();
+      const respMs = Math.min(15000, Math.max(100, now - lastWordTimeRef.current));
+      lastWordTimeRef.current = now;
+
+      emitTrialEvent({
+        exerciseSlug: 'anagram',
+        level: effectiveLevel,
+        relationId: 'PART_WHOLE',
+        relationWeight: 1.0,
+        entities: { target: targetWord, formed: formedWord },
+        stateBefore: `round:${round}`,
+        stateAfter: isCorrect ? `round:${round + 1}` : `round:${round}`,
+        responseMs: respMs,
+        correct: isCorrect
+      });
+
+      if (isCorrect) {
         playSound('correct');
         setScoreAcc(s => s + 150 * currentLevel);
         if (round >= maxRounds) {
@@ -174,7 +194,9 @@ export const AnagramGame: React.FC = () => {
           score={scoreAcc + 200}
           accuracyRate={95}
           timeSpentSec={elapsedSec}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
             setRound(1);
             setCurrentIndex(0);
             setElapsedSec(0);

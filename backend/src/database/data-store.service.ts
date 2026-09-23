@@ -2,7 +2,15 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { 
   EXERCISES_METADATA, 
   WORKOUT_ROUTINES, 
-  SAMPLE_READING_TEXTS 
+  SAMPLE_READING_TEXTS,
+  COGNITIVE_RELATIONS,
+  ALL_RELATION_IDS,
+  COGNITIVE_RELATION_CHAINS,
+  RelationId,
+  IRelationshipMastery,
+  IRelationEvent,
+  createInitialMasteriesMap,
+  updateMasteryFromEvents
 } from '@brain-exercises/shared';
 import { 
   IExercise, 
@@ -21,6 +29,10 @@ import {
   calculateWpm
 } from '@brain-exercises/shared';
 
+// Use pg Pool with robust fallback
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { Pool } = require('pg');
+
 @Injectable()
 export class DataStoreService implements OnModuleInit {
   private exercises: IExercise[] = [];
@@ -28,6 +40,8 @@ export class DataStoreService implements OnModuleInit {
   private readingTexts: IReadingText[] = [];
   private attempts: Array<IGameAttemptRequest & { id: string; userId: string; createdAt: Date }> = [];
   private assessments: Array<IUserAssessmentResponse & { id: string; userId: string; readingTextId: string; createdAt: Date }> = [];
+  private relationMasteries: Record<RelationId, IRelationshipMastery> = createInitialMasteriesMap();
+  
   private reminders: IUserReminder[] = [
     {
       id: 'rem-1',
@@ -39,16 +53,16 @@ export class DataStoreService implements OnModuleInit {
   ];
 
   private currentUser = {
-    id: 'user-demo-1',
-    email: 'user@brainexercises.pro',
+    id: '4ed61506-d150-4c8c-b04d-e48f329fda3b', // Seeded demo user in Supabase
+    email: 'master@brainexercises.pro',
     username: 'BrainMaster',
-    totalXp: 350,
-    currentLevel: 2,
-    currentStreak: 4,
-    bestStreak: 7,
+    totalXp: 550,
+    currentLevel: 3,
+    currentStreak: 5,
+    bestStreak: 10,
     profile: {
       id: 'prof-demo-1',
-      userId: 'user-demo-1',
+      userId: '4ed61506-d150-4c8c-b04d-e48f329fda3b',
       preferredLanguage: 'vi' as const,
       targetWpm: 500,
       dailyGoalMinutes: 15,
@@ -58,10 +72,62 @@ export class DataStoreService implements OnModuleInit {
     }
   };
 
-  onModuleInit() {
+  private pgPool: any = null;
+  private isSupabaseConnected = false;
+
+  async onModuleInit() {
     this.exercises = JSON.parse(JSON.stringify(EXERCISES_METADATA));
     this.routines = JSON.parse(JSON.stringify(WORKOUT_ROUTINES));
     this.readingTexts = JSON.parse(JSON.stringify(SAMPLE_READING_TEXTS));
+
+    const dbUrl = process.env.DATABASE_URL;
+    if (dbUrl || process.env.DB_HOST) {
+      try {
+        this.pgPool = new Pool({
+          connectionString: dbUrl,
+          host: process.env.DB_HOST,
+          port: parseInt(process.env.DB_PORT || '6543', 10),
+          user: process.env.DB_USER,
+          password: process.env.DB_PASSWORD,
+          database: process.env.DB_NAME || 'postgres',
+          ssl: { rejectUnauthorized: false },
+          max: 10,
+          idleTimeoutMillis: 30000
+        });
+
+        const client = await this.pgPool.connect();
+        const res = await client.query('SELECT NOW()');
+        client.release();
+        this.isSupabaseConnected = true;
+        console.log('✅ Supabase PostgreSQL connected successfully at:', res.rows[0].now);
+
+        // Fetch demo user if available
+        await this.syncUserFromDatabase();
+      } catch (err) {
+        console.warn('⚠️ Supabase connection failed, running in resilient In-Memory mode:', err);
+        this.isSupabaseConnected = false;
+      }
+    }
+  }
+
+  private async syncUserFromDatabase() {
+    if (!this.isSupabaseConnected || !this.pgPool) return;
+    try {
+      const res = await this.pgPool.query(
+        'SELECT id, email, username, total_xp, current_level, current_streak, best_streak FROM users WHERE email = $1 LIMIT 1',
+        ['master@brainexercises.pro']
+      );
+      if (res.rows.length > 0) {
+        const u = res.rows[0];
+        this.currentUser.id = u.id;
+        this.currentUser.totalXp = u.total_xp || 550;
+        this.currentUser.currentLevel = u.current_level || 3;
+        this.currentUser.currentStreak = u.current_streak || 5;
+        this.currentUser.bestStreak = u.best_streak || 10;
+      }
+    } catch (e) {
+      console.warn('Could not sync user from DB:', e);
+    }
   }
 
   getExercises(): IExercise[] {
@@ -90,6 +156,8 @@ export class DataStoreService implements OnModuleInit {
 
   saveGameAttempt(attemptDto: IGameAttemptRequest): IGameAttemptResponse {
     const id = `att-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    
+    // Save to memory
     this.attempts.push({
       ...attemptDto,
       id,
@@ -109,6 +177,21 @@ export class DataStoreService implements OnModuleInit {
       timeLimit
     );
 
+    // Update in-memory cognitive relationship masteries
+    const relationEvents = attemptDto.rawMetricsJson?.relationEvents as IRelationEvent[] | undefined;
+    if (relationEvents && Array.isArray(relationEvents)) {
+      for (const relId of ALL_RELATION_IDS) {
+        this.relationMasteries[relId] = updateMasteryFromEvents(this.relationMasteries[relId], relationEvents);
+      }
+    }
+
+    // Persist to Supabase if connected (async)
+    if (this.isSupabaseConnected && this.pgPool) {
+      this.persistAttemptToSupabase(id, attemptDto, xpEarned, relationEvents).catch(err => {
+        console.warn('Async Supabase persistence error:', err);
+      });
+    }
+
     return {
       id,
       score: attemptDto.score,
@@ -120,6 +203,95 @@ export class DataStoreService implements OnModuleInit {
       isNewHighScore: true,
       message: `Tuyệt vời! Bạn đã nhận được +${xpEarned} XP rèn luyện nhận thức.`
     };
+  }
+
+  private async persistAttemptToSupabase(
+    id: string, 
+    attemptDto: IGameAttemptRequest, 
+    xpEarned: number,
+    relationEvents?: IRelationEvent[]
+  ) {
+    if (!this.pgPool) return;
+
+    // 1. Insert into game_attempts
+    await this.pgPool.query(`
+      INSERT INTO game_attempts 
+        (user_id, exercise_slug, difficulty_level, score, accuracy_rate, time_spent_sec, effective_wpm, raw_metrics_json)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [
+      this.currentUser.id,
+      attemptDto.exerciseSlug,
+      attemptDto.difficultyLevel,
+      attemptDto.score,
+      attemptDto.accuracyRate,
+      attemptDto.timeSpentSec,
+      attemptDto.effectiveWpm || null,
+      attemptDto.rawMetricsJson ? JSON.stringify(attemptDto.rawMetricsJson) : null
+    ]);
+
+    // 2. Update user XP
+    await this.pgPool.query(`
+      UPDATE users 
+      SET total_xp = total_xp + $1, 
+          current_level = GREATEST(current_level, FLOOR(SQRT((total_xp + $1) / 100)) + 1),
+          updated_at = NOW()
+      WHERE id = $2
+    `, [xpEarned, this.currentUser.id]);
+
+    // 3. Persist relation evidence and update user_relation_mastery
+    if (relationEvents && relationEvents.length > 0) {
+      for (const ev of relationEvents.slice(0, 50)) { // batch insert first 50 detailed
+        await this.pgPool.query(`
+          INSERT INTO relation_evidence
+            (user_id, attempt_id, exercise_slug, level, trial_id, relation_id, relation_weight, entities_json, state_before, state_after, response_ms, correct)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `, [
+          this.currentUser.id,
+          id,
+          ev.exerciseSlug,
+          ev.level,
+          ev.trialId,
+          ev.relationId,
+          ev.relationWeight || 1.0,
+          ev.entities ? JSON.stringify(ev.entities) : null,
+          ev.stateBefore,
+          ev.stateAfter,
+          ev.responseMs || null,
+          ev.correct
+        ]);
+      }
+
+      // Upsert masteries
+      for (const relId of ALL_RELATION_IDS) {
+        const m = this.relationMasteries[relId];
+        if (m.exposureCount > 0) {
+          await this.pgPool.query(`
+            INSERT INTO user_relation_mastery 
+              (user_id, relation_id, exposure_count, accuracy, median_response_ms, stability, local_contexts_json, transfer_score, current_tier, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+            ON CONFLICT (user_id, relation_id) DO UPDATE SET
+              exposure_count = EXCLUDED.exposure_count,
+              accuracy = EXCLUDED.accuracy,
+              median_response_ms = EXCLUDED.median_response_ms,
+              stability = EXCLUDED.stability,
+              local_contexts_json = EXCLUDED.local_contexts_json,
+              transfer_score = EXCLUDED.transfer_score,
+              current_tier = EXCLUDED.current_tier,
+              updated_at = NOW()
+          `, [
+            this.currentUser.id,
+            relId,
+            m.exposureCount,
+            m.accuracy,
+            m.medianResponseMs,
+            m.stability,
+            JSON.stringify(m.localContexts),
+            m.transferScore,
+            m.currentTier
+          ]);
+        }
+      }
+    }
   }
 
   saveAssessment(dto: IUserAssessmentRequest): IUserAssessmentResponse {
@@ -193,6 +365,69 @@ export class DataStoreService implements OnModuleInit {
         attentionScore: 90,
         reactionScore: 82
       }
+    };
+  }
+
+  getRelationshipMasteries(): Record<RelationId, IRelationshipMastery> {
+    return this.relationMasteries;
+  }
+
+  getBrainGraph() {
+    const nodes = ALL_RELATION_IDS.map(id => {
+      const def = COGNITIVE_RELATIONS[id];
+      const mastery = this.relationMasteries[id];
+      return {
+        id,
+        nameVi: def.nameVi,
+        nameEn: def.nameEn,
+        iconName: def.iconName,
+        masteryScore: Math.round(mastery.accuracy * 100),
+        tier: mastery.currentTier,
+        exposureCount: mastery.exposureCount,
+        stability: mastery.stability,
+        transferScore: mastery.transferScore,
+        representativeGames: def.representativeGames
+      };
+    });
+
+    // Edges between related relations
+    const edges = [
+      { source: 'TARGET_POSITION', target: 'ORDER_SEQUENCE', relation: 'spatio_temporal' },
+      { source: 'ORDER_SEQUENCE', target: 'TEMPORAL_PREDICT', relation: 'sequencing' },
+      { source: 'TARGET_POSITION', target: 'FOCUS_FIELD', relation: 'spatial_focus' },
+      { source: 'TARGET_POSITION', target: 'SPATIAL_TRANSFORM', relation: 'coordinate_shift' },
+      { source: 'TARGET_DISTRACTOR', target: 'SIMILARITY_DIFF', relation: 'feature_contrast' },
+      { source: 'RULE_ACTION', target: 'INHIBITION', relation: 'executive_control' },
+      { source: 'IDENTITY_MATCH', target: 'SIMILARITY_DIFF', relation: 'lexical_match' },
+      { source: 'PART_WHOLE', target: 'CONTEXT_MEANING', relation: 'semantic_integration' },
+      { source: 'TEMPORAL_PREDICT', target: 'CONTEXT_MEANING', relation: 'comprehension_flow' }
+    ];
+
+    return {
+      nodes,
+      edges,
+      overallTrainingIndex: Math.round(
+        Object.values(this.relationMasteries).reduce((acc, m) => acc + m.accuracy, 0) / 12 * 100
+      )
+    };
+  }
+
+  recommendCognitiveChain() {
+    // Find relation with lowest accuracy or lowest exposure
+    const sorted = ALL_RELATION_IDS.slice().sort((a, b) => {
+      const ma = this.relationMasteries[a];
+      const mb = this.relationMasteries[b];
+      return (ma.accuracy * 0.7 + ma.transferScore * 0.3) - (mb.accuracy * 0.7 + mb.transferScore * 0.3);
+    });
+
+    const bottleneckRelation = sorted[0];
+    const chain = COGNITIVE_RELATION_CHAINS.find(c => c.focusRelations.includes(bottleneckRelation)) 
+      || COGNITIVE_RELATION_CHAINS[0];
+
+    return {
+      bottleneckRelation,
+      relationDef: COGNITIVE_RELATIONS[bottleneckRelation],
+      recommendedChain: chain
     };
   }
 

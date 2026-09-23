@@ -3,9 +3,12 @@ import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { SAMPLE_READING_TEXTS, calculateWpm, calculateEffectiveWpm } from '@brain-exercises/shared';
 import { CheckCircle2 } from 'lucide-react';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const ReadingAssessmentGame: React.FC = () => {
   const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
+  const lastAnsTimeRef = useRef<number>(Date.now());
   const currentLevel = getExerciseLevel('reading-assessment');
   
   const [textIndex, setTextIndex] = useState(() => (currentLevel - 1) % SAMPLE_READING_TEXTS.length);
@@ -38,6 +41,28 @@ export const ReadingAssessmentGame: React.FC = () => {
 
   const handleSelectOption = (qId: string, opt: 'A' | 'B' | 'C' | 'D') => {
     playSound('click');
+    const isCorrect = questions[currentQIndex]?.correctOption === opt;
+    const now = Date.now();
+    const respMs = Math.min(20000, Math.max(100, now - lastAnsTimeRef.current));
+    lastAnsTimeRef.current = now;
+
+    emitTrialEvent({
+      exerciseSlug: 'reading-assessment',
+      level: currentLevel,
+      relationId: 'CONTEXT_MEANING',
+      relationWeight: 1.0,
+      entities: {
+        questionId: qId,
+        choice: opt,
+        correctOption: questions[currentQIndex]?.correctOption,
+        rawWpm
+      },
+      stateBefore: `q:${currentQIndex}`,
+      stateAfter: `q:${currentQIndex + 1}`,
+      responseMs: respMs,
+      correct: isCorrect
+    });
+
     const updated = { ...selectedAnswers, [qId]: opt };
     setSelectedAnswers(updated);
 
@@ -142,7 +167,9 @@ export const ReadingAssessmentGame: React.FC = () => {
           accuracyRate={comprehensionPercent}
           timeSpentSec={readingTimeSec}
           effectiveWpm={effectiveWpm}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
             setTextIndex(prev => (prev + 1) % SAMPLE_READING_TEXTS.length);
             setPhase('reading');
             setReadingTimeSec(0);

@@ -71,7 +71,8 @@ export interface IUserCognitiveSnapshot {
     memoryScore: number;
     attentionScore: number;
     reactionScore: number;
-    overallBrainAge: number;
+    overallTrainingIndex: number;
+    overallBrainAge?: number;
 }
 export interface IUserContentHistory {
     id: string;

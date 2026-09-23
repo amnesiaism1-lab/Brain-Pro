@@ -8,7 +8,13 @@ import {
   IWeeklyChallenge,
   IUserCognitiveSnapshot,
   EXERCISE_SYNERGIES,
-  WEEKLY_CHALLENGES
+  WEEKLY_CHALLENGES,
+  RelationId,
+  IRelationshipMastery,
+  IRawMetricsJson,
+  IRelationEvent,
+  createInitialMasteriesMap,
+  updateMasteryFromEvents
 } from '@brain-exercises/shared';
 
 export type MainNavTab = 'home' | 'exercises' | 'settings' | 'user';
@@ -39,6 +45,11 @@ interface AppState {
   exerciseMasteries: Record<string, IUserExerciseMastery>;
   getExerciseLevel: (slug: ExerciseSlug) => number;
   setExerciseLevel: (slug: ExerciseSlug, level: number) => void;
+
+  // 12 Cognitive Relationship Masteries & Telemetry
+  relationshipMasteries: Record<RelationId, IRelationshipMastery>;
+  activeDebriefEvents: IRelationEvent[] | null;
+  setActiveDebriefEvents: (events: IRelationEvent[] | null) => void;
 
   // Synergies & Combos
   lastPlayedSlug: ExerciseSlug | null;
@@ -86,6 +97,7 @@ interface AppState {
     xpEarned: number;
     level: number;
     synergyBonusXp?: number;
+    rawMetricsJson?: IRawMetricsJson;
     date: string;
   }>;
   recordAttempt: (attempt: {
@@ -97,6 +109,7 @@ interface AppState {
     effectiveWpm?: number;
     xpEarned: number;
     level?: number;
+    rawMetricsJson?: IRawMetricsJson;
   }) => void;
   
   // Sound Synthesis helper
@@ -182,6 +195,7 @@ export const useAppStore = create<AppState>((set, get) => {
       memoryScore: 65,
       attentionScore: 75,
       reactionScore: 70,
+      overallTrainingIndex: 70,
       overallBrainAge: 26
     },
     {
@@ -192,9 +206,18 @@ export const useAppStore = create<AppState>((set, get) => {
       memoryScore: 79,
       attentionScore: 90,
       reactionScore: 85,
+      overallTrainingIndex: 85,
       overallBrainAge: 23
     }
   ];
+
+  const initialRelationMasteries: Record<RelationId, IRelationshipMastery> = (() => {
+    try {
+      const saved = localStorage.getItem('be_relation_masteries');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return createInitialMasteriesMap();
+  })();
 
   return {
     activeTab: 'home',
@@ -215,6 +238,11 @@ export const useAppStore = create<AppState>((set, get) => {
     setAutoDifficulty: (enabled) => set({ autoDifficulty: enabled }),
     enableHints: true,
     setEnableHints: (enabled) => set({ enableHints: enabled }),
+
+    // 12 Cognitive Relationship Masteries
+    relationshipMasteries: initialRelationMasteries,
+    activeDebriefEvents: null,
+    setActiveDebriefEvents: (events) => set({ activeDebriefEvents: events }),
 
     // Per-exercise Mastery
     exerciseMasteries: initialMasteries,
@@ -444,11 +472,48 @@ export const useAppStore = create<AppState>((set, get) => {
       const newXp = state.xp + totalEarnedXp;
       const newLevel = Math.floor(Math.sqrt(newXp / 100)) + 1;
       localStorage.setItem('be_xp', String(newXp));
+
+      // 6. Cognitive Relationship Mastery Update
+      let updatedRelationMasteries = state.relationshipMasteries;
+      const relationEvents = attempt.rawMetricsJson?.relationEvents;
+      if (relationEvents && relationEvents.length > 0) {
+        const updatedMap = { ...state.relationshipMasteries };
+        for (const relId of Object.keys(updatedMap) as RelationId[]) {
+          updatedMap[relId] = updateMasteryFromEvents(updatedMap[relId], relationEvents);
+        }
+        updatedRelationMasteries = updatedMap;
+        try {
+          localStorage.setItem('be_relation_masteries', JSON.stringify(updatedRelationMasteries));
+        } catch (err) {
+          console.error('Failed to save relation masteries:', err);
+        }
+      }
+
+      // 7. Background Async Attempt Sync to Backend
+      try {
+        fetch('/api/attempts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            exerciseSlug: attempt.exerciseSlug,
+            difficultyLevel: currentLevel,
+            score: attempt.score,
+            accuracyRate: attempt.accuracyRate,
+            timeSpentSec: attempt.timeSpentSec,
+            effectiveWpm: attempt.effectiveWpm,
+            rawMetricsJson: attempt.rawMetricsJson
+          })
+        }).catch(err => {
+          console.warn('Background attempt sync postponed:', err);
+        });
+      } catch {}
       
       set({
         xp: newXp,
         level: newLevel,
         exerciseMasteries: updatedMasteries,
+        relationshipMasteries: updatedRelationMasteries,
+        activeDebriefEvents: relationEvents && relationEvents.length > 0 ? relationEvents : null,
         currentLevel: nextLevel,
         lastPlayedSlug: attempt.exerciseSlug,
         activeSynergy: matchedSynergy,

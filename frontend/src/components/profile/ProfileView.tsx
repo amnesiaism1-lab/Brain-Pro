@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { Flame, Zap, Trophy, ShieldCheck, Activity, Sparkles } from 'lucide-react';
+import { Flame, Zap, Trophy, ShieldCheck, Activity, Sparkles, Brain } from 'lucide-react';
 import { EXERCISE_VARIANTS, EXERCISES_METADATA } from '@brain-exercises/shared';
+import { BrainMap } from '../cognition/BrainMap';
 
 export const ProfileView: React.FC = () => {
   const { xp, level, streak, cognitiveSnapshots, exerciseMasteries, getExerciseLevel } = useAppStore();
+  const [activeTab, setActiveTab] = useState<'brain-map' | 'radar'>('brain-map');
 
   // Radar scores: current week vs last week snapshot
   const currentSnapshot = cognitiveSnapshots[cognitiveSnapshots.length - 1] || {
@@ -84,8 +86,89 @@ export const ProfileView: React.FC = () => {
         </div>
       </div>
 
-      {/* Responsive 2-Column Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+      {/* View Mode Switcher Tabs */}
+      <div className="flex items-center gap-2 p-1.5 bg-[#E8DFC8] dark:bg-slate-800/80 rounded-2xl w-fit border border-[#D5CBB9] dark:border-slate-700 shadow-sm">
+        <button
+          onClick={() => setActiveTab('brain-map')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            activeTab === 'brain-map'
+              ? 'bg-brand-600 text-white shadow-md'
+              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Brain className="w-4 h-4" />
+          <span>Mạng Lưới 12 Quan Hệ Nhận Thức</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('radar')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            activeTab === 'radar'
+              ? 'bg-brand-600 text-white shadow-md'
+              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Activity className="w-4 h-4" />
+          <span>5 Khối Năng Lực (Radar Chart)</span>
+        </button>
+      </div>
+
+      {/* Conditional Content */}
+      {activeTab === 'brain-map' ? (
+        <div className="space-y-8 animate-fade-in">
+          <BrainMap />
+          
+          {/* Below BrainMap: Display Stage III Variants */}
+          <div className="bg-[#F5EFE6] dark:bg-slate-800 border border-[#D5CBB9] dark:border-slate-700 rounded-3xl p-6 sm:p-7 shadow-md space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-purple-600" />
+                  Biến Thể Đỉnh Cao (Stage III - Cấp 9-12)
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500">Mở khóa khi đạt cấp độ 9 của từng bài tập rèn luyện</p>
+              </div>
+              <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300">
+                {unlockedVariantsCount} / {EXERCISES_METADATA.length} Đã mở
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto pr-1">
+              {EXERCISE_VARIANTS.map((v) => {
+                const currentExLevel = getExerciseLevel(v.exerciseSlug as any);
+                const isUnlocked = currentExLevel >= v.minLevel;
+
+                return (
+                  <div
+                    key={v.variantCode}
+                    className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
+                      isUnlocked
+                        ? 'bg-purple-500/10 border-purple-500/40 text-slate-800 dark:text-white shadow-sm'
+                        : 'bg-white/40 dark:bg-slate-700/30 border-slate-200 dark:border-slate-700 opacity-60'
+                    }`}
+                  >
+                    <div className="min-w-0 pr-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-extrabold truncate">{v.variantName}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-mono bg-purple-200 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300 font-bold">
+                          {v.variantCode}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 line-clamp-2 mt-1 leading-snug">{v.variantDescription}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${
+                      isUnlocked ? 'bg-purple-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                    }`}>
+                      {isUnlocked ? 'Sẵn sàng' : `Cấp ${v.minLevel}`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Responsive 2-Column Grid for Radar Chart & Badges */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start animate-fade-in">
         {/* Left Column (lg:col-span-6): Radar Chart & Badges */}
         <div className="lg:col-span-6 space-y-6">
           {/* Cognitive Radar Analysis Chart */}
@@ -255,6 +338,7 @@ export const ProfileView: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

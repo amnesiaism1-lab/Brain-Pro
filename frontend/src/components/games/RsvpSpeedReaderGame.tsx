@@ -3,9 +3,11 @@ import { Play, Pause, RotateCcw } from 'lucide-react';
 import { calculateOptimalRecognitionPoint, calculateEffectiveWpm, SAMPLE_READING_TEXTS } from '@brain-exercises/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const RsvpSpeedReaderGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const effectiveLevel = getExerciseLevel('rsvp-speed-reader') || currentLevel;
 
   const isDualWord = effectiveLevel === 9;
@@ -52,6 +54,20 @@ export const RsvpSpeedReaderGame: React.FC = () => {
     const step = isDualWord ? 2 : 1;
     timerRef.current = setInterval(() => {
       setWordIndex((prev) => {
+        if (prev % 6 === 0 && words[prev]) {
+          emitTrialEvent({
+            exerciseSlug: 'rsvp-speed-reader',
+            level: effectiveLevel,
+            relationId: 'TEMPORAL_PREDICT',
+            relationWeight: 1.0,
+            entities: { target: words[prev], rule: `${wpm} WPM` },
+            stateBefore: 'fixating_orp',
+            stateAfter: 'token_absorbed',
+            responseMs: intervalMs,
+            correct: true
+          });
+        }
+
         if (prev >= words.length - step) {
           setIsPlaying(false);
           setIsFinished(true);
@@ -217,7 +233,11 @@ export const RsvpSpeedReaderGame: React.FC = () => {
           accuracyRate={95}
           timeSpentSec={Math.round(elapsedSec)}
           effectiveWpm={effectiveWpm}
-          onRestart={handleRestart}
+          rawMetricsJson={getRawMetricsJson()}
+          onRestart={() => {
+            resetSession();
+            handleRestart();
+          }}
           onClose={() => setActiveGameSlug(null)}
         />
       )}

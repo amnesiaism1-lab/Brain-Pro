@@ -3,9 +3,11 @@ import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { Play, Pause, RotateCcw } from 'lucide-react';
 import { SAMPLE_READING_TEXTS } from '@brain-exercises/shared';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const WordChunkingGame: React.FC = () => {
   const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const currentLevel = getExerciseLevel('word-chunking');
   const [textIndex, setTextIndex] = useState(() => (currentLevel - 1) % SAMPLE_READING_TEXTS.length);
   const rawText = (SAMPLE_READING_TEXTS[textIndex] || SAMPLE_READING_TEXTS[0]).content;
@@ -33,6 +35,18 @@ export const WordChunkingGame: React.FC = () => {
 
     timerRef.current = setInterval(() => {
       setActiveChunkIndex(prev => {
+        emitTrialEvent({
+          exerciseSlug: 'word-chunking',
+          level: currentLevel,
+          relationId: 'PART_WHOLE',
+          relationWeight: 1.0,
+          entities: { chunkIndex: prev, chunkSize, chunkText: chunks[prev] },
+          stateBefore: `chunk:${prev}`,
+          stateAfter: `chunk:${prev + 1}`,
+          responseMs: speedMs,
+          correct: true
+        });
+
         if (prev >= chunks.length - 1) {
           setIsPlaying(false);
           setIsFinished(true);
@@ -111,7 +125,9 @@ export const WordChunkingGame: React.FC = () => {
           score={chunks.length * 15 * currentLevel}
           accuracyRate={95}
           timeSpentSec={elapsedSec}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
             setTextIndex(t => (t + 1) % SAMPLE_READING_TEXTS.length);
             setIsPlaying(true);
             setActiveChunkIndex(0);

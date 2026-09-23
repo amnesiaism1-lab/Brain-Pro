@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { 
   Brain, Zap, Sparkles, Star, Flame, Eye, Target, Compass, 
   Heart, Gem, Sun, Moon, Rocket, Feather, Crown, RefreshCw
 } from 'lucide-react';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 interface CardItem {
   id: string;
@@ -34,6 +35,8 @@ const CARD_ICONS = [
 
 export const CardFlipGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
+  const lastMatchTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('card-flip') || currentLevel;
 
   const isTripleMatch = effectiveLevel === 9;
@@ -179,6 +182,21 @@ export const CardFlipGame: React.FC = () => {
 
       const firstSymbol = newCards[newFlipped[0]].symbolIndex;
       const isAllMatched = newFlipped.every(idx => newCards[idx].symbolIndex === firstSymbol);
+      const now = Date.now();
+      const respMs = Math.min(15000, Math.max(100, now - lastMatchTimeRef.current));
+      lastMatchTimeRef.current = now;
+
+      emitTrialEvent({
+        exerciseSlug: 'card-flip',
+        level: effectiveLevel,
+        relationId: 'SPATIAL_TRANSFORM',
+        relationWeight: 1.0,
+        entities: { symbol: firstSymbol, flippedIndices: newFlipped, isMatched: isAllMatched },
+        stateBefore: `matched:${matchedPairsCount}`,
+        stateAfter: isAllMatched ? `matched:${matchedPairsCount + 1}` : `matched:${matchedPairsCount}`,
+        responseMs: respMs,
+        correct: isAllMatched
+      });
 
       if (isAllMatched) {
         // MATCH!
@@ -335,7 +353,11 @@ export const CardFlipGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={initialTimeLimit - timeLeft}
-          onRestart={initGame}
+          rawMetricsJson={getRawMetricsJson()}
+          onRestart={() => {
+            resetSession();
+            initGame();
+          }}
           onClose={() => setActiveGameSlug(null)}
         />
       )}

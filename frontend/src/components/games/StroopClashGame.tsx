@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { Zap, AlertTriangle } from 'lucide-react';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 interface ColorDef {
   id: string;
@@ -23,6 +24,7 @@ const COLOR_PALETTE: ColorDef[] = [
 
 export const StroopClashGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const effectiveLevel = getExerciseLevel('stroop-clash') || currentLevel;
 
   const totalTrials = 15;
@@ -149,6 +151,22 @@ export const StroopClashGame: React.FC = () => {
       setFlashFeedback('WRONG');
     }
 
+    emitTrialEvent({
+      exerciseSlug: 'stroop-clash',
+      level: effectiveLevel,
+      relationId: 'INHIBITION',
+      relationWeight: 1.0,
+      entities: {
+        target: wordItem.inkColor.nameVi,
+        distractor: wordItem.text,
+        rule: currentTargetType
+      },
+      stateBefore: 'inhibited_conflict',
+      stateAfter: isCorrect ? 'correct_response' : 'stroop_interference',
+      responseMs: rt,
+      correct: isCorrect
+    });
+
     setTimeout(() => {
       nextTrial(trialIndex + 1);
     }, 250);
@@ -256,7 +274,9 @@ export const StroopClashGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={Math.round((reactionTimes.reduce((a, b) => a + b, 0)) / 1000) || 15}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
             setScore(0);
             setCombo(0);
             setCorrectCount(0);

@@ -20,6 +20,7 @@ import {
   Zap, 
   Info
 } from 'lucide-react';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export type SchulteMode = 'standard' | 'gorbov' | 'reverse' | 'alphabet' | 'fading' | 'rotating';
 
@@ -41,10 +42,14 @@ export const SchulteTableGame: React.FC = () => {
     nextWorkoutStep
   } = useAppStore();
 
+  const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
+  const lastClickTimeRef = useRef<number>(Date.now());
+
   const effectiveLevel = getExerciseLevel('schulte-table') || currentLevel;
 
   // Determine initial mode based on level progression
   const initialMode: SchulteMode = useMemo(() => {
+    if (effectiveLevel === 8) return 'reverse';
     if (effectiveLevel === 9) return 'gorbov';
     if (effectiveLevel === 10) return 'rotating';
     if (effectiveLevel === 11) return 'fading';
@@ -245,7 +250,8 @@ export const SchulteTableGame: React.FC = () => {
       accuracyRate: accuracy,
       timeSpentSec: finalTime,
       xpEarned: Math.round(score / 8) + 25,
-      level: effectiveLevel
+      level: effectiveLevel,
+      rawMetricsJson: getRawMetricsJson()
     });
   };
 
@@ -265,7 +271,23 @@ export const SchulteTableGame: React.FC = () => {
   const handleStandardCellClick = (num: number, key: string) => {
     if (isFinished || foundKeys.has(key)) return;
 
-    if (num === currentTarget) {
+    const isCorrect = num === currentTarget;
+    const now = Date.now();
+    const respMs = Math.min(10000, Math.max(50, now - lastClickTimeRef.current));
+    lastClickTimeRef.current = now;
+
+    emitTrialEvent({
+      exerciseSlug: 'schulte-table',
+      level: effectiveLevel,
+      relationId: mode === 'reverse' ? 'ORDER_SEQUENCE' : effectiveLevel >= 10 ? 'SPATIAL_TRANSFORM' : 'TARGET_POSITION',
+      entities: { target: String(currentTarget), position: key },
+      stateBefore: 'searching',
+      stateAfter: isCorrect ? 'target_found' : 'error_penalized',
+      responseMs: respMs,
+      correct: isCorrect
+    });
+
+    if (isCorrect) {
       playSound('click');
       triggerCellEffect(key, 'correct');
       setFoundKeys(prev => new Set([...prev, key]));

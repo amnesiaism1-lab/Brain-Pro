@@ -30,6 +30,24 @@ let AnalyticsController = class AnalyticsController {
             data: stats.radar
         };
     }
+    getBrainGraph() {
+        return {
+            success: true,
+            data: this.dataStore.getBrainGraph()
+        };
+    }
+    recommendCognitiveChain() {
+        return {
+            success: true,
+            data: this.dataStore.recommendCognitiveChain()
+        };
+    }
+    postRecommendCognitiveChain() {
+        return {
+            success: true,
+            data: this.dataStore.recommendCognitiveChain()
+        };
+    }
 };
 exports.AnalyticsController = AnalyticsController;
 __decorate([
@@ -44,6 +62,24 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], AnalyticsController.prototype, "getCognitiveRadar", null);
+__decorate([
+    (0, common_1.Get)('brain-graph'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], AnalyticsController.prototype, "getBrainGraph", null);
+__decorate([
+    (0, common_1.Get)('recommend-chain'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], AnalyticsController.prototype, "recommendCognitiveChain", null);
+__decorate([
+    (0, common_1.Post)('recommend-chain'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], AnalyticsController.prototype, "postRecommendCognitiveChain", null);
 exports.AnalyticsController = AnalyticsController = __decorate([
     (0, common_1.Controller)('analytics'),
     __metadata("design:paramtypes", [data_store_service_1.DataStoreService])

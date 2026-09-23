@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const EvenOddGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
+  const lastAnsTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('even-odd') || currentLevel;
   
   const isEquationMode = effectiveLevel >= 10;
@@ -58,7 +61,30 @@ export const EvenOddGame: React.FC = () => {
       expected = expected === 'EVEN' ? 'ODD' : 'EVEN';
     }
 
-    if (choice === expected) {
+    const isCorrect = choice === expected;
+    const now = Date.now();
+    const respMs = Math.min(10000, Math.max(50, now - lastAnsTimeRef.current));
+    lastAnsTimeRef.current = now;
+
+    emitTrialEvent({
+      exerciseSlug: 'even-odd',
+      level: effectiveLevel,
+      relationId: isInverted ? 'INHIBITION' : 'RULE_ACTION',
+      relationWeight: 1.0,
+      entities: {
+        number: String(currentNumber),
+        equation: displayEquation || undefined,
+        inverted: isInverted,
+        choice,
+        expected
+      },
+      stateBefore: `combo:${combo}`,
+      stateAfter: isCorrect ? `combo:${combo + 1}` : 'combo:0',
+      responseMs: respMs,
+      correct: isCorrect
+    });
+
+    if (isCorrect) {
       playSound('correct');
       setCorrectCount(c => c + 1);
       const nextCombo = combo + 1;
@@ -80,38 +106,39 @@ export const EvenOddGame: React.FC = () => {
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md">
         <div>
           <span className="text-xs sm:text-sm text-slate-500 font-semibold">Điểm số (Chuỗi: x{combo})</span>
-          <div className="text-2xl sm:text-3xl font-black text-brand-600 dark:text-brand-400 mt-0.5">
+          <div className="text-2xl sm:text-3xl font-black text-brand-600 dark:text-brand-400">
             {score}
           </div>
         </div>
         <div className="text-right">
-          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Thời gian còn lại</span>
-          <div className={`text-2xl sm:text-3xl font-black mt-0.5 ${timeLeft <= 5 ? 'text-rose-500 animate-pulse' : 'text-amber-500'}`}>
+          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Thời gian</span>
+          <div className="text-2xl sm:text-3xl font-black text-amber-500">
             {timeLeft}s
           </div>
         </div>
       </div>
 
-      {/* Center Number Presentation Box */}
-      <div 
-        className={`h-60 sm:h-72 md:h-84 rounded-3xl flex flex-col items-center justify-center p-6 sm:p-8 shadow-2xl transition-all duration-150 border-4 ${
-          isInverted 
-            ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-600 dark:text-rose-400' 
-            : 'bg-white dark:bg-slate-800 border-brand-500 text-slate-900 dark:text-white'
-        }`}
-      >
+      {/* Main Number Display Area */}
+      <div className="bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-3xl p-8 sm:p-12 text-center shadow-xl space-y-4">
         {isInverted && (
-          <span className="text-sm sm:text-base font-black uppercase tracking-wider text-rose-500 mb-2 animate-pulse">
-            ⚠️ ĐẢO NGƯỢC QUY TẮC!
-          </span>
+          <div className="inline-block px-4 py-1.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 text-xs sm:text-sm font-black animate-pulse border border-red-200 dark:border-red-900">
+            ⚠️ ĐẢO NGƯỢC QUY TẮC! (Chẵn chọn LẺ, Lẻ chọn CHẴN)
+          </div>
         )}
-        <div className="text-6xl sm:text-7xl md:text-8xl font-black font-mono tracking-widest animate-scale-up">
-          {displayEquation || currentNumber}
+
+        <div className="text-6xl sm:text-8xl md:text-9xl font-black tracking-tight text-slate-900 dark:text-white select-none">
+          {displayEquation ? displayEquation : currentNumber}
         </div>
+
+        {displayEquation && (
+          <p className="text-xs sm:text-sm text-slate-400 font-semibold">
+            (Tính kết quả phép tính rồi chọn Chẵn hoặc Lẻ)
+          </p>
+        )}
       </div>
 
-      {/* Two Big Action Buttons: CHẴN vs LẺ */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-6">
+      {/* Action Buttons */}
+      <div className="grid grid-cols-2 gap-4 sm:gap-6 pt-2">
         <button
           onClick={() => handleAnswer('EVEN')}
           className="py-6 sm:py-7 rounded-3xl bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-black text-2xl sm:text-3xl shadow-xl shadow-brand-600/30 btn-press"
@@ -132,7 +159,9 @@ export const EvenOddGame: React.FC = () => {
           score={score}
           accuracyRate={accuracy}
           timeSpentSec={30}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
             setScore(0);
             setCombo(0);
             setTimeLeft(30);

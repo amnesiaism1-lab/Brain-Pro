@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { Sparkles, Eye, CheckCircle2 } from 'lucide-react';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const SpatialMemoryGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const effectiveLevel = getExerciseLevel('spatial-memory') || currentLevel;
 
   const gridSize = useMemo(() => {
@@ -82,8 +84,25 @@ export const SpatialMemoryGame: React.FC = () => {
     // Check correctness of this input
     const expectedSequence = isReverseOrder ? [...sequence].reverse() : sequence;
     const currentStep = nextInputs.length - 1;
+    const isCorrect = nextInputs[currentStep] === expectedSequence[currentStep];
 
-    if (nextInputs[currentStep] !== expectedSequence[currentStep]) {
+    emitTrialEvent({
+      exerciseSlug: 'spatial-memory',
+      level: effectiveLevel,
+      relationId: isReverseOrder ? 'SPATIAL_TRANSFORM' : 'TARGET_POSITION',
+      relationWeight: 1.0,
+      entities: {
+        target: String(expectedSequence[currentStep]),
+        position: String(blockIndex),
+        rule: isReverseOrder ? 'reverse_corsi' : 'forward_corsi'
+      },
+      stateBefore: 'recalling_spatial',
+      stateAfter: isCorrect ? 'block_matched' : 'block_mistake',
+      responseMs: 450,
+      correct: isCorrect
+    });
+
+    if (!isCorrect) {
       // Mistake!
       playSound('wrong');
       setMistakes(m => m + 1);
@@ -198,7 +217,9 @@ export const SpatialMemoryGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={45}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
             setScore(0);
             setMistakes(0);
             setCurrentRound(1);

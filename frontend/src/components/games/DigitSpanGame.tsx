@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { calculateGameScore } from '@brain-exercises/shared';
 import { Delete } from 'lucide-react';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const DigitSpanGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
+  const recallStartTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('digit-span') || currentLevel;
-  const isReverseSpan = effectiveLevel >= 9;
+  const isReverseSpan = effectiveLevel >= 8;
   const digitCount = Math.min(15, 3 + effectiveLevel); // 4 to 15 digits
   
   const generateDigits = (len: number) => {
@@ -35,6 +38,7 @@ export const DigitSpanGame: React.FC = () => {
     const flashDuration = 1000 + (digitCount * 300);
     const timer = setTimeout(() => {
       setPhase('recall');
+      recallStartTimeRef.current = Date.now();
     }, flashDuration);
 
     return () => clearTimeout(timer);
@@ -54,7 +58,25 @@ export const DigitSpanGame: React.FC = () => {
 
       if (nextInput.length === digits.length) {
         const expected = isReverseSpan ? digits.split('').reverse().join('') : digits;
-        if (nextInput === expected) {
+        const isCorrect = nextInput === expected;
+        const responseMs = Math.min(10000, Math.max(100, Date.now() - recallStartTimeRef.current));
+
+        emitTrialEvent({
+          exerciseSlug: 'digit-span',
+          level: effectiveLevel,
+          relationId: 'ORDER_SEQUENCE',
+          relationWeight: isReverseSpan ? 1.0 : 0.8,
+          entities: {
+            target: expected,
+            rule: isReverseSpan ? 'reverse' : 'forward'
+          },
+          stateBefore: 'recalling',
+          stateAfter: isCorrect ? 'sequence_matched' : 'sequence_mismatch',
+          responseMs,
+          correct: isCorrect
+        });
+
+        if (isCorrect) {
           playSound('correct');
           setCorrectCount(c => c + 1);
         } else {
@@ -178,7 +200,9 @@ export const DigitSpanGame: React.FC = () => {
           score={score}
           accuracyRate={accuracy}
           timeSpentSec={elapsedSec}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
             setRound(1);
             setCorrectCount(0);
             setElapsedSec(0);

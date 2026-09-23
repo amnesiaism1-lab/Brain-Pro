@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { calculateGameScore } from '@brain-exercises/shared';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const FindLetterGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
+  const lastClickRef = React.useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('find-letter') || currentLevel;
 
   const isCaseSensitive = effectiveLevel >= 9;
@@ -56,6 +59,27 @@ export const FindLetterGame: React.FC = () => {
   const handleCellClick = (cellId: number) => {
     const cell = grid.find(c => c.id === cellId);
     if (!cell || cell.found) return;
+
+    const isCorrect = cell.isTarget;
+    const now = Date.now();
+    const respMs = Math.min(10000, Math.max(50, now - lastClickRef.current));
+    lastClickRef.current = now;
+
+    emitTrialEvent({
+      exerciseSlug: 'find-letter',
+      level: effectiveLevel,
+      relationId: 'TARGET_DISTRACTOR',
+      relationWeight: 1.0,
+      entities: {
+        target: targetLetter,
+        distractor: !isCorrect ? cell.char : undefined,
+        position: String(cellId)
+      },
+      stateBefore: 'scanning_matrix',
+      stateAfter: isCorrect ? 'target_isolated' : 'distractor_clicked',
+      responseMs: respMs,
+      correct: isCorrect
+    });
 
     if (cell.isTarget) {
       playSound('click');
@@ -135,7 +159,11 @@ export const FindLetterGame: React.FC = () => {
           score={score}
           accuracyRate={accuracy}
           timeSpentSec={elapsedSec}
-          onRestart={initGrid}
+          rawMetricsJson={getRawMetricsJson()}
+          onRestart={() => {
+            resetSession();
+            initGrid();
+          }}
           onClose={() => setActiveGameSlug(null)}
         />
       )}

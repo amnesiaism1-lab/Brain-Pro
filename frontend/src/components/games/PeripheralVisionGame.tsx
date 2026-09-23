@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { Crosshair } from 'lucide-react';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const PeripheralVisionGame: React.FC = () => {
   const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
+  const lastGuessTimeRef = useRef<number>(Date.now());
   const currentLevel = getExerciseLevel('peripheral-vision');
   // At level 9-12, span expands up to 180px and flash speed drops to 150ms
   const span = Math.min(180, 70 + (currentLevel * 10));
@@ -38,7 +41,24 @@ export const PeripheralVisionGame: React.FC = () => {
   const handleGuess = (guessChar: string) => {
     playSound('click');
     const expected = targetSide === 'left' ? pair[0] : pair[1];
-    if (guessChar === expected) {
+    const isCorrect = guessChar === expected;
+    const now = Date.now();
+    const respMs = Math.min(10000, Math.max(50, now - lastGuessTimeRef.current));
+    lastGuessTimeRef.current = now;
+
+    emitTrialEvent({
+      exerciseSlug: 'peripheral-vision',
+      level: currentLevel,
+      relationId: 'FOCUS_FIELD',
+      relationWeight: 1.0,
+      entities: { targetSide, expected, guessChar, span: effectiveSpan },
+      stateBefore: `round:${round}`,
+      stateAfter: isCorrect ? `round:${round + 1}` : `round:${round}`,
+      responseMs: respMs,
+      correct: isCorrect
+    });
+
+    if (isCorrect) {
       playSound('correct');
       setCorrectCount(c => c + 1);
     } else {
@@ -132,7 +152,9 @@ export const PeripheralVisionGame: React.FC = () => {
           score={score}
           accuracyRate={accuracy}
           timeSpentSec={25}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
             setRound(1);
             setCorrectCount(0);
             setIsFinished(false);

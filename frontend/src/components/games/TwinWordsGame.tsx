@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { generateTwinWords, VIETNAMESE_WORDS_DICTIONARY } from '@brain-exercises/shared';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const TwinWordsGame: React.FC = () => {
   const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
+  const lastChoiceTimeRef = useRef<number>(Date.now());
   const currentLevel = getExerciseLevel('twin-words');
   const [round, setRound] = useState(1);
   const maxRounds = currentLevel >= 9 ? 12 : 10;
@@ -38,7 +41,29 @@ export const TwinWordsGame: React.FC = () => {
 
   const handleChoice = (isMatchChoice: boolean) => {
     if (isFinished) return;
-    if (isMatchChoice === pair.isMatch) {
+    const isCorrect = isMatchChoice === pair.isMatch;
+    const now = Date.now();
+    const respMs = Math.min(10000, Math.max(50, now - lastChoiceTimeRef.current));
+    lastChoiceTimeRef.current = now;
+
+    emitTrialEvent({
+      exerciseSlug: 'twin-words',
+      level: currentLevel,
+      relationId: 'IDENTITY_MATCH',
+      relationWeight: 1.0,
+      entities: {
+        wordA: pair.word1,
+        wordB: pair.word2,
+        shouldMatch: pair.isMatch,
+        choice: isMatchChoice
+      },
+      stateBefore: `round:${round}`,
+      stateAfter: isCorrect ? `round:${round + 1}` : `round:${round}`,
+      responseMs: respMs,
+      correct: isCorrect
+    });
+
+    if (isCorrect) {
       playSound('correct');
       setCorrectCount(c => c + 1);
     } else {
@@ -111,7 +136,9 @@ export const TwinWordsGame: React.FC = () => {
           score={score}
           accuracyRate={accuracy}
           timeSpentSec={elapsedSec}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
             setRound(1);
             setCorrectCount(0);
             setElapsedSec(0);

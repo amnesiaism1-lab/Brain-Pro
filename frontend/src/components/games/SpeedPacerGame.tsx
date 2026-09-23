@@ -3,9 +3,11 @@ import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { SAMPLE_READING_TEXTS } from '@brain-exercises/shared';
 import { Play, Pause, RotateCcw, Gauge } from 'lucide-react';
+import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const SpeedPacerGame: React.FC = () => {
   const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const currentLevel = getExerciseLevel('reading-pacer');
   const [textIndex, setTextIndex] = useState(() => (currentLevel - 1) % SAMPLE_READING_TEXTS.length);
   const rawText = (SAMPLE_READING_TEXTS[textIndex] || SAMPLE_READING_TEXTS[0]).content;
@@ -28,6 +30,18 @@ export const SpeedPacerGame: React.FC = () => {
     const intervalMs = Math.round(60000 / pacerWpm);
     timerRef.current = setInterval(() => {
       setHighlightWordIndex(prev => {
+        emitTrialEvent({
+          exerciseSlug: 'reading-pacer',
+          level: currentLevel,
+          relationId: 'TEMPORAL_PREDICT',
+          relationWeight: 1.0,
+          entities: { wordIndex: prev, word: words[prev], pacerWpm },
+          stateBefore: `idx:${prev}`,
+          stateAfter: `idx:${prev + 1}`,
+          responseMs: intervalMs,
+          correct: true
+        });
+
         if (prev >= words.length - 1) {
           setIsPlaying(false);
           setIsFinished(true);
@@ -135,7 +149,9 @@ export const SpeedPacerGame: React.FC = () => {
           accuracyRate={95}
           timeSpentSec={45}
           effectiveWpm={pacerWpm}
+          rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
+            resetSession();
             setTextIndex(t => (t + 1) % SAMPLE_READING_TEXTS.length);
             setHighlightWordIndex(0);
             setIsPlaying(true);

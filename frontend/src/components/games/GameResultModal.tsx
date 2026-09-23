@@ -1,13 +1,16 @@
 import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { Trophy, Award, Clock, ArrowRight, RotateCcw } from 'lucide-react';
+import { Trophy, Award, Clock, ArrowRight, RotateCcw, Brain } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+
+import { IRawMetricsJson } from '@brain-exercises/shared';
 
 interface GameResultProps {
   score: number;
   accuracyRate: number;
   timeSpentSec: number;
   effectiveWpm?: number;
+  rawMetricsJson?: IRawMetricsJson;
   onRestart: () => void;
   onClose: () => void;
 }
@@ -17,6 +20,7 @@ export const GameResultModal: React.FC<GameResultProps> = ({
   accuracyRate,
   timeSpentSec,
   effectiveWpm,
+  rawMetricsJson,
   onRestart,
   onClose
 }) => {
@@ -28,7 +32,8 @@ export const GameResultModal: React.FC<GameResultProps> = ({
     recordAttempt,
     activeGameSlug,
     activeSynergy,
-    playSound 
+    playSound,
+    setActiveDebriefEvents
   } = useAppStore();
 
   const currentLevel = activeGameSlug ? getExerciseLevel(activeGameSlug) : 1;
@@ -55,13 +60,9 @@ export const GameResultModal: React.FC<GameResultProps> = ({
         timeSpentSec,
         effectiveWpm,
         xpEarned: Math.round(score / 10) + 20,
-        currentLevel,
-        totalXp: 0,
-        currentStreak: 4,
-        recommendedNextLevel: accuracyRate >= 90 ? Math.min(12, currentLevel + 1) : currentLevel,
-        isNewHighScore: true,
-        message: 'Hoàn thành bài tập xuất sắc!'
-      } as any);
+        level: currentLevel,
+        rawMetricsJson
+      });
     }
   }, []);
 
@@ -136,6 +137,19 @@ export const GameResultModal: React.FC<GameResultProps> = ({
 
         {/* Action Buttons */}
         <div className="space-y-2 pt-2">
+          {rawMetricsJson?.relationEvents && rawMetricsJson.relationEvents.length > 0 && (
+            <button
+              onClick={() => {
+                playSound('click');
+                setActiveDebriefEvents(rawMetricsJson.relationEvents);
+              }}
+              className="w-full py-3 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-extrabold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-sm"
+            >
+              <Brain className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span>Xem Phân Tích Quan Hệ Não Bộ ({rawMetricsJson.relationEvents.length} dữ kiện)</span>
+            </button>
+          )}
+
           <button
             onClick={handleNext}
             className="w-full py-3.5 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-extrabold rounded-2xl shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 btn-press"
