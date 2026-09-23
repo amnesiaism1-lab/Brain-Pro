@@ -1066,6 +1066,156 @@ class InfinityApiService {
 
     return shuffleArray(pool).slice(0, count);
   }
+
+  /**
+   * Generates dynamic stimulus pool for Peripheral Vision Game across all standard & infinity levels
+   */
+  public getOfflinePeripheralPool(level: number, mode: 'letters' | 'words' = 'letters'): string[] {
+    // Level 1-4: Standard Full Alphabet + Confusable letter pairs
+    if (level <= 4) {
+      if (mode === 'words') {
+        return [
+          'NÃO', 'MẮT', 'TRÍ', 'QUANG', 'SÓNG', 'ĐIỆN', 'LỰC', 'HẠT',
+          'TỐC', 'ĐỘ', 'TẬP', 'TRUNG', 'LƯỢNG', 'TỬ', 'KÝ', 'ỨC',
+          'PHẢN', 'XẠ', 'HỒI', 'TIÊU', 'ĐIỂM', 'TÂM', 'THỊ', 'GIÁC',
+          'TÂM', 'TRÍ', 'Ý', 'CHÍ', 'TƯ', 'DUY', 'THẦN', 'KINH', 'NƠRON', 'SYNAP'
+        ];
+      }
+      return [
+        'A', 'B', 'C', 'D', 'Đ', 'E', 'Ê', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'Ô', 'Ơ', 'P', 'Q', 'R', 'S', 'T', 'U', 'Ư', 'V', 'X', 'Y',
+        'B', 'D', 'P', 'Q', 'M', 'W', 'C', 'G', 'E', 'F', 'N', 'H', 'U', 'V', 'I', 'L', 'O', 'Q', 'S', 'Z'
+      ];
+    }
+
+    // Level 5-8: Single & Double Digits & Binary Sequences
+    if (level >= 5 && level <= 8) {
+      const singleDigits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+      const doubleDigits = [
+        '12', '24', '36', '48', '50', '64', '72', '81', '99', '17', '23', '37', '41', '53', '67', '79', '83', '97',
+        '10', '20', '30', '40', '50', '60', '70', '80', '90', '11', '22', '33', '44', '55', '66', '77', '88'
+      ];
+      return level <= 6 ? singleDigits : [...singleDigits, ...doubleDigits];
+    }
+
+    // Level 9-12: High-frequency Multi-domain Vietnamese Words
+    if (level >= 9 && level <= 12) {
+      return [
+        'NÃO BỘ', 'THỊ GIÁC', 'VÕNG MẠC', 'TIÊU CỰ', 'NGOẠI VI', 'PHẢN XẠ', 'NƠRON', 'SYNAP',
+        'TẬP TRUNG', 'TRÍ NHỚ', 'TIỀM THỨC', 'Ý THỨC', 'TRỰC GIÁC', 'TƯ DUY', 'SÁNG TẠO',
+        'LƯỢNG TỬ', 'THIÊN HÀ', 'QUANG PHỔ', 'HỐ ĐEN', 'VẬN TỐC', 'ÁNH SÁNG', 'TRỌNG LỰC',
+        'DẪN TRUYỀN', 'TÍNH DẺO', 'TIỂU NÃO', 'VỎ NÃO', 'HỒI HẢI MÃ', 'XUNG THẦN KINH'
+      ];
+    }
+
+    // Infinity Level 13 (∞-I): Latin Alphabet & Math Symbols
+    if (level === 13) {
+      return [
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+        'α', 'β', 'γ', 'δ', 'λ', 'π', 'Σ', 'Ω', 'Δ', 'Ψ', '∞', '≈', '≠', '±', '√', '∂'
+      ];
+    }
+
+    // Infinity Level 14 (∞-II): Multi-digit Patterns, Constants & Primes
+    if (level === 14) {
+      return [
+        '108', '256', '512', '1024', '2048', '4096', '3.14', '2.71', '1.41', '1.61', '9.81', '299K',
+        '42', '73', '89', '97', '137', '007', '111', '777', '999', '101', '010', '110', '011', '505',
+        '64', '128', '360', '720', '1440', '8080', '3000', '404', '500', '200'
+      ];
+    }
+
+    // Infinity Level 15 (∞-III): Academic English Cognitive & Science Words
+    if (level === 15) {
+      return [
+        'BRAIN', 'NEURON', 'FOCUS', 'MEMORY', 'OPTIC', 'VISION', 'LIGHT', 'QUANTUM',
+        'GALAXY', 'COGNITION', 'PULSAR', 'LOGIC', 'SYNAPSE', 'CORTEX', 'RETINA', 'SACCADE',
+        'AXON', 'DENDRITE', 'MYELIN', 'PLASTICITY', 'THALAMUS', 'DOPAMINE', 'AMYGDALA',
+        'PHOTON', 'COSMOS', 'ENTROPY', 'QUARK', 'NEBULA', 'GRAVITY', 'SPECTRUM', 'ENERGY',
+        'HEURISTIC', 'MATRIX', 'TACTILE', 'KINETIC', 'SYNAPSE', 'VECTOR', 'TENSOR'
+      ];
+    }
+
+    // Infinity Level 16 (∞-IV): Color-Shape & Optical Stimuli
+    if (level === 16) {
+      return [
+        '🔴 ĐỎ', '🔵 XANH DƯƠNG', '🟢 XANH LÁ', '🟡 VÀNG', '🟣 TÍM', '🟠 CAM', '⚪ TRẮNG', '⚫ ĐEN',
+        '🔺 TAM GIÁC', '🟦 VUÔNG', '🔵 TRÒN', '🔶 THOI', '⭐ NGÔI SAO', '💎 KIM CƯƠNG', '🪐 HÀNH TINH', '⚡ CHỚP',
+        '💠 LỤC GIÁC', '🪙 ĐỒNG XU', '🔥 NGỌN LỬA', '❄️ HOA TUYẾT', '🌸 HOA ĐÀO', '🌙 TRĂNG KHUYẾT'
+      ];
+    }
+
+    // Infinity Level 17 (∞-V): Bilingual Flash Concepts
+    if (level === 17) {
+      return BILINGUAL_WORD_PAIRS.map(b => `${b.en} (${b.vi.slice(0, 10)})`);
+    }
+
+    // Infinity Level 18 (∞-VI): Astronomy Cosmic Entities
+    if (level === 18) {
+      return ASTRONOMY_TRIADS.map(a => `${a.symbol} ${a.name.split(' ')[0]}`);
+    }
+
+    // Infinity Level 19 (∞-VII): Emoji Semantic Triads (50+ emojis)
+    if (level === 19) {
+      return [
+        '🌟', '🌙', '☀️', '⚡', '🔥', '💧', '🍀', '🚀', '🧠', '⭐',
+        '🪐', '🛸', '🌍', '👁️', '🔬', '🔭', '💡', '⚛️', '🎯', '🎨',
+        '📚', '🎼', '🏆', '💎', '🌋', '🌊', '🧬', '🤖', '💻', '🔋',
+        '📡', '🧭', '🧩', '🎲', '🏹', '🛡️', '⚔️', '🔑', '🗝️', '👑',
+        '🦄', '🦅', '🐬', '🦁', '🐯', '🐆', '🐺', '🦊', '🦉', '⚡'
+      ];
+    }
+
+    // Infinity Level 20 (∞-VIII): Chemical Periodic Elements (Symbol + Z)
+    if (level === 20) {
+      return PERIODIC_TABLE_TRIADS.map(el => `${el.symbol} (Z=${el.atomicNumber})`);
+    }
+
+    // Infinity Level 21 (∞-IX): World Geography Capitals with Flags
+    if (level === 21) {
+      return GEOGRAPHY_TRIADS.map(g => `${g.flag} ${g.capital}`);
+    }
+
+    // Infinity Level 22 (∞-X): Omni-Domain Synthesis (Random draw from all domains)
+    return [
+      ...GEOGRAPHY_TRIADS.map(g => `${g.flag} ${g.capital}`),
+      ...PERIODIC_TABLE_TRIADS.map(el => `${el.symbol} (${el.name.split(' ')[0]})`),
+      ...ASTRONOMY_TRIADS.map(a => `${a.symbol} ${a.name.split(' ')[0]}`),
+      ...BILINGUAL_WORD_PAIRS.slice(0, 35).map(b => b.en),
+      ...CURATED_DICTIONARY.slice(0, 25).map(d => d.word.toUpperCase()),
+      '108', '1024', '3.14', '299K', '🚀 ROCKET', '🧠 BRAIN', '⚛️ QUANTUM', '🧬 GENE'
+    ];
+  }
+
+  /**
+   * Fetches dynamic Datamuse words asynchronously for Peripheral Vision Game
+   */
+  public async fetchDynamicPeripheralStimuli(level: number): Promise<string[] | null> {
+    try {
+      const topics = ['neuroscience', 'optics', 'vision', 'astronomy', 'quantum', 'cognition', 'biology'];
+      const topic = topics[Math.floor(Math.random() * topics.length)];
+      const cacheKey = `be_peripheral_dm_${topic}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 5) return parsed;
+      }
+
+      const res = await fetch(`https://api.datamuse.com/words?topics=${topic}&max=30`);
+      if (!res.ok) return null;
+      const data: Array<{ word: string }> = await res.json();
+      const cleanWords = data
+        .map(d => d.word.toUpperCase().trim())
+        .filter(w => w.length >= 3 && w.length <= 8 && /^[A-Z]+$/.test(w));
+
+      if (cleanWords.length > 5) {
+        localStorage.setItem(cacheKey, JSON.stringify(cleanWords));
+        return cleanWords;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
 }
 
 export function shuffleArray<T>(array: T[]): T[] {

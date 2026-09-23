@@ -1,4 +1,5 @@
 import { IReadingText, IReadingQuestion, SAMPLE_READING_TEXTS } from '@brain-exercises/shared';
+import { shuffleArray } from './infinityApiService';
 
 export interface CuratedTopic {
   title: string;
@@ -48,7 +49,15 @@ export const THEMED_VOCABULARY: Record<string, string[]> = {
 export const PERIPHERAL_FLASH_WORDS = [
   'NÃO', 'MẮT', 'TRÍ', 'QUANG', 'SÓNG', 'ĐIỆN', 'LỰC', 'HẠT',
   'TỐC', 'ĐỘ', 'TẬP', 'TRUNG', 'LƯỢNG', 'TỬ', 'KÝ', 'ỨC',
-  'PHẢN', 'XẠ', 'HỒI', 'TIÊU', 'ĐIỂM', 'TÂM', 'THỊ', 'GIÁC'
+  'PHẢN', 'XẠ', 'HỒI', 'TIÊU', 'ĐIỂM', 'TÂM', 'THỊ', 'GIÁC',
+  'NƠRON', 'SYNAP', 'VÕNG MẠC', 'VỎ NÃO', 'TIỂU NÃO', 'TÍNH DẺO',
+  'THẦN KINH', 'TRỰC GIÁC', 'TIỀM THỨC', 'Ý THỨC', 'TƯ DUY', 'SÁNG TẠO',
+  'TRÍ NHỚ', 'TRÍ TUỆ', 'HỌC SÂU', 'THUẬT TOÁN', 'MÃ HÓA', 'ĐIỆN TOÁN',
+  'THIÊN HÀ', 'HỐ ĐEN', 'PHOTON', 'QUANG PHỔ', 'QUỸ ĐẠO', 'ÁNH SÁNG',
+  'VẬN TỐC', 'TRỌNG LỰC', 'SAO HỎA', 'SAO KIM', 'SAO MỘC', 'SAO THỔ',
+  'VŨ TRỤ', 'NGÔI SAO', 'TINH VÂN', 'SIÊU TÂN TINH', 'CHUẨN TINH', 'SAO XUNG',
+  'NĂNG LƯỢNG', 'TẦM NHÌN', 'NGOẠI VI', 'GÓC NHÌN', 'ĐỊNH TÂM', 'LƯU ẢNH',
+  'CHỚP LÓE', 'KHÁM PHÁ', 'TIÊN PHONG', 'KIÊN CƯỜNG', 'BẢN LĨNH', 'TỰ DO'
 ];
 
 export const TONAL_VOWEL_GROUPS: Array<{ base: string; tones: string[] }> = [
@@ -550,12 +559,12 @@ class ReadingContentService {
 
     // Q4: Synthesis Question
     const conclusionSentence = sentences[sentences.length - 1] || sentences[0];
-    const q4Options = [
+    const q4Options = shuffleArray([
       { text: `Làm rõ nguyên lý, tầm quan trọng và bối cảnh nghiên cứu của ${article.title}`, correct: true },
       { text: `Kêu gọi đầu tư thương mại vào các dự án bất động sản quốc tế`, correct: false },
       { text: `Hướng dẫn cài đặt hệ điều hành máy tính văn phòng`, correct: false },
       { text: `Tổng kết các giải thi đấu thể thao trong năm`, correct: false }
-    ].sort(() => 0.5 - Math.random());
+    ]);
 
     const q4CorrectLetter = ['A', 'B', 'C', 'D'][q4Options.findIndex(o => o.correct)] as 'A' | 'B' | 'C' | 'D';
 

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { EXERCISES_METADATA, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
+import { infinityApiService, shuffleArray } from '../../services/infinityApiService';
 
 export const ExerciseDetailModal: React.FC = () => {
   const { 
@@ -50,6 +51,19 @@ export const ExerciseDetailModal: React.FC = () => {
 
   const exerciseLevel = getExerciseLevel(exercise.slug);
   const currentConfig = exercise.levelConfigs.find(c => c.level === exerciseLevel) || exercise.levelConfigs[0];
+
+  // Dynamic preview pair for the Peripheral Vision Cockpit Simulation
+  const [previewPair, setPreviewPair] = useState<[string, string]>(() => {
+    const pool = infinityApiService.getOfflinePeripheralPool(exerciseLevel, stimulusMode);
+    const shuffled = shuffleArray(pool);
+    return [shuffled[0] || 'A', shuffled[1] || 'K'];
+  });
+
+  useEffect(() => {
+    const pool = infinityApiService.getOfflinePeripheralPool(exerciseLevel, stimulusMode);
+    const shuffled = shuffleArray(pool);
+    setPreviewPair([shuffled[0] || 'A', shuffled[1] || 'K']);
+  }, [exerciseLevel, stimulusMode]);
 
   const handleStartGame = () => {
     playSound('click');
@@ -128,6 +142,9 @@ export const ExerciseDetailModal: React.FC = () => {
   const triggerTestFlash = () => {
     if (isPreviewFlashing) return;
     playSound('click');
+    const pool = infinityApiService.getOfflinePeripheralPool(exerciseLevel, stimulusMode);
+    const shuffled = shuffleArray(pool);
+    setPreviewPair([shuffled[0] || 'A', shuffled[1] || 'K']);
     setIsPreviewFlashing(true);
     setTimeout(() => {
       setIsPreviewFlashing(false);
@@ -298,12 +315,12 @@ export const ExerciseDetailModal: React.FC = () => {
                     transform: 'translate(-50%, -50%)'
                   }}
                 >
-                  <div className={`font-mono font-black text-2xl sm:text-3xl transition-all ${
+                  <div className={`font-mono font-black text-xl sm:text-2xl md:text-3xl transition-all ${
                     isPreviewFlashing 
-                      ? 'text-cyan-300 opacity-100 drop-shadow-[0_0_14px_rgba(34,211,238,1)]' 
+                      ? 'text-cyan-300 opacity-100 drop-shadow-[0_0_14px_rgba(34,211,238,1)] scale-110' 
                       : 'text-cyan-500/40 opacity-40'
                   }`}>
-                    {stimulusMode === 'words' ? 'NÃO' : 'A'}
+                    {previewPair[0]}
                   </div>
                   <span className="text-[9px] font-mono text-cyan-400/70 mt-1 whitespace-nowrap">Biên Trái</span>
                 </div>
@@ -316,12 +333,12 @@ export const ExerciseDetailModal: React.FC = () => {
                     transform: 'translate(-50%, -50%)'
                   }}
                 >
-                  <div className={`font-mono font-black text-2xl sm:text-3xl transition-all ${
+                  <div className={`font-mono font-black text-xl sm:text-2xl md:text-3xl transition-all ${
                     isPreviewFlashing 
-                      ? 'text-cyan-300 opacity-100 drop-shadow-[0_0_14px_rgba(34,211,238,1)]' 
+                      ? 'text-cyan-300 opacity-100 drop-shadow-[0_0_14px_rgba(34,211,238,1)] scale-110' 
                       : 'text-cyan-500/40 opacity-40'
                   }`}>
-                    {stimulusMode === 'words' ? 'MẮT' : 'K'}
+                    {previewPair[1]}
                   </div>
                   <span className="text-[9px] font-mono text-cyan-400/70 mt-1 whitespace-nowrap">Biên Phải</span>
                 </div>
@@ -344,7 +361,17 @@ export const ExerciseDetailModal: React.FC = () => {
                 <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
                   <span className="text-[10px] text-slate-400 block">Loại kích thích</span>
                   <span className="text-sm font-black text-purple-400">
-                    {stimulusMode === 'words' ? 'Từ vựng đọc' : 'Ký tự chữ'}
+                    {exerciseLevel === 13 ? 'Ký tự Latin & Toán' :
+                     exerciseLevel === 14 ? 'Chữ số & Hằng số' :
+                     exerciseLevel === 15 ? 'Từ vựng tiếng Anh' :
+                     exerciseLevel === 16 ? 'Màu sắc & Hình khối' :
+                     exerciseLevel === 17 ? 'Khái niệm Song ngữ' :
+                     exerciseLevel === 18 ? 'Thiên thể & Vũ trụ' :
+                     exerciseLevel === 19 ? 'Biểu tượng Emoji' :
+                     exerciseLevel === 20 ? 'Bảng Tuần Hoàn' :
+                     exerciseLevel === 21 ? 'Thủ đô Địa lý' :
+                     exerciseLevel === 22 ? 'Đa Miền Vô Cực' :
+                     stimulusMode === 'words' ? 'Từ vựng đọc' : 'Ký tự chữ'}
                   </span>
                 </div>
               </div>

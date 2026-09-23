@@ -6,6 +6,7 @@ import { Search, BookOpen, Check, Target, Sparkles, RotateCcw } from 'lucide-rea
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { ReadingTextSourceModal } from '../common/ReadingTextSourceModal';
 import { readingContentService } from '../../services/readingContentService';
+import { shuffleArray } from '../../services/infinityApiService';
 
 export const TextScanningGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
@@ -43,7 +44,7 @@ export const TextScanningGame: React.FC = () => {
   // Pick target keywords from text
   const initTargets = (articleText: string) => {
     const candidates = readingContentService.extractKeywordsFromArticle(articleText, 4, 8, 20);
-    const shuffled = [...candidates].sort(() => 0.5 - Math.random());
+    const shuffled = shuffleArray(candidates);
     const selected = shuffled.slice(0, targetCount);
 
     if (selected.length < targetCount) {

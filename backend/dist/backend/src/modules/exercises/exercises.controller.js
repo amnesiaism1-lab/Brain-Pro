@@ -36,6 +36,16 @@ let ExercisesController = class ExercisesController {
             data: cleanWords
         };
     }
+    getPeripheralVisionStimuli() {
+        const textWords = this.dataStore.getReadingTexts().flatMap(t => t.content.split(/\s+/));
+        const cleanWords = Array.from(new Set(textWords
+            .map(w => w.replace(/[^a-zA-ZÀ-ỹ0-9]/g, '').toUpperCase())
+            .filter(w => w.length >= 2 && w.length <= 6)));
+        return {
+            success: true,
+            data: cleanWords
+        };
+    }
     getExerciseBySlug(slug) {
         const exercise = this.dataStore.getExerciseBySlug(slug);
         if (!exercise) {
@@ -63,6 +73,12 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], ExercisesController.prototype, "getWordSearchVocabulary", null);
+__decorate([
+    (0, common_1.Get)('peripheral-vision/stimuli'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ExercisesController.prototype, "getPeripheralVisionStimuli", null);
 __decorate([
     (0, common_1.Get)(':slug'),
     __param(0, (0, common_1.Param)('slug')),

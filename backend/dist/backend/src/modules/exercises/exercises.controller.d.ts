@@ -10,6 +10,10 @@ export declare class ExercisesController {
         success: boolean;
         data: string[];
     };
+    getPeripheralVisionStimuli(): {
+        success: boolean;
+        data: string[];
+    };
     getExerciseBySlug(slug: string): {
         success: boolean;
         message: string;

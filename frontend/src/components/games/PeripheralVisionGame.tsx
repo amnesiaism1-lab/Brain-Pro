@@ -4,13 +4,7 @@ import { GameResultModal } from './GameResultModal';
 import { Crosshair, Type, Sparkles } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { PERIPHERAL_FLASH_WORDS } from '../../services/readingContentService';
-
-const FULL_ALPHABET = ['A', 'B', 'C', 'D', 'Đ', 'E', 'G', 'H', 'K', 'L', 'M', 'N', 'O', 'P', 'R', 'S', 'T', 'U', 'V', 'X', 'Y'];
-const LATIN_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-const NUMBERS_POOL = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
-const EMOJI_POOL = ['🌟', '🌙', '☀️', '⚡', '🔥', '💧', '🍀', '🚀', '🧠', '⭐'];
-const ENGLISH_PERIPHERAL_WORDS = ['BRAIN', 'NEURON', 'FOCUS', 'MEMORY', 'OPTIC', 'VISION', 'LIGHT', 'QUANTUM', 'GALAXY', 'COGNITION', 'PULSAR', 'LOGIC'];
-const COLOR_SHAPES = ['🔴 ĐỎ', '🔵 XANH', '🟡 VÀNG', '🟢 LỤC', '🟣 TÍM', '🟠 CAM'];
+import { infinityApiService, shuffleArray } from '../../services/infinityApiService';
 
 export const PeripheralVisionGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
@@ -38,16 +32,32 @@ export const PeripheralVisionGame: React.FC = () => {
     return 'letters';
   });
 
-  const pool = useMemo(() => {
-    if (effectiveLevel === 13) return LATIN_LETTERS;
-    if (effectiveLevel === 14) return NUMBERS_POOL;
-    if (effectiveLevel === 15 || effectiveLevel === 21 || effectiveLevel === 22) return ENGLISH_PERIPHERAL_WORDS;
-    if (effectiveLevel === 16) return COLOR_SHAPES;
-    if (effectiveLevel === 19) return EMOJI_POOL;
-    return contentMode === 'words' ? PERIPHERAL_FLASH_WORDS : FULL_ALPHABET;
-  }, [contentMode, effectiveLevel]);
+  // Dynamic live API words
+  const [dynamicApiWords, setDynamicApiWords] = useState<string[]>([]);
 
-  const [pair, setPair] = useState<[string, string]>(() => ['A', 'K']);
+  useEffect(() => {
+    if (isInfinity || contentMode === 'words') {
+      infinityApiService.fetchDynamicPeripheralStimuli(effectiveLevel).then(words => {
+        if (words && words.length > 5) {
+          setDynamicApiWords(words);
+        }
+      }).catch(() => {});
+    }
+  }, [effectiveLevel, isInfinity, contentMode]);
+
+  const pool = useMemo(() => {
+    const basePool = infinityApiService.getOfflinePeripheralPool(effectiveLevel, contentMode);
+    if (dynamicApiWords.length > 0 && (effectiveLevel === 15 || effectiveLevel === 21 || effectiveLevel === 22 || contentMode === 'words')) {
+      return [...basePool, ...dynamicApiWords];
+    }
+    return basePool;
+  }, [contentMode, effectiveLevel, dynamicApiWords]);
+
+  const [pair, setPair] = useState<[string, string]>(() => {
+    const initialPool = infinityApiService.getOfflinePeripheralPool(effectiveLevel, contentMode);
+    const shuffled = shuffleArray(initialPool);
+    return [shuffled[0] || 'A', shuffled[1] || 'K'];
+  });
   const [targetSide, setTargetSide] = useState<'left' | 'right'>('left');
   const [choices, setChoices] = useState<string[]>([]);
   const [phase, setPhase] = useState<'flash' | 'guess'>('flash');
@@ -64,19 +74,17 @@ export const PeripheralVisionGame: React.FC = () => {
   }, [currentLevel]);
 
   const nextRound = useCallback(() => {
-    const c1 = pool[Math.floor(Math.random() * pool.length)];
-    let c2 = pool[Math.floor(Math.random() * pool.length)];
-    while (c2 === c1 && pool.length > 1) {
-      c2 = pool[Math.floor(Math.random() * pool.length)];
-    }
+    const shuffledPool = shuffleArray(pool);
+    const c1 = shuffledPool[0] || 'A';
+    const c2 = shuffledPool[1] || (shuffledPool[0] !== 'K' ? 'K' : 'B');
 
     const side = Math.random() < 0.5 ? 'left' : 'right';
     const targetExpected = side === 'left' ? c1 : c2;
 
-    // Pick 3 distractors from pool
+    // Pick 3 distractors from pool using Fisher-Yates
     const otherOptions = pool.filter(item => item !== targetExpected);
-    const shuffledOthers = [...otherOptions].sort(() => 0.5 - Math.random()).slice(0, 3);
-    const currentChoices = [targetExpected, ...shuffledOthers].sort(() => 0.5 - Math.random());
+    const shuffledOthers = shuffleArray(otherOptions).slice(0, 3);
+    const currentChoices = shuffleArray([targetExpected, ...shuffledOthers]);
 
     setPair([c1, c2]);
     setTargetSide(side);
