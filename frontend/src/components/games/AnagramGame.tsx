@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { RotateCcw } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { readingContentService } from '../../services/readingContentService';
 
 export const AnagramGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, enableHints, playSound } = useAppStore();
@@ -11,11 +12,17 @@ export const AnagramGame: React.FC = () => {
   const lastWordTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('anagram') || currentLevel;
   
+  const combinedDict = React.useMemo(() => {
+    const extra = readingContentService.getVocabularyList();
+    const merged = [...VIETNAMESE_WORDS_DICTIONARY, ...extra];
+    return Array.from(new Set(merged.map(w => w.toUpperCase())));
+  }, []);
+
   const wordPool = effectiveLevel <= 3 
-    ? VIETNAMESE_WORDS_DICTIONARY.filter(w => w.replace(/\s+/g, '').length <= 4)
+    ? combinedDict.filter(w => w.replace(/\s+/g, '').length <= 4)
     : effectiveLevel <= 6 
-      ? VIETNAMESE_WORDS_DICTIONARY.filter(w => w.replace(/\s+/g, '').length <= 7)
-      : VIETNAMESE_WORDS_DICTIONARY;
+      ? combinedDict.filter(w => w.replace(/\s+/g, '').length <= 7)
+      : combinedDict;
 
   const [currentIndex, setCurrentIndex] = useState(() => Math.floor(Math.random() * 100));
   const targetWord = (wordPool[currentIndex % wordPool.length] || 'TRÍ TUỆ').replace(/\s+/g, '');

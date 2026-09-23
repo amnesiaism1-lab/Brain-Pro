@@ -3,6 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { generateTwinWords, VIETNAMESE_WORDS_DICTIONARY } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { readingContentService } from '../../services/readingContentService';
 
 export const TwinWordsGame: React.FC = () => {
   const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
@@ -12,8 +13,14 @@ export const TwinWordsGame: React.FC = () => {
   const [round, setRound] = useState(1);
   const maxRounds = currentLevel >= 9 ? 12 : 10;
   
+  const combinedDict = React.useMemo(() => {
+    const extra = readingContentService.getVocabularyList();
+    const merged = [...VIETNAMESE_WORDS_DICTIONARY, ...extra];
+    return Array.from(new Set(merged.map(w => w.replace(/\s+/g, '').toUpperCase())));
+  }, []);
+
   const [pair, setPair] = useState(() => {
-    const word = VIETNAMESE_WORDS_DICTIONARY[0].replace(/\s+/g, '');
+    const word = combinedDict[0] || 'TRÍTUỆ';
     return generateTwinWords(word, true);
   });
   const [showWords, setShowWords] = useState(true);
@@ -22,7 +29,7 @@ export const TwinWordsGame: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
 
   const nextPair = () => {
-    const randWord = VIETNAMESE_WORDS_DICTIONARY[Math.floor(Math.random() * VIETNAMESE_WORDS_DICTIONARY.length)].replace(/\s+/g, '');
+    const randWord = combinedDict[Math.floor(Math.random() * combinedDict.length)];
     const shouldMatch = Math.random() < 0.5;
     setPair(generateTwinWords(randWord, shouldMatch));
     setShowWords(true);
