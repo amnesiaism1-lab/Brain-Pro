@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { IReadingText } from '@brain-exercises/shared';
 import { 
-  BookOpen, Globe, Sparkles, Check, X, Search, RefreshCw, Loader2, ArrowRight
+  BookOpen, Globe, Sparkles, Check, X, Search, RefreshCw, Loader2, ArrowRight, FileText, Send
 } from 'lucide-react';
 import { readingContentService, POPULAR_WIKIPEDIA_TOPICS } from '../../services/readingContentService';
 import { useAppStore } from '../../store/useAppStore';
@@ -20,17 +20,26 @@ export const ReadingTextSourceModal: React.FC<ReadingTextSourceModalProps> = ({
   onSelectText
 }) => {
   const { playSound } = useAppStore();
-  const [activeTab, setActiveTab] = useState<'CURATED' | 'WIKI'>('CURATED');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isLoadingWiki, setIsLoadingWiki] = useState(false);
+  const [activeTab, setActiveTab] = useState<'CURATED' | 'WIKI' | 'CUSTOM'>('CURATED');
+  const [curatedSearch, setCuratedSearch] = useState('');
+  
+  // Wiki search state
+  const [wikiQuery, setWikiQuery] = useState('');
+  const [wikiSearchResults, setWikiSearchResults] = useState<Array<{ title: string; snippet: string }>>([]);
+  const [isSearchingWiki, setIsSearchingWiki] = useState(false);
+  const [isLoadingWikiArticle, setIsLoadingWikiArticle] = useState(false);
   const [wikiStatusMsg, setWikiStatusMsg] = useState<string | null>(null);
+
+  // Custom text paste state
+  const [customTitle, setCustomTitle] = useState('');
+  const [customContent, setCustomContent] = useState('');
 
   if (!isOpen) return null;
 
   const allAvailableTexts = readingContentService.getAllTexts();
   const filteredTexts = allAvailableTexts.filter(t => 
-    t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.category.toLowerCase().includes(searchQuery.toLowerCase())
+    t.title.toLowerCase().includes(curatedSearch.toLowerCase()) ||
+    t.category.toLowerCase().includes(curatedSearch.toLowerCase())
   );
 
   const handleSelect = (text: IReadingText) => {
@@ -39,13 +48,28 @@ export const ReadingTextSourceModal: React.FC<ReadingTextSourceModalProps> = ({
     onClose();
   };
 
+  const handleSearchWiki = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!wikiQuery.trim()) return;
+    playSound('click');
+    setIsSearchingWiki(true);
+    setWikiStatusMsg(null);
+
+    const results = await readingContentService.searchWikipediaArticles(wikiQuery);
+    setIsSearchingWiki(false);
+    setWikiSearchResults(results);
+    if (results.length === 0) {
+      setWikiStatusMsg(`Không tìm thấy kết quả phù hợp cho "${wikiQuery}". Hãy thử từ khóa khác!`);
+    }
+  };
+
   const handleFetchTopic = async (topicTitle: string) => {
     playSound('click');
-    setIsLoadingWiki(true);
-    setWikiStatusMsg(`Đang tải dữ liệu "${topicTitle}" từ Wikipedia...`);
+    setIsLoadingWikiArticle(true);
+    setWikiStatusMsg(`Đang tải dữ liệu bách khoa "${topicTitle}" từ Wikipedia...`);
 
     const article = await readingContentService.fetchWikipediaArticle(topicTitle);
-    setIsLoadingWiki(false);
+    setIsLoadingWikiArticle(false);
 
     if (article) {
       playSound('correct');
@@ -54,17 +78,17 @@ export const ReadingTextSourceModal: React.FC<ReadingTextSourceModalProps> = ({
       onClose();
     } else {
       playSound('wrong');
-      setWikiStatusMsg('Không thể kết nối đến Wikipedia hoặc bài viết quá ngắn. Vui lòng thử lại!');
+      setWikiStatusMsg('Không thể trích xuất nội dung từ trang này hoặc bài viết quá ngắn. Vui lòng thử bài khác!');
     }
   };
 
   const handleFetchRandomWiki = async () => {
     playSound('click');
-    setIsLoadingWiki(true);
+    setIsLoadingWikiArticle(true);
     setWikiStatusMsg('Đang chọn ngẫu nhiên bài viết tri thức từ Wikipedia...');
 
     const article = await readingContentService.fetchRandomWikipediaArticle();
-    setIsLoadingWiki(false);
+    setIsLoadingWikiArticle(false);
 
     if (article) {
       playSound('correct');
@@ -77,9 +101,23 @@ export const ReadingTextSourceModal: React.FC<ReadingTextSourceModalProps> = ({
     }
   };
 
+  const handleCreateCustomText = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customContent.trim()) return;
+    playSound('correct');
+    const created = readingContentService.createCustomReadingText(
+      customTitle || 'Tài Liệu Tự Chọn',
+      customContent
+    );
+    onSelectText(created);
+    onClose();
+  };
+
+  const customWordsCount = customContent.trim() ? customContent.trim().split(/\s+/).length : 0;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-[#FDFBF7] dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl max-w-2xl w-full p-5 sm:p-7 shadow-2xl flex flex-col max-h-[85vh] animate-scale-up">
+      <div className="bg-[#FDFBF7] dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl max-w-2xl w-full p-5 sm:p-7 shadow-2xl flex flex-col max-h-[90vh] animate-scale-up">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-[#E6DDCE] dark:border-slate-800">
           <div className="flex items-center gap-2.5">
@@ -88,7 +126,7 @@ export const ReadingTextSourceModal: React.FC<ReadingTextSourceModalProps> = ({
             </div>
             <div>
               <h3 className="text-lg font-black text-slate-900 dark:text-white">Kho Tri Thức & Văn Bản Luyện Đọc</h3>
-              <p className="text-xs text-slate-500">Chọn chủ đề bài đọc hoặc tải tri thức mới từ Wikipedia tiếng Việt</p>
+              <p className="text-xs text-slate-500">Đa dạng hóa bài luyện từ Wikipedia Live API, bài tuyển chọn hoặc tài liệu cá nhân</p>
             </div>
           </div>
           <button
@@ -102,21 +140,21 @@ export const ReadingTextSourceModal: React.FC<ReadingTextSourceModalProps> = ({
           </button>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="grid grid-cols-2 gap-2 mt-4 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/60">
+        {/* 3 Tab Switcher */}
+        <div className="grid grid-cols-3 gap-1.5 mt-4 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/60 text-xs">
           <button
             onClick={() => {
               playSound('click');
               setActiveTab('CURATED');
             }}
-            className={`py-2 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+            className={`py-2 px-2 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'CURATED'
                 ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
             }`}
           >
-            <Sparkles className="w-4 h-4 text-amber-500" />
-            <span>Bài Tuyển Chọn ({allAvailableTexts.length})</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span className="truncate">Tuyển Chọn ({allAvailableTexts.length})</span>
           </button>
 
           <button
@@ -124,34 +162,48 @@ export const ReadingTextSourceModal: React.FC<ReadingTextSourceModalProps> = ({
               playSound('click');
               setActiveTab('WIKI');
             }}
-            className={`py-2 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+            className={`py-2 px-2 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'WIKI'
                 ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
             }`}
           >
-            <Globe className="w-4 h-4 text-blue-500" />
-            <span>Wikipedia Live API</span>
+            <Globe className="w-3.5 h-3.5 text-blue-500" />
+            <span className="truncate">Wikipedia Live API</span>
+          </button>
+
+          <button
+            onClick={() => {
+              playSound('click');
+              setActiveTab('CUSTOM');
+            }}
+            className={`py-2 px-2 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'CUSTOM'
+                ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5 text-emerald-500" />
+            <span className="truncate">Tự Nhập Văn Bản</span>
           </button>
         </div>
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto mt-4 pr-1 space-y-3">
+          {/* TAB 1: CURATED TEXTS */}
           {activeTab === 'CURATED' && (
             <>
-              {/* Search Bar */}
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Tìm theo tiêu đề hoặc lĩnh vực khoa học..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Tìm kiếm bài đọc theo tiêu đề hoặc lĩnh vực..."
+                  value={curatedSearch}
+                  onChange={e => setCuratedSearch(e.target.value)}
                   className="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
-              {/* Text Cards List */}
               <div className="space-y-2.5 pt-1">
                 {filteredTexts.map(text => {
                   const isSelected = text.id === currentText.id;
@@ -200,25 +252,78 @@ export const ReadingTextSourceModal: React.FC<ReadingTextSourceModalProps> = ({
             </>
           )}
 
+          {/* TAB 2: WIKIPEDIA LIVE API */}
           {activeTab === 'WIKI' && (
             <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-xs sm:text-sm text-blue-800 dark:text-blue-200 flex items-start gap-3">
-                <Globe className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold">Kết nối Trực tiếp Wikipedia Tiếng Việt</p>
-                  <p className="mt-1 text-xs opacity-90 leading-relaxed">
-                    Hệ thống trích xuất tự động văn bản tri thức chuẩn bách khoa từ Wikipedia, làm sạch định dạng và tối ưu số từ (200–350 từ) để phục vụ cho các bài tập luyện mắt và đọc nhanh.
-                  </p>
+              {/* Live Search Bar for Wikipedia */}
+              <form onSubmit={handleSearchWiki} className="relative flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm bất kỳ chủ đề tri thức nào trên Wikipedia..."
+                    value={wikiQuery}
+                    onChange={e => setWikiQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
                 </div>
-              </div>
+                <button
+                  type="submit"
+                  disabled={isSearchingWiki || !wikiQuery.trim()}
+                  className="px-4 py-2.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-all disabled:opacity-50"
+                >
+                  {isSearchingWiki ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  <span>Tìm</span>
+                </button>
+              </form>
+
+              {/* Status or loading message */}
+              {wikiStatusMsg && (
+                <p className="text-xs text-center font-bold text-brand-600 dark:text-brand-400 animate-pulse bg-brand-50 dark:bg-brand-950/40 p-2.5 rounded-xl">
+                  {wikiStatusMsg}
+                </p>
+              )}
+
+              {/* Search Results list if available */}
+              {wikiSearchResults.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Kết quả tìm kiếm trên Wikipedia ({wikiSearchResults.length})
+                  </p>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {wikiSearchResults.map((res, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => handleFetchTopic(res.title)}
+                        className="p-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-brand-500 hover:shadow-md cursor-pointer transition-all flex items-center justify-between gap-3 group"
+                      >
+                        <div className="flex-1">
+                          <h5 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white group-hover:text-brand-600">
+                            {res.title}
+                          </h5>
+                          <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                            {res.snippet}
+                          </p>
+                        </div>
+                        <button
+                          disabled={isLoadingWikiArticle}
+                          className="px-3 py-1.5 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 text-xs font-bold shrink-0 group-hover:bg-brand-600 group-hover:text-white transition-all"
+                        >
+                          Tải bài này
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Random Wiki Button */}
               <button
-                disabled={isLoadingWiki}
+                disabled={isLoadingWikiArticle}
                 onClick={handleFetchRandomWiki}
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white font-black text-xs sm:text-sm shadow-lg shadow-brand-600/25 flex items-center justify-center gap-2 btn-press disabled:opacity-50"
               >
-                {isLoadingWiki ? (
+                {isLoadingWikiArticle ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Đang kết nối Wikipedia...</span>
@@ -226,27 +331,21 @@ export const ReadingTextSourceModal: React.FC<ReadingTextSourceModalProps> = ({
                 ) : (
                   <>
                     <RefreshCw className="w-4 h-4" />
-                    <span>Tải Ngẫu Nhiên Bài Tri Thức Mới</span>
+                    <span>Tải Ngẫu Nhiên Bài Tri Thức Mới (Không giới hạn)</span>
                   </>
                 )}
               </button>
 
-              {wikiStatusMsg && (
-                <p className="text-xs text-center font-bold text-brand-600 dark:text-brand-400 animate-pulse">
-                  {wikiStatusMsg}
-                </p>
-              )}
-
-              {/* Popular Topics Grid */}
+              {/* Popular Curated Topics Grid */}
               <div>
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">
-                  Chủ Đề Bách Khoa Đề Xuất
+                  Chủ Đề Bách Khoa Khuyên Dùng
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {POPULAR_WIKIPEDIA_TOPICS.map((topic, i) => (
                     <button
                       key={i}
-                      disabled={isLoadingWiki}
+                      disabled={isLoadingWikiArticle}
                       onClick={() => handleFetchTopic(topic.title)}
                       className="p-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-brand-500 hover:shadow-md text-left transition-all group btn-press disabled:opacity-50"
                     >
@@ -264,6 +363,61 @@ export const ReadingTextSourceModal: React.FC<ReadingTextSourceModalProps> = ({
                 </div>
               </div>
             </div>
+          )}
+
+          {/* TAB 3: CUSTOM TEXT PASTE */}
+          {activeTab === 'CUSTOM' && (
+            <form onSubmit={handleCreateCustomText} className="space-y-3.5">
+              <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-xs text-emerald-800 dark:text-emerald-200">
+                <p className="font-bold flex items-center gap-1.5">
+                  <FileText className="w-4 h-4" /> Luyện tập với tài liệu riêng của bạn
+                </p>
+                <p className="mt-1 text-[11px] opacity-90 leading-relaxed">
+                  Dán bất kỳ đoạn văn bản, bài báo, tài liệu học tập hoặc báo cáo công việc vào đây. Hệ thống sẽ tự động phân tích và tạo bài tập đọc nhanh & trắc nghiệm hiểu cho văn bản của bạn.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Tiêu đề tài liệu
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: Báo cáo công việc tuần, Chương 1 Sách Lược Sử Loài Người..."
+                  value={customTitle}
+                  onChange={e => setCustomTitle(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Nội dung văn bản
+                  </label>
+                  <span className="text-[11px] font-semibold text-slate-400">
+                    {customWordsCount} từ
+                  </span>
+                </div>
+                <textarea
+                  rows={6}
+                  required
+                  placeholder="Dán nội dung văn bản tiếng Việt vào đây (khuyến nghị từ 100 đến 500 từ để luyện tập hiệu quả nhất)..."
+                  value={customContent}
+                  onChange={e => setCustomContent(e.target.value)}
+                  className="w-full p-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 leading-relaxed font-sans"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={!customContent.trim()}
+                className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 btn-press disabled:opacity-50 transition-all"
+              >
+                <Send className="w-4 h-4" />
+                <span>Bắt Đầu Luyện Với Văn Bản Này</span>
+              </button>
+            </form>
           )}
         </div>
       </div>

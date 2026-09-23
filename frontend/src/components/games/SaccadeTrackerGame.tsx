@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
-import { Eye, Zap } from 'lucide-react';
+import { Eye, Zap, RotateCcw } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 
-const DISTRACTOR_SYMBOLS = ['A', 'B', 'C', 'D', 'E', 'G', 'H', 'K', 'M', 'P', 'R', 'S', 'T'];
-const TARGET_SYMBOL = 'X';
+const TARGET_CANDIDATES = ['X', '★', '◆', '▲', '✦', 'Ω', '⚡', 'Z', '7', 'Đ'];
+const ALL_DISTRACTOR_SYMBOLS = ['A', 'B', 'C', 'D', 'E', 'G', 'H', 'K', 'M', 'P', 'R', 'S', 'T', 'O', 'V', 'N', 'Y'];
 
 export const SaccadeTrackerGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
@@ -32,6 +32,15 @@ export const SaccadeTrackerGame: React.FC = () => {
     }
   }, [effectiveLevel]);
 
+  // Dynamic target symbol per session
+  const [targetSymbol, setTargetSymbol] = useState<string>(() => 
+    TARGET_CANDIDATES[Math.floor(Math.random() * TARGET_CANDIDATES.length)]
+  );
+
+  const distractors = useMemo(() => {
+    return ALL_DISTRACTOR_SYMBOLS.filter(s => s !== targetSymbol);
+  }, [targetSymbol]);
+
   const [position, setPosition] = useState({ x: 50, y: 50 });
   const [currentSymbol, setCurrentSymbol] = useState('A');
   const [isTarget, setIsTarget] = useState(false);
@@ -48,15 +57,14 @@ export const SaccadeTrackerGame: React.FC = () => {
 
   // Jump loop
   const jumpTarget = useCallback(() => {
-    // Generate new random position (keeping 10% margin from edges)
     const newX = 10 + Math.random() * 80;
     const newY = 10 + Math.random() * 80;
 
-    // 25% chance of being the target 'X'
+    // 25% chance of being the target
     const isTargetNow = Math.random() < 0.25;
     const symbol = isTargetNow 
-      ? TARGET_SYMBOL 
-      : DISTRACTOR_SYMBOLS[Math.floor(Math.random() * DISTRACTOR_SYMBOLS.length)];
+      ? targetSymbol 
+      : distractors[Math.floor(Math.random() * distractors.length)];
 
     setPosition({ x: newX, y: newY });
     setCurrentSymbol(symbol);
@@ -65,7 +73,7 @@ export const SaccadeTrackerGame: React.FC = () => {
     if (isTargetNow) {
       setTargetAppearanceTime(Date.now());
     }
-  }, []);
+  }, [targetSymbol, distractors]);
 
   useEffect(() => {
     jumpTarget();
@@ -86,57 +94,58 @@ export const SaccadeTrackerGame: React.FC = () => {
         return t - 1;
       });
     }, 1000);
-
     return () => clearInterval(timer);
   }, [isFinished]);
 
+  // Handle user reaction (clicking arena or pressing button)
   const handleReaction = useCallback(() => {
     if (isFinished) return;
+    const now = Date.now();
 
     if (isTarget) {
-      // Hit!
-      const rt = Date.now() - targetAppearanceTime;
+      // Hit
       playSound('correct');
-      const nextCombo = combo + 1;
-      setCombo(nextCombo);
-      setHitsCount(h => h + 1);
+      const rt = now - targetAppearanceTime;
       setReactionTimes(prev => [...prev, rt]);
-      
+      setHitsCount(h => h + 1);
+      const newCombo = combo + 1;
+      setCombo(newCombo);
+      setScore(s => s + Math.max(10, Math.round((1000 - rt) / 5)) + (newCombo * 10));
+
       emitTrialEvent({
         exerciseSlug: 'saccade-tracker',
         level: effectiveLevel,
         relationId: 'TARGET_POSITION',
         relationWeight: 1.0,
-        entities: { target: TARGET_SYMBOL, position: `${Math.round(position.x)}%,${Math.round(position.y)}%`, rt },
-        stateBefore: `hits:${hitsCount}`,
-        stateAfter: `hits:${hitsCount + 1}`,
+        entities: { targetSymbol, currentSymbol, reactionMs: rt, combo: newCombo },
+        stateBefore: 'target_appeared',
+        stateAfter: 'target_intercepted',
         responseMs: rt,
         correct: true
       });
 
-      const speedBonus = Math.max(10, Math.round((jumpIntervalMs - rt) / 5));
-      const addedScore = 100 + speedBonus + (nextCombo * 15);
-      setScore(s => s + addedScore);
-      setIsTarget(false); // consume target
+      // Instantly jump to prevent double hit
+      jumpTarget();
     } else {
-      // False alarm
+      // False Alarm
       playSound('wrong');
-      setCombo(0);
       setFalseAlarms(f => f + 1);
+      setCombo(0);
+      setScore(s => Math.max(0, s - 30));
 
       emitTrialEvent({
         exerciseSlug: 'saccade-tracker',
         level: effectiveLevel,
-        relationId: 'INHIBITION',
+        relationId: 'TARGET_POSITION',
         relationWeight: 1.0,
-        entities: { distractor: currentSymbol, position: `${Math.round(position.x)}%,${Math.round(position.y)}%` },
-        stateBefore: `falseAlarms:${falseAlarms}`,
-        stateAfter: `falseAlarms:${falseAlarms + 1}`,
-        responseMs: jumpIntervalMs,
+        entities: { targetSymbol, distractorClicked: currentSymbol },
+        stateBefore: 'distractor_present',
+        stateAfter: 'false_alarm',
+        responseMs: 100,
         correct: false
       });
     }
-  }, [isFinished, isTarget, targetAppearanceTime, playSound, combo, jumpIntervalMs, effectiveLevel, hitsCount, falseAlarms, currentSymbol, position, emitTrialEvent]);
+  }, [isFinished, isTarget, playSound, targetAppearanceTime, combo, emitTrialEvent, effectiveLevel, targetSymbol, currentSymbol, jumpTarget]);
 
   // Keyboard shortcut: Spacebar to react
   useEffect(() => {
@@ -157,28 +166,50 @@ export const SaccadeTrackerGame: React.FC = () => {
   const totalActions = hitsCount + falseAlarms;
   const accuracyRate = totalActions > 0 ? Math.round((hitsCount / totalActions) * 100) : 100;
 
+  const handleNewTarget = () => {
+    playSound('click');
+    const available = TARGET_CANDIDATES.filter(t => t !== targetSymbol);
+    const nextTarget = available[Math.floor(Math.random() * available.length)];
+    setTargetSymbol(nextTarget);
+  };
+
   return (
     <div className="w-full max-w-2xl sm:max-w-3xl md:max-w-4xl lg:max-w-5xl mx-auto px-3 sm:px-6 py-4 space-y-5 sm:space-y-6 animate-fade-in pb-24">
       {/* Top HUD */}
-      <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md">
-        <div>
-          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Điểm số (Chuỗi: x{combo})</span>
-          <div className="text-2xl sm:text-3xl font-black text-brand-600 dark:text-brand-400 mt-0.5">
-            {score}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-rose-500 text-white font-black text-2xl flex items-center justify-center shadow-lg shadow-rose-500/30">
+            {targetSymbol}
+          </div>
+          <div>
+            <span className="text-xs sm:text-sm text-slate-500 font-semibold block">Mục tiêu bắt buộc</span>
+            <span className="text-sm sm:text-base font-black text-rose-600 dark:text-rose-400">
+              Ký tự "{targetSymbol}"
+            </span>
           </div>
         </div>
 
-        <div className="text-center">
-          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Phản xạ TB</span>
-          <div className="text-xl sm:text-2xl font-mono font-black text-brand-600 dark:text-brand-400 mt-0.5">
-            {avgReactionTime ? `${avgReactionTime}ms` : '--'}
-          </div>
-        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleNewTarget}
+            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 transition-all btn-press"
+            title="Đổi ký tự mục tiêu ngẫu nhiên"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
 
-        <div className="text-right">
-          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Thời gian</span>
-          <div className={`text-2xl sm:text-3xl font-black mt-0.5 ${timeLeft <= 5 ? 'text-rose-500 animate-pulse' : 'text-amber-500'}`}>
-            {timeLeft}s
+          <div className="text-center">
+            <span className="text-xs sm:text-sm text-slate-500 font-semibold">Phản xạ TB</span>
+            <div className="text-xl sm:text-2xl font-mono font-black text-brand-600 dark:text-brand-400 mt-0.5">
+              {avgReactionTime ? `${avgReactionTime}ms` : '--'}
+            </div>
+          </div>
+
+          <div className="text-right">
+            <span className="text-xs sm:text-sm text-slate-500 font-semibold">Thời gian</span>
+            <div className={`text-2xl sm:text-3xl font-black mt-0.5 ${timeLeft <= 5 ? 'text-rose-500 animate-pulse' : 'text-amber-500'}`}>
+              {timeLeft}s
+            </div>
           </div>
         </div>
       </div>
@@ -186,7 +217,7 @@ export const SaccadeTrackerGame: React.FC = () => {
       {/* Instruction Tip */}
       <div className="text-center text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium flex items-center justify-center gap-2">
         <Eye className="w-5 h-5 text-brand-500" />
-        <span>Di chuyển mắt theo mục tiêu. Bấm phản xạ ngay khi thấy chữ <strong>"X"</strong>!</span>
+        <span>Di chuyển mắt theo mục tiêu. Bấm phản xạ ngay khi thấy ký tự <strong className="text-rose-600 font-black">"{targetSymbol}"</strong>!</span>
       </div>
 
       {/* Ocular Tracking Arena */}
@@ -225,7 +256,7 @@ export const SaccadeTrackerGame: React.FC = () => {
         className="w-full py-5 sm:py-6 rounded-3xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 active:scale-95 text-white font-black text-xl sm:text-2xl shadow-xl shadow-rose-500/30 flex items-center justify-center gap-3 transition-transform btn-press"
       >
         <Zap className="w-7 h-7 animate-bounce" />
-        <span>BẤM KHI THẤY "X" (Phím Cách)</span>
+        <span>BẤM KHI THẤY "{targetSymbol}" (Phím Cách)</span>
       </button>
 
       {isFinished && (
@@ -243,6 +274,7 @@ export const SaccadeTrackerGame: React.FC = () => {
             setReactionTimes([]);
             setTimeLeft(35);
             setIsFinished(false);
+            handleNewTarget();
           }}
           onClose={() => setActiveGameSlug(null)}
         />

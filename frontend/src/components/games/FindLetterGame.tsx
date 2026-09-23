@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { calculateGameScore } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { readingContentService } from '../../services/readingContentService';
+import { RotateCcw, Sparkles } from 'lucide-react';
 
 export const FindLetterGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
@@ -10,13 +12,15 @@ export const FindLetterGame: React.FC = () => {
   const lastClickRef = React.useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('find-letter') || currentLevel;
 
-  const isCaseSensitive = effectiveLevel >= 9;
   const gridSize = effectiveLevel <= 2 ? 5 : effectiveLevel <= 5 ? 6 : effectiveLevel <= 8 ? 7 : 8;
-  const targetLetter = isCaseSensitive ? 'ả' : 'A';
-  const distractors = isCaseSensitive 
-    ? ['a', 'á', 'à', 'ã', 'ạ', 'A', 'Á', 'À', 'Ả']
-    : ['B', 'P', 'R', 'E', '4', '8'];
   const targetCount = effectiveLevel <= 2 ? 3 : effectiveLevel <= 5 ? 4 : effectiveLevel <= 8 ? 5 : 7;
+
+  // Challenge mode: 'all' | 'vowel_tones' | 'confusable'
+  const [challengeMode, setChallengeMode] = useState<'all' | 'vowel_tones' | 'confusable'>('all');
+  
+  const [challenge, setChallenge] = useState(() => 
+    readingContentService.getRandomLetterChallenge(challengeMode)
+  );
 
   const [grid, setGrid] = useState<Array<{ id: number; char: string; isTarget: boolean; found: boolean }>>([]);
   const [foundCount, setFoundCount] = useState(0);
@@ -24,7 +28,7 @@ export const FindLetterGame: React.FC = () => {
   const [missCount, setMissCount] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
 
-  const initGrid = () => {
+  const initGridWithChallenge = useCallback((currentChallenge: typeof challenge) => {
     const totalCells = gridSize * gridSize;
     const items: Array<{ id: number; char: string; isTarget: boolean; found: boolean }> = [];
     
@@ -34,11 +38,13 @@ export const FindLetterGame: React.FC = () => {
       targetIndices.add(Math.floor(Math.random() * totalCells));
     }
 
+    const { target, distractors } = currentChallenge;
+
     for (let i = 0; i < totalCells; i++) {
       const isTarget = targetIndices.has(i);
       items.push({
         id: i,
-        char: isTarget ? targetLetter : distractors[Math.floor(Math.random() * distractors.length)],
+        char: isTarget ? target : distractors[Math.floor(Math.random() * distractors.length)],
         isTarget,
         found: false
       });
@@ -48,13 +54,20 @@ export const FindLetterGame: React.FC = () => {
     setMissCount(0);
     setElapsedSec(0);
     setIsFinished(false);
+  }, [gridSize, targetCount]);
+
+  const handleNewChallenge = (mode = challengeMode) => {
+    playSound('click');
+    const nextChallenge = readingContentService.getRandomLetterChallenge(mode);
+    setChallenge(nextChallenge);
+    initGridWithChallenge(nextChallenge);
   };
 
   useEffect(() => {
-    initGrid();
+    initGridWithChallenge(challenge);
     const timer = setInterval(() => setElapsedSec(s => s + 1), 1000);
     return () => clearInterval(timer);
-  }, [currentLevel, gridSize]);
+  }, [currentLevel, gridSize, challenge, initGridWithChallenge]);
 
   const handleCellClick = (cellId: number) => {
     const cell = grid.find(c => c.id === cellId);
@@ -71,8 +84,9 @@ export const FindLetterGame: React.FC = () => {
       relationId: 'TARGET_DISTRACTOR',
       relationWeight: 1.0,
       entities: {
-        target: targetLetter,
+        target: challenge.target,
         distractor: !isCorrect ? cell.char : undefined,
+        challengeType: challenge.type,
         position: String(cellId)
       },
       stateBefore: 'scanning_matrix',
@@ -108,30 +122,71 @@ export const FindLetterGame: React.FC = () => {
   });
 
   return (
-    <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-3xl mx-auto px-4 py-4 space-y-6 animate-fade-in pb-24">
+    <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-3xl mx-auto px-4 py-4 space-y-5 animate-fade-in pb-24">
       {/* Top HUD */}
-      <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="flex items-center gap-3 sm:gap-4">
           <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-brand-600 text-white font-black text-2xl sm:text-3xl flex items-center justify-center shadow-lg shadow-brand-600/30">
-            {targetLetter}
+            {challenge.target}
           </div>
           <div>
-            <span className="text-xs sm:text-sm text-slate-500 font-medium">Mục tiêu cần tìm</span>
-            <div className="text-sm sm:text-base font-bold text-slate-800 dark:text-white">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400">
+                {challenge.type}
+              </span>
+            </div>
+            <div className="text-sm sm:text-base font-bold text-slate-800 dark:text-white mt-1">
               Đã tìm: <strong className="text-brand-600 text-base sm:text-lg">{foundCount} / {targetCount}</strong>
             </div>
           </div>
         </div>
-        <div className="text-right">
-          <span className="text-xs sm:text-sm text-slate-500 font-medium">Thời gian</span>
-          <div className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white">
-            {elapsedSec}s
+
+        {/* Change Challenge Button */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => handleNewChallenge()}
+            className="px-3 py-2 rounded-2xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all btn-press"
+            title="Đổi bộ ký tự ngẫu nhiên khác"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Đổi ký tự</span>
+          </button>
+
+          <div className="text-right">
+            <span className="text-xs sm:text-sm text-slate-500 font-medium">Thời gian</span>
+            <div className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white">
+              {elapsedSec}s
+            </div>
           </div>
         </div>
       </div>
 
+      {/* Challenge Mode Pill Filter */}
+      <div className="flex items-center justify-center gap-2">
+        {[
+          { id: 'all', label: 'Ngẫu nhiên tất cả' },
+          { id: 'vowel_tones', label: 'Dấu thanh Tiếng Việt' },
+          { id: 'confusable', label: 'Ký tự dễ nhầm lẫn' }
+        ].map(m => (
+          <button
+            key={m.id}
+            onClick={() => {
+              setChallengeMode(m.id as any);
+              handleNewChallenge(m.id as any);
+            }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              challengeMode === m.id
+                ? 'bg-brand-600 text-white shadow-sm'
+                : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-brand-400'
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
       <p className="text-xs sm:text-sm text-center text-slate-600 dark:text-slate-400 font-medium">
-        Quét nhanh qua ma trận ký tự và nhấp vào tất cả chữ <strong>"{targetLetter}"</strong>!
+        Quét nhanh qua ma trận ký tự và nhấp vào tất cả chữ <strong>"{challenge.target}"</strong> ({challenge.description})!
       </p>
 
       {/* Grid */}
@@ -162,7 +217,7 @@ export const FindLetterGame: React.FC = () => {
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();
-            initGrid();
+            handleNewChallenge();
           }}
           onClose={() => setActiveGameSlug(null)}
         />

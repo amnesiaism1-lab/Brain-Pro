@@ -39,7 +39,12 @@ export const TextScanningGame: React.FC = () => {
     const selected = shuffled.slice(0, targetCount);
 
     if (selected.length < targetCount) {
-      selected.push('thần kinh');
+      const vocab = readingContentService.getVocabularyList();
+      for (const v of vocab) {
+        if (!selected.includes(v.toLowerCase()) && selected.length < targetCount) {
+          selected.push(v.toLowerCase());
+        }
+      }
     }
 
     setTargetWords(selected);

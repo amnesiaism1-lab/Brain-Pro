@@ -4,19 +4,28 @@ import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { RotateCcw } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
-import { readingContentService } from '../../services/readingContentService';
+import { readingContentService, THEMED_VOCABULARY } from '../../services/readingContentService';
 
 export const AnagramGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, enableHints, playSound } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const lastWordTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('anagram') || currentLevel;
+
+  const themes = ['Tất cả', 'Khoa Học Não Bộ', 'Công Nghệ & AI', 'Thiên Văn & Vũ Trụ', 'Tâm Lý & Tư Duy'];
+  const [selectedTheme, setSelectedTheme] = useState<string>('Tất cả');
   
   const combinedDict = React.useMemo(() => {
-    const extra = readingContentService.getVocabularyList();
-    const merged = [...VIETNAMESE_WORDS_DICTIONARY, ...extra];
-    return Array.from(new Set(merged.map(w => w.toUpperCase())));
-  }, []);
+    let extra: string[] = [];
+    if (selectedTheme !== 'Tất cả' && THEMED_VOCABULARY[selectedTheme]) {
+      extra = THEMED_VOCABULARY[selectedTheme];
+    } else {
+      extra = readingContentService.getVocabularyList();
+    }
+    const merged = selectedTheme === 'Tất cả' ? [...VIETNAMESE_WORDS_DICTIONARY, ...extra] : extra;
+    const sanitized = Array.from(new Set(merged.map(w => w.toUpperCase())));
+    return sanitized.length > 0 ? sanitized : ['TRÍ TUỆ', 'NÃO BỘ', 'TƯ DUY', 'KÝ ỨC'];
+  }, [selectedTheme]);
 
   const wordPool = effectiveLevel <= 3 
     ? combinedDict.filter(w => w.replace(/\s+/g, '').length <= 4)
@@ -25,7 +34,8 @@ export const AnagramGame: React.FC = () => {
       : combinedDict;
 
   const [currentIndex, setCurrentIndex] = useState(() => Math.floor(Math.random() * 100));
-  const targetWord = (wordPool[currentIndex % wordPool.length] || 'TRÍ TUỆ').replace(/\s+/g, '');
+  const activeWordPool = wordPool.length > 0 ? wordPool : combinedDict;
+  const targetWord = (activeWordPool[currentIndex % activeWordPool.length] || 'TRÍ TUỆ').replace(/\s+/g, '');
   const [selectedLetters, setSelectedLetters] = useState<string[]>([]);
   const [availableTiles, setAvailableTiles] = useState<Array<{ id: number; char: string; used: boolean }>>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -68,7 +78,11 @@ export const AnagramGame: React.FC = () => {
         level: effectiveLevel,
         relationId: 'PART_WHOLE',
         relationWeight: 1.0,
-        entities: { target: targetWord, formed: formedWord },
+        entities: {
+          target: targetWord,
+          formed: formedWord,
+          theme: selectedTheme
+        },
         stateBefore: `round:${round}`,
         stateAfter: isCorrect ? `round:${round + 1}` : `round:${round}`,
         responseMs: respMs,
@@ -77,7 +91,7 @@ export const AnagramGame: React.FC = () => {
 
       if (isCorrect) {
         playSound('correct');
-        setScoreAcc(s => s + 150 * currentLevel);
+        setScoreAcc(s => s + 100 * effectiveLevel);
         if (round >= maxRounds) {
           setIsFinished(true);
         } else {
@@ -86,52 +100,44 @@ export const AnagramGame: React.FC = () => {
         }
       } else {
         playSound('wrong');
-        // Reset current selection after slight delay
+        // Reset after short flash
         setTimeout(() => {
-          setSelectedLetters([]);
-          setAvailableTiles(prev => prev.map(t => ({ ...t, used: false })));
-        }, 350);
+          setupRound(targetWord);
+        }, 600);
       }
     }
   };
 
   const handleUndo = () => {
     playSound('click');
-    setSelectedLetters([]);
-    setAvailableTiles(prev => prev.map(t => ({ ...t, used: false })));
+    setupRound(targetWord);
   };
 
+  // Keyboard support: Type letters directly
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isFinished) return;
       if (e.key === 'Backspace') {
-        // remove last letter
-        if (selectedLetters.length > 0) {
-          const lastChar = selectedLetters[selectedLetters.length - 1];
-          const updatedSelected = selectedLetters.slice(0, -1);
-          setSelectedLetters(updatedSelected);
-          // find last used tile with this char
-          const lastIndex = availableTiles.map((t, idx) => ({ ...t, idx }))
-            .filter(t => t.used && t.char.toLowerCase() === lastChar.toLowerCase())
-            .pop();
-          if (lastIndex) {
-            setAvailableTiles(prev => prev.map((t, i) => i === lastIndex.idx ? { ...t, used: false } : t));
-          }
-        }
-      } else if (e.key.length === 1 && /[a-zA-Zà-ỹÀ-Ỹ]/i.test(e.key)) {
-        // match an unused tile
-        const targetTile = availableTiles.find(t => !t.used && t.char.toLowerCase() === e.key.toLowerCase());
-        if (targetTile) {
-          handleTileClick(targetTile.id, targetTile.char);
-        }
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      const keyChar = e.key.toUpperCase();
+      // Find first unused tile matching this character
+      const matchTile = availableTiles.find(t => !t.used && t.char === keyChar);
+      if (matchTile) {
+        e.preventDefault();
+        handleTileClick(matchTile.id, matchTile.char);
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [availableTiles, selectedLetters, isFinished, targetWord]);
 
   return (
-    <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl mx-auto px-4 py-4 space-y-8 animate-fade-in pb-24">
+    <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl mx-auto px-4 py-4 space-y-6 animate-fade-in pb-24">
       {/* HUD */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div>
@@ -140,6 +146,28 @@ export const AnagramGame: React.FC = () => {
             {round} / {maxRounds}
           </div>
         </div>
+
+        {/* Theme Pills */}
+        <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto max-w-md">
+          {themes.map(t => (
+            <button
+              key={t}
+              onClick={() => {
+                playSound('click');
+                setSelectedTheme(t);
+                setCurrentIndex(i => i + 1);
+              }}
+              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                selectedTheme === t
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
         <div className="text-right">
           <span className="text-xs sm:text-sm text-slate-500 font-medium">Thời gian</span>
           <div className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white">
@@ -205,7 +233,7 @@ export const AnagramGame: React.FC = () => {
           onRestart={() => {
             resetSession();
             setRound(1);
-            setCurrentIndex(0);
+            setCurrentIndex(i => i + 1);
             setElapsedSec(0);
             setScoreAcc(0);
             setIsFinished(false);

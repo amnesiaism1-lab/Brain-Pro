@@ -29,6 +29,9 @@ interface GorbovCell {
   color: 'red' | 'black';
 }
 
+const VI_ALPHABET = ['A', 'Ă', 'Â', 'B', 'C', 'D', 'Đ', 'E', 'Ê', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'Ô', 'Ơ', 'P', 'Q', 'R', 'S', 'T', 'U', 'Ư', 'V', 'X', 'Y'];
+const LATIN_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
 export const SchulteTableGame: React.FC = () => {
   const { 
     currentLevel, 
@@ -79,6 +82,8 @@ export const SchulteTableGame: React.FC = () => {
   
   // Target tracking
   const [currentTarget, setCurrentTarget] = useState<number>(1);
+  const [alphabetType, setAlphabetType] = useState<'vi' | 'latin'>('vi');
+  const [alphabetIndex, setAlphabetIndex] = useState<number>(0);
   const [currentLetterTarget, setCurrentLetterTarget] = useState<string>('A');
   const [gorbovTarget, setGorbovTarget] = useState<{ color: 'red' | 'black'; num: number }>({ color: 'red', num: 1 });
   
@@ -106,9 +111,12 @@ export const SchulteTableGame: React.FC = () => {
   // Calculate total items
   const totalItems = useMemo(() => {
     if (mode === 'gorbov') return 49;
-    if (mode === 'alphabet') return Math.min(26, gridSize * gridSize);
+    if (mode === 'alphabet') {
+      const activeAlpha = alphabetType === 'vi' ? VI_ALPHABET : LATIN_ALPHABET;
+      return Math.min(activeAlpha.length, gridSize * gridSize);
+    }
     return gridSize * gridSize;
-  }, [mode, gridSize]);
+  }, [mode, gridSize, alphabetType]);
 
   // Items remaining & found count
   const currentFoundCount = useMemo(() => {
@@ -177,7 +185,9 @@ export const SchulteTableGame: React.FC = () => {
       setGorbovGrid(grid);
       setGorbovTarget({ color: 'red', num: 1 });
     } else if (mode === 'alphabet') {
-      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.slice(0, Math.min(26, gridSize * gridSize)).split('');
+      const activeAlphabet = alphabetType === 'vi' ? VI_ALPHABET : LATIN_ALPHABET;
+      const totalAvail = Math.min(activeAlphabet.length, gridSize * gridSize);
+      const letters = [...activeAlphabet.slice(0, totalAvail)];
       for (let i = letters.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [letters[i], letters[j]] = [letters[j], letters[i]];
@@ -187,7 +197,8 @@ export const SchulteTableGame: React.FC = () => {
         grid.push(letters.slice(r * gridSize, (r + 1) * gridSize));
       }
       setAlphabetLetters(grid);
-      setCurrentLetterTarget('A');
+      setAlphabetIndex(0);
+      setCurrentLetterTarget(activeAlphabet[0]);
     } else {
       // Standard / Reverse / Fading / Rotating
       const gen = generateSchulteGrid(gridSize, mode === 'reverse');
@@ -216,7 +227,7 @@ export const SchulteTableGame: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [mode, gridSize]);
+  }, [mode, gridSize, alphabetType]);
 
   // Handle completion
   const handleGameFinish = () => {
@@ -316,7 +327,10 @@ export const SchulteTableGame: React.FC = () => {
   const handleAlphabetCellClick = (letter: string, key: string) => {
     if (isFinished || foundKeys.has(key)) return;
 
-    if (letter === currentLetterTarget) {
+    const activeAlphabet = alphabetType === 'vi' ? VI_ALPHABET : LATIN_ALPHABET;
+    const totalAvail = Math.min(activeAlphabet.length, gridSize * gridSize);
+
+    if (letter === activeAlphabet[alphabetIndex]) {
       playSound('click');
       triggerCellEffect(key, 'correct');
       setFoundKeys(prev => new Set([...prev, key]));
@@ -325,14 +339,12 @@ export const SchulteTableGame: React.FC = () => {
       setCurrentStreak(newStreak);
       if (newStreak > bestStreak) setBestStreak(newStreak);
 
-      const nextCharCode = currentLetterTarget.charCodeAt(0) + 1;
-      const targetLettersLength = Math.min(26, gridSize * gridSize);
-      const lastCharCode = 65 + targetLettersLength - 1;
-
-      if (nextCharCode > lastCharCode) {
+      const nextIndex = alphabetIndex + 1;
+      if (nextIndex >= totalAvail) {
         handleGameFinish();
       } else {
-        setCurrentLetterTarget(String.fromCharCode(nextCharCode));
+        setAlphabetIndex(nextIndex);
+        setCurrentLetterTarget(activeAlphabet[nextIndex]);
       }
     } else {
       playSound('wrong');
@@ -494,6 +506,32 @@ export const SchulteTableGame: React.FC = () => {
 
           {/* Quick Config Toggles */}
           <div className="flex items-center gap-2 ml-auto">
+            {/* Alphabet Type selector when in alphabet mode */}
+            {mode === 'alphabet' && (
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold">
+                <button
+                  onClick={() => setAlphabetType('vi')}
+                  className={`px-2 py-1 rounded-lg transition-all ${
+                    alphabetType === 'vi'
+                      ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Tiếng Việt
+                </button>
+                <button
+                  onClick={() => setAlphabetType('latin')}
+                  className={`px-2 py-1 rounded-lg transition-all ${
+                    alphabetType === 'latin'
+                      ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Latin
+                </button>
+              </div>
+            )}
+
             {/* Grid Size selector if not Gorbov */}
             {mode !== 'gorbov' && (
               <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold">

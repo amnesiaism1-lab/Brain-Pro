@@ -1,4 +1,4 @@
-import { IReadingText, SAMPLE_READING_TEXTS } from '@brain-exercises/shared';
+import { IReadingText, IReadingQuestion, SAMPLE_READING_TEXTS } from '@brain-exercises/shared';
 
 export interface CuratedTopic {
   title: string;
@@ -16,7 +16,9 @@ export const POPULAR_WIKIPEDIA_TOPICS: CuratedTopic[] = [
   { title: 'Tâm lý học nhận thức', category: 'Khoa Học Hành Vi', description: 'Nghiên cứu về sự chú ý, ngôn ngữ và khả năng giải quyết vấn đề' },
   { title: 'Giấc ngủ', category: 'Y Sinh Học', description: 'Chu kỳ ngủ sâu, sóng não và quá trình tái tạo năng lượng thần kinh' },
   { title: 'Albert Einstein', category: 'Lịch Sử Khoa Học', description: 'Cuộc đời và những tư duy đột phá làm thay đổi vật lý nhân loại' },
-  { title: 'Leonardo da Vinci', category: 'Danh Nhân Toàn Năng', description: 'Biểu tượng của tư duy liên ngành giữa nghệ thuật và khoa học' }
+  { title: 'Leonardo da Vinci', category: 'Danh Nhân Toàn Năng', description: 'Biểu tượng của tư duy liên ngành giữa nghệ thuật và khoa học' },
+  { title: 'Cơ học lượng tử', category: 'Vật Lý Tiên Tiến', description: 'Thế giới vi mô của các hạt hạ nguyên tử và hàm sóng xác suất' },
+  { title: 'Định lý Pythagoras', category: 'Toán Học Cổ Điển', description: 'Nguyên lý hình học nền tảng gắn liền với văn minh nhân loại' }
 ];
 
 export const THEMED_VOCABULARY: Record<string, string[]> = {
@@ -43,10 +45,46 @@ export const THEMED_VOCABULARY: Record<string, string[]> = {
   ]
 };
 
+export const PERIPHERAL_FLASH_WORDS = [
+  'NÃO', 'MẮT', 'TRÍ', 'QUANG', 'SÓNG', 'ĐIỆN', 'LỰC', 'HẠT',
+  'TỐC', 'ĐỘ', 'TẬP', 'TRUNG', 'LƯỢNG', 'TỬ', 'KÝ', 'ỨC',
+  'PHẢN', 'XẠ', 'HỒI', 'TIÊU', 'ĐIỂM', 'TÂM', 'THỊ', 'GIÁC'
+];
+
+export const TONAL_VOWEL_GROUPS: Array<{ base: string; tones: string[] }> = [
+  { base: 'a', tones: ['a', 'á', 'à', 'ả', 'ã', 'ạ', 'A', 'Á', 'À', 'Ả', 'Ã', 'Ạ'] },
+  { base: 'ă', tones: ['ă', 'ắ', 'ằ', 'ẳ', 'ẵ', 'ặ', 'Ă', 'Ắ', 'Ằ', 'Ẳ', 'Ẵ', 'Ặ'] },
+  { base: 'â', tones: ['â', 'ấ', 'ầ', 'ẩ', 'ẫ', 'ậ', 'Â', 'Ấ', 'Ầ', 'Ẩ', 'Ẫ', 'Ậ'] },
+  { base: 'e', tones: ['e', 'é', 'è', 'ẻ', 'ẽ', 'ẹ', 'E', 'É', 'È', 'Ẻ', 'Ẽ', 'Ẹ'] },
+  { base: 'ê', tones: ['ê', 'ế', 'ề', 'ể', 'ễ', 'ệ', 'Ê', 'Ế', 'Ề', 'Ể', 'Ễ', 'Ệ'] },
+  { base: 'i', tones: ['i', 'í', 'ì', 'ỉ', 'ĩ', 'ị', 'I', 'Í', 'Ì', 'Ỉ', 'Ĩ', 'Ị'] },
+  { base: 'o', tones: ['o', 'ó', 'ò', 'ỏ', 'õ', 'ọ', 'O', 'Ó', 'Ò', 'Ỏ', 'Õ', 'Ọ'] },
+  { base: 'ô', tones: ['ô', 'ố', 'ồ', 'ổ', 'ỗ', 'ộ', 'Ô', 'Ố', 'Ồ', 'Ổ', 'Ỗ', 'Ộ'] },
+  { base: 'ơ', tones: ['ơ', 'ớ', 'ờ', 'ở', 'ỡ', 'ợ', 'Ơ', 'Ớ', 'Ờ', 'Ở', 'Ỡ', 'Ợ'] },
+  { base: 'u', tones: ['u', 'ú', 'ù', 'ủ', 'ũ', 'ụ', 'U', 'Ú', 'Ù', 'Ủ', 'Ũ', 'Ụ'] },
+  { base: 'ư', tones: ['ư', 'ứ', 'ừ', 'ử', 'ữ', 'ự', 'Ư', 'Ứ', 'Ừ', 'Ử', 'Ữ', 'Ự'] },
+  { base: 'y', tones: ['y', 'ý', 'ỳ', 'ỷ', 'ỹ', 'ỵ', 'Y', 'Ý', 'Ỳ', 'Ỷ', 'Ỹ', 'Ỵ'] }
+];
+
+export const CONFUSABLE_GLYPH_GROUPS: Array<{ name: string; target: string; distractors: string[] }> = [
+  { name: 'b-d-p-q', target: 'd', distractors: ['b', 'p', 'q'] },
+  { name: 'b-d-p-q (In hoa)', target: 'B', distractors: ['P', 'R', 'D', 'E'] },
+  { name: 'đ-d-t-l', target: 'đ', distractors: ['d', 't', 'l', 'i'] },
+  { name: 'm-n-u-h-w', target: 'n', distractors: ['m', 'u', 'h', 'w'] },
+  { name: 'c-o-e-s', target: 'c', distractors: ['o', 'e', 's', 'a'] },
+  { name: 'k-x-y-h', target: 'x', distractors: ['k', 'y', 'h', 'v'] },
+  { name: 'O-0-Q-D-C', target: 'O', distractors: ['0', 'Q', 'D', 'C', 'G'] },
+  { name: 'S-5-Z-2', target: 'S', distractors: ['5', 'Z', '2', 'E'] },
+  { name: 'B-8-3', target: 'B', distractors: ['8', '3', 'P', 'R'] },
+  { name: 'I-1-l-T-7', target: 'I', distractors: ['1', 'l', 'T', '7', '|'] },
+  { name: 'G-6-C-O', target: 'G', distractors: ['6', 'C', 'O', 'Q'] }
+];
+
 const STOP_WORDS = new Set([
   'trong', 'những', 'chúng', 'được', 'người', 'nhưng', 'khi', 'này', 
   'cho', 'với', 'của', 'các', 'một', 'nhiều', 'theo', 'như', 'hoặc', 
-  'đến', 'trên', 'dưới', 'cũng', 'không', 'phải', 'đang', 'đã', 'sẽ'
+  'đến', 'trên', 'dưới', 'cũng', 'không', 'phải', 'đang', 'đã', 'sẽ',
+  'lại', 'qua', 'bởi', 'vào', 'ra', 'về', 'tại', 'đó', 'kia', 'ở'
 ]);
 
 const WIKI_CACHE_KEY = 'brain_pro_wiki_texts_cache';
@@ -65,18 +103,67 @@ class ReadingContentService {
     try {
       const existing = this.getCachedTexts();
       const filtered = existing.filter(t => t.id !== text.id);
-      localStorage.setItem(WIKI_CACHE_KEY, JSON.stringify([text, ...filtered].slice(0, 20)));
+      localStorage.setItem(WIKI_CACHE_KEY, JSON.stringify([text, ...filtered].slice(0, 30)));
     } catch (e) {
       console.warn('Cannot cache wiki article', e);
     }
   }
 
   /**
-   * Return all available texts: built-in curated + user cached Wikipedia texts
+   * Return all available texts: built-in curated + user cached Wikipedia & custom texts
    */
   public getAllTexts(): IReadingText[] {
     const cached = this.getCachedTexts();
     return [...SAMPLE_READING_TEXTS, ...cached];
+  }
+
+  /**
+   * Add custom text pasted by user
+   */
+  public createCustomReadingText(title: string, rawContent: string, category = 'Tài Liệu Của Bạn'): IReadingText {
+    const cleanText = rawContent.replace(/\s+/g, ' ').trim();
+    const words = cleanText.split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+
+    const newArticle: IReadingText = {
+      id: `custom-${Date.now()}`,
+      title: title.trim() || 'Tài Liệu Tự Chọn',
+      category,
+      wordCount,
+      difficultyLevel: Math.min(5, Math.max(1, Math.round(wordCount / 80))),
+      content: cleanText,
+      previewExcerpt: cleanText.slice(0, 140) + '...',
+      author: 'Người dùng cung cấp'
+    };
+
+    // Auto-generate matching quiz
+    newArticle.questions = this.generateQuestionsFromArticle(newArticle);
+
+    this.saveToCache(newArticle);
+    return newArticle;
+  }
+
+  /**
+   * Live search Vietnamese Wikipedia articles
+   */
+  public async searchWikipediaArticles(query: string): Promise<Array<{ title: string; snippet: string }>> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    try {
+      const url = `https://vi.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(trimmed)}&utf8=&format=json&origin=*&srlimit=8`;
+      const res = await fetch(url, { headers: { 'User-Agent': 'BrainProReader/2.0' } });
+      if (!res.ok) return [];
+
+      const data = await res.json();
+      const searchResults = data.query?.search || [];
+      return searchResults.map((item: any) => ({
+        title: item.title,
+        snippet: (item.snippet || '').replace(/<[^>]*>/g, '').trim()
+      }));
+    } catch (e) {
+      console.error('Wikipedia search error:', e);
+      return [];
+    }
   }
 
   /**
@@ -114,6 +201,127 @@ class ReadingContentService {
   }
 
   /**
+   * Generate 3-4 realistic comprehension questions algorithmically for ANY text (Wikipedia / Custom)
+   * Solves token limits and API cost completely (0 cost, instant).
+   */
+  public generateQuestionsFromArticle(article: IReadingText): IReadingQuestion[] {
+    const questions: IReadingQuestion[] = [];
+    const sentences = article.content
+      .split(/(?<=[.?!])\s+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 25);
+
+    const keywords = this.extractKeywordsFromArticle(article.content, 4, 12, 10);
+    const mainKeyword = keywords[0] || article.title;
+
+    // Distractor topics
+    const distractorTopics = [
+      'Cơ học chất lưu và chuyển động sóng',
+      'Lịch sử khảo cổ học văn minh Lưỡng Hà',
+      'Cấu trúc gen di truyền và ADN tái tổ hợp',
+      'Định luật vạn vật hấp dẫn của Isaac Newton',
+      'Kinh tế học vĩ mô và chu kỳ lạm phát',
+      'Nghệ thuật hội họa Phục hưng vùng Florence'
+    ].filter(d => !d.toLowerCase().includes(article.title.toLowerCase())).slice(0, 3);
+
+    // Q1: Main Topic Question
+    const q1Options = [
+      { text: article.title, correct: true },
+      { text: distractorTopics[0] || 'Lịch sử kiến trúc cổ điển', correct: false },
+      { text: distractorTopics[1] || 'Phương pháp tinh chế kim loại quý', correct: false },
+      { text: distractorTopics[2] || 'Hệ sinh thái rừng mưa nhiệt đới', correct: false }
+    ].sort(() => 0.5 - Math.random());
+
+    const q1CorrectLetter = ['A', 'B', 'C', 'D'][q1Options.findIndex(o => o.correct)] as 'A' | 'B' | 'C' | 'D';
+
+    questions.push({
+      id: `gen-q1-${Date.now()}`,
+      questionOrder: 1,
+      questionText: `Chủ đề trọng tâm hoặc thực thể chính được phân tích xuyên suốt trong bài viết là gì?`,
+      optionA: q1Options[0].text,
+      optionB: q1Options[1].text,
+      optionC: q1Options[2].text,
+      optionD: q1Options[3].text,
+      correctOption: q1CorrectLetter,
+      explanation: `Bài viết tập trung cung cấp tri thức cốt lõi và luận điểm về "${article.title}".`
+    });
+
+    // Q2: Fact Verification Question from paragraph 1 or 2
+    if (sentences.length >= 2) {
+      const factSentence = sentences[Math.min(1, sentences.length - 1)];
+      const q2Options = [
+        { text: factSentence, correct: true },
+        { text: `Vấn đề này chưa từng được cộng đồng khoa học ghi nhận hoặc kiểm chứng.`, correct: false },
+        { text: `Thông tin này chỉ áp dụng giới hạn trong môi trường chân không tuyệt đối.`, correct: false },
+        { text: `Hiện tượng trên hoàn toàn bị bác bỏ bởi các nghiên cứu thực nghiệm mới nhất.`, correct: false }
+      ].sort(() => 0.5 - Math.random());
+
+      const q2CorrectLetter = ['A', 'B', 'C', 'D'][q2Options.findIndex(o => o.correct)] as 'A' | 'B' | 'C' | 'D';
+
+      questions.push({
+        id: `gen-q2-${Date.now()}`,
+        questionOrder: 2,
+        questionText: `Dựa trên nội dung đoạn văn, phát biểu nào sau đây phản ánh chính xác luận điểm của bài viết?`,
+        optionA: q2Options[0].text,
+        optionB: q2Options[1].text,
+        optionC: q2Options[2].text,
+        optionD: q2Options[3].text,
+        correctOption: q2CorrectLetter,
+        explanation: `Đoạn văn bản đã nêu rõ dữ kiện: "${factSentence}".`
+      });
+    }
+
+    // Q3: Central Terminology Question
+    if (keywords.length >= 2) {
+      const q3Options = [
+        { text: mainKeyword.toUpperCase(), correct: true },
+        { text: 'QUANG HỢP LỤC LẠP', correct: false },
+        { text: 'CHỨNG KHOÁN PHÁI SINH', correct: false },
+        { text: 'NHIỆT ĐỘNG LỰC HỌC', correct: false }
+      ].sort(() => 0.5 - Math.random());
+
+      const q3CorrectLetter = ['A', 'B', 'C', 'D'][q3Options.findIndex(o => o.correct)] as 'A' | 'B' | 'C' | 'D';
+
+      questions.push({
+        id: `gen-q3-${Date.now()}`,
+        questionOrder: 3,
+        questionText: `Thuật ngữ hoặc từ khóa tiêu biểu nào liên tục xuất hiện như một khái niệm hạt nhân trong văn bản?`,
+        optionA: q3Options[0].text,
+        optionB: q3Options[1].text,
+        optionC: q3Options[2].text,
+        optionD: q3Options[3].text,
+        correctOption: q3CorrectLetter,
+        explanation: `Từ khóa "${mainKeyword}" là khái niệm trọng tâm xuất hiện nổi bật trong bài.`
+      });
+    }
+
+    // Q4: Synthesis Question
+    const conclusionSentence = sentences[sentences.length - 1] || sentences[0];
+    const q4Options = [
+      { text: `Làm rõ nguyên lý, tầm quan trọng và bối cảnh nghiên cứu của ${article.title}`, correct: true },
+      { text: `Kêu gọi đầu tư thương mại vào các dự án bất động sản quốc tế`, correct: false },
+      { text: `Hướng dẫn cài đặt hệ điều hành máy tính văn phòng`, correct: false },
+      { text: `Tổng kết các giải thi đấu thể thao trong năm`, correct: false }
+    ].sort(() => 0.5 - Math.random());
+
+    const q4CorrectLetter = ['A', 'B', 'C', 'D'][q4Options.findIndex(o => o.correct)] as 'A' | 'B' | 'C' | 'D';
+
+    questions.push({
+      id: `gen-q4-${Date.now()}`,
+      questionOrder: 4,
+      questionText: `Mục đích chính của bài viết này là gì?`,
+      optionA: q4Options[0].text,
+      optionB: q4Options[1].text,
+      optionC: q4Options[2].text,
+      optionD: q4Options[3].text,
+      correctOption: q4CorrectLetter,
+      explanation: `Bài viết đóng vai trò phổ biến tri thức khoa học về: "${conclusionSentence}".`
+    });
+
+    return questions;
+  }
+
+  /**
    * Fetch an article from Vietnamese Wikipedia by title
    */
   public async fetchWikipediaArticle(topic: string): Promise<IReadingText | null> {
@@ -144,13 +352,16 @@ class ReadingContentService {
       const newArticle: IReadingText = {
         id: `wiki-${page.pageid || Date.now()}`,
         title: page.title || topic,
-        category: 'Wikipedia Tri Thức',
+        category: 'Wikipedia Bách Khoa',
         wordCount: finalWordCount,
         difficultyLevel: Math.min(5, Math.max(1, Math.round(finalWordCount / 80))),
         content: excerptWords,
         previewExcerpt: excerptWords.slice(0, 120) + '...',
         author: 'Bách Khoa Toàn Thư Wikipedia (Tiếng Việt)'
       };
+
+      // Automatically attach generated comprehension questions
+      newArticle.questions = this.generateQuestionsFromArticle(newArticle);
 
       this.saveToCache(newArticle);
       return newArticle;
@@ -169,6 +380,31 @@ class ReadingContentService {
       return await this.fetchWikipediaArticle(randTopic.title);
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Generate dynamic letter challenge for FindLetterGame
+   */
+  public getRandomLetterChallenge(mode: 'vowel_tones' | 'confusable' | 'all' = 'all') {
+    if (mode === 'vowel_tones' || (mode === 'all' && Math.random() < 0.6)) {
+      const group = TONAL_VOWEL_GROUPS[Math.floor(Math.random() * TONAL_VOWEL_GROUPS.length)];
+      const target = group.tones[Math.floor(Math.random() * group.tones.length)];
+      const distractors = group.tones.filter(t => t !== target);
+      return {
+        type: 'Dấu thanh Tiếng Việt',
+        target,
+        distractors: distractors.length > 0 ? distractors : ['a', 'á', 'à', 'ả'],
+        description: `Tìm ký tự mang dấu thanh: "${target}"`
+      };
+    } else {
+      const conf = CONFUSABLE_GLYPH_GROUPS[Math.floor(Math.random() * CONFUSABLE_GLYPH_GROUPS.length)];
+      return {
+        type: 'Ký tự dễ nhầm lẫn',
+        target: conf.target,
+        distractors: conf.distractors,
+        description: `Tìm ký tự phân biệt: "${conf.target}"`
+      };
     }
   }
 

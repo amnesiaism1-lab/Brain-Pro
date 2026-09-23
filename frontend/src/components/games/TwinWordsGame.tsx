@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { generateTwinWords, VIETNAMESE_WORDS_DICTIONARY } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
-import { readingContentService } from '../../services/readingContentService';
+import { readingContentService, THEMED_VOCABULARY } from '../../services/readingContentService';
 
 export const TwinWordsGame: React.FC = () => {
   const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
@@ -12,12 +12,21 @@ export const TwinWordsGame: React.FC = () => {
   const currentLevel = getExerciseLevel('twin-words');
   const [round, setRound] = useState(1);
   const maxRounds = currentLevel >= 9 ? 12 : 10;
+
+  const themes = ['Tất cả', 'Khoa Học Não Bộ', 'Công Nghệ & AI', 'Thiên Văn & Vũ Trụ', 'Tâm Lý & Tư Duy'];
+  const [selectedTheme, setSelectedTheme] = useState<string>('Tất cả');
   
   const combinedDict = React.useMemo(() => {
-    const extra = readingContentService.getVocabularyList();
-    const merged = [...VIETNAMESE_WORDS_DICTIONARY, ...extra];
-    return Array.from(new Set(merged.map(w => w.replace(/\s+/g, '').toUpperCase())));
-  }, []);
+    let extra: string[] = [];
+    if (selectedTheme !== 'Tất cả' && THEMED_VOCABULARY[selectedTheme]) {
+      extra = THEMED_VOCABULARY[selectedTheme];
+    } else {
+      extra = readingContentService.getVocabularyList();
+    }
+    const merged = selectedTheme === 'Tất cả' ? [...VIETNAMESE_WORDS_DICTIONARY, ...extra] : extra;
+    const sanitized = Array.from(new Set(merged.map(w => w.replace(/\s+/g, '').toUpperCase())));
+    return sanitized.length > 0 ? sanitized : ['TRÍTUỆ', 'NÃOBỘ', 'PHẢNXẠ', 'THỊGIÁC'];
+  }, [selectedTheme]);
 
   const [pair, setPair] = useState(() => {
     const word = combinedDict[0] || 'TRÍTUỆ';
@@ -28,8 +37,8 @@ export const TwinWordsGame: React.FC = () => {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
 
-  const nextPair = () => {
-    const randWord = combinedDict[Math.floor(Math.random() * combinedDict.length)];
+  const nextPair = (dict = combinedDict) => {
+    const randWord = dict[Math.floor(Math.random() * dict.length)] || 'TRÍTUỆ';
     const shouldMatch = Math.random() < 0.5;
     setPair(generateTwinWords(randWord, shouldMatch));
     setShowWords(true);
@@ -41,7 +50,10 @@ export const TwinWordsGame: React.FC = () => {
   };
 
   useEffect(() => {
-    nextPair();
+    nextPair(combinedDict);
+  }, [selectedTheme]);
+
+  useEffect(() => {
     const timer = setInterval(() => setElapsedSec(s => s + 1), 1000);
     return () => clearInterval(timer);
   }, [currentLevel]);
@@ -62,7 +74,8 @@ export const TwinWordsGame: React.FC = () => {
         wordA: pair.word1,
         wordB: pair.word2,
         shouldMatch: pair.isMatch,
-        choice: isMatchChoice
+        choice: isMatchChoice,
+        theme: selectedTheme
       },
       stateBefore: `round:${round}`,
       stateAfter: isCorrect ? `round:${round + 1}` : `round:${round}`,
@@ -81,7 +94,7 @@ export const TwinWordsGame: React.FC = () => {
       setIsFinished(true);
     } else {
       setRound(r => r + 1);
-      nextPair();
+      nextPair(combinedDict);
     }
   };
 
@@ -89,7 +102,7 @@ export const TwinWordsGame: React.FC = () => {
   const score = (correctCount * 30 * currentLevel) + Math.max(0, (30 - elapsedSec) * 5);
 
   return (
-    <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl mx-auto px-3 sm:px-6 py-4 space-y-5 sm:space-y-6 animate-fade-in pb-24">
+    <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl mx-auto px-3 sm:px-6 py-4 space-y-4 sm:space-y-5 animate-fade-in pb-24">
       {/* Top HUD */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md">
         <div>
@@ -104,6 +117,28 @@ export const TwinWordsGame: React.FC = () => {
             {elapsedSec}s
           </div>
         </div>
+      </div>
+
+      {/* Theme Switcher Pills */}
+      <div className="flex items-center justify-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+        {themes.map(t => (
+          <button
+            key={t}
+            onClick={() => {
+              playSound('click');
+              setSelectedTheme(t);
+              setRound(1);
+              setCorrectCount(0);
+            }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+              selectedTheme === t
+                ? 'bg-brand-600 text-white shadow-sm'
+                : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-brand-400'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
       </div>
 
       <p className="text-xs sm:text-sm text-center text-slate-600 dark:text-slate-400 font-medium">
@@ -148,9 +183,8 @@ export const TwinWordsGame: React.FC = () => {
             resetSession();
             setRound(1);
             setCorrectCount(0);
-            setElapsedSec(0);
             setIsFinished(false);
-            nextPair();
+            nextPair(combinedDict);
           }}
           onClose={() => setActiveGameSlug(null)}
         />

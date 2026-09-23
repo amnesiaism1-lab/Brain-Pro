@@ -19,9 +19,12 @@ export const ReadingAssessmentGame: React.FC = () => {
   });
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
 
-  const questions = currentArticle.questions && currentArticle.questions.length > 0 
-    ? currentArticle.questions 
-    : (SAMPLE_READING_TEXTS[0].questions || []);
+  const questions = React.useMemo(() => {
+    if (currentArticle.questions && currentArticle.questions.length > 0) {
+      return currentArticle.questions;
+    }
+    return readingContentService.generateQuestionsFromArticle(currentArticle);
+  }, [currentArticle]);
 
   const [phase, setPhase] = useState<'reading' | 'quiz'>('reading');
   const [readingTimeSec, setReadingTimeSec] = useState(0);
