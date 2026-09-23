@@ -28,10 +28,15 @@ export const SpatialMemoryGame: React.FC = () => {
   const isReverseOrder = effectiveLevel === 8 || effectiveLevel === 9 || effectiveLevel === 16;
   const isColorCorsi = effectiveLevel === 13;
   const isLetterCorsi = effectiveLevel === 14;
+  const isTrapBlockMode = effectiveLevel === 17;
+  const isFastFlash = effectiveLevel === 20;
+  const isRotatingBoard = effectiveLevel === 22;
 
   const CORSI_COLORS = ['#F59E0B', '#3B82F6', '#EC4899', '#10B981', '#8B5CF6', '#EF4444', '#06B6D4'];
+  const CORSI_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'.split('');
 
   const [sequence, setSequence] = useState<number[]>([]);
+  const [trapBlockIndex, setTrapBlockIndex] = useState<number | null>(null);
   const [activeHighlightIndex, setActiveHighlightIndex] = useState<number | null>(null);
   const [isShowingSequence, setIsShowingSequence] = useState(false);
   const [userInputs, setUserInputs] = useState<number[]>([]);
@@ -54,12 +59,23 @@ export const SpatialMemoryGame: React.FC = () => {
       newSeq.push(nextBlock);
     }
 
+    // Set trap block for level 17
+    if (isTrapBlockMode) {
+      let trap = Math.floor(Math.random() * totalBlocks);
+      while (newSeq.includes(trap)) {
+        trap = Math.floor(Math.random() * totalBlocks);
+      }
+      setTrapBlockIndex(trap);
+    } else {
+      setTrapBlockIndex(null);
+    }
+
     setSequence(newSeq);
     setUserInputs([]);
     setIsShowingSequence(true);
 
-    const stepIntervalMs = isInfinity ? 600 : 850;
-    const highlightMs = isInfinity ? 380 : 500;
+    const stepIntervalMs = isFastFlash ? 400 : isInfinity ? 600 : 850;
+    const highlightMs = isFastFlash ? 260 : isInfinity ? 380 : 500;
 
     // Playback sequence animation
     let step = 0;
@@ -80,7 +96,7 @@ export const SpatialMemoryGame: React.FC = () => {
         setIsShowingSequence(false);
       }
     }, stepIntervalMs);
-  }, [totalBlocks, targetSequenceLength, playSound, isInfinity]);
+  }, [totalBlocks, targetSequenceLength, playSound, isInfinity, isFastFlash, isTrapBlockMode]);
 
   useEffect(() => {
     startNewSequence(currentRound);
@@ -88,6 +104,14 @@ export const SpatialMemoryGame: React.FC = () => {
 
   const handleBlockClick = (blockIndex: number) => {
     if (isShowingSequence || isFinished) return;
+
+    // Check if clicked the trap block in level 17
+    if (isTrapBlockMode && blockIndex === trapBlockIndex) {
+      playSound('wrong');
+      setMistakes(m => m + 1);
+      setTimeout(() => startNewSequence(currentRound), 600);
+      return;
+    }
 
     playSound('click');
     const nextInputs = [...userInputs, blockIndex];
@@ -165,19 +189,26 @@ export const SpatialMemoryGame: React.FC = () => {
               ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
             </span>
             <span className="font-semibold text-white">
-              {effectiveLevel === 13 ? 'Color Corsi (Khối sáng đa sắc màu rực rỡ)' :
+              {effectiveLevel === 13 ? 'Multi-Color Corsi (Khối sáng đa sắc màu rực rỡ)' :
                effectiveLevel === 14 ? 'Letter Spatial (Khối phát sáng kèm ký tự Latin)' :
-               effectiveLevel === 15 ? 'Ascending Magnitude (Bấm theo giá trị tăng dần)' :
-               effectiveLevel === 16 ? 'Mirror Corsi (Phản chiếu không gian lật ngược)' :
-               effectiveLevel === 17 ? 'Diagonal Sequence (Ma trận đường chéo)' :
-               effectiveLevel === 18 ? 'Shape Corsi (Biến hình dạng khối)' :
-               effectiveLevel === 19 ? 'Expanding Grid 6x6 (Lưới mở rộng cực đại)' :
-               effectiveLevel === 20 ? 'Dual Track Spatial (Bộ nhớ 2 chiều song song)' :
-               effectiveLevel === 21 ? 'Interference Corsi (Nhiễu loạn thị giác cực hạn)' :
-               'Chaos Matrix Corsi (Tốc độ flash 380ms Vô cực)'}
+               effectiveLevel === 15 ? 'Coordinate Shift (Dịch chuyển tọa độ tư duy)' :
+               effectiveLevel === 16 ? 'Backward Corsi (Gõ ngược chuỗi không gian)' :
+               effectiveLevel === 17 ? 'Hazard Trap Block (Bẫy vị trí: né ô nguy hiểm!)' :
+               effectiveLevel === 18 ? 'Dual Concurrent Pulse (Nhớ cặp điểm không gian đồng thời)' :
+               effectiveLevel === 19 ? '6x6 Extended Grid (Lưới cực đại 36 ô không gian)' :
+               effectiveLevel === 20 ? 'Rapid Flash Corsi (Chớp lóe tốc độ cao 260ms)' :
+               effectiveLevel === 21 ? 'Spatial Interference (Trí nhớ làm việc kháng nhiễu)' :
+               'Mental Rotation Corsi (Bảng tự xoay 90° thử thách xoay tinh thần)'}
             </span>
           </div>
           <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
+        </div>
+      )}
+
+      {/* Trap block warning banner */}
+      {isTrapBlockMode && (
+        <div className="p-3 rounded-2xl bg-rose-500/20 border border-rose-400 text-rose-800 dark:text-rose-200 text-center font-black text-xs sm:text-sm animate-pulse">
+          ⚠️ CẢNH BÁO BẪY: Trong lưới có 1 ô bẫy nguy hiểm màu đỏ! TUYỆT ĐỐI KHÔNG BẤM VÀO Ô BẪY!
         </div>
       )}
 
@@ -219,17 +250,24 @@ export const SpatialMemoryGame: React.FC = () => {
         ) : (
           <>
             <CheckCircle2 className="w-5 h-5" />
-            <span>Đến lượt bạn: Hãy bấm lại theo đúng thứ tự! {isReverseOrder && '(ĐẢO NGƯỢC)'}</span>
+            <span>Đến lượt bạn: Hãy bấm lại theo đúng thứ tự! {isReverseOrder && '(ĐẢO NGƯỢC)'} {isRotatingBoard && '(BẢNG ĐÃ TỰ XOAY 90°)'}</span>
           </>
         )}
       </div>
 
       {/* Spatial Matrix Grid */}
-      <div className={`w-full max-w-md sm:max-w-lg md:max-w-xl mx-auto aspect-square grid ${gridClass} gap-3 sm:gap-4 p-4 sm:p-6 bg-slate-100 dark:bg-slate-900 rounded-3xl border-2 border-slate-200 dark:border-slate-800 shadow-2xl`}>
+      <div 
+        style={{
+          transform: isRotatingBoard && !isShowingSequence ? 'rotate(90deg)' : 'none',
+          transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)'
+        }}
+        className={`w-full max-w-md sm:max-w-lg md:max-w-xl mx-auto aspect-square grid ${gridClass} gap-3 sm:gap-4 p-4 sm:p-6 bg-slate-100 dark:bg-slate-900 rounded-3xl border-2 border-slate-200 dark:border-slate-800 shadow-2xl`}
+      >
         {Array.from({ length: totalBlocks }).map((_, idx) => {
           const isHighlighted = activeHighlightIndex === idx;
           const isUserTapped = userInputs.includes(idx);
           const colorForBlock = isColorCorsi ? CORSI_COLORS[idx % CORSI_COLORS.length] : undefined;
+          const isTrap = isTrapBlockMode && idx === trapBlockIndex;
 
           return (
             <button
@@ -244,6 +282,8 @@ export const SpatialMemoryGame: React.FC = () => {
                   ? colorForBlock 
                     ? 'border-4 border-white shadow-xl scale-105 z-10 text-white' 
                     : 'bg-amber-400 border-4 border-white shadow-xl shadow-amber-400/80 scale-105 z-10'
+                  : isTrap && isShowingSequence
+                  ? 'bg-rose-500 border-4 border-rose-300 text-white animate-pulse'
                   : isUserTapped
                   ? 'bg-brand-500 border-2 border-brand-300 text-white shadow-md'
                   : 'bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 hover:border-brand-400 hover:scale-[1.02] active:scale-95'

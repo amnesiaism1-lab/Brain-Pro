@@ -3,10 +3,10 @@ import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { Zap, AlertTriangle, Infinity as InfinityIcon, Volume2 } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
-import { speakWord } from '../../services/infinityApiService';
+import { speakWord, infinityApiService, EMOTION_WORDS } from '../../services/infinityApiService';
 import { INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
 
-interface ColorDef {
+export interface ColorDef {
   id: string;
   nameVi: string;
   nameEn: string;
@@ -25,13 +25,11 @@ const COLOR_PALETTE: ColorDef[] = [
   { id: 'orange', nameVi: 'CAM', nameEn: 'ORANGE', hex: '#F97316', twText: 'text-orange-500', twBg: 'bg-orange-500', twBorder: 'border-orange-500' }
 ];
 
-const EMOTION_WORDS = [
-  { text: 'ANGER', mood: 'negative' },
-  { text: 'JOY', mood: 'positive' },
-  { text: 'FEAR', mood: 'negative' },
-  { text: 'CALM', mood: 'positive' },
-  { text: 'PANIC', mood: 'negative' },
-  { text: 'HOPE', mood: 'positive' }
+export const DIRECTION_OPTIONS = [
+  { id: 'UP', label: 'TRÊN', en: 'UP' },
+  { id: 'DOWN', label: 'DƯỚI', en: 'DOWN' },
+  { id: 'LEFT', label: 'TRÁI', en: 'LEFT' },
+  { id: 'RIGHT', label: 'PHẢI', en: 'RIGHT' }
 ];
 
 export const StroopClashGame: React.FC = () => {
@@ -42,7 +40,7 @@ export const StroopClashGame: React.FC = () => {
   const isInfinity = effectiveLevel >= 13;
   const infinityTier = getInfinityTier(effectiveLevel);
 
-  const totalTrials = effectiveLevel >= 13 ? 18 : 15;
+  const totalTrials = effectiveLevel >= 13 ? 20 : 15;
 
   const [trialIndex, setTrialIndex] = useState(0);
   const [wordItem, setWordItem] = useState<{
@@ -52,6 +50,8 @@ export const StroopClashGame: React.FC = () => {
     spokenColor?: ColorDef;
     isExclusionTarget?: boolean;
     displayLang: 'vi' | 'en';
+    spatialPos?: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
+    motionOffset?: { x: number; y: number };
   } | null>(null);
 
   const [trialStartTime, setTrialStartTime] = useState<number>(0);
@@ -76,6 +76,7 @@ export const StroopClashGame: React.FC = () => {
   const isEmotionStroop = effectiveLevel === 18;
   const isExclusionStroop = effectiveLevel === 19;
   const isHyperSpeed = effectiveLevel === 20;
+  const isDirectionalStroop = effectiveLevel === 21;
   const isChaosStroop = effectiveLevel === 22;
 
   // Reaction Window Calculation
@@ -112,7 +113,10 @@ export const StroopClashGame: React.FC = () => {
   }, [effectiveLevel, isHyperSpeed, trialIndex]);
 
   // Current Target Instruction Type
-  const currentTargetType = useMemo<'INK' | 'TEXT' | 'BORDER' | 'EXCLUSION'>(() => {
+  const currentTargetType = useMemo<'INK' | 'TEXT' | 'BORDER' | 'EXCLUSION' | 'DIRECTION_POS' | 'DIRECTION_WORD'>(() => {
+    if (isDirectionalStroop) {
+      return trialIndex % 2 === 0 ? 'DIRECTION_POS' : 'DIRECTION_WORD';
+    }
     if (isExclusionStroop) return 'EXCLUSION';
     if (isTripleStroop) return 'BORDER';
     if (isReverseStroop) return 'TEXT';
@@ -122,7 +126,7 @@ export const StroopClashGame: React.FC = () => {
       return modes[trialIndex % modes.length];
     }
     return 'INK';
-  }, [isExclusionStroop, isTripleStroop, isReverseStroop, isAlternating, isChaosStroop, trialIndex]);
+  }, [isDirectionalStroop, isExclusionStroop, isTripleStroop, isReverseStroop, isAlternating, isChaosStroop, trialIndex]);
 
   const nextTrial = useCallback((index: number) => {
     if (index >= totalTrials) {
@@ -158,9 +162,25 @@ export const StroopClashGame: React.FC = () => {
     }
 
     let displayString = lang === 'en' ? COLOR_PALETTE[textIdx].nameEn : COLOR_PALETTE[textIdx].nameVi;
-    if (isEmotionStroop) {
+    let spatialPos: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | undefined = undefined;
+
+    if (isDirectionalStroop) {
+      // Pick direction word & conflicting spatial position
+      const wordDir = DIRECTION_OPTIONS[Math.floor(Math.random() * DIRECTION_OPTIONS.length)];
+      let posDir = DIRECTION_OPTIONS[Math.floor(Math.random() * DIRECTION_OPTIONS.length)];
+      if (Math.random() < 0.8 && posDir.id === wordDir.id) {
+        posDir = DIRECTION_OPTIONS[(DIRECTION_OPTIONS.indexOf(wordDir) + 1) % DIRECTION_OPTIONS.length];
+      }
+      displayString = lang === 'en' ? wordDir.en : wordDir.label;
+      spatialPos = posDir.id as 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
+    } else if (isEmotionStroop) {
       displayString = EMOTION_WORDS[textIdx % EMOTION_WORDS.length].text;
     }
+
+    const motionOffset = isMotionStroop ? {
+      x: Math.round((Math.random() - 0.5) * 90),
+      y: Math.round((Math.random() - 0.5) * 60)
+    } : undefined;
 
     const item = {
       text: displayString,
@@ -168,7 +188,9 @@ export const StroopClashGame: React.FC = () => {
       borderColor: COLOR_PALETTE[borderIdx],
       spokenColor: COLOR_PALETTE[spokenIdx],
       isExclusionTarget: isExclusionStroop,
-      displayLang: lang
+      displayLang: lang,
+      spatialPos,
+      motionOffset
     };
 
     setWordItem(item);
@@ -180,7 +202,7 @@ export const StroopClashGame: React.FC = () => {
     if (isAudioStroop) {
       speakWord(COLOR_PALETTE[spokenIdx].nameEn, 'en', 1.1);
     }
-  }, [totalTrials, isEnglishStroop, isEmotionStroop, isAudioStroop, isBilingualStroop, isExclusionStroop, effectiveLevel]);
+  }, [totalTrials, isEnglishStroop, isEmotionStroop, isAudioStroop, isBilingualStroop, isExclusionStroop, isDirectionalStroop, isMotionStroop, effectiveLevel]);
 
   useEffect(() => {
     nextTrial(0);
@@ -226,6 +248,58 @@ export const StroopClashGame: React.FC = () => {
 
     return () => clearTimeout(timer);
   }, [trialStartTime, isFinished, wordItem, reactionWindowMs, trialIndex, currentTargetType, combo, effectiveLevel]);
+
+  const handleSelectDirection = (dirId: string) => {
+    if (isFinished || !wordItem || flashFeedback) return;
+    const reactionTime = Date.now() - trialStartTime;
+    let isCorrect = false;
+
+    if (currentTargetType === 'DIRECTION_POS') {
+      isCorrect = dirId === wordItem.spatialPos;
+    } else {
+      // DIRECTION_WORD
+      const matchedDir = DIRECTION_OPTIONS.find(d => d.label === wordItem.text || d.en === wordItem.text);
+      isCorrect = matchedDir ? dirId === matchedDir.id : false;
+    }
+
+    setReactionTimes(prev => [...prev, reactionTime]);
+
+    emitTrialEvent({
+      exerciseSlug: 'stroop-clash',
+      level: effectiveLevel,
+      relationId: 'SPATIAL_TRANSFORM',
+      relationWeight: 1.0,
+      entities: {
+        text: wordItem.text,
+        spatialPos: wordItem.spatialPos,
+        rule: currentTargetType,
+        choice: dirId
+      },
+      stateBefore: `combo:${combo}`,
+      stateAfter: isCorrect ? `combo:${combo + 1}` : 'combo:0',
+      responseMs: reactionTime,
+      correct: isCorrect
+    });
+
+    if (isCorrect) {
+      playSound('correct');
+      const nextCombo = combo + 1;
+      setCombo(nextCombo);
+      setCorrectCount(c => c + 1);
+      const speedBonus = Math.max(0, Math.floor((reactionWindowMs - reactionTime) / 10));
+      const addedScore = 140 + (nextCombo * 25) + speedBonus + (effectiveLevel * 15);
+      setScore(s => s + addedScore);
+      setFlashFeedback('CORRECT');
+    } else {
+      playSound('wrong');
+      setCombo(0);
+      setFlashFeedback('WRONG');
+    }
+
+    setTimeout(() => {
+      nextTrial(trialIndex + 1);
+    }, 450);
+  };
 
   const handleSelectColor = (selectedColor: ColorDef) => {
     if (isFinished || !wordItem || flashFeedback) return;
@@ -340,7 +414,11 @@ export const StroopClashGame: React.FC = () => {
           </span>
         </div>
         <span className={`text-xs sm:text-sm font-black px-3 py-1 rounded-xl shadow-sm uppercase ${
-          currentTargetType === 'EXCLUSION'
+          currentTargetType === 'DIRECTION_POS'
+            ? 'bg-amber-500 text-slate-950 font-extrabold animate-pulse'
+            : currentTargetType === 'DIRECTION_WORD'
+            ? 'bg-cyan-600 text-white font-extrabold'
+            : currentTargetType === 'EXCLUSION'
             ? 'bg-rose-500 text-white animate-pulse'
             : currentTargetType === 'TEXT'
             ? 'bg-blue-600 text-white'
@@ -348,7 +426,11 @@ export const StroopClashGame: React.FC = () => {
             ? 'bg-purple-600 text-white'
             : 'bg-emerald-600 text-white'
         }`}>
-          {currentTargetType === 'EXCLUSION'
+          {currentTargetType === 'DIRECTION_POS'
+            ? 'CHỌN THEO VỊ TRÍ KHÔNG GIAN (NƠI CHỮ XUẤT HIỆN)'
+            : currentTargetType === 'DIRECTION_WORD'
+            ? 'CHỌN THEO Ý NGHĨA CHỮ (TỪ VIẾT LÀ GÌ)'
+            : currentTargetType === 'EXCLUSION'
             ? 'CHỌN MÀU NGOẠI TRỪ (KHÔNG PHẢI CHỮ & MỰC)'
             : currentTargetType === 'TEXT'
             ? 'CHỌN THEO Ý NGHĨA CHỮ'
@@ -369,7 +451,7 @@ export const StroopClashGame: React.FC = () => {
       {/* Main Stimulus Card */}
       {wordItem && (
         <div 
-          className={`h-48 sm:h-56 rounded-3xl flex flex-col items-center justify-center relative shadow-xl transition-all duration-200 select-none overflow-hidden ${
+          className={`h-52 sm:h-60 rounded-3xl flex flex-col items-center justify-center relative shadow-xl transition-all duration-300 select-none overflow-hidden ${
             wordItem.borderColor ? `border-8 ${wordItem.borderColor.twBorder}` : 'border-4 border-slate-200 dark:border-slate-700'
           } ${
             flashFeedback === 'CORRECT' 
@@ -377,7 +459,7 @@ export const StroopClashGame: React.FC = () => {
               : flashFeedback === 'WRONG' || flashFeedback === 'TIMEOUT'
               ? 'bg-rose-50 dark:bg-rose-950/40 ring-4 ring-rose-500'
               : 'bg-white dark:bg-slate-900'
-          } ${isMotionStroop ? 'animate-pulse' : ''}`}
+          }`}
         >
           {/* Reaction Progress Bar */}
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-100 dark:bg-slate-800 overflow-hidden">
@@ -392,17 +474,35 @@ export const StroopClashGame: React.FC = () => {
             />
           </div>
 
-          {/* Central Conflict Word */}
-          <span 
-            className={`text-4xl sm:text-6xl md:text-7xl font-black tracking-wider transition-transform ${wordItem.inkColor.twText} ${
-              isMotionStroop ? 'hover:scale-105' : ''
+          {/* Central Conflict Word (With Spatial Placement or Floating Motion) */}
+          <div
+            className={`transition-all duration-300 ${
+              isDirectionalStroop && wordItem.spatialPos === 'UP'
+                ? 'absolute top-4 left-1/2 -translate-x-1/2'
+                : isDirectionalStroop && wordItem.spatialPos === 'DOWN'
+                ? 'absolute bottom-4 left-1/2 -translate-x-1/2'
+                : isDirectionalStroop && wordItem.spatialPos === 'LEFT'
+                ? 'absolute left-8 top-1/2 -translate-y-1/2'
+                : isDirectionalStroop && wordItem.spatialPos === 'RIGHT'
+                ? 'absolute right-8 top-1/2 -translate-y-1/2'
+                : 'flex flex-col items-center justify-center'
             }`}
+            style={isMotionStroop && wordItem.motionOffset ? {
+              transform: `translate(${wordItem.motionOffset.x}px, ${wordItem.motionOffset.y}px)`,
+              transition: 'transform 0.5s ease-out'
+            } : undefined}
           >
-            {wordItem.text}
-          </span>
+            <span 
+              className={`text-4xl sm:text-6xl md:text-7xl font-black tracking-wider ${wordItem.inkColor.twText} ${
+                isMotionStroop ? 'animate-bounce' : ''
+              }`}
+            >
+              {wordItem.text}
+            </span>
+          </div>
 
           {flashFeedback && (
-            <div className={`text-xs font-black px-3 py-1 rounded-full mt-3 uppercase tracking-widest ${
+            <div className={`text-xs font-black px-3 py-1 rounded-full mt-3 uppercase tracking-widest absolute bottom-3 ${
               flashFeedback === 'CORRECT' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
             }`}>
               {flashFeedback === 'CORRECT' ? 'CHÍNH XÁC +1' : flashFeedback === 'TIMEOUT' ? 'HẾT THỜI GIAN!' : 'BỊ LỪA RỒI!'}
@@ -411,21 +511,40 @@ export const StroopClashGame: React.FC = () => {
         </div>
       )}
 
-      {/* Answer Color Buttons Grid */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 sm:gap-3 pt-2">
-        {COLOR_PALETTE.map((color) => (
-          <button
-            key={color.id}
-            onClick={() => handleSelectColor(color)}
-            className="h-16 sm:h-20 rounded-2xl flex flex-col items-center justify-center gap-1.5 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all btn-press shadow-sm hover:shadow-md group"
-          >
-            <div className={`w-5 h-5 rounded-full ${color.twBg} shadow-sm group-hover:scale-110 transition-transform`} />
-            <span className="text-[11px] sm:text-xs font-black text-slate-700 dark:text-slate-200 tracking-tight uppercase">
-              {useEnButtons ? color.nameEn : color.nameVi}
-            </span>
-          </button>
-        ))}
-      </div>
+      {/* Answer Buttons Grid: Direction Buttons (Level 21) or Color Buttons */}
+      {isDirectionalStroop ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-2">
+          {DIRECTION_OPTIONS.map((dir) => (
+            <button
+              key={dir.id}
+              onClick={() => handleSelectDirection(dir.id)}
+              className="h-16 sm:h-20 rounded-2xl flex flex-col items-center justify-center gap-1 bg-gradient-to-br from-amber-500 to-orange-600 text-white border-2 border-amber-300 hover:scale-105 transition-all btn-press shadow-md"
+            >
+              <span className="text-xl sm:text-2xl font-black">
+                {dir.id === 'UP' ? '↑' : dir.id === 'DOWN' ? '↓' : dir.id === 'LEFT' ? '←' : '→'}
+              </span>
+              <span className="text-xs sm:text-sm font-black tracking-wider">
+                {dir.label} ({dir.en})
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 sm:gap-3 pt-2">
+          {COLOR_PALETTE.map((color) => (
+            <button
+              key={color.id}
+              onClick={() => handleSelectColor(color)}
+              className="h-16 sm:h-20 rounded-2xl flex flex-col items-center justify-center gap-1.5 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all btn-press shadow-sm hover:shadow-md group"
+            >
+              <div className={`w-5 h-5 rounded-full ${color.twBg} shadow-sm group-hover:scale-110 transition-transform`} />
+              <span className="text-[11px] sm:text-xs font-black text-slate-700 dark:text-slate-200 tracking-tight uppercase">
+                {useEnButtons ? color.nameEn : color.nameVi}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {isFinished && (
         <GameResultModal

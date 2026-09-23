@@ -24,8 +24,8 @@ export const TextScanningGame: React.FC = () => {
   const allTexts = readingContentService.getAllTexts();
   const englishTexts = allTexts.filter(t => t.language === 'en');
   const [currentArticle, setCurrentArticle] = useState<IReadingText>(() => {
-    if (isInfinity && englishTexts.length > 0) {
-      return englishTexts[(effectiveLevel - 13) % englishTexts.length];
+    if (isInfinity) {
+      return readingContentService.getInfinityText(effectiveLevel);
     }
     return allTexts[(effectiveLevel - 1) % allTexts.length] || SAMPLE_READING_TEXTS[0];
   });

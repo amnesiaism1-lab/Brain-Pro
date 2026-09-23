@@ -2,10 +2,22 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { VIETNAMESE_WORDS_DICTIONARY, generateAnagram, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
-import { RotateCcw, Sparkles, Infinity as InfinityIcon, BookOpen, Lightbulb } from 'lucide-react';
+import { RotateCcw, Sparkles, Infinity as InfinityIcon, BookOpen, Lightbulb, Clock, AlertTriangle } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { readingContentService, THEMED_VOCABULARY } from '../../services/readingContentService';
-import { CURATED_DICTIONARY, EMOJI_WORD_PAIRS, SYNONYM_PAIRS } from '../../services/infinityApiService';
+import { 
+  CURATED_DICTIONARY, 
+  EMOJI_WORD_PAIRS, 
+  SYNONYM_PAIRS,
+  ANTONYM_PAIRS,
+  NASA_OFFLINE_CARDS
+} from '../../services/infinityApiService';
+
+const COSMIC_COLLOCATIONS = [
+  'BIG BANG', 'DEEP LEARNING', 'BLACK HOLE', 'DARK MATTER', 
+  'NEURAL NET', 'SOLAR FLARE', 'QUANTUM LEAP', 'EVENT HORIZON', 
+  'BRAIN WAVE', 'SPEED LIGHT', 'COSMIC RAY', 'WHITE DWARF'
+];
 
 export const AnagramGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, enableHints, playSound } = useAppStore();
@@ -16,32 +28,39 @@ export const AnagramGame: React.FC = () => {
   const isInfinity = effectiveLevel >= 13;
   const infinityTier = getInfinityTier(effectiveLevel);
 
+  // Infinity specific level flags
+  const isSynonymMode = effectiveLevel === 14;
+  const isEmojiMode = effectiveLevel === 15;
+  const isPhraseMode = effectiveLevel === 16;
+  const isAntonymMode = effectiveLevel === 17;
+  const isNasaMode = effectiveLevel === 18;
+  const isDistractorMode = effectiveLevel === 19;
+  const isSpeedTimer = effectiveLevel === 20;
+  const isAcademicDefMode = effectiveLevel === 21;
+  const isEndlessWave = effectiveLevel === 22;
+
   // Standard Themes
   const themes = ['Tất cả', 'Khoa Học Não Bộ', 'Công Nghệ & AI', 'Thiên Văn & Vũ Trụ', 'Tâm Lý & Tư Duy'];
   const [selectedTheme, setSelectedTheme] = useState<string>('Tất cả');
 
-  // Infinity specific word targets
-  const currentInfinityItem = useMemo(() => {
-    if (!isInfinity) return null;
-    if (effectiveLevel === 15) {
-      // ∞-III: Visual Emoji
-      const emojis = EMOJI_WORD_PAIRS;
-      return emojis[Math.floor(Math.random() * emojis.length)];
-    }
-    if (effectiveLevel === 14) {
-      // ∞-II: Synonyms
-      const syn = SYNONYM_PAIRS[Math.floor(Math.random() * SYNONYM_PAIRS.length)];
-      return { word: syn.wordA, clue: `Từ đồng nghĩa với "${syn.wordB}": ${syn.commonMeaning}` };
-    }
-    // Default English Dictionary Words
-    const entry = CURATED_DICTIONARY[Math.floor(Math.random() * CURATED_DICTIONARY.length)];
-    return { word: entry.word, clue: entry.viMeaning, phonetic: entry.phonetic };
-  }, [isInfinity, effectiveLevel]);
+  const [roundTimer, setRoundTimer] = useState(18);
 
   const combinedDict = useMemo(() => {
     if (isInfinity) {
-      if (effectiveLevel === 15) {
+      if (isEmojiMode) {
         return EMOJI_WORD_PAIRS.map(e => e.word.toUpperCase());
+      }
+      if (isPhraseMode) {
+        return COSMIC_COLLOCATIONS.map(p => p.toUpperCase());
+      }
+      if (isSynonymMode) {
+        return SYNONYM_PAIRS.map(s => s.wordA.toUpperCase());
+      }
+      if (isAntonymMode) {
+        return ANTONYM_PAIRS.map(a => a.wordA.toUpperCase());
+      }
+      if (isNasaMode) {
+        return NASA_OFFLINE_CARDS.map(n => n.title.split(' ')[0].toUpperCase()).filter(w => w.length >= 4);
       }
       return CURATED_DICTIONARY.map(d => d.word.toUpperCase());
     }
@@ -55,7 +74,7 @@ export const AnagramGame: React.FC = () => {
     const merged = selectedTheme === 'Tất cả' ? [...VIETNAMESE_WORDS_DICTIONARY, ...extra] : extra;
     const sanitized = Array.from(new Set(merged.map(w => w.toUpperCase())));
     return sanitized.length > 0 ? sanitized : ['TRÍ TUỆ', 'NÃO BỘ', 'TƯ DUY', 'KÝ ỨC'];
-  }, [selectedTheme, isInfinity, effectiveLevel]);
+  }, [selectedTheme, isInfinity, effectiveLevel, isEmojiMode, isPhraseMode, isSynonymMode, isAntonymMode, isNasaMode]);
 
   const wordPool = useMemo(() => {
     if (isInfinity) return combinedDict;
@@ -75,21 +94,53 @@ export const AnagramGame: React.FC = () => {
   const [scoreAcc, setScoreAcc] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [round, setRound] = useState(1);
-  const maxRounds = effectiveLevel === 22 ? 20 : 5;
+  const maxRounds = isEndlessWave ? 25 : 5;
 
   const currentHint = useMemo(() => {
     if (!isInfinity) return null;
+    if (isPhraseMode) {
+      return `Cụm từ thiên văn / AI gồm ${rawTarget.split(' ').length} từ (${rawTarget})`;
+    }
+    if (isSynonymMode) {
+      const syn = SYNONYM_PAIRS.find(s => s.wordA.toUpperCase() === targetWord || s.wordB.toUpperCase() === targetWord);
+      if (syn) return `Từ đồng nghĩa với "${syn.wordB}": ${syn.commonMeaning}`;
+    }
+    if (isAntonymMode) {
+      const ant = ANTONYM_PAIRS.find(a => a.wordA.toUpperCase() === targetWord || a.wordB.toUpperCase() === targetWord);
+      if (ant) return `Từ TRÁI NGHĨA với "${ant.wordB}" (${ant.viConcept})`;
+    }
+    if (isNasaMode) {
+      const card = NASA_OFFLINE_CARDS.find(c => c.title.toUpperCase().includes(targetWord) || c.enLabel.toUpperCase().includes(targetWord));
+      if (card) return `Khái niệm vũ trụ NASA: ${card.emoji} ${card.viLabel} (${card.title})`;
+    }
+    if (isAcademicDefMode) {
+      const foundDict = CURATED_DICTIONARY.find(d => d.word.toUpperCase() === targetWord);
+      if (foundDict) return `${foundDict.definition} (${foundDict.viMeaning})`;
+    }
     const foundDict = CURATED_DICTIONARY.find(d => d.word.toUpperCase() === targetWord);
-    if (foundDict) return foundDict.viMeaning;
+    if (foundDict) return `${foundDict.phonetic} • ${foundDict.viMeaning}`;
     const foundEmoji = EMOJI_WORD_PAIRS.find(e => e.word.toUpperCase() === targetWord);
     if (foundEmoji) return `${foundEmoji.emoji} ${foundEmoji.vi}`;
     return null;
-  }, [isInfinity, targetWord]);
+  }, [isInfinity, targetWord, rawTarget, isPhraseMode, isSynonymMode, isAntonymMode, isNasaMode, isAcademicDefMode]);
 
   const setupRound = (word: string) => {
     const data = generateAnagram(word);
+    let chars = [...data.scrambled];
+
+    // For Level 19 (Distractor Mode): add 2 random distractor letters
+    if (isDistractorMode) {
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const distractors = [
+        alphabet[Math.floor(Math.random() * alphabet.length)],
+        alphabet[Math.floor(Math.random() * alphabet.length)]
+      ];
+      chars = [...chars, ...distractors].sort(() => Math.random() - 0.5);
+    }
+
     setSelectedLetters([]);
-    setAvailableTiles(data.scrambled.map((c, i) => ({ id: i, char: c, used: false })));
+    setAvailableTiles(chars.map((c, i) => ({ id: i, char: c, used: false })));
+    setRoundTimer(18);
   };
 
   useEffect(() => {
@@ -100,6 +151,27 @@ export const AnagramGame: React.FC = () => {
     const timer = setInterval(() => setElapsedSec(s => s + 1), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Speed Countdown for Level 20
+  useEffect(() => {
+    if (!isSpeedTimer || isFinished) return;
+    const interval = setInterval(() => {
+      setRoundTimer(t => {
+        if (t <= 1) {
+          playSound('wrong');
+          if (round >= maxRounds) {
+            setIsFinished(true);
+          } else {
+            setRound(r => r + 1);
+            setCurrentIndex(i => i + 1);
+          }
+          return 18;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isSpeedTimer, isFinished, round, maxRounds]);
 
   const handleTileClick = (tileId: number, char: string) => {
     playSound('click');
@@ -181,12 +253,22 @@ export const AnagramGame: React.FC = () => {
         </div>
 
         <div className="text-right">
-          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Thời gian</span>
-          <div className="text-2xl sm:text-3xl font-black text-amber-500 mt-0.5">
-            {elapsedSec}s
+          <span className="text-xs sm:text-sm text-slate-500 font-semibold">
+            {isSpeedTimer ? 'Thời gian vòng' : 'Thời gian'}
+          </span>
+          <div className={`text-2xl sm:text-3xl font-black mt-0.5 ${isSpeedTimer ? (roundTimer <= 5 ? 'text-rose-500 animate-pulse' : 'text-purple-600') : 'text-amber-500'}`}>
+            {isSpeedTimer ? `${roundTimer}s` : `${elapsedSec}s`}
           </div>
         </div>
       </div>
+
+      {/* Distractor Warning Banner */}
+      {isDistractorMode && (
+        <div className="p-3 rounded-2xl bg-amber-500/20 border border-amber-400 text-amber-800 dark:text-amber-200 flex items-center justify-center gap-2 text-xs font-black animate-pulse">
+          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+          <span>BẪY TẬP TRUNG: CÓ 2 CHỮ CÁI BẪY KHÔNG THUỘC VỀ TỪ CẦN GHÉP!</span>
+        </div>
+      )}
 
       {/* Infinity Hint or Emoji Clue Card */}
       {currentHint && (

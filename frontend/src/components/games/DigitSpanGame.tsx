@@ -4,6 +4,9 @@ import { GameResultModal } from './GameResultModal';
 import { calculateGameScore } from '@brain-exercises/shared';
 import { Delete } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { speakWord } from '../../services/infinityApiService';
+
+const SHORT_WORDS = ['CAT', 'SUN', 'SKY', 'MAP', 'SEA', 'STAR', 'MOON', 'PEN', 'TREE', 'BIRD'];
 
 export const DigitSpanGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
@@ -13,21 +16,30 @@ export const DigitSpanGame: React.FC = () => {
   const isInfinity = effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
-  const isReverseSpan = effectiveLevel >= 8 && effectiveLevel !== 13 && effectiveLevel !== 16;
   const isLetterMode = effectiveLevel === 13;
+  const isWordMode = effectiveLevel === 14;
+  const isSuppression = effectiveLevel === 15;
   const isMixedMode = effectiveLevel === 16;
+  const isAudioSpan = effectiveLevel === 17;
+  const isReverseAlphanumeric = effectiveLevel === 19;
+  const isRsvpMode = effectiveLevel === 20 || effectiveLevel === 22;
+  const isReverseSpan = (effectiveLevel >= 8 && effectiveLevel !== 13 && effectiveLevel !== 14 && effectiveLevel !== 16 && effectiveLevel !== 17) || isReverseAlphanumeric;
   
   const digitCount = isInfinity 
-    ? (effectiveLevel === 13 ? 6 : effectiveLevel === 16 ? 6 : Math.min(14, 6 + (effectiveLevel - 13))) 
+    ? (isLetterMode ? 6 : isWordMode ? 4 : isMixedMode ? 6 : isAudioSpan ? 5 : isReverseAlphanumeric ? 6 : isRsvpMode ? 8 : Math.min(12, 6 + (effectiveLevel - 13))) 
     : Math.min(12, 3 + effectiveLevel);
   
   const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const generateSequence = (len: number) => {
+    if (isWordMode) {
+      const shuffled = [...SHORT_WORDS].sort(() => Math.random() - 0.5);
+      return shuffled.slice(0, len).join(' ');
+    }
     let str = '';
     for (let i = 0; i < len; i++) {
       if (isLetterMode) {
         str += LETTERS[Math.floor(Math.random() * LETTERS.length)];
-      } else if (isMixedMode) {
+      } else if (isMixedMode || isReverseAlphanumeric) {
         str += (i % 2 === 0) ? Math.floor(Math.random() * 10).toString() : LETTERS[Math.floor(Math.random() * LETTERS.length)];
       } else {
         str += Math.floor(Math.random() * 10).toString();
@@ -38,6 +50,7 @@ export const DigitSpanGame: React.FC = () => {
 
   const [digits, setDigits] = useState(() => generateSequence(digitCount));
   const [phase, setPhase] = useState<'memorize' | 'recall'>('memorize');
+  const [rsvpIndex, setRsvpIndex] = useState<number>(0);
   const [userInput, setUserInput] = useState('');
   const [round, setRound] = useState(1);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -46,11 +59,26 @@ export const DigitSpanGame: React.FC = () => {
   const maxRounds = 3;
 
   useEffect(() => {
-    setDigits(generateSequence(digitCount));
+    const seq = generateSequence(digitCount);
+    setDigits(seq);
     setPhase('memorize');
     setUserInput('');
+    setRsvpIndex(0);
 
-    const flashDuration = 1000 + (digitCount * (isInfinity ? 350 : 300));
+    // Audio span dictation
+    if (isAudioSpan) {
+      const spacedDigits = seq.split('').join(' ... ');
+      setTimeout(() => {
+        speakWord(spacedDigits, 'en', 0.9);
+      }, 300);
+    }
+
+    const flashDuration = isRsvpMode 
+      ? (seq.length * 350) + 600
+      : isAudioSpan 
+      ? (seq.length * 1000) + 800
+      : 1000 + (digitCount * (isInfinity ? 350 : 300));
+
     const timer = setTimeout(() => {
       setPhase('recall');
       recallStartTimeRef.current = Date.now();
@@ -58,6 +86,15 @@ export const DigitSpanGame: React.FC = () => {
 
     return () => clearTimeout(timer);
   }, [round, effectiveLevel, digitCount]);
+
+  // RSVP animation tick
+  useEffect(() => {
+    if (phase !== 'memorize' || !isRsvpMode) return;
+    const interval = setInterval(() => {
+      setRsvpIndex(i => (i + 1 < digits.length ? i + 1 : i));
+    }, 320);
+    return () => clearInterval(interval);
+  }, [phase, isRsvpMode, digits]);
 
   useEffect(() => {
     const timer = setInterval(() => setElapsedSec(s => s + 1), 1000);
@@ -160,18 +197,25 @@ export const DigitSpanGame: React.FC = () => {
             </span>
             <span className="font-semibold text-white">
               {effectiveLevel === 13 ? 'Letter Span (Trí nhớ ngắn hạn chuỗi ký tự Latin)' :
-               effectiveLevel === 14 ? 'Word Span (Chuỗi từ vựng ngắn tiếng Anh)' :
-               effectiveLevel === 15 ? 'Color Span (Chuỗi tên màu quy ước)' :
-               effectiveLevel === 16 ? 'Mixed Span (Xen kẽ Số - Chữ phức hợp)' :
-               effectiveLevel === 17 ? 'Spatial Span (Tọa độ không gian)' :
-               effectiveLevel === 18 ? 'Equation Span (Ghi nhớ kết quả phép tính)' :
-               effectiveLevel === 19 ? 'Backward Cascade (Đảo ngược cực hạn 10-12 ký tự)' :
-               effectiveLevel === 20 ? 'Dual Channel (Hai luồng thông tin song song)' :
-               effectiveLevel === 21 ? 'Interference Block (Kháng nhiễu ngoại vi)' :
-               'Temporal Weave (Nhịp thời gian Fibonacci Vô cực)'}
+               effectiveLevel === 14 ? 'Word Span (Chuỗi từ vựng ngắn tiếng Anh CAT, SUN, SKY...)' :
+               effectiveLevel === 15 ? 'Phonological Suppression (Chặn phát âm thầm: hãy nói LA-LA-LA)' :
+               effectiveLevel === 16 ? 'Mixed Alphanumeric (Xen kẽ Số - Chữ phức hợp A7B2C9)' :
+               effectiveLevel === 17 ? 'Audio Dictation Span (Nghe số qua giọng nói, không nhìn chữ)' :
+               effectiveLevel === 18 ? 'Color Sequence Span (Chuỗi màu quy ước)' :
+               effectiveLevel === 19 ? 'Reverse Alphanumeric (Đảo ngược chuỗi số và chữ phức hợp)' :
+               effectiveLevel === 20 ? 'RSVP Rapid Serial Stream (Chớp từng ký tự 320ms)' :
+               effectiveLevel === 21 ? 'Dual Channel Span (Đa kênh trí nhớ làm việc)' :
+               'Adaptive Ceiling Stream (Dãy siêu tốc 8-12 ký tự)'}
             </span>
           </div>
           <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
+        </div>
+      )}
+
+      {/* Suppression Warning Banner */}
+      {isSuppression && (
+        <div className="p-3 rounded-2xl bg-amber-500/20 border border-amber-400 text-amber-800 dark:text-amber-200 text-center font-black text-xs sm:text-sm animate-pulse">
+          🗣️ PHƯƠNG PHÁP ỨC CHẾ ÂM VỊ: Hãy nói to liên tục "LA - LA - LA" trong khi nhớ số để chặn giọng đọc ngầm!
         </div>
       )}
 
@@ -186,7 +230,7 @@ export const DigitSpanGame: React.FC = () => {
         <div className="text-right">
           <span className="text-xs sm:text-sm text-slate-500 font-medium">Độ dài chuỗi</span>
           <div className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white">
-            {digitCount} {isLetterMode ? 'chữ cái' : 'ký tự'} {isReverseSpan && <span className="text-rose-500 text-xs sm:text-sm ml-1 font-bold">(Đảo ngược)</span>}
+            {digitCount} {isLetterMode ? 'chữ cái' : isWordMode ? 'từ' : 'ký tự'} {isReverseSpan && <span className="text-rose-500 text-xs sm:text-sm ml-1 font-bold">(Đảo ngược)</span>}
           </div>
         </div>
       </div>
@@ -195,12 +239,35 @@ export const DigitSpanGame: React.FC = () => {
       <div className="h-56 sm:h-64 md:h-72 rounded-3xl bg-brand-600 dark:bg-brand-700 text-white flex flex-col items-center justify-center p-6 sm:p-8 shadow-2xl relative overflow-hidden border-2 border-brand-400">
         {phase === 'memorize' ? (
           <div className="space-y-2 text-center animate-pulse">
-            <span className="text-xs sm:text-sm uppercase tracking-widest text-brand-200 font-bold">
-              {isReverseSpan ? `Ghi nhớ ${spanLabel} (Chuẩn bị gõ đảo ngược)` : `Ghi nhớ ${spanLabel}`}
-            </span>
-            <div className="text-4xl sm:text-6xl md:text-7xl font-mono font-black tracking-widest text-amber-300">
-              {digits}
-            </div>
+            {isAudioSpan ? (
+              <>
+                <span className="text-xs sm:text-sm uppercase tracking-widest text-brand-200 font-bold">
+                  🎧 LẮNG NGHE CHUỖI SỐ QUA TAI NGHE / LOA
+                </span>
+                <div className="text-4xl sm:text-6xl font-mono font-black tracking-widest text-amber-300 flex items-center justify-center gap-3">
+                  <span>🔊</span>
+                  <span className="text-2xl sm:text-3xl text-white">ĐANG ĐỌC TỪNG SỐ...</span>
+                </div>
+              </>
+            ) : isRsvpMode ? (
+              <>
+                <span className="text-xs sm:text-sm uppercase tracking-widest text-brand-200 font-bold">
+                  ⚡ CHỚP TỪNG KÝ TỰ RSVP ({rsvpIndex + 1}/{digits.length})
+                </span>
+                <div className="text-6xl sm:text-8xl font-mono font-black text-amber-300">
+                  {digits[rsvpIndex]}
+                </div>
+              </>
+            ) : (
+              <>
+                <span className="text-xs sm:text-sm uppercase tracking-widest text-brand-200 font-bold">
+                  {isReverseSpan ? `Ghi nhớ ${spanLabel} (Chuẩn bị gõ đảo ngược)` : `Ghi nhớ ${spanLabel}`}
+                </span>
+                <div className="text-4xl sm:text-6xl md:text-7xl font-mono font-black tracking-widest text-amber-300">
+                  {digits}
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-3 text-center w-full">

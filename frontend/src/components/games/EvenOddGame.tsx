@@ -2,9 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { useRelationSession } from '../../hooks/useRelationSession';
-import { numberToEnglish, numberToRoman, speakWord } from '../../services/infinityApiService';
+import { 
+  numberToEnglish, 
+  numberToRoman, 
+  speakWord,
+  generateWordProblem,
+  generateFractionProblem,
+  generateAlgebraParityProblem
+} from '../../services/infinityApiService';
 import { INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
-import { Infinity as InfinityIcon, Sparkles, Zap, Volume2 } from 'lucide-react';
+import { Infinity as InfinityIcon, Sparkles, Zap, Volume2, Eye, Ear } from 'lucide-react';
 
 export const EvenOddGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
@@ -27,12 +34,13 @@ export const EvenOddGame: React.FC = () => {
   const isSpeedStorm = effectiveLevel === 18;
   const isColorInversion = effectiveLevel === 19;
   const isRomanMode = effectiveLevel === 20;
-  const isAudioDictation = effectiveLevel === 21;
-  const isInfiniteStream = effectiveLevel === 22;
+  const isDualStreamAudio = effectiveLevel === 21;
+  const isAlgebraStream = effectiveLevel === 22;
 
   const [currentNumber, setCurrentNumber] = useState(14);
   const [displayText, setDisplayText] = useState<string>('14');
   const [displayEquation, setDisplayEquation] = useState<string | null>(null);
+  const [dualStreamFocus, setDualStreamFocus] = useState<'EYE' | 'EAR'>('EYE');
   const [isInverted, setIsInverted] = useState(false);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
@@ -56,19 +64,28 @@ export const EvenOddGame: React.FC = () => {
       num = Math.floor(Math.random() * 90) + 10;
       label = String(num);
     } else if (isFractionMode) {
-      const denom = 2;
-      const numer = Math.floor(Math.random() * 30) + 11;
-      const rounded = Math.round(numer / denom);
-      num = rounded;
-      label = `${numer} / 2 (≈ ${rounded})`;
+      const frac = generateFractionProblem();
+      num = frac.answer;
+      label = frac.text;
     } else if (isWordProblem) {
-      const a = Math.floor(Math.random() * 6) + 3;
-      const b = Math.floor(Math.random() * 7) + 2;
-      num = a * b;
-      label = `${a} hàng × ${b} bạn = ?`;
+      const prob = generateWordProblem();
+      num = prob.answer;
+      label = prob.text;
     } else if (isRomanMode) {
-      num = Math.floor(Math.random() * 50) + 1;
-      label = `${numberToRoman(num)} (${num})`;
+      num = Math.floor(Math.random() * 60) + 1;
+      label = numberToRoman(num); // Pure Roman numeral, NO spoilers
+    } else if (isDualStreamAudio) {
+      const visNum = Math.floor(Math.random() * 80) + 10;
+      const audNum = Math.floor(Math.random() * 80) + 10;
+      const focus: 'EYE' | 'EAR' = Math.random() < 0.5 ? 'EYE' : 'EAR';
+      setDualStreamFocus(focus);
+      num = focus === 'EYE' ? visNum : audNum;
+      label = String(visNum);
+      speakWord(String(audNum), 'en', 1.0);
+    } else if (isAlgebraStream) {
+      const alg = generateAlgebraParityProblem();
+      num = alg.answer;
+      label = alg.text;
     } else if (isEquationMode) {
       const a = Math.floor(Math.random() * 40) + 11;
       const b = Math.floor(Math.random() * 40) + 11;
@@ -83,18 +100,13 @@ export const EvenOddGame: React.FC = () => {
     let invert = false;
     if (isColorInversion) {
       invert = Math.random() < 0.5;
-    } else if (effectiveLevel >= 4) {
+    } else if (effectiveLevel >= 4 && !isDualStreamAudio && !isAlgebraStream) {
       invert = Math.random() < 0.35;
     }
 
     setCurrentNumber(num);
     setDisplayText(label);
     setIsInverted(invert);
-
-    // Audio dictation for level 21
-    if (isAudioDictation) {
-      speakWord(String(Math.abs(num)), 'en', 1.1);
-    }
   };
 
   useEffect(() => {
@@ -220,11 +232,24 @@ export const EvenOddGame: React.FC = () => {
         </div>
       )}
 
-      {/* Audio hint banner */}
-      {isAudioDictation && (
-        <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-800 flex items-center justify-center gap-2 text-xs font-black text-purple-700 dark:text-purple-300">
-          <Volume2 className="w-4 h-4 text-purple-600 dark:text-purple-400 animate-pulse" />
-          <span>LẮNG NGHE SỐ PHÁT RA TỪ TAI NGHE / LOA HOẶC NHÌN MÀN HÌNH</span>
+      {/* Dual Stream Audio Focus Banner */}
+      {isDualStreamAudio && (
+        <div className={`p-3 rounded-2xl flex items-center justify-center gap-3 text-sm font-black shadow-md transition-all ${
+          dualStreamFocus === 'EYE'
+            ? 'bg-blue-600 text-white animate-bounce'
+            : 'bg-amber-500 text-white animate-bounce'
+        }`}>
+          {dualStreamFocus === 'EYE' ? (
+            <>
+              <Eye className="w-5 h-5" />
+              <span>TIÊU ĐIỂM MẮT (EYE FOCUS): ĐÁNH GIÁ SỐ HIỂN THỊ TRÊN MÀN HÌNH!</span>
+            </>
+          ) : (
+            <>
+              <Ear className="w-5 h-5" />
+              <span>TIÊU ĐIỂM TAI (EAR FOCUS): ĐÁNH GIÁ SỐ PHÁT RA TỪ ÂM THANH!</span>
+            </>
+          )}
         </div>
       )}
 
@@ -241,12 +266,20 @@ export const EvenOddGame: React.FC = () => {
             ? 'Số La Mã Cổ Điển'
             : isWordProblem
             ? 'Toán Đố Tư Duy'
+            : isFractionMode
+            ? 'Phân Số Làm Tròn'
+            : isDualStreamAudio
+            ? (dualStreamFocus === 'EYE' ? '👁️ Đánh giá số trên màn hình' : '👂 Bỏ qua số màn hình, chú ý âm thanh')
+            : isAlgebraStream
+            ? 'Đại Số & Đa Thức Nhận Thức'
             : 'Xác Định Tính Chẵn / Lẻ'}
         </span>
 
         <span className={`font-black tracking-tight leading-none px-4 ${
           isEnglishWords 
             ? 'text-3xl sm:text-5xl text-purple-600 dark:text-purple-400' 
+            : isAlgebraStream || isWordProblem
+            ? 'text-2xl sm:text-4xl text-brand-600 dark:text-brand-300'
             : 'text-4xl sm:text-6xl text-slate-800 dark:text-white'
         }`}>
           {displayText}

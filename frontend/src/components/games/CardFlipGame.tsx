@@ -278,9 +278,8 @@ export const CardFlipGame: React.FC = () => {
           break;
         }
 
-        case 18:
-        case 21: {
-          // ∞-VI / ∞-IX: NASA Cosmic Astronomy Cards
+        case 18: {
+          // ∞-VI: NASA Cosmic Astronomy Cards
           const spaceCards = infinityApiService.getNasaCards(8);
           spaceCards.forEach((item, idx) => {
             const mKey = item.enLabel;
@@ -310,13 +309,41 @@ export const CardFlipGame: React.FC = () => {
           break;
         }
 
-        default: {
-          // ∞-VII, ∞-VIII, ∞-X: Dynamic Hybrid Vocabulary Deck
+        case 19: {
+          // ∞-VII: Antonym Opposites Matching (Hot vs Cold, Chaos vs Order)
+          const antonyms = infinityApiService.getAntonymPairs(pairCount);
+          antonyms.forEach((pair, idx) => {
+            const mKey = `ant-${pair.wordA}-${pair.wordB}`;
+            cardDeck.push({
+              id: `card-antA-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: mKey,
+              cardType: 'word_en',
+              displayText: pair.wordA,
+              subText: pair.viConcept,
+              isFlipped: false,
+              isMatched: false
+            });
+            cardDeck.push({
+              id: `card-antB-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: mKey,
+              cardType: 'word_en',
+              displayText: pair.wordB,
+              subText: 'Từ Trái Nghĩa',
+              isFlipped: false,
+              isMatched: false
+            });
+          });
+          break;
+        }
+
+        case 20: {
+          // ∞-VIII: Rapid Decay Flash (Flipped cards close fast)
           const biPairs = infinityApiService.getBilingualPairs(pairCount);
           biPairs.forEach((pair, idx) => {
-            const isVi = Math.random() < 0.5;
             cardDeck.push({
-              id: `card-dynA-${idx}-${Math.random()}`,
+              id: `card-decayA-${idx}-${Math.random()}`,
               symbolIndex: idx % CARD_ICONS.length,
               matchKey: pair.en,
               cardType: 'word_en',
@@ -326,12 +353,143 @@ export const CardFlipGame: React.FC = () => {
               isMatched: false
             });
             cardDeck.push({
-              id: `card-dynB-${idx}-${Math.random()}`,
+              id: `card-decayB-${idx}-${Math.random()}`,
               symbolIndex: idx % CARD_ICONS.length,
               matchKey: pair.en,
-              cardType: isVi ? 'word_vi' : 'word_en',
-              displayText: isVi ? pair.vi : pair.en,
-              subText: isVi ? 'Dịch Nghĩa' : 'Vocabulary',
+              cardType: 'word_vi',
+              displayText: pair.vi,
+              subText: '1.5s Decay',
+              isFlipped: false,
+              isMatched: false
+            });
+          });
+          break;
+        }
+
+        case 21: {
+          // ∞-IX: Multi-Domain Synthesis Deck (Hybrid mix of Emojis, NASA, Antonyms, Bilingual)
+          const emojis = infinityApiService.getEmojiWordPairs(3);
+          const space = infinityApiService.getNasaCards(3);
+          const antonyms = infinityApiService.getAntonymPairs(3);
+          const bilingual = infinityApiService.getBilingualPairs(3);
+
+          emojis.forEach((pair, idx) => {
+            cardDeck.push({
+              id: `card-syn-emA-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: `em-${pair.word}`,
+              cardType: 'emoji',
+              displayText: pair.emoji,
+              subText: 'Biểu Tượng',
+              isFlipped: false,
+              isMatched: false
+            });
+            cardDeck.push({
+              id: `card-syn-emB-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: `em-${pair.word}`,
+              cardType: 'word_en',
+              displayText: pair.word,
+              subText: pair.vi,
+              isFlipped: false,
+              isMatched: false
+            });
+          });
+
+          space.forEach((item, idx) => {
+            cardDeck.push({
+              id: `card-syn-spA-${idx}-${Math.random()}`,
+              symbolIndex: (idx + 3) % CARD_ICONS.length,
+              matchKey: `sp-${item.enLabel}`,
+              cardType: 'space',
+              displayText: item.enLabel,
+              emoji: item.emoji,
+              subText: 'Vũ Trụ',
+              isFlipped: false,
+              isMatched: false
+            });
+            cardDeck.push({
+              id: `card-syn-spB-${idx}-${Math.random()}`,
+              symbolIndex: (idx + 3) % CARD_ICONS.length,
+              matchKey: `sp-${item.enLabel}`,
+              cardType: 'space',
+              displayText: item.viLabel,
+              emoji: item.emoji,
+              subText: 'Thiên Văn',
+              isFlipped: false,
+              isMatched: false
+            });
+          });
+
+          antonyms.forEach((pair, idx) => {
+            cardDeck.push({
+              id: `card-syn-antA-${idx}-${Math.random()}`,
+              symbolIndex: (idx + 6) % CARD_ICONS.length,
+              matchKey: `ant-${pair.wordA}-${pair.wordB}`,
+              cardType: 'word_en',
+              displayText: pair.wordA,
+              subText: 'Trái Nghĩa',
+              isFlipped: false,
+              isMatched: false
+            });
+            cardDeck.push({
+              id: `card-syn-antB-${idx}-${Math.random()}`,
+              symbolIndex: (idx + 6) % CARD_ICONS.length,
+              matchKey: `ant-${pair.wordA}-${pair.wordB}`,
+              cardType: 'word_en',
+              displayText: pair.wordB,
+              subText: pair.viConcept,
+              isFlipped: false,
+              isMatched: false
+            });
+          });
+
+          bilingual.forEach((pair, idx) => {
+            cardDeck.push({
+              id: `card-syn-biA-${idx}-${Math.random()}`,
+              symbolIndex: (idx + 9) % CARD_ICONS.length,
+              matchKey: `bi-${pair.en}`,
+              cardType: 'word_vi',
+              displayText: pair.vi,
+              subText: 'Tiếng Việt',
+              isFlipped: false,
+              isMatched: false
+            });
+            cardDeck.push({
+              id: `card-syn-biB-${idx}-${Math.random()}`,
+              symbolIndex: (idx + 9) % CARD_ICONS.length,
+              matchKey: `bi-${pair.en}`,
+              cardType: 'word_en',
+              displayText: pair.en,
+              subText: 'English',
+              isFlipped: false,
+              isMatched: false
+            });
+          });
+          break;
+        }
+
+        default: {
+          // ∞-X: Infinite Endless Deck (Level 22)
+          const biPairs = infinityApiService.getBilingualPairs(pairCount);
+          biPairs.forEach((pair, idx) => {
+            cardDeck.push({
+              id: `card-endlessA-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: pair.en,
+              cardType: 'word_en',
+              displayText: pair.en,
+              subText: pair.category,
+              isFlipped: false,
+              isMatched: false
+            });
+            cardDeck.push({
+              id: `card-endlessB-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: pair.en,
+              cardType: 'word_vi',
+              displayText: pair.vi,
+              subText: 'Cascade',
               isFlipped: false,
               isMatched: false
             });

@@ -144,6 +144,190 @@ export const ENGLISH_INFINITY_READING_TEXTS: IReadingText[] = [
         explanation: 'Albert Einstein famously questioned this non-local behavior as spooky action at a distance.'
       }
     ]
+  },
+  {
+    id: 'text-inf-agi-cognition',
+    title: 'Artificial General Intelligence and Synthetic Cognition',
+    category: 'Computer Science (EN)',
+    wordCount: 235,
+    difficultyLevel: 10,
+    content: 'The quest to engineer Artificial General Intelligence (AGI) represents the convergence of theoretical computation, neurobiology, and epistemology. Current frontier models utilize deep transformer architectures capable of self-attention mechanisms across vast semantic dimensionalities. While these large-scale neural networks demonstrate extraordinary heuristic proficiency in synthesis, translation, and algorithmic reasoning, fundamental debates persist concerning genuine synthetic understanding versus statistical pattern emulation. Cognitive scientists emphasize that human intelligence relies heavily on grounded world models, embodied sensorimotor feedback, and rapid counterfactual imagination. For an artificial system to achieve autonomous general competence comparable to biological sentience, it must transcend passive token prediction and develop robust causal inference frameworks capable of continuous, self-supervised real-time adaptation in unpredictable environments.',
+    previewExcerpt: 'The quest to engineer Artificial General Intelligence represents the convergence of theoretical computation and neurobiology...',
+    author: 'Institute for Advanced Computation',
+    questions: [
+      {
+        id: 'q-inf-4',
+        questionOrder: 1,
+        questionText: 'What fundamental framework must artificial systems develop to achieve general competence?',
+        optionA: 'Larger passive token prediction tables',
+        optionB: 'Robust causal inference frameworks',
+        optionC: 'Pure sensory imitation without models',
+        optionD: 'Fixed linear regression networks',
+        correctOption: 'B',
+        explanation: 'The text states artificial systems must develop robust causal inference frameworks capable of continuous adaptation.'
+      }
+    ]
+  },
+  {
+    id: 'text-inf-deep-ocean',
+    title: 'Deep Ocean Bioluminescence and Sensory Adaptation',
+    category: 'Marine Biology (EN)',
+    wordCount: 228,
+    difficultyLevel: 8,
+    content: 'In the midnight bathypelagic zone of the world oceans, sunlight is entirely extinguished below depths of one thousand meters. Within this perpetual abyss, over ninety percent of macroscopic marine organisms have evolved bioluminescence—the biochemical production of visible cold light via luciferin oxidation catalyzed by the luciferase enzyme. Specialized organs called photophores emit coherent light beams that serve critical survival imperatives: counter-illumination camouflage against predators hunting from below, hypnotic lures to trap prey, and species-specific optical signaling for mate recognition. Because blue-green wavelengths penetrate oceanic waters with minimal attenuation, abyssal creature retinas are exquisitely sensitized to these narrow spectral bands, demonstrating how life sculpts sensory physiology to master extreme planetary habitats.',
+    previewExcerpt: 'In the midnight bathypelagic zone of the world oceans, sunlight is entirely extinguished below depths of one thousand meters...',
+    author: 'Oceanographic Research Journal',
+    questions: [
+      {
+        id: 'q-inf-5',
+        questionOrder: 1,
+        questionText: 'Which enzyme catalyzes the oxidation of luciferin in bioluminescent organisms?',
+        optionA: 'Amylase',
+        optionB: 'Luciferase',
+        optionC: 'Hemoglobin',
+        optionD: 'Photase',
+        correctOption: 'B',
+        explanation: 'The biochemical production of cold light occurs via luciferin oxidation catalyzed by the luciferase enzyme.'
+      }
+    ]
+  },
+  {
+    id: 'text-inf-flow-state',
+    title: 'The Neuroscience of Flow State and High Performance',
+    category: 'Neuropsychology (EN)',
+    wordCount: 240,
+    difficultyLevel: 9,
+    content: 'Flow state, originally conceptualized by psychologist Mihaly Csikszentmihalyi, is an optimal psychological state of intense absorption and effortless immersion in high-challenge activities. Neuroimaging reveals that entering flow does not involve hyperactive brain overdrive, but rather transient hypofrontality—a selective downregulation of the dorsolateral prefrontal cortex. This temporary silencing of the inner self-critic and temporal monitoring faculties eliminates self-consciousness and alters time perception. Concurrently, electroencephalography registers a harmonized transition into theta-alpha brainwave oscillations, while a neurochemical cascade of dopamine, norepinephrine, endorphins, and anandamide floods the central nervous system. This cocktail enhances pattern recognition, accelerates motor reflexes, and amplifies cognitive throughput to peak human operational levels.',
+    previewExcerpt: 'Flow state is an optimal psychological state of intense absorption and effortless immersion in high-challenge activities...',
+    author: 'Cognitive Performance Lab',
+    questions: [
+      {
+        id: 'q-inf-6',
+        questionOrder: 1,
+        questionText: 'What neurological phenomenon explains the silencing of the inner critic during flow?',
+        optionA: 'Transient hypofrontality',
+        optionB: 'Hyperactive prefrontal overdrive',
+        optionC: 'Complete auditory cortex shutdown',
+        optionD: 'Excessive cortisol secretion',
+        correctOption: 'A',
+        explanation: 'Transient hypofrontality—a selective downregulation of the dorsolateral prefrontal cortex—silences the inner critic.'
+      }
+    ]
+  },
+  {
+    id: 'text-inf-black-holes',
+    title: 'Black Hole Thermodynamics and Information Paradox',
+    category: 'Astrophysics (EN)',
+    wordCount: 230,
+    difficultyLevel: 10,
+    content: 'Black holes represent the most extreme gravitational singularities in the universe, defined by an event horizon from which no matter or electromagnetic radiation can escape. In the 1970s, Stephen Hawking revolutionized theoretical cosmology by calculating that quantum fluctuations near the event horizon produce thermal radiation, causing black holes to slowly evaporate over cosmic epochs. This discovery precipitated the famous Black Hole Information Paradox: according to quantum mechanics, physical quantum information can never be destroyed, yet Hawking radiation appeared purely thermal and random. Resolving whether information is preserved in subtle quantum entanglement patterns on the horizon surface remains the premier challenge driving the unification of general relativity with quantum field theory.',
+    previewExcerpt: 'Black holes represent the most extreme gravitational singularities in the universe, defined by an event horizon...',
+    author: 'Theoretical Physics Review',
+    questions: [
+      {
+        id: 'q-inf-7',
+        questionOrder: 1,
+        questionText: 'Why did Hawking radiation cause a paradox with quantum mechanics?',
+        optionA: 'Quantum mechanics requires physical information to never be destroyed',
+        optionB: 'Black holes were predicted to expand forever without loss',
+        optionC: 'Thermal radiation exceeds the speed of light',
+        optionD: 'Singularities do not possess gravitational mass',
+        correctOption: 'A',
+        explanation: 'Quantum mechanics dictates that quantum information is conserved, whereas Hawking radiation initially appeared to destroy information.'
+      }
+    ]
+  },
+  {
+    id: 'text-inf-epigenetics',
+    title: 'Epigenetics, Longevity, and Cellular Rejuvenation',
+    category: 'Biotechnology (EN)',
+    wordCount: 225,
+    difficultyLevel: 9,
+    content: 'While the genomic sequence of an organism remains largely static across somatic cells, epigenetics regulates which genes are activated or repressed through biochemical modifications, predominantly DNA methylation and histone acetylation. As cells experience metabolic stress and chronologic aging, epigenetic noise degrades transcriptional precision, contributing to cellular senescence and tissue decline. Landmark breakthroughs utilizing Yamanaka reprogramming factors have proven that transient expression of specific transcription factors can reset cellular epigenetic clocks without erasing cell identity. By restoring youthful chromatin architecture, regenerative medicine researchers aim to reverse age-related cognitive decline, enhance neural resilience, and promote systemic human healthspan.',
+    previewExcerpt: 'While the genomic sequence remains static across somatic cells, epigenetics regulates which genes are activated or repressed...',
+    author: 'Longevity Science Foundation',
+    questions: [
+      {
+        id: 'q-inf-8',
+        questionOrder: 1,
+        questionText: 'What epigenetic mechanism predominantly regulates gene activation and repression?',
+        optionA: 'DNA methylation and histone acetylation',
+        optionB: 'Mitochondrial fission and fusion',
+        optionC: 'Direct chromosomal cleavage',
+        optionD: 'Cell wall calcification',
+        correctOption: 'A',
+        explanation: 'Epigenetics regulates gene expression through biochemical modifications, predominantly DNA methylation and histone acetylation.'
+      }
+    ]
+  },
+  {
+    id: 'text-inf-stoicism',
+    title: 'Ancient Stoic Philosophy and Emotional Equilibrium',
+    category: 'Philosophy & Ethics (EN)',
+    wordCount: 220,
+    difficultyLevel: 8,
+    content: 'Originating in ancient Greece and Rome through thinkers like Epictetus, Seneca, and Emperor Marcus Aurelius, Stoicism offers a rigorous philosophical framework for cultivating unshakable psychological serenity. Central to Stoic logic is the dichotomy of control: distinguishing sharply between external events beyond our volition and our internal interpretations and moral judgments. Rather than allowing involuntary emotional impulses to dictate action, the practitioner exercises cognitive reappraisal, recognizing that mental distress arises not from external circumstances, but from the subjective opinions formed about them. By aligning conscious reasoning with nature and practicing virtue, individuals establish profound internal equilibrium resilient against any adversity.',
+    previewExcerpt: 'Originating in ancient Greece and Rome, Stoicism offers a rigorous framework for cultivating psychological serenity...',
+    author: 'Classical Philosophy Institute',
+    questions: [
+      {
+        id: 'q-inf-9',
+        questionOrder: 1,
+        questionText: 'According to Stoic philosophy, where does mental distress truly originate?',
+        optionA: 'Uncontrollable weather and fate',
+        optionB: 'From subjective opinions and internal judgments',
+        optionC: 'From biological genetic determinism',
+        optionD: 'From lack of material wealth',
+        correctOption: 'B',
+        explanation: 'Stoics recognize that distress arises not from external events, but from the subjective opinions and judgments formed about them.'
+      }
+    ]
+  },
+  {
+    id: 'text-inf-rem-sleep',
+    title: 'Memory Consolidation During REM and Slow-Wave Sleep',
+    category: 'Sleep Neuroscience (EN)',
+    wordCount: 232,
+    difficultyLevel: 8,
+    content: 'Sleep is not an idle state of brain dormancy, but a metabolically active sequence of neural restructuring essential for memory consolidation and cognitive longevity. During deep slow-wave sleep, high-amplitude delta waves coordinate hippocampal-neocortical dialogues: daytime memories temporarily stored in the fragile hippocampus are replayed and systematically integrated into durable cortical networks. Simultaneously, the glymphatic system expands, flushing metabolic neurotoxins like beta-amyloid from interstitial spaces. In Rapid Eye Movement (REM) sleep, characterized by vivid dreaming and desynchronized electroencephalograms, emotional charge is stripped from autobiographical memories, while novel creative connections between distant cognitive domains are forged.',
+    previewExcerpt: 'Sleep is not an idle state of brain dormancy, but a metabolically active sequence of neural restructuring...',
+    author: 'Sleep and Neurobiology Center',
+    questions: [
+      {
+        id: 'q-inf-10',
+        questionOrder: 1,
+        questionText: 'What system expands during slow-wave sleep to flush neurotoxins from the brain?',
+        optionA: 'The glymphatic system',
+        optionB: 'The cardiovascular valve',
+        optionC: 'The pulmonary tract',
+        optionD: 'The digestive canal',
+        correctOption: 'A',
+        explanation: 'The glymphatic system expands during deep sleep, flushing metabolic neurotoxins from interstitial brain spaces.'
+      }
+    ]
+  },
+  {
+    id: 'text-inf-mars-astrophysics',
+    title: 'Astrophysics of Mars Colonization and Interplanetary Travel',
+    category: 'Aerospace & Space Science (EN)',
+    wordCount: 245,
+    difficultyLevel: 10,
+    content: 'Human expansion toward permanent Martian habitation requires overcoming monumental biophysical and astrophysical hurdles. The minimum-energy interplanetary transit utilizes a Hohmann transfer orbit, demanding roughly seven months of deep space travel during which astronauts are continuously subjected to solar energetic particles and galactic cosmic radiation. Upon arrival, planetary settlers encounter an atmospheric pressure less than one percent of Earth, composed ninety-five percent of carbon dioxide, with ambient surface temperatures averaging minus sixty degrees Celsius. Establishing sustainable life support necessitates in-situ resource utilization: extracting subsurface glacial water ice, producing methane fuel via the Sabatier chemical reaction, and constructing subterranean regolith habitats to shield against lethal radiation showers.',
+    previewExcerpt: 'Human expansion toward permanent Martian habitation requires overcoming monumental biophysical hurdles...',
+    author: 'Interplanetary Exploration Agency',
+    questions: [
+      {
+        id: 'q-inf-11',
+        questionOrder: 1,
+        questionText: 'Which orbital trajectory represents the minimum-energy transit between Earth and Mars?',
+        optionA: 'The Keplerian parabola',
+        optionB: 'The Hohmann transfer orbit',
+        optionC: 'The Lagrange gravitational well',
+        optionD: 'The hyperbolic escape curve',
+        correctOption: 'B',
+        explanation: 'Interplanetary transit utilizes a Hohmann transfer orbit to travel between Earth and Mars with minimum fuel consumption.'
+      }
+    ]
   }
 ];
 
@@ -175,6 +359,15 @@ class ReadingContentService {
   public getAllTexts(): IReadingText[] {
     const cached = this.getCachedTexts();
     return [...SAMPLE_READING_TEXTS, ...ENGLISH_INFINITY_READING_TEXTS, ...cached];
+  }
+
+  /**
+   * Return specialized scientific/philosophical English text for specific infinity level
+   */
+  public getInfinityText(level: number): IReadingText {
+    const infinityIdx = Math.max(0, level - 13);
+    const text = ENGLISH_INFINITY_READING_TEXTS[infinityIdx % ENGLISH_INFINITY_READING_TEXTS.length];
+    return text || ENGLISH_INFINITY_READING_TEXTS[0];
   }
 
   /**

@@ -24,7 +24,7 @@ export const RsvpSpeedReaderGame: React.FC = () => {
   const allTexts = readingContentService.getAllTexts();
   const [currentArticle, setCurrentArticle] = useState<IReadingText>(() => {
     if (effectiveLevel >= 13) {
-      return ENGLISH_INFINITY_READING_TEXTS[0] || allTexts[0];
+      return readingContentService.getInfinityText(effectiveLevel);
     }
     return allTexts[Math.floor(Math.random() * allTexts.length)] || SAMPLE_READING_TEXTS[0];
   });

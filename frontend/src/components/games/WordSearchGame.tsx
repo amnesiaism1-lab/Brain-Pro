@@ -5,7 +5,14 @@ import { GameResultModal } from './GameResultModal';
 import { Check, Sparkles, RotateCcw, Infinity as InfinityIcon } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { readingContentService, THEMED_VOCABULARY } from '../../services/readingContentService';
-import { CURATED_DICTIONARY, SYNONYM_PAIRS } from '../../services/infinityApiService';
+import { 
+  CURATED_DICTIONARY, 
+  SYNONYM_PAIRS,
+  ANTONYM_PAIRS,
+  BILINGUAL_WORD_PAIRS,
+  EMOJI_WORD_PAIRS,
+  NASA_OFFLINE_CARDS
+} from '../../services/infinityApiService';
 
 export const WordSearchGame: React.FC = () => {
   const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
@@ -18,16 +25,45 @@ export const WordSearchGame: React.FC = () => {
   const [selectedTheme, setSelectedTheme] = useState<string>('Khoa Học Não Bộ');
   
   // Level scaling
-  const rows = currentLevel <= 2 ? 8 : currentLevel <= 5 ? 10 : currentLevel <= 8 ? 12 : currentLevel <= 10 ? 13 : 14;
-  const cols = currentLevel <= 2 ? 10 : currentLevel <= 5 ? 14 : currentLevel <= 8 ? 16 : currentLevel <= 10 ? 16 : 18;
-  const wordCount = currentLevel <= 2 ? 2 : currentLevel <= 5 ? 3 : currentLevel <= 8 ? 4 : currentLevel <= 10 ? 5 : 6;
+  const rows = currentLevel >= 22 ? 15 : currentLevel >= 19 ? 14 : currentLevel <= 2 ? 8 : currentLevel <= 5 ? 10 : currentLevel <= 8 ? 12 : 13;
+  const cols = currentLevel >= 22 ? 18 : currentLevel >= 19 ? 17 : currentLevel <= 2 ? 10 : currentLevel <= 5 ? 14 : currentLevel <= 8 ? 16 : 16;
+  const wordCount = currentLevel >= 22 ? 6 : currentLevel >= 19 ? 5 : currentLevel <= 2 ? 2 : currentLevel <= 5 ? 3 : currentLevel <= 8 ? 4 : 5;
 
   const pickWords = useCallback((themeName: string) => {
     if (isInfinity) {
+      if (currentLevel === 14) {
+        // ∞-II: Bilingual (find English word from Vietnamese meaning clue)
+        const shuffled = [...BILINGUAL_WORD_PAIRS].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, wordCount).map(b => b.en.toUpperCase().replace(/\s+/g, ''));
+      }
       if (currentLevel === 15) {
         // ∞-III: Synonyms
-        const synList = SYNONYM_PAIRS.map(p => p.wordA);
+        const synList = SYNONYM_PAIRS.map(p => p.wordA.toUpperCase().replace(/\s+/g, ''));
         const shuffled = [...synList].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, wordCount);
+      }
+      if (currentLevel === 16) {
+        // ∞-IV: Antonyms
+        const antList = ANTONYM_PAIRS.map(p => p.wordA.toUpperCase().replace(/\s+/g, ''));
+        const shuffled = [...antList].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, wordCount);
+      }
+      if (currentLevel === 17) {
+        // ∞-V: Emoji pairs
+        const emoList = EMOJI_WORD_PAIRS.map(e => e.word.toUpperCase().replace(/\s+/g, ''));
+        const shuffled = [...emoList].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, wordCount);
+      }
+      if (currentLevel === 18) {
+        // ∞-VI: NASA Cosmic Terms
+        const cosmicTerms = ['GALAXY', 'NEBULA', 'PULSAR', 'SUPERNOVA', 'QUASAR', 'EXOPLANET', 'ASTEROID', 'TELESCOPE', 'COSMOS'];
+        const shuffled = [...cosmicTerms].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, wordCount);
+      }
+      if (currentLevel >= 21) {
+        // Long academic words
+        const longDict = CURATED_DICTIONARY.filter(d => d.word.length >= 6).map(d => d.word.toUpperCase());
+        const shuffled = [...longDict].sort(() => 0.5 - Math.random());
         return shuffled.slice(0, wordCount);
       }
       // English words from Curated Dictionary
@@ -177,6 +213,22 @@ export const WordSearchGame: React.FC = () => {
         {targetWords.map((word) => {
           const isFound = foundWords.includes(word);
           const dictEntry = isInfinity ? CURATED_DICTIONARY.find(d => d.word === word) : null;
+          let clueText: string | null = null;
+          if (currentLevel === 14) {
+            const bp = BILINGUAL_WORD_PAIRS.find(b => b.en.toUpperCase().replace(/\s+/g, '') === word);
+            if (bp) clueText = `Nghĩa: ${bp.vi}`;
+          } else if (currentLevel === 15) {
+            const syn = SYNONYM_PAIRS.find(s => s.wordA.toUpperCase().replace(/\s+/g, '') === word);
+            if (syn) clueText = `≈ ${syn.wordB}`;
+          } else if (currentLevel === 16) {
+            const ant = ANTONYM_PAIRS.find(a => a.wordA.toUpperCase().replace(/\s+/g, '') === word);
+            if (ant) clueText = `≠ ${ant.wordB}`;
+          } else if (currentLevel === 17) {
+            const emo = EMOJI_WORD_PAIRS.find(e => e.word.toUpperCase().replace(/\s+/g, '') === word);
+            if (emo) clueText = `${emo.emoji} ${emo.vi}`;
+          } else if (dictEntry) {
+            clueText = dictEntry.viMeaning.slice(0, 32) + '...';
+          }
 
           return (
             <div
@@ -193,9 +245,9 @@ export const WordSearchGame: React.FC = () => {
                 {isFound && <Check className="w-4 h-4 text-emerald-500 stroke-[3]" />}
                 <span>{word}</span>
               </div>
-              {dictEntry && (
+              {clueText && (
                 <span className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 no-underline mt-0.5">
-                  {dictEntry.viMeaning.slice(0, 32)}...
+                  {clueText}
                 </span>
               )}
             </div>

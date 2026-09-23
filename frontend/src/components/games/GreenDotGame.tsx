@@ -154,12 +154,15 @@ export const GreenDotGame: React.FC = () => {
   const isInfinity = effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
-  const isEnglishMode = effectiveLevel === 13;
+  const isEnglishMode = effectiveLevel >= 13;
   const isMovingDot = effectiveLevel === 14;
   const isShrinkingDot = effectiveLevel === 18;
 
   const allTexts = readingContentService.getAllTexts();
   const [currentArticle, setCurrentArticle] = useState<IReadingText>(() => {
+    if (effectiveLevel >= 13) {
+      return readingContentService.getInfinityText(effectiveLevel);
+    }
     return allTexts[(effectiveLevel - 1) % allTexts.length] || SAMPLE_READING_TEXTS[0];
   });
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);

@@ -34,6 +34,9 @@ export const FindLetterGame: React.FC = () => {
     found: boolean;
     rotationDeg?: number;
     fontFamily?: string;
+    mirror?: boolean;
+    scale?: number;
+    colorClass?: string;
   }
 
   const [grid, setGrid] = useState<LetterCellItem[]>([]);
@@ -42,8 +45,12 @@ export const FindLetterGame: React.FC = () => {
   const [missCount, setMissCount] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
 
-  const MATH_SYMBOLS = ['∑', 'π', 'Ω', 'δ', '∞', 'λ', 'θ', 'ψ', 'Δ', 'β'];
+  const MATH_SYMBOLS = ['∑', 'π', 'Ω', 'δ', '∞', 'λ', 'θ', 'ψ', 'Δ', 'β', '≈', '≠', '√', '∫'];
   const FONTS = ['sans-serif', 'serif', 'monospace', 'cursive'];
+  const CAMOUFLAGE_COLORS = [
+    'text-rose-500', 'text-blue-500', 'text-emerald-500', 
+    'text-amber-500', 'text-purple-500', 'text-cyan-500', 'text-pink-500'
+  ];
 
   const initGridWithChallenge = useCallback((currentChallenge: typeof challenge) => {
     const totalCells = gridSize * gridSize;
@@ -58,8 +65,8 @@ export const FindLetterGame: React.FC = () => {
     const { target, distractors } = currentChallenge;
     let distractorPool = [...distractors];
 
-    // ∞-VII: Symbol invasion
-    if (effectiveLevel === 19) {
+    // ∞-VII & ∞-X: Symbol invasion
+    if (effectiveLevel === 19 || effectiveLevel === 22) {
       distractorPool = [...distractorPool, ...MATH_SYMBOLS];
     }
     // ∞-I: Latin letters mix
@@ -71,11 +78,20 @@ export const FindLetterGame: React.FC = () => {
 
     for (let i = 0; i < totalCells; i++) {
       const isTarget = targetIndices.has(i);
-      const rotationDeg = (effectiveLevel === 14 || effectiveLevel === 21) 
+      const rotationDeg = (effectiveLevel === 14 || effectiveLevel === 21 || effectiveLevel === 22) 
         ? rotations[Math.floor(Math.random() * rotations.length)] 
         : 0;
-      const fontFamily = effectiveLevel === 16 
+      const fontFamily = (effectiveLevel === 16 || effectiveLevel === 22) 
         ? FONTS[Math.floor(Math.random() * FONTS.length)] 
+        : undefined;
+      const mirror = (effectiveLevel === 15 || effectiveLevel === 21 || effectiveLevel === 22) 
+        ? Math.random() < 0.5 
+        : false;
+      const scale = effectiveLevel === 17 
+        ? +(0.7 + Math.random() * 0.6).toFixed(2) 
+        : undefined;
+      const colorClass = (effectiveLevel === 20 || effectiveLevel === 22)
+        ? CAMOUFLAGE_COLORS[Math.floor(Math.random() * CAMOUFLAGE_COLORS.length)]
         : undefined;
 
       items.push({
@@ -84,7 +100,10 @@ export const FindLetterGame: React.FC = () => {
         isTarget,
         found: false,
         rotationDeg,
-        fontFamily
+        fontFamily,
+        mirror,
+        scale,
+        colorClass
       });
     }
     setGrid(items);
@@ -169,16 +188,16 @@ export const FindLetterGame: React.FC = () => {
               ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
             </span>
             <span className="font-semibold text-white">
-              {effectiveLevel === 13 ? 'Bilingual Grid (Ký tự Latin xen kẽ Tiếng Việt)' :
+              {effectiveLevel === 13 ? 'Latin Alphabet Hunt (Ký tự Latin học thuật)' :
                effectiveLevel === 14 ? 'Rotated Letters (Xoay góc 90°/180°/270° ngẫu nhiên)' :
-               effectiveLevel === 15 ? 'Color Camouflage (Ngụy trang sắc thái)' :
-               effectiveLevel === 16 ? 'Font Chaos (Biến hóa họ phông chữ)' :
-               effectiveLevel === 17 ? 'Blinking Flood (Nhiễu loạn thị giác)' :
-               effectiveLevel === 18 ? 'Case Conflict (Chữ hoa & thường đồng thời)' :
-               effectiveLevel === 19 ? 'Symbol Invasion (Ký hiệu toán học & Hy Lạp)' :
-               effectiveLevel === 20 ? 'Shrinking Grid (Lưới cực lớn 10x10)' :
-               effectiveLevel === 21 ? 'Mirror Maze (Lật gương đảo hướng)' :
-               'Infinite Matrix (Ma trận 10x10 Vô cực)'}
+               effectiveLevel === 15 ? 'Mirror Inversion (Ký tự đảo gương đối xứng)' :
+               effectiveLevel === 16 ? 'Font Typography Clash (Họ phông chữ Serif, Sans, Cursive, Mono)' :
+               effectiveLevel === 17 ? 'Font Size Chaos (Kích thước ký tự biến thiên hỗn loạn)' :
+               effectiveLevel === 18 ? 'Confusable Glyphs (Ký tự dễ gây nhầm lẫn thị giác)' :
+               effectiveLevel === 19 ? 'Symbol Invasion (Ký hiệu toán học ∑, π, Ω, δ, ∞, λ)' :
+               effectiveLevel === 20 ? 'Color Camouflage (Ngụy trang đa sắc tố)' :
+               effectiveLevel === 21 ? 'Mirror & Rotation Maze (Kết hợp xoay + lật gương)' :
+               'Quantum Matrix (Ma trận 10x10 tổng hợp toàn diện)'}
             </span>
           </div>
           <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
@@ -261,14 +280,14 @@ export const FindLetterGame: React.FC = () => {
             key={cell.id}
             onClick={() => handleCellClick(cell.id)}
             style={{
-              transform: cell.rotationDeg ? `rotate(${cell.rotationDeg}deg)` : undefined,
+              transform: `${cell.rotationDeg ? `rotate(${cell.rotationDeg}deg)` : ''} ${cell.mirror ? 'scaleX(-1)' : ''} ${cell.scale ? `scale(${cell.scale})` : ''}`.trim() || undefined,
               fontFamily: cell.fontFamily || undefined
             }}
-            className={`flex items-center justify-center font-black rounded-xl sm:rounded-2xl transition-all duration-100 btn-press text-slate-800 dark:text-white ${
+            className={`flex items-center justify-center font-black rounded-xl sm:rounded-2xl transition-all duration-100 btn-press ${cell.colorClass || 'text-slate-800 dark:text-white'} ${
               gridSize >= 10 ? 'text-xs sm:text-base md:text-lg' : gridSize >= 8 ? 'text-sm sm:text-lg md:text-xl' : 'text-base sm:text-xl md:text-2xl lg:text-3xl'
             } ${
               cell.found
-                ? 'bg-emerald-500 text-white shadow scale-95 cursor-default'
+                ? 'bg-emerald-500 !text-white shadow scale-95 cursor-default'
                 : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-brand-50 shadow-sm'
             }`}
           >

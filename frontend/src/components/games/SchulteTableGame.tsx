@@ -21,6 +21,7 @@ import {
   Info
 } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { numberToRoman } from '../../services/infinityApiService';
 
 export type SchulteMode = 'standard' | 'gorbov' | 'reverse' | 'alphabet' | 'fading' | 'rotating';
 
@@ -51,19 +52,20 @@ export const SchulteTableGame: React.FC = () => {
   const effectiveLevel = getExerciseLevel('schulte-table') || currentLevel;
   const isInfinity = effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
+  const isRomanMode = effectiveLevel === 15;
 
   // Determine initial mode based on level progression
   const initialMode: SchulteMode = useMemo(() => {
-    if (effectiveLevel === 13) return 'alphabet';
-    if (effectiveLevel === 14) return 'gorbov';
-    if (effectiveLevel === 15) return 'alphabet';
-    if (effectiveLevel === 16) return 'reverse';
-    if (effectiveLevel === 17) return 'fading';
-    if (effectiveLevel === 18) return 'rotating';
-    if (effectiveLevel === 19) return 'rotating';
-    if (effectiveLevel === 20) return 'fading';
-    if (effectiveLevel === 21) return 'gorbov';
-    if (effectiveLevel === 22) return 'rotating';
+    if (effectiveLevel === 13) return 'alphabet'; // Latin A-Y
+    if (effectiveLevel === 14) return 'gorbov'; // Gorbov Red/Black 7x7
+    if (effectiveLevel === 15) return 'standard'; // Roman Numerals I-XXV
+    if (effectiveLevel === 16) return 'reverse'; // 7x7 49->1
+    if (effectiveLevel === 17) return 'fading'; // Phantom fading 6x6
+    if (effectiveLevel === 18) return 'rotating'; // Fast rotating 6x6
+    if (effectiveLevel === 19) return 'rotating'; // Rotating + fading combo 6x6
+    if (effectiveLevel === 20) return 'fading'; // Fading Latin alphabet 5x5
+    if (effectiveLevel === 21) return 'gorbov'; // Rotating Gorbov 7x7
+    if (effectiveLevel === 22) return 'rotating'; // Quantum chaos 7x7
     if (effectiveLevel === 8) return 'reverse';
     if (effectiveLevel === 9) return 'gorbov';
     if (effectiveLevel === 10) return 'rotating';
@@ -508,14 +510,14 @@ export const SchulteTableGame: React.FC = () => {
             <span className="font-semibold text-white">
               {effectiveLevel === 13 ? 'English Alpha-Schulte (A-Y Latin 5x5)' :
                effectiveLevel === 14 ? 'Color-Code Gorbov Schulte (Đỏ 1-25 / Đen 24-1 7x7)' :
-               effectiveLevel === 15 ? 'Alphabet Focus Latin (5x5)' :
+               effectiveLevel === 15 ? 'Roman Numerals Schulte (Số La Mã I-XXV 5x5)' :
                effectiveLevel === 16 ? 'Reverse Schulte (49→1 7x7)' :
                effectiveLevel === 17 ? 'Phantom Fading Schulte (6x6)' :
                effectiveLevel === 18 ? 'Fast Rotating Schulte (Xoay 90° mỗi 8s)' :
-               effectiveLevel === 19 ? 'Rotating + Fading Combo (6x6 xoay + ẩn dần)' :
-               effectiveLevel === 20 ? 'Fading Latin Alphabet (5x5)' :
-               effectiveLevel === 21 ? 'Rotating Gorbov Schulte (7x7 xoay không gian)' :
-               'Chaos Schulte (7x7 Vô cực xoay nhanh + ẩn ô)'}
+               effectiveLevel === 19 ? 'Rotating + Fading Combo (6x6 vừa xoay vừa ẩn)' :
+               effectiveLevel === 20 ? 'Fading Latin Alphabet (5x5 Chữ Latin ẩn dần)' :
+               effectiveLevel === 21 ? 'Rotating Gorbov Schulte (7x7 Gorbov xoay không gian)' :
+               'Quantum Chaos Schulte (7x7 Vô cực xoay 5s + ẩn ô)'}
             </span>
           </div>
           <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
@@ -668,7 +670,7 @@ export const SchulteTableGame: React.FC = () => {
               </div>
             ) : (
               <div className="flex items-baseline gap-1 text-2xl sm:text-3xl font-black text-brand-600 dark:text-brand-400">
-                <span>{currentTarget}</span>
+                <span>{isRomanMode ? numberToRoman(currentTarget) : currentTarget}</span>
                 <span className="text-xs font-semibold text-slate-400">/ {totalItems}</span>
               </div>
             )}
@@ -900,7 +902,7 @@ export const SchulteTableGame: React.FC = () => {
                       effect === 'correct' ? 'ring-4 ring-emerald-500 scale-105' : effect === 'wrong' ? 'ring-4 ring-rose-500 animate-pulse' : ''
                     }`}
                   >
-                    {num}
+                    {isRomanMode ? numberToRoman(num) : num}
                   </button>
                 );
               })

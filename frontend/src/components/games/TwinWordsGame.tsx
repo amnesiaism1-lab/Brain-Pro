@@ -4,7 +4,15 @@ import { GameResultModal } from './GameResultModal';
 import { generateTwinWords, VIETNAMESE_WORDS_DICTIONARY, ENGLISH_WORDS_DICTIONARY, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { readingContentService, THEMED_VOCABULARY } from '../../services/readingContentService';
-import { BILINGUAL_WORD_PAIRS, CURATED_DICTIONARY } from '../../services/infinityApiService';
+import { 
+  BILINGUAL_WORD_PAIRS, 
+  CURATED_DICTIONARY,
+  SYNONYM_PAIRS,
+  ANTONYM_PAIRS,
+  EMOJI_WORD_PAIRS,
+  FALSE_FRIENDS,
+  POS_TRIADS
+} from '../../services/infinityApiService';
 import { Infinity as InfinityIcon, Sparkles } from 'lucide-react';
 
 export const TwinWordsGame: React.FC = () => {
@@ -15,7 +23,7 @@ export const TwinWordsGame: React.FC = () => {
   const isInfinity = currentLevel >= 13;
 
   const [round, setRound] = useState(1);
-  const maxRounds = currentLevel >= 13 ? 15 : currentLevel >= 9 ? 12 : 10;
+  const maxRounds = currentLevel >= 22 ? 20 : currentLevel >= 13 ? 15 : currentLevel >= 9 ? 12 : 10;
 
   const themes = ['Tất cả', 'Khoa Học Não Bộ', 'Công Nghệ & AI', 'Thiên Văn & Vũ Trụ', 'Tâm Lý & Tư Duy'];
   const [selectedTheme, setSelectedTheme] = useState<string>('Tất cả');
@@ -36,48 +44,162 @@ export const TwinWordsGame: React.FC = () => {
     return sanitized.length > 0 ? sanitized : ['TRÍTUỆ', 'NÃOBỘ', 'PHẢNXẠ', 'THỊGIÁC'];
   }, [selectedTheme, currentLevel]);
 
-  const [pair, setPair] = useState(() => {
+  const [pair, setPair] = useState<{ word1: string; word2: string; isMatch: boolean }>(() => {
     const word = combinedDict[0] || 'TRÍTUỆ';
     return generateTwinWords(word, true);
   });
-  const [subLabels, setSubLabels] = useState<{ labelA?: string; labelB?: string }>({});
+  const [subLabels, setSubLabels] = useState<{ labelA?: string; labelB?: string; prompt?: string }>({});
   const [showWords, setShowWords] = useState(true);
   const [correctCount, setCorrectCount] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
 
   const nextPair = (dict = combinedDict) => {
-    if (currentLevel === 14) {
-      // ∞-II: Cross-Language Semantic Match (VI vs EN)
-      const shouldMatch = Math.random() < 0.5;
+    const shouldMatch = Math.random() < 0.5;
+
+    if (currentLevel === 13) {
+      // ∞-I: English Curated Dictionary Exact vs Typo
+      const entry = CURATED_DICTIONARY[Math.floor(Math.random() * CURATED_DICTIONARY.length)];
+      const target = entry.word.toUpperCase();
+      if (shouldMatch) {
+        setPair({ word1: target, word2: target, isMatch: true });
+      } else {
+        // Create 1-letter mutation
+        const pos = Math.floor(Math.random() * target.length);
+        const mutated = target.substring(0, pos) + (target[pos] === 'A' ? 'O' : 'E') + target.substring(pos + 1);
+        setPair({ word1: target, word2: mutated, isMatch: false });
+      }
+      setSubLabels({ labelA: 'TỪ TIẾNG ANH 1', labelB: 'TỪ TIẾNG ANH 2', prompt: 'Hai từ tiếng Anh có HOÀN TOÀN TRÙNG KHỚP từng chữ cái?' });
+
+    } else if (currentLevel === 14) {
+      // ∞-II: Cross-Language Semantic Translation (VI vs EN)
       const pairItem = BILINGUAL_WORD_PAIRS[Math.floor(Math.random() * BILINGUAL_WORD_PAIRS.length)];
       if (shouldMatch) {
-        setPair({
-          word1: pairItem.vi.toUpperCase(),
-          word2: pairItem.en.toUpperCase(),
-          isMatch: true
-        });
+        setPair({ word1: pairItem.vi.toUpperCase(), word2: pairItem.en.toUpperCase(), isMatch: true });
       } else {
-        const other = BILINGUAL_WORD_PAIRS[(BILINGUAL_WORD_PAIRS.indexOf(pairItem) + 2) % BILINGUAL_WORD_PAIRS.length];
-        setPair({
-          word1: pairItem.vi.toUpperCase(),
-          word2: other.en.toUpperCase(),
-          isMatch: false
-        });
+        const other = BILINGUAL_WORD_PAIRS[(BILINGUAL_WORD_PAIRS.indexOf(pairItem) + 5) % BILINGUAL_WORD_PAIRS.length];
+        setPair({ word1: pairItem.vi.toUpperCase(), word2: other.en.toUpperCase(), isMatch: false });
       }
-      setSubLabels({ labelA: 'TIẾNG VIỆT', labelB: 'TIẾNG ANH' });
+      setSubLabels({ labelA: 'TIẾNG VIỆT', labelB: 'TIẾNG ANH', prompt: 'Từ Tiếng Việt và Tiếng Anh có CÙNG NGHĨA DỊCH THUẬT không?' });
+
+    } else if (currentLevel === 15) {
+      // ∞-III: English Synonym Pairs
+      const syn = SYNONYM_PAIRS[Math.floor(Math.random() * SYNONYM_PAIRS.length)];
+      if (shouldMatch) {
+        setPair({ word1: syn.wordA.toUpperCase(), word2: syn.wordB.toUpperCase(), isMatch: true });
+      } else {
+        const other = SYNONYM_PAIRS[(SYNONYM_PAIRS.indexOf(syn) + 3) % SYNONYM_PAIRS.length];
+        setPair({ word1: syn.wordA.toUpperCase(), word2: other.wordB.toUpperCase(), isMatch: false });
+      }
+      setSubLabels({ labelA: 'TỪ ĐỒNG NGHĨA A', labelB: 'TỪ ĐỒNG NGHĨA B', prompt: 'Hai từ này có phải TỪ ĐỒNG NGHĨA (Synonyms) trong Tiếng Anh?' });
+
+    } else if (currentLevel === 16) {
+      // ∞-IV: Antonyms
+      const ant = ANTONYM_PAIRS[Math.floor(Math.random() * ANTONYM_PAIRS.length)];
+      if (shouldMatch) {
+        setPair({ word1: ant.wordA.toUpperCase(), word2: ant.wordB.toUpperCase(), isMatch: true });
+      } else {
+        const other = ANTONYM_PAIRS[(ANTONYM_PAIRS.indexOf(ant) + 4) % ANTONYM_PAIRS.length];
+        setPair({ word1: ant.wordA.toUpperCase(), word2: other.wordB.toUpperCase(), isMatch: false });
+      }
+      setSubLabels({ labelA: 'TỪ TRÁI NGHĨA A', labelB: 'TỪ TRÁI NGHĨA B', prompt: 'Hai từ này có phải CẶP TỪ TRÁI NGHĨA (Antonyms) không?' });
+
+    } else if (currentLevel === 17) {
+      // ∞-V: Visual Emoji vs English Word
+      const emo = EMOJI_WORD_PAIRS[Math.floor(Math.random() * EMOJI_WORD_PAIRS.length)];
+      if (shouldMatch) {
+        setPair({ word1: emo.emoji, word2: emo.word.toUpperCase(), isMatch: true });
+      } else {
+        const other = EMOJI_WORD_PAIRS[(EMOJI_WORD_PAIRS.indexOf(emo) + 6) % EMOJI_WORD_PAIRS.length];
+        setPair({ word1: emo.emoji, word2: other.word.toUpperCase(), isMatch: false });
+      }
+      setSubLabels({ labelA: 'BIỂU TƯỢNG', labelB: 'TỪ TIẾNG ANH', prompt: 'Biểu tượng hình ảnh và từ vựng Tiếng Anh có TƯƠNG ĐỒNG Ý NGHĨA?' });
+
+    } else if (currentLevel === 18) {
+      // ∞-VI: False Friends / Lookalike Confusables
+      const ff = FALSE_FRIENDS[Math.floor(Math.random() * FALSE_FRIENDS.length)];
+      if (shouldMatch) {
+        const pickWord = Math.random() < 0.5 ? ff.wordA : ff.wordB;
+        setPair({ word1: pickWord.toUpperCase(), word2: pickWord.toUpperCase(), isMatch: true });
+      } else {
+        setPair({ word1: ff.wordA.toUpperCase(), word2: ff.wordB.toUpperCase(), isMatch: false });
+      }
+      setSubLabels({ labelA: 'TỪ DỄ GÂY NHẦM LẪN 1', labelB: 'TỪ DỄ GÂY NHẦM LẪN 2', prompt: 'Phân biệt chính tả: Hai từ này có HOÀN TOÀN LÀ 1 TỪ DUY NHẤT?' });
+
+    } else if (currentLevel === 19) {
+      // ∞-VII: Reverse String Identity
+      const entry = CURATED_DICTIONARY[Math.floor(Math.random() * CURATED_DICTIONARY.length)];
+      const target = entry.word.toUpperCase();
+      const rev = target.split('').reverse().join('');
+      if (shouldMatch) {
+        setPair({ word1: target, word2: rev, isMatch: true });
+      } else {
+        const other = CURATED_DICTIONARY[(CURATED_DICTIONARY.indexOf(entry) + 4) % CURATED_DICTIONARY.length].word.toUpperCase();
+        setPair({ word1: target, word2: other.split('').reverse().join(''), isMatch: false });
+      }
+      setSubLabels({ labelA: 'CHUỖI XUÔI', labelB: 'CHUỖI ĐẢO NGƯỢC', prompt: 'Chuỗi 2 có phải là BẢN ĐẢO NGƯỢC KÝ TỰ CHÍNH XÁC của Chuỗi 1?' });
+
+    } else if (currentLevel === 20) {
+      // ∞-VIII: Tachistoscopic Flash 220ms
+      const entry = CURATED_DICTIONARY[Math.floor(Math.random() * CURATED_DICTIONARY.length)];
+      const target = entry.word.toUpperCase();
+      if (shouldMatch) {
+        setPair({ word1: target, word2: target, isMatch: true });
+      } else {
+        const other = CURATED_DICTIONARY[(CURATED_DICTIONARY.indexOf(entry) + 2) % CURATED_DICTIONARY.length].word.toUpperCase();
+        setPair({ word1: target, word2: other, isMatch: false });
+      }
+      setSubLabels({ labelA: 'FLASH 220ms', labelB: 'FLASH 220ms', prompt: 'Chớp sáng 220ms: Hai từ chớp lóe có giống nhau không?' });
+
+    } else if (currentLevel === 21) {
+      // ∞-IX: Part of Speech Grammatical Compatibility
+      const triad = POS_TRIADS[Math.floor(Math.random() * POS_TRIADS.length)];
+      if (shouldMatch) {
+        // Pick two words from same grammatical category across triads
+        const otherTriad = POS_TRIADS[(POS_TRIADS.indexOf(triad) + 2) % POS_TRIADS.length];
+        const category = (['noun', 'verb', 'adjective'] as const)[Math.floor(Math.random() * 3)];
+        setPair({ word1: triad[category].toUpperCase(), word2: otherTriad[category].toUpperCase(), isMatch: true });
+        setSubLabels({ labelA: 'TỪ A', labelB: 'TỪ B', prompt: `Cả hai từ có CÙNG TỪ LOẠI (${category.toUpperCase()}) không?` });
+      } else {
+        setPair({ word1: triad.noun.toUpperCase(), word2: triad.verb.toUpperCase(), isMatch: false });
+        setSubLabels({ labelA: 'TỪ A', labelB: 'TỪ B', prompt: 'Cả hai từ có CÙNG TỪ LOẠI (Danh từ / Động từ / Tính từ) không?' });
+      }
+
+    } else if (currentLevel === 22) {
+      // ∞-X: Rapid Multi-Domain Cognitive Synthesis
+      const randDomain = Math.floor(Math.random() * 4);
+      if (randDomain === 0) {
+        const bp = BILINGUAL_WORD_PAIRS[Math.floor(Math.random() * BILINGUAL_WORD_PAIRS.length)];
+        setPair({ word1: bp.vi.toUpperCase(), word2: shouldMatch ? bp.en.toUpperCase() : 'COSMIC', isMatch: shouldMatch });
+        setSubLabels({ labelA: 'VIỆT', labelB: 'ANH', prompt: 'Khớp nghĩa dịch thuật VI-EN?' });
+      } else if (randDomain === 1) {
+        const syn = SYNONYM_PAIRS[Math.floor(Math.random() * SYNONYM_PAIRS.length)];
+        setPair({ word1: syn.wordA.toUpperCase(), word2: shouldMatch ? syn.wordB.toUpperCase() : 'RANDOM', isMatch: shouldMatch });
+        setSubLabels({ labelA: 'TỪ A', labelB: 'TỪ B', prompt: 'Đồng nghĩa (Synonyms)?' });
+      } else if (randDomain === 2) {
+        const ant = ANTONYM_PAIRS[Math.floor(Math.random() * ANTONYM_PAIRS.length)];
+        setPair({ word1: ant.wordA.toUpperCase(), word2: shouldMatch ? ant.wordB.toUpperCase() : 'HARMONY', isMatch: shouldMatch });
+        setSubLabels({ labelA: 'TỪ A', labelB: 'TỪ B', prompt: 'Trái nghĩa (Antonyms)?' });
+      } else {
+        const emo = EMOJI_WORD_PAIRS[Math.floor(Math.random() * EMOJI_WORD_PAIRS.length)];
+        setPair({ word1: emo.emoji, word2: shouldMatch ? emo.word.toUpperCase() : 'STORM', isMatch: shouldMatch });
+        setSubLabels({ labelA: 'EMOJI', labelB: 'WORD', prompt: 'Biểu tượng khớp từ vựng?' });
+      }
+
     } else {
+      // Standard Levels (1 - 12)
       const randWord = dict[Math.floor(Math.random() * dict.length)] || 'TRÍTUỆ';
-      const shouldMatch = Math.random() < 0.5;
       setPair(generateTwinWords(randWord, shouldMatch));
       setSubLabels({});
     }
 
     setShowWords(true);
-    // At level 9+ or level 19 (∞-VII), words flash and disappear quickly
-    if (currentLevel === 19) {
-      setTimeout(() => setShowWords(false), 320); // 320ms ultra flash
-    } else if (currentLevel >= 9) {
+    // Flash disappearing mechanics
+    if (currentLevel === 20) {
+      setTimeout(() => setShowWords(false), 220); // 220ms tachistoscopic flash
+    } else if (currentLevel === 19) {
+      setTimeout(() => setShowWords(false), 380);
+    } else if (currentLevel >= 9 && currentLevel < 13) {
       const flashMs = Math.max(600, 1200 - (currentLevel - 9) * 120);
       setTimeout(() => setShowWords(false), flashMs);
     }
@@ -170,13 +292,9 @@ export const TwinWordsGame: React.FC = () => {
       </div>
 
       {/* Instruction Tip */}
-      <div className="text-center text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
-        {currentLevel === 14 ? (
-          '🌌 Cấp Vô Cực ∞-II: 1 từ Tiếng Việt và 1 từ Tiếng Anh. Chọn GIỐNG NHAU nếu chúng có cùng nghĩa dịch thuật!'
-        ) : currentLevel === 13 ? (
-          '🌌 Cấp Vô Cực ∞-I: So sánh 2 từ vựng Tiếng Anh. Quan sát thật nhanh xem có bị đột biến ký tự nào không!'
-        ) : currentLevel === 19 ? (
-          '🌌 Cấp Vô Cực ∞-VII: Cặp từ chỉ chớp sáng 300ms rồi biến mất. Nhớ lại bằng trí nhớ lưu ảnh võng mạc!'
+      <div className="text-center text-xs sm:text-sm font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 p-2.5 rounded-2xl shadow-sm">
+        {subLabels.prompt ? (
+          `🌌 Cấp Vô Cực ${getInfinityLabel(currentLevel)}: ${subLabels.prompt}`
         ) : (
           'Quan sát thật nhanh 2 từ xem chúng có HOÀN TOÀN GIỐNG NHAU hay không.'
         )}

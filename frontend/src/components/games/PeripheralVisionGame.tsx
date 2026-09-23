@@ -9,6 +9,8 @@ const FULL_ALPHABET = ['A', 'B', 'C', 'D', 'Đ', 'E', 'G', 'H', 'K', 'L', 'M', '
 const LATIN_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 const NUMBERS_POOL = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 const EMOJI_POOL = ['🌟', '🌙', '☀️', '⚡', '🔥', '💧', '🍀', '🚀', '🧠', '⭐'];
+const ENGLISH_PERIPHERAL_WORDS = ['BRAIN', 'NEURON', 'FOCUS', 'MEMORY', 'OPTIC', 'VISION', 'LIGHT', 'QUANTUM', 'GALAXY', 'COGNITION', 'PULSAR', 'LOGIC'];
+const COLOR_SHAPES = ['🔴 ĐỎ', '🔵 XANH', '🟡 VÀNG', '🟢 LỤC', '🟣 TÍM', '🟠 CAM'];
 
 export const PeripheralVisionGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
@@ -19,8 +21,12 @@ export const PeripheralVisionGame: React.FC = () => {
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
   
   // Span expands with level
-  const span = isInfinity 
-    ? Math.min(280, 160 + (infinityTier * 12)) 
+  const span = effectiveLevel >= 22 
+    ? 280 
+    : effectiveLevel >= 21 
+    ? 260 
+    : isInfinity 
+    ? Math.min(260, 160 + (infinityTier * 12)) 
     : Math.min(220, 75 + (effectiveLevel * 12));
   
   // Mode: 'letters' vs 'words' (peripheral word recognition)
@@ -35,6 +41,8 @@ export const PeripheralVisionGame: React.FC = () => {
   const pool = useMemo(() => {
     if (effectiveLevel === 13) return LATIN_LETTERS;
     if (effectiveLevel === 14) return NUMBERS_POOL;
+    if (effectiveLevel === 15 || effectiveLevel === 21 || effectiveLevel === 22) return ENGLISH_PERIPHERAL_WORDS;
+    if (effectiveLevel === 16) return COLOR_SHAPES;
     if (effectiveLevel === 19) return EMOJI_POOL;
     return contentMode === 'words' ? PERIPHERAL_FLASH_WORDS : FULL_ALPHABET;
   }, [contentMode, effectiveLevel]);
@@ -75,7 +83,9 @@ export const PeripheralVisionGame: React.FC = () => {
     setChoices(currentChoices);
     setPhase('flash');
 
-    const flashDuration = isInfinity 
+    const flashDuration = (effectiveLevel === 20 || effectiveLevel === 22)
+      ? 160
+      : isInfinity 
       ? Math.max(180, 360 - (infinityTier * 18)) 
       : Math.max(260, 780 - (effectiveLevel * 45));
     setTimeout(() => {
@@ -138,16 +148,16 @@ export const PeripheralVisionGame: React.FC = () => {
               ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
             </span>
             <span className="font-semibold text-white">
-              {effectiveLevel === 13 ? 'English Letter Peripheral (Ký tự tiếng Anh góc nhìn rộng)' :
-               effectiveLevel === 14 ? 'Number Peripheral (Chữ số ngoại vi phản xạ nhanh)' :
-               effectiveLevel === 15 ? 'Color + Shape Dual (Hình thái & màu sắc)' :
-               effectiveLevel === 16 ? '4-Quadrant Blast (Bùng nổ 4 góc màn hình)' :
-               effectiveLevel === 17 ? 'Sequence Peripheral (Chuỗi mục tiêu liên hoàn)' :
+              {effectiveLevel === 13 ? 'Latin Alphabet Field (Quét ký tự Latin ngoại biên)' :
+               effectiveLevel === 14 ? 'Digit Spatial Field (Quét chữ số ngoại vi phản xạ nhanh)' :
+               effectiveLevel === 15 ? 'English Dual Words (Từ vựng tiếng Anh ngoại vi BRAIN, NEURON...)' :
+               effectiveLevel === 16 ? 'Color-Shape Field (Quét màu sắc & hình khối ngoại vi)' :
+               effectiveLevel === 17 ? '4-Quadrant Blast (Bùng nổ 4 góc màn hình)' :
                effectiveLevel === 18 ? 'Moving Target (Mục tiêu chuyển động trượt)' :
-               effectiveLevel === 19 ? 'Emoji Peripheral (Biểu tượng tự nhiên vũ trụ)' :
-               effectiveLevel === 20 ? 'Stroop Peripheral (Xung đột ý niệm ngoại biên)' :
-               effectiveLevel === 21 ? 'Expanding Field (Độ mở góc nhìn cực đại 560px)' :
-               'Chaos Field Peripheral (Flash 180ms Vô cực)'}
+               effectiveLevel === 19 ? 'Emoji Semantic Field (Nhận diện biểu tượng cảm xúc)' :
+               effectiveLevel === 20 ? 'Tachistoscopic Flash 160ms (Chớp lóe chớp nhoáng 160ms)' :
+               effectiveLevel === 21 ? 'Ultra-Wide Panoramic Span (Tầm nhìn toàn cảnh 520px)' :
+               'Hyper Panoramic Stream (Tầm nhìn cực đại 560px + 160ms)'}
             </span>
           </div>
           <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>

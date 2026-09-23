@@ -14,12 +14,15 @@ export const SaccadeTrackerGame: React.FC = () => {
   const isInfinity = effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
-  const isColorSwitch = effectiveLevel === 11 || effectiveLevel === 14;
   const isVowelTrigger = effectiveLevel === 13;
+  const isColorGated = effectiveLevel === 14;
+  const isAntiSaccade = effectiveLevel === 15 || effectiveLevel === 22;
+  const isParityTrigger = effectiveLevel === 19;
+  const isHyperSaccade = effectiveLevel === 20 || effectiveLevel === 22;
 
   const jumpIntervalMs = useMemo(() => {
-    if (effectiveLevel >= 22) return 240;
-    if (effectiveLevel >= 18) return 280;
+    if (isHyperSaccade) return 200;
+    if (effectiveLevel >= 18) return 270;
     if (effectiveLevel >= 13) return 320;
     switch (effectiveLevel) {
       case 1: return 1200;
@@ -36,11 +39,11 @@ export const SaccadeTrackerGame: React.FC = () => {
       case 12: return 320;
       default: return 500;
     }
-  }, [effectiveLevel]);
+  }, [effectiveLevel, isHyperSaccade]);
 
   // Dynamic target symbol per session
   const [targetSymbol, setTargetSymbol] = useState<string>(() => 
-    isVowelTrigger ? 'VOWELS' : TARGET_CANDIDATES[Math.floor(Math.random() * TARGET_CANDIDATES.length)]
+    isVowelTrigger ? 'VOWELS' : isParityTrigger ? 'EVEN' : TARGET_CANDIDATES[Math.floor(Math.random() * TARGET_CANDIDATES.length)]
   );
 
   const VOWELS = ['A', 'E', 'I', 'O', 'U'];
@@ -53,6 +56,7 @@ export const SaccadeTrackerGame: React.FC = () => {
 
   const [position, setPosition] = useState({ x: 50, y: 50 });
   const [currentSymbol, setCurrentSymbol] = useState('A');
+  const [currentColor, setCurrentColor] = useState<'red' | 'green' | 'blue'>('red');
   const [isTarget, setIsTarget] = useState(false);
   const [targetAppearanceTime, setTargetAppearanceTime] = useState<number>(0);
   const [reactionTimes, setReactionTimes] = useState<number[]>([]);
@@ -70,13 +74,25 @@ export const SaccadeTrackerGame: React.FC = () => {
     const newX = 10 + Math.random() * 80;
     const newY = 10 + Math.random() * 80;
 
-    // 25% chance of being the target
-    const isTargetNow = Math.random() < 0.28;
+    let isTargetNow = Math.random() < 0.32;
     let symbol = '';
+    const colorPick: 'red' | 'green' | 'blue' = ['red', 'green', 'blue'][Math.floor(Math.random() * 3)] as any;
+
     if (isVowelTrigger) {
       symbol = isTargetNow 
         ? VOWELS[Math.floor(Math.random() * VOWELS.length)]
         : CONSONANTS[Math.floor(Math.random() * CONSONANTS.length)];
+    } else if (isParityTrigger) {
+      const num = Math.floor(Math.random() * 10);
+      symbol = String(num);
+      isTargetNow = (num % 2 === 0);
+    } else if (isColorGated) {
+      symbol = targetSymbol;
+      // Target only if color is RED
+      isTargetNow = (colorPick === 'red');
+    } else if (isAntiSaccade) {
+      symbol = '✦';
+      isTargetNow = true;
     } else {
       symbol = isTargetNow 
         ? targetSymbol 
@@ -85,12 +101,13 @@ export const SaccadeTrackerGame: React.FC = () => {
 
     setPosition({ x: newX, y: newY });
     setCurrentSymbol(symbol);
+    setCurrentColor(colorPick);
     setIsTarget(isTargetNow);
 
     if (isTargetNow) {
       setTargetAppearanceTime(Date.now());
     }
-  }, [targetSymbol, distractors, isVowelTrigger]);
+  }, [targetSymbol, distractors, isVowelTrigger, isParityTrigger, isColorGated, isAntiSaccade]);
 
   useEffect(() => {
     jumpTarget();
@@ -164,17 +181,47 @@ export const SaccadeTrackerGame: React.FC = () => {
     }
   }, [isFinished, isTarget, playSound, targetAppearanceTime, combo, emitTrialEvent, effectiveLevel, targetSymbol, currentSymbol, jumpTarget]);
 
-  // Keyboard shortcut: Spacebar to react
+  // Anti-Saccade Choice Handler
+  const handleAntiSaccade = useCallback((choice: 'LEFT' | 'RIGHT') => {
+    if (isFinished) return;
+    const targetSide = position.x < 50 ? 'LEFT' : 'RIGHT';
+    // In anti-saccade, the correct reaction is looking at the OPPOSITE side
+    const expected = targetSide === 'LEFT' ? 'RIGHT' : 'LEFT';
+    const isCorrect = choice === expected;
+
+    if (isCorrect) {
+      playSound('correct');
+      setHitsCount(h => h + 1);
+      const newCombo = combo + 1;
+      setCombo(newCombo);
+      setScore(s => s + 50 + (newCombo * 10));
+      jumpTarget();
+    } else {
+      playSound('wrong');
+      setFalseAlarms(f => f + 1);
+      setCombo(0);
+    }
+  }, [isFinished, position.x, playSound, combo, jumpTarget]);
+
+  // Keyboard shortcut: Spacebar or Left/Right arrows to react
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
+      if (isAntiSaccade) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          handleAntiSaccade('LEFT');
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          handleAntiSaccade('RIGHT');
+        }
+      } else if (e.code === 'Space') {
         e.preventDefault();
         handleReaction();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleReaction]);
+  }, [handleReaction, handleAntiSaccade, isAntiSaccade]);
 
   const avgReactionTime = reactionTimes.length > 0
     ? Math.round(reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length)
@@ -200,16 +247,16 @@ export const SaccadeTrackerGame: React.FC = () => {
               ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
             </span>
             <span className="font-semibold text-white">
-              {effectiveLevel === 13 ? 'Letter Target (Chỉ bấm khi gặp nguyên âm A, E, I, O, U)' :
-               effectiveLevel === 14 ? 'Dual Target Color Filter (Lọc mục tiêu theo màu)' :
-               effectiveLevel === 15 ? 'Fibonacci Jump (Nhịp nhảy biến thiên phi tuyến tính)' :
-               effectiveLevel === 16 ? 'Stroop Saccade (Xung đột ý niệm & vị trí)' :
-               effectiveLevel === 17 ? 'Predictive Lock (Dự đoán quỹ đạo nhảy tiếp theo)' :
-               effectiveLevel === 18 ? 'Memory Flash Saccade (Tốc độ quét 280ms)' :
-               effectiveLevel === 19 ? 'Multiplying Target Field (Đa mục tiêu phân tán)' :
-               effectiveLevel === 20 ? 'Color Shift (Mục tiêu đổi màu liên tục)' :
-               effectiveLevel === 21 ? 'Gravity Parabolic Field (Quỹ đạo cong vật lý)' :
-               'Chaos Swarm Saccade (Chuyển động hỗn loạn 240ms Vô cực)'}
+              {effectiveLevel === 13 ? 'Vowel Trigger (Chỉ bấm khi gặp nguyên âm A, E, I, O, U)' :
+               effectiveLevel === 14 ? 'Color-Gated Target (Mục tiêu chỉ hợp lệ khi có màu ĐỎ)' :
+               effectiveLevel === 15 ? 'Anti-Saccade Task (Mục tiêu bên TRÁI → Bấm PHẢI, bên PHẢI → Bấm TRÁI)' :
+               effectiveLevel === 16 ? 'Dual Target Jump (Hai mục tiêu nhảy luân phiên)' :
+               effectiveLevel === 17 ? 'Stroop Saccade (Xung đột ý niệm & vị trí)' :
+               effectiveLevel === 18 ? 'Audio-Visual Synced (Đồng bộ thị giác & âm thanh)' :
+               effectiveLevel === 19 ? 'Parity Trigger (Chỉ bấm khi gặp SỐ CHẴN 0,2,4,6,8)' :
+               effectiveLevel === 20 ? 'Hyper Saccade (Tốc độ nhảy 200ms cực đại)' :
+               effectiveLevel === 21 ? 'Dynamic Vector Trajectory (Quỹ đạo chuyển động liên tục)' :
+               'Anti-Saccade Chaos Stream (200ms Anti-Saccade Vô cực)'}
             </span>
           </div>
           <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
@@ -280,8 +327,12 @@ export const SaccadeTrackerGame: React.FC = () => {
           className={`absolute -translate-x-1/2 -translate-y-1/2 w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center font-black text-2xl sm:text-3xl shadow-xl transition-all duration-100 ${
             isTarget 
               ? 'bg-rose-500 text-white shadow-rose-500/60 scale-110 ring-4 ring-rose-300 animate-pulse' 
-              : isColorSwitch
-                ? 'bg-emerald-500 text-white shadow-emerald-500/40 scale-95'
+              : isColorGated
+                ? currentColor === 'red'
+                  ? 'bg-rose-500 text-white ring-4 ring-rose-300'
+                  : currentColor === 'green'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-blue-500 text-white'
                 : 'bg-brand-500 text-white shadow-brand-500/40 scale-95'
           }`}
           style={{
@@ -293,14 +344,39 @@ export const SaccadeTrackerGame: React.FC = () => {
         </div>
       </div>
 
-      {/* Big Action Reaction Button */}
-      <button
-        onClick={handleReaction}
-        className="w-full py-5 sm:py-6 rounded-3xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 active:scale-95 text-white font-black text-xl sm:text-2xl shadow-xl shadow-rose-500/30 flex items-center justify-center gap-3 transition-transform btn-press"
-      >
-        <Zap className="w-7 h-7 animate-bounce" />
-        <span>BẤM KHI THẤY {isVowelTrigger ? 'NGUYÊN ÂM' : `"${targetSymbol}"`} (Phím Cách)</span>
-      </button>
+      {/* Big Action Reaction Button or Anti-Saccade Pair */}
+      {isAntiSaccade ? (
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            onClick={() => handleAntiSaccade('LEFT')}
+            className="h-20 sm:h-24 rounded-3xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-lg sm:text-2xl shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 transition-transform btn-press"
+          >
+            <span>⬅️ NHÌN TRÁI (←)</span>
+          </button>
+          <button
+            onClick={() => handleAntiSaccade('RIGHT')}
+            className="h-20 sm:h-24 rounded-3xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-black text-lg sm:text-2xl shadow-xl shadow-purple-600/30 flex items-center justify-center gap-2 transition-transform btn-press"
+          >
+            <span>NHÌN PHẢI ➡️ (→)</span>
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={handleReaction}
+          className="w-full py-5 sm:py-6 rounded-3xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 active:scale-95 text-white font-black text-xl sm:text-2xl shadow-xl shadow-rose-500/30 flex items-center justify-center gap-3 transition-transform btn-press"
+        >
+          <Zap className="w-7 h-7 animate-bounce" />
+          <span>
+            {isParityTrigger
+              ? 'BẤM KHI THẤY SỐ CHẴN (0, 2, 4, 6, 8)'
+              : isColorGated
+              ? 'BẤM KHI MỤC TIÊU CÓ MÀU ĐỎ'
+              : isVowelTrigger
+              ? 'BẤM KHI THẤY NGUYÊN ÂM'
+              : `BẤM KHI THẤY "${targetSymbol}" (Phím Cách)`}
+          </span>
+        </button>
+      )}
 
       {isFinished && (
         <GameResultModal
