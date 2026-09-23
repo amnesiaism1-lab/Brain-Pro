@@ -193,8 +193,12 @@ export const PeripheralVisionGame: React.FC = () => {
 
         {/* Center fixation point */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-          <Crosshair className="w-16 h-16 text-rose-500 animate-spin" style={{ animationDuration: '20s' }} />
-          <div className="absolute w-3 h-3 rounded-full bg-rose-500 shadow-lg shadow-rose-500" />
+          {/* Subtle hairline crosshair – guides eye without blocking targets */}
+          <div className="relative flex items-center justify-center" style={{ opacity: 0.35 }}>
+            <div className="absolute w-7 h-[1px] bg-slate-300" />
+            <div className="absolute h-7 w-[1px] bg-slate-300" />
+            <div className="absolute w-[4px] h-[4px] rounded-full bg-rose-400" />
+          </div>
         </div>
 
         {/* Right peripheral target zone */}

@@ -738,14 +738,15 @@ export const SchulteTableGame: React.FC = () => {
             transform: `rotate(${rotationDeg}deg)`
           }}
         >
-          {/* Optional Center Peripheral Vision Anchor */}
+          {/* Optional Center Peripheral Vision Anchor – subtle, non-obtrusive */}
           {showCenterGuide && (
-            <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
-              <div className="relative flex items-center justify-center">
-                {/* Outer guide ring */}
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-red-500/30 dark:border-red-400/30 animate-ping opacity-30" />
-                <div className="absolute w-6 h-6 sm:w-8 sm:h-8 rounded-full border border-red-500/50 bg-red-500/5" />
-                <div className="absolute w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-500 shadow-lg shadow-red-500/80 ring-2 ring-white dark:ring-slate-900" />
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
+              <div className="relative flex items-center justify-center" style={{ opacity: 0.28 }}>
+                {/* Very faint cross lines */}
+                <div className="absolute w-8 h-[1px] bg-slate-500 dark:bg-slate-400" />
+                <div className="absolute h-8 w-[1px] bg-slate-500 dark:bg-slate-400" />
+                {/* Tiny center dot – just 5px, barely visible */}
+                <div className="absolute w-[5px] h-[5px] rounded-full bg-slate-600 dark:bg-slate-300" />
               </div>
             </div>
           )}

@@ -266,11 +266,11 @@ export const GreenDotGame: React.FC = () => {
             ))}
           </div>
 
-          {/* Central Green Dot (Point of Fixation) */}
+          {/* Central Green Dot (Point of Fixation) – subtle, non-obtrusive */}
           <div className="flex flex-col items-center justify-center my-4 py-2">
             <div className="relative flex items-center justify-center">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-emerald-500 shadow-xl shadow-emerald-500/50 flex items-center justify-center animate-pulse" />
-              <div className="absolute w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 border-emerald-400/40 animate-ping" />
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-emerald-400 shadow-md shadow-emerald-400/40 flex items-center justify-center" />
+              <div className="absolute w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-emerald-400/25 animate-ping" />
             </div>
             <span className="mt-3 text-[10px] sm:text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest whitespace-nowrap">
               Cố định mắt vào đây

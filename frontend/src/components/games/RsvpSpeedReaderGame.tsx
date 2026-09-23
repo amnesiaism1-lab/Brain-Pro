@@ -185,8 +185,8 @@ export const RsvpSpeedReaderGame: React.FC = () => {
         {/* Top & Bottom Alignment Marks (Fixation Target) */}
         {!isPeripheral && (
           <>
-            <div className="absolute top-4 w-2 h-4 bg-red-500/80 rounded-full" />
-            <div className="absolute bottom-4 w-2 h-4 bg-red-500/80 rounded-full" />
+            <div className="absolute top-3 w-0.5 h-5 bg-slate-400/40 rounded-full" />
+            <div className="absolute bottom-3 w-0.5 h-5 bg-slate-400/40 rounded-full" />
           </>
         )}
 
