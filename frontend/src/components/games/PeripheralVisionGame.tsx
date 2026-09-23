@@ -176,34 +176,45 @@ export const PeripheralVisionGame: React.FC = () => {
       </p>
 
       {/* Crosshair Viewbox */}
-      <div className="h-64 sm:h-72 md:h-84 rounded-3xl bg-slate-900 border-2 border-brand-500/80 shadow-2xl flex items-center justify-center relative overflow-hidden">
-        {/* Center Target */}
-        <div className="relative flex items-center justify-center">
+      <div className="h-64 sm:h-72 rounded-3xl bg-slate-900 border-2 border-brand-500/80 shadow-2xl relative overflow-hidden flex items-center">
+        {/* Left peripheral target zone */}
+        <div className="absolute left-0 top-0 bottom-0 flex items-center justify-center" style={{ width: `calc(50% - 48px)` }}>
+          {phase === 'flash' && (
+            <span
+              key={`left-${round}`}
+              className={`font-black text-cyan-400 select-none animate-scale-up tracking-wider ${
+                contentMode === 'words' ? 'text-2xl sm:text-3xl' : 'font-mono text-4xl sm:text-5xl'
+              }`}
+            >
+              {pair[0]}
+            </span>
+          )}
+        </div>
+
+        {/* Center fixation point */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
           <Crosshair className="w-16 h-16 text-rose-500 animate-spin" style={{ animationDuration: '20s' }} />
           <div className="absolute w-3 h-3 rounded-full bg-rose-500 shadow-lg shadow-rose-500" />
         </div>
 
-        {/* Left and Right Peripheral Flash Targets */}
-        {phase === 'flash' && (
-          <>
-            <div 
-              className={`absolute font-black text-cyan-400 select-none animate-scale-up tracking-wider ${
-                contentMode === 'words' ? 'text-2xl sm:text-3xl md:text-4xl' : 'font-mono text-4xl sm:text-5xl'
+        {/* Right peripheral target zone */}
+        <div className="absolute right-0 top-0 bottom-0 flex items-center justify-center" style={{ width: `calc(50% - 48px)` }}>
+          {phase === 'flash' && (
+            <span
+              key={`right-${round}`}
+              className={`font-black text-cyan-400 select-none animate-scale-up tracking-wider ${
+                contentMode === 'words' ? 'text-2xl sm:text-3xl' : 'font-mono text-4xl sm:text-5xl'
               }`}
-              style={{ transform: `translateX(-${effectiveSpan}px)` }}
-            >
-              {pair[0]}
-            </div>
-            <div 
-              className={`absolute font-black text-cyan-400 select-none animate-scale-up tracking-wider ${
-                contentMode === 'words' ? 'text-2xl sm:text-3xl md:text-4xl' : 'font-mono text-4xl sm:text-5xl'
-              }`}
-              style={{ transform: `translateX(${effectiveSpan}px)` }}
             >
               {pair[1]}
-            </div>
-          </>
-        )}
+            </span>
+          )}
+        </div>
+
+        {/* Peripheral span indicator lines */}
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-10">
+          <div className="w-full h-px bg-cyan-400" />
+        </div>
       </div>
 
       {/* Guess Buttons */}
