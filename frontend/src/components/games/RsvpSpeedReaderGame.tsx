@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Play, Pause, RotateCcw } from 'lucide-react';
-import { calculateOptimalRecognitionPoint, calculateEffectiveWpm, SAMPLE_READING_TEXTS } from '@brain-exercises/shared';
+import { Play, Pause, RotateCcw, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { calculateOptimalRecognitionPoint, calculateEffectiveWpm, IReadingText, SAMPLE_READING_TEXTS } from '@brain-exercises/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { ReadingTextSourceModal } from '../common/ReadingTextSourceModal';
+import { readingContentService } from '../../services/readingContentService';
 
 export const RsvpSpeedReaderGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
@@ -14,9 +16,14 @@ export const RsvpSpeedReaderGame: React.FC = () => {
   const isMasked = effectiveLevel === 10;
   const isPeripheral = effectiveLevel === 12;
 
-  const [textIndex, setTextIndex] = useState(() => Math.floor(Math.random() * SAMPLE_READING_TEXTS.length));
-  const sampleArticle = SAMPLE_READING_TEXTS[textIndex] || SAMPLE_READING_TEXTS[0];
-  const words = sampleArticle.content.split(/\s+/).filter(Boolean);
+  const allTexts = readingContentService.getAllTexts();
+  const [currentArticle, setCurrentArticle] = useState<IReadingText>(() => {
+    return allTexts[Math.floor(Math.random() * allTexts.length)] || SAMPLE_READING_TEXTS[0];
+  });
+  const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
+  const [showFullContext, setShowFullContext] = useState(true);
+
+  const words = currentArticle.content.split(/\s+/).filter(Boolean);
 
   const initialWpm = useMemo(() => {
     switch (effectiveLevel) {
@@ -43,6 +50,16 @@ export const RsvpSpeedReaderGame: React.FC = () => {
   const [elapsedSec, setElapsedSec] = useState(0);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activeWordRef = useRef<HTMLSpanElement | null>(null);
+
+  useEffect(() => {
+    if (activeWordRef.current && isPlaying) {
+      activeWordRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }
+  }, [wordIndex, isPlaying]);
 
   useEffect(() => {
     if (!isPlaying) {
@@ -60,9 +77,9 @@ export const RsvpSpeedReaderGame: React.FC = () => {
             level: effectiveLevel,
             relationId: 'TEMPORAL_PREDICT',
             relationWeight: 1.0,
-            entities: { target: words[prev], rule: `${wpm} WPM` },
-            stateBefore: 'fixating_orp',
-            stateAfter: 'token_absorbed',
+            entities: { wordIndex: prev, word: words[prev], wpm, articleTitle: currentArticle.title },
+            stateBefore: `idx:${prev}`,
+            stateAfter: `idx:${prev + step}`,
             responseMs: intervalMs,
             correct: true
           });
@@ -81,7 +98,7 @@ export const RsvpSpeedReaderGame: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, wpm, words.length, isDualWord]);
+  }, [isPlaying, wpm, words.length, isDualWord, effectiveLevel, currentArticle.title, emitTrialEvent]);
 
   const rawWord = words[wordIndex] || 'BẮT ĐẦU';
   const nextWord = isDualWord && wordIndex + 1 < words.length ? words[wordIndex + 1] : null;
@@ -116,10 +133,17 @@ export const RsvpSpeedReaderGame: React.FC = () => {
 
   const handleRestart = () => {
     playSound('click');
-    setTextIndex(prev => (prev + 1) % SAMPLE_READING_TEXTS.length);
     setIsPlaying(false);
     setWordIndex(0);
     setElapsedSec(0);
+    setIsFinished(false);
+  };
+
+  const handleSelectNewArticle = (article: IReadingText) => {
+    setCurrentArticle(article);
+    setWordIndex(0);
+    setElapsedSec(0);
+    setIsPlaying(false);
     setIsFinished(false);
   };
 
@@ -131,20 +155,33 @@ export const RsvpSpeedReaderGame: React.FC = () => {
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md">
         <div>
           <span className="text-xs sm:text-sm text-slate-500 font-semibold">Từ hiện tại</span>
-          <div className="text-2xl sm:text-3xl font-black text-brand-600 dark:text-brand-400 mt-0.5">
+          <div className="text-xl sm:text-3xl font-black text-brand-600 dark:text-brand-400 mt-0.5">
             {wordIndex + 1} / {words.length}
           </div>
         </div>
+
+        <button
+          onClick={() => {
+            playSound('click');
+            setIsSourceModalOpen(true);
+          }}
+          className="py-2 px-3 sm:px-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-200 font-extrabold text-xs sm:text-sm flex items-center gap-1.5 transition-all btn-press shadow-sm"
+        >
+          <BookOpen className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+          <span className="hidden sm:inline">Đổi bài đọc / Tải Wikipedia</span>
+          <span className="sm:hidden">Đổi bài</span>
+        </button>
+
         <div className="text-right">
           <span className="text-xs sm:text-sm text-slate-500 font-semibold">Tốc độ hiện tại</span>
-          <div className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white mt-0.5">
+          <div className="text-xl sm:text-3xl font-black text-slate-800 dark:text-white mt-0.5">
             {wpm} WPM
           </div>
         </div>
       </div>
 
       {/* RSVP Central Fixation Viewbox */}
-      <div className={`relative h-60 sm:h-72 md:h-84 rounded-3xl bg-white dark:bg-slate-900 border-2 border-brand-500/80 shadow-2xl flex flex-col items-center justify-center p-6 sm:p-8 overflow-hidden ${peripheralPositionClass}`}>
+      <div className={`relative h-48 sm:h-64 md:h-72 rounded-3xl bg-white dark:bg-slate-900 border-2 border-brand-500/80 shadow-2xl flex flex-col items-center justify-center p-6 sm:p-8 overflow-hidden ${peripheralPositionClass}`}>
         {/* Top & Bottom Alignment Marks (Fixation Target) */}
         {!isPeripheral && (
           <>
@@ -154,7 +191,7 @@ export const RsvpSpeedReaderGame: React.FC = () => {
         )}
 
         {/* Word Display with Red ORP Accent */}
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-3 select-none">
           <div className="text-4xl sm:text-6xl md:text-7xl font-black font-mono tracking-tight text-slate-900 dark:text-white flex items-baseline">
             <span className="text-right inline-block">{partLeft}</span>
             <span className="text-red-500 font-black px-0.5 underline decoration-red-500 decoration-4 sm:decoration-8 underline-offset-8">{orpChar}</span>
@@ -178,11 +215,54 @@ export const RsvpSpeedReaderGame: React.FC = () => {
         />
       </div>
 
+      {/* Text Area Context Preview (Nét Thanh -> Nét Đậm) */}
+      <div className="rounded-3xl bg-[#FDFBF7] dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 shadow-md overflow-hidden">
+        <div 
+          onClick={() => setShowFullContext(!showFullContext)}
+          className="px-5 py-3 bg-[#F5EFE6] dark:bg-slate-800 flex items-center justify-between cursor-pointer select-none text-xs font-bold text-slate-700 dark:text-slate-300"
+        >
+          <div className="flex items-center gap-2 truncate">
+            <span className="px-2 py-0.5 rounded bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 text-[10px] font-black">
+              {currentArticle.category}
+            </span>
+            <span className="truncate">{currentArticle.title}</span>
+          </div>
+          <div className="flex items-center gap-1 text-slate-500 shrink-0">
+            <span>{showFullContext ? 'Thu gọn đoạn văn' : 'Hiện toàn văn ngữ cảnh'}</span>
+            {showFullContext ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </div>
+        </div>
+
+        {showFullContext && (
+          <div className="p-5 sm:p-7 leading-relaxed text-sm sm:text-base text-slate-800 dark:text-slate-200 max-h-[180px] overflow-y-auto scroll-smooth select-none">
+            {words.map((w, idx) => {
+              const isFocused = idx === wordIndex || (isDualWord && idx === wordIndex + 1);
+              const isPast = idx < wordIndex;
+              return (
+                <span
+                  key={idx}
+                  ref={isFocused ? activeWordRef : undefined}
+                  className={`inline-block mr-1.5 sm:mr-2 my-0.5 px-1 rounded transition-all duration-75 ${
+                    isFocused
+                      ? 'font-black text-slate-950 dark:text-white bg-amber-300 dark:bg-amber-400 scale-105 shadow-sm ring-2 ring-amber-400/50'
+                      : isPast
+                      ? 'font-normal text-slate-700 dark:text-slate-300 opacity-80'
+                      : 'font-light text-slate-400 dark:text-slate-500 opacity-50'
+                  }`}
+                >
+                  {w}
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Speed Slider */}
       <div className="space-y-1.5 p-4 rounded-2xl bg-[#F5EFE6] dark:bg-slate-800 border border-[#D5CBB9] dark:border-slate-700">
         <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
           <span>Tốc độ đọc (WPM)</span>
-          <span className="text-brand-600 dark:text-brand-400">{wpm} WPM</span>
+          <span className="text-brand-600 dark:text-brand-400 font-black">{wpm} WPM</span>
         </div>
         <input
           type="range"
@@ -226,6 +306,14 @@ export const RsvpSpeedReaderGame: React.FC = () => {
           <RotateCcw className="w-5 h-5" />
         </button>
       </div>
+
+      {/* Text Source Selection Modal */}
+      <ReadingTextSourceModal
+        isOpen={isSourceModalOpen}
+        onClose={() => setIsSourceModalOpen(false)}
+        currentText={currentArticle}
+        onSelectText={handleSelectNewArticle}
+      />
 
       {isFinished && (
         <GameResultModal

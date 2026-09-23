@@ -1,19 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
-import { SAMPLE_READING_TEXTS, calculateWpm, calculateEffectiveWpm } from '@brain-exercises/shared';
-import { CheckCircle2 } from 'lucide-react';
+import { calculateWpm, calculateEffectiveWpm, IReadingText, SAMPLE_READING_TEXTS } from '@brain-exercises/shared';
+import { CheckCircle2, BookOpen } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { ReadingTextSourceModal } from '../common/ReadingTextSourceModal';
+import { readingContentService } from '../../services/readingContentService';
 
 export const ReadingAssessmentGame: React.FC = () => {
   const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const lastAnsTimeRef = useRef<number>(Date.now());
   const currentLevel = getExerciseLevel('reading-assessment');
-  
-  const [textIndex, setTextIndex] = useState(() => (currentLevel - 1) % SAMPLE_READING_TEXTS.length);
-  const article = SAMPLE_READING_TEXTS[textIndex] || SAMPLE_READING_TEXTS[0];
-  const questions = article.questions || [];
+
+  const allTexts = readingContentService.getAllTexts();
+  const [currentArticle, setCurrentArticle] = useState<IReadingText>(() => {
+    return allTexts[(currentLevel - 1) % allTexts.length] || SAMPLE_READING_TEXTS[0];
+  });
+  const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
+
+  const questions = currentArticle.questions && currentArticle.questions.length > 0 
+    ? currentArticle.questions 
+    : (SAMPLE_READING_TEXTS[0].questions || []);
 
   const [phase, setPhase] = useState<'reading' | 'quiz'>('reading');
   const [readingTimeSec, setReadingTimeSec] = useState(0);
@@ -55,7 +63,8 @@ export const ReadingAssessmentGame: React.FC = () => {
         questionId: qId,
         choice: opt,
         correctOption: questions[currentQIndex]?.correctOption,
-        rawWpm
+        rawWpm,
+        articleTitle: currentArticle.title
       },
       stateBefore: `q:${currentQIndex}`,
       stateAfter: `q:${currentQIndex + 1}`,
@@ -74,7 +83,16 @@ export const ReadingAssessmentGame: React.FC = () => {
     }
   };
 
-  const rawWpm = calculateWpm(article.wordCount, Math.max(5, readingTimeSec));
+  const handleSelectNewArticle = (article: IReadingText) => {
+    setCurrentArticle(article);
+    setPhase('reading');
+    setReadingTimeSec(0);
+    setCurrentQIndex(0);
+    setSelectedAnswers({});
+    setIsFinished(false);
+  };
+
+  const rawWpm = calculateWpm(currentArticle.wordCount, Math.max(5, readingTimeSec));
   let correctCount = 0;
   questions.forEach(q => {
     if (selectedAnswers[q.id] === q.correctOption) {
@@ -95,6 +113,18 @@ export const ReadingAssessmentGame: React.FC = () => {
             {phase === 'reading' ? 'Đang đọc bài viết (Tính WPM)' : `Trắc nghiệm hiểu (${currentQIndex + 1}/${questions.length})`}
           </div>
         </div>
+
+        <button
+          onClick={() => {
+            playSound('click');
+            setIsSourceModalOpen(true);
+          }}
+          className="py-2 px-3 sm:px-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-200 font-extrabold text-xs sm:text-sm flex items-center gap-1.5 transition-all btn-press shadow-sm"
+        >
+          <BookOpen className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+          <span>Đổi bài đọc</span>
+        </button>
+
         <div className="text-right">
           <span className="text-xs sm:text-sm text-slate-500 font-medium">Thời gian đọc</span>
           <div className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white">
@@ -105,19 +135,19 @@ export const ReadingAssessmentGame: React.FC = () => {
 
       {phase === 'reading' ? (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-800 p-6 sm:p-10 md:p-12 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-2xl space-y-4 sm:space-y-6">
+          <div className="bg-[#FDFBF7] dark:bg-slate-900 p-6 sm:p-10 md:p-12 rounded-3xl border border-[#D5CBB9] dark:border-slate-800 shadow-xl space-y-4 sm:space-y-6">
             <h2 className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white leading-snug">
-              {article.title}
+              {currentArticle.title}
             </h2>
-            <div className="flex items-center gap-3 text-xs sm:text-sm text-slate-500 pb-3 border-b border-slate-100 dark:border-slate-700">
-              <span className="font-bold text-brand-600">{article.category}</span>
+            <div className="flex items-center gap-3 text-xs sm:text-sm text-slate-500 pb-3 border-b border-[#E6DDCE] dark:border-slate-800">
+              <span className="font-bold text-brand-600">{currentArticle.category}</span>
               <span>&bull;</span>
-              <span>{article.wordCount} từ</span>
+              <span>{currentArticle.wordCount} từ</span>
               <span>&bull;</span>
-              <span>Tác giả: {article.author}</span>
+              <span>Tác giả: {currentArticle.author}</span>
             </div>
             <div className="text-base sm:text-lg md:text-xl leading-relaxed sm:leading-loose text-slate-700 dark:text-slate-300 space-y-4 whitespace-pre-line text-justify font-serif">
-              {article.content}
+              {currentArticle.content}
             </div>
           </div>
 
@@ -126,7 +156,7 @@ export const ReadingAssessmentGame: React.FC = () => {
             className="w-full py-4 sm:py-5 rounded-2xl sm:rounded-3xl bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-black text-lg sm:text-xl shadow-xl shadow-brand-600/30 flex items-center justify-center gap-3 btn-press"
           >
             <CheckCircle2 className="w-6 h-6" />
-            Tôi đã đọc xong toàn văn (Chuyển sang làm trắc nghiệm)
+            <span>Tôi đã đọc xong toàn văn (Chuyển sang làm trắc nghiệm)</span>
           </button>
         </div>
       ) : (
@@ -149,7 +179,7 @@ export const ReadingAssessmentGame: React.FC = () => {
               <button
                 key={choice.opt}
                 onClick={() => handleSelectOption(questions[currentQIndex].id, choice.opt as any)}
-                className="w-full p-4 sm:p-6 rounded-2xl sm:rounded-3xl text-left text-sm sm:text-base md:text-lg font-bold border border-slate-200 dark:border-slate-700 hover:bg-brand-50 hover:border-brand-500 text-slate-800 dark:text-white transition-all btn-press flex items-center gap-4"
+                className="w-full p-4 sm:p-6 rounded-2xl sm:rounded-3xl text-left text-sm sm:text-base md:text-lg font-bold border border-slate-200 dark:border-slate-700 hover:bg-brand-50 dark:hover:bg-slate-700 hover:border-brand-500 text-slate-800 dark:text-white transition-all btn-press flex items-center gap-4"
               >
                 <span className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-black text-sm sm:text-base text-brand-600 dark:text-brand-400 shrink-0 shadow-sm">
                   {choice.opt}
@@ -161,6 +191,14 @@ export const ReadingAssessmentGame: React.FC = () => {
         </div>
       )}
 
+      {/* Text Source Selection Modal */}
+      <ReadingTextSourceModal
+        isOpen={isSourceModalOpen}
+        onClose={() => setIsSourceModalOpen(false)}
+        currentText={currentArticle}
+        onSelectText={handleSelectNewArticle}
+      />
+
       {isFinished && (
         <GameResultModal
           score={effectiveWpm}
@@ -170,7 +208,6 @@ export const ReadingAssessmentGame: React.FC = () => {
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();
-            setTextIndex(prev => (prev + 1) % SAMPLE_READING_TEXTS.length);
             setPhase('reading');
             setReadingTimeSec(0);
             setCurrentQIndex(0);

@@ -997,6 +997,163 @@ Khi bạn luyện tập mở rộng tầm nhìn ngoại biên thông qua các b�
         explanation: 'Bài viết kết luận: "có thể thu trọn cả một dòng hoặc thậm chí một khối văn bản chỉ trong một cái liếc nhìn (Single Fixation)".'
       }
     ]
+  },
+  {
+    id: 'text-6',
+    title: 'Kính Viễn Vọng Không Gian James Webb & Bình Minh Vũ Trụ',
+    category: 'Thiên Văn & Vũ Trụ',
+    wordCount: 310,
+    difficultyLevel: 3,
+    previewExcerpt: 'Được phóng vào không gian cuối năm 2021, kính James Webb mở ra cánh cửa nhìn về quá khứ...',
+    author: 'TS. Vũ Trọng Khôi',
+    content: `Được phóng vào không gian vào cuối năm 2021, kính viễn vọng không gian James Webb (JWST) là công trình khoa học kỳ vĩ nhất của nhân loại trong lĩnh vực thiên văn học hiện đại. Hoạt động tại điểm Lagrange L2 cách Trái Đất 1,5 triệu kilomet, tấm gương mạ vàng khổng lồ đường kính 6,5 mét của Webb có khả năng thu nhận những hạt photon hồng ngoại yếu ớt nhất phát ra từ thuở bình minh của vũ trụ.
+
+Vì ánh sáng di chuyển với vận tốc hữu hạn, khi nhìn càng xa vào không gian, chúng ta thực chất đang nhìn ngược về quá khứ hàng tỷ năm trước. Kính James Webb đã chụp được những thiên hà cổ xưa hình thành chỉ 300 triệu năm sau vụ nổ Big Bang, thách thức các mô hình vũ trụ học truyền thống về tốc độ tiến hóa của các vì sao đầu tiên.
+
+Ngoài việc khám phá nguồn gốc vũ trụ, James Webb còn phân tích thành phần khí quyển của các ngoại hành tinh quay quanh các ngôi sao xa xôi. Bằng phương pháp quang phổ truyền qua, các nhà khoa học đã tìm thấy dấu vết của hơi nước, carbon dioxide và methane, mở ra hy vọng tìm kiếm các dấu hiệu sinh học ngoài Trái Đất trong thế kỷ này.`,
+    questions: [
+      {
+        id: 'q6-1',
+        questionOrder: 1,
+        questionText: 'Kính viễn vọng James Webb hoạt động tại vị trí nào trong không gian?',
+        optionA: 'Quỹ đạo thấp quanh Trái Đất',
+        optionB: 'Bề mặt Mặt Trăng',
+        optionC: 'Điểm Lagrange L2 cách Trái Đất 1,5 triệu km',
+        optionD: 'Quỹ đạo quanh Sao Hỏa',
+        correctOption: 'C',
+        explanation: 'Bài viết chỉ rõ: "Hoạt động tại điểm Lagrange L2 cách Trái Đất 1,5 triệu kilomet".'
+      },
+      {
+        id: 'q6-2',
+        questionOrder: 2,
+        questionText: 'Loại ánh sáng chủ yếu mà kính James Webb thu nhận là gì?',
+        optionA: 'Tia X',
+        optionB: 'Hồng ngoại (Infrared)',
+        optionC: 'Tử ngoại (UV)',
+        optionD: 'Sóng vô tuyến',
+        correctOption: 'B',
+        explanation: 'Văn bản nêu: "khả năng thu nhận những hạt photon hồng ngoại yếu ớt nhất".'
+      }
+    ]
+  },
+  {
+    id: 'text-7',
+    title: 'Tư Duy Nhanh & Chậm: Hai Hệ Thống Phán Đoán Của Não Bộ',
+    category: 'Tâm Lý Học Nhận Thức',
+    wordCount: 325,
+    difficultyLevel: 4,
+    previewExcerpt: 'Nhà tâm lý học đoạt giải Nobel Daniel Kahneman đã chứng minh não người vận hành qua hai hệ thống...',
+    author: 'Daniel Kahneman & PGS. Lê Thảo Trang',
+    content: `Trong công trình nghiên cứu kinh điển về kinh tế học hành vi và tâm lý học nhận thức, nhà khoa học đoạt giải Nobel Daniel Kahneman đã chứng minh rằng tâm trí con người được vận hành bởi hai phương thức tư duy riêng biệt: Hệ thống 1 (Nhanh) và Hệ thống 2 (Chậm).
+
+Hệ thống 1 hoạt động hoàn toàn tự động, tức thì, tốn rất ít năng lượng và không cần sự nỗ lực chú ý có ý thức. Đây là hệ thống giúp bạn nhận ra biểu cảm tức giận trên khuôn mặt một người, né tránh một chướng ngại vật bất ngờ khi lái xe, hoặc đọc các biển hiệu quen thuộc trên đường. Tuy nhiên, Hệ thống 1 thường xuyên mắc phải các định kiến nhận thức và suy nghiệm trực giác sai lệch.
+
+Ngược lại, Hệ thống 2 đòi hỏi sự tập trung cao độ, phân tích logic có chủ đích và tiêu tốn nhiều năng lượng trao đổi chất của não. Hệ thống này được kích hoạt khi bạn giải một bài toán phức tạp, đỗ xe vào không gian hẹp, hoặc đọc sâu một văn bản triết học trừu tượng. Làm chủ sự phối hợp giữa hai hệ thống là bí quyết cốt lõi để nâng cao năng lực ra quyết định chính xác.`,
+    questions: [
+      {
+        id: 'q7-1',
+        questionOrder: 1,
+        questionText: 'Đặc điểm chính của Hệ thống 1 (Tư duy nhanh) là gì?',
+        optionA: 'Tự động, tức thì, tốn rất ít năng lượng',
+        optionB: 'Luôn luôn chính xác 100% không bao giờ sai',
+        optionC: 'Đòi hỏi sự tập trung và tính toán toán học cao độ',
+        optionD: 'Chỉ hoạt động khi con người đang ngủ',
+        correctOption: 'A',
+        explanation: 'Văn bản nêu: "Hệ thống 1 hoạt động hoàn toàn tự động, tức thì, tốn rất ít năng lượng".'
+      },
+      {
+        id: 'q7-2',
+        questionOrder: 2,
+        questionText: 'Hệ thống 2 được kích hoạt trong trường hợp nào sau đây?',
+        optionA: 'Nhận diện nụ cười của bạn bè',
+        optionB: 'Giải một bài toán logic phức tạp',
+        optionC: 'Quay đầu khi nghe thấy tiếng động lớn',
+        optionD: 'Đọc một từ đơn giản quen thuộc',
+        correctOption: 'B',
+        explanation: 'Hệ thống 2 kích hoạt khi "giải một bài toán phức tạp, phân tích logic có chủ đích".'
+      }
+    ]
+  },
+  {
+    id: 'text-8',
+    title: 'Trục Não - Ruột (Gut-Brain Axis): Bộ Não Thứ Hai Của Cơ Thể',
+    category: 'Y Sinh Học Hiện Đại',
+    wordCount: 315,
+    difficultyLevel: 3,
+    previewExcerpt: 'Hàng ngàn tỷ vi sinh vật sống trong đường ruột liên tục giao tiếp với hệ thần kinh trung ương...',
+    author: 'BS. CKII Đặng Minh Tuấn',
+    content: `Những năm gần đây, giới y học chấn động trước những phát hiện về "Trục Não - Ruột" (Gut-Brain Axis) — mạng lưới truyền tin hai chiều phức tạp giữa hệ thần kinh trung ương và hệ thần kinh ruột. Đường ruột con người chứa hơn 100 triệu tế bào thần kinh, nhiều hơn cả tủy sống, khiến nó được mệnh danh là "Bộ não thứ hai" của cơ thể.
+
+Đáng kinh ngạc hơn, hơn 90% lượng hormone hạnh phúc Serotonin và khoảng 50% Dopamine của toàn bộ cơ thể lại được tổng hợp ngay tại đường ruột bởi hệ vi sinh vật (Microbiome). Thông qua dây thần kinh phế vị (Vagus Nerve) và các phân tử tín hiệu miễn dịch, trạng thái của hệ tiêu hóa tác động trực tiếp đến tâm trạng, khả năng tập trung, mức độ lo âu và độ nhạy bén của tư duy.
+
+Một chế độ ăn uống giàu chất xơ, thực phẩm lên men tự nhiên và polyphenol thực vật không chỉ bảo vệ sức khỏe thể chất mà còn nuôi dưỡng các chủng vi khuẩn sản sinh axit béo chuỗi ngắn. Những hợp chất này vượt qua hàng rào máu não để bảo vệ các tế bào thần kinh khỏi phản ứng viêm, giúp duy trì trí nhớ sắc bén và tinh thần minh mẫn suốt đời.`,
+    questions: [
+      {
+        id: 'q8-1',
+        questionOrder: 1,
+        questionText: 'Bao nhiêu phần trăm Serotonin trong cơ thể được tổng hợp tại đường ruột?',
+        optionA: 'Khoảng 10%',
+        optionB: 'Khoảng 50%',
+        optionC: 'Hơn 90%',
+        optionD: '100%',
+        correctOption: 'C',
+        explanation: 'Bài viết khẳng định: "hơn 90% lượng hormone hạnh phúc Serotonin... được tổng hợp ngay tại đường ruột".'
+      }
+    ]
+  },
+  {
+    id: 'text-9',
+    title: 'Trạng Thái Dòng Chảy (Flow State) & Đỉnh Cao Năng Suất Trí Tuệ',
+    category: 'Tâm Lý Học Năng Suất',
+    wordCount: 330,
+    difficultyLevel: 4,
+    previewExcerpt: 'Khi độ khó của thử thách cân bằng hoàn hảo với kỹ năng cá nhân, tâm trí đạt trạng thái xuất thần...',
+    author: 'Mihaly Csikszentmihalyi & Ban Biên Tập',
+    content: `Trạng thái dòng chảy (Flow State) là thuật ngữ tâm lý học do giáo sư Mihaly Csikszentmihalyi đặt ra để mô tả trạng thái tinh thần tối thượng khi một người hoàn toàn đắm chìm vào công việc họ đang làm. Trong trạng thái này, cảm giác về thời gian dường như biến mất, tiếng ồn xung quanh tan biến và năng suất lao động có thể tăng vọt lên gấp năm lần.
+
+Về mặt sinh học thần kinh, khi bước vào dòng chảy, não bộ kích hoạt hiện tượng "giảm kích hoạt thùy trán tạm thời" (Transient Hypofrontality). Vùng vỏ não trước trán — nơi chịu trách nhiệm tự phê phán, nghi ngờ bản thân và lo âu — tạm thời lắng dịu. Đồng thời, một thác lũ các chất dẫn truyền thần kinh tạo cảm xúc thăng hoa như Dopamine, Serotonin, Endorphin và Norepinephrine được giải phóng, tạo nên sự sắc bén phi thường trong tư duy.
+
+Để chủ động kích hoạt trạng thái dòng chảy khi học tập hoặc làm việc, bạn cần ba điều kiện tiên quyết: loại bỏ hoàn toàn các yếu tố gây xao nhãng như thông báo điện thoại, thiết lập mục tiêu vi mô rõ ràng cho từng phiên làm việc, và quan trọng nhất là chọn nhiệm vụ có độ khó cao hơn kỹ năng hiện tại khoảng 4% — đủ thách thức để cuốn hút nhưng không quá khó đến mức gây nản lòng.`,
+    questions: [
+      {
+        id: 'q9-1',
+        questionOrder: 1,
+        questionText: 'Hiện tượng não bộ nào diễn ra khi con người bước vào trạng thái dòng chảy?',
+        optionA: 'Tăng áp lực nội sọ đột ngột',
+        optionB: 'Giảm kích hoạt thùy trán tạm thời (Transient Hypofrontality)',
+        optionC: 'Ngừng hoạt động hoàn toàn của thùy chẩm',
+        optionD: 'Tê liệt thần kinh vận động',
+        correctOption: 'B',
+        explanation: 'Văn bản nêu rõ: "não bộ kích hoạt hiện tượng giảm kích hoạt thùy trán tạm thời (Transient Hypofrontality)".'
+      }
+    ]
+  },
+  {
+    id: 'text-10',
+    title: 'Mật Mã Lượng Tử & Tương Lai Bảo Vệ Tri Thức Nhân Loại',
+    category: 'Công Nghệ & Vật Lý',
+    wordCount: 320,
+    difficultyLevel: 5,
+    previewExcerpt: 'Sự phát triển của máy tính lượng tử đe dọa các thuật toán mã hóa hiện nay, mở đường cho phân phối khóa lượng tử...',
+    author: 'TS. Hoàng Quốc Dũng',
+    content: `Hầu hết các hệ thống an ninh mạng toàn cầu hiện nay — từ giao dịch ngân hàng, thông tin quân sự đến dữ liệu cá nhân — đều dựa trên các thuật toán mã hóa khóa công khai như RSA. Độ an toàn của RSA bắt nguồn từ việc các máy tính cổ điển phải mất hàng ngàn năm mới có thể phân tích một số nguyên khổng lồ thành tích của hai số nguyên tố.
+
+Tuy nhiên, sự xuất hiện của máy tính lượng tử với thuật toán Shor có thể bẻ gãy hệ thống mã hóa này chỉ trong vài phút. Để đối phó với hiểm họa này, các nhà vật lý đã phát triển công nghệ "Phân phối khóa lượng tử" (Quantum Key Distribution - QKD), ứng dụng các nguyên lý cơ bản của cơ học lượng tử như tính bất định của Heisenberg và hiện tượng rối lượng tử.
+
+Điểm kỳ diệu của QKD nằm ở chỗ: bất kỳ nỗ lực nghe lén hay đo lường thông tin nào trên đường truyền photon đều tất yếu làm sụp đổ hàm sóng lượng tử và làm biến dạng trạng thái của hạt. Do đó, cả bên gửi và bên nhận sẽ phát hiện ra sự can thiệp ngay lập tức. Đây là bức tường lửa bảo mật tuyệt đối về mặt vật lý, đảm bảo an toàn cho dữ liệu nhân loại trong kỷ nguyên số hóa tương lai.`,
+    questions: [
+      {
+        id: 'q10-1',
+        questionOrder: 1,
+        questionText: 'Tại sao việc nghe lén trong phân phối khóa lượng tử (QKD) là không thể che giấu?',
+        optionA: 'Vì máy tính lượng tử phát chuông báo động',
+        optionB: 'Vì hành động đo lường làm sụp đổ hàm sóng lượng tử và biến dạng photon',
+        optionC: 'Vì dây cáp quang sẽ tự đứt',
+        optionD: 'Vì luật pháp quốc tế cấm nghe lén',
+        correctOption: 'B',
+        explanation: 'Bài viết giải thích: "bất kỳ nỗ lực nghe lén hay đo lường... đều tất yếu làm sụp đổ hàm sóng lượng tử và biến dạng trạng thái của hạt".'
+      }
+    ]
   }
 ];
 
