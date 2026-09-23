@@ -28,7 +28,7 @@ export const PeripheralVisionGame: React.FC = () => {
     setTargetSide(currentLevel >= 9 ? (Math.random() < 0.5 ? 'left' : 'right') : 'left');
     setPhase('flash');
 
-    const flashDuration = Math.max(150, 600 - (currentLevel * 45));
+    const flashDuration = Math.max(280, 800 - (currentLevel * 45));
     setTimeout(() => {
       setPhase('guess');
     }, flashDuration);

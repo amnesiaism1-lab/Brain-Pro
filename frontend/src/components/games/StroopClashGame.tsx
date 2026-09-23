@@ -30,19 +30,19 @@ export const StroopClashGame: React.FC = () => {
   const totalTrials = 15;
   const reactionWindowMs = useMemo(() => {
     switch (effectiveLevel) {
-      case 1: return 1400;
-      case 2: return 1200;
-      case 3: return 1000;
-      case 4: return 850;
-      case 5: return 750;
-      case 6: return 650;
-      case 7: return 550;
-      case 8: return 450;
-      case 9: return 400;
-      case 10: return 350;
-      case 11: return 300;
-      case 12: return 250;
-      default: return 250;
+      case 1: return 3500;
+      case 2: return 3000;
+      case 3: return 2600;
+      case 4: return 2300;
+      case 5: return 2000;
+      case 6: return 1800;
+      case 7: return 1600;
+      case 8: return 1450;
+      case 9: return 1500; // Đảo ngược quy tắc: cần thời gian ức chế thói quen đọc mực
+      case 10: return 1400; // Tam trùng xung đột: cần nhận biết viền và bỏ qua chữ + mực
+      case 11: return 1300; // Luân phiên luật chữ & màu
+      case 12: return 1200; // Cực hạn phản xạ
+      default: return 2000;
     }
   }, [effectiveLevel]);
 
@@ -111,13 +111,37 @@ export const StroopClashGame: React.FC = () => {
       playSound('wrong');
       setCombo(0);
       setFlashFeedback('TIMEOUT');
+
+      const expectedTarget = currentTargetType === 'TEXT'
+        ? wordItem.text
+        : currentTargetType === 'BORDER' && wordItem.borderColor
+        ? wordItem.borderColor.nameVi
+        : wordItem.inkColor.nameVi;
+
+      emitTrialEvent({
+        exerciseSlug: 'stroop-clash',
+        level: effectiveLevel,
+        relationId: 'INHIBITION',
+        relationWeight: 1.0,
+        entities: {
+          target: expectedTarget,
+          distractor: wordItem.text,
+          rule: currentTargetType,
+          timedOut: true
+        },
+        stateBefore: 'inhibited_conflict',
+        stateAfter: 'stroop_timeout',
+        responseMs: reactionWindowMs,
+        correct: false
+      });
+
       setTimeout(() => {
         nextTrial(trialIndex + 1);
-      }, 300);
+      }, 500);
     }, reactionWindowMs);
 
     return () => clearTimeout(timer);
-  }, [trialIndex, wordItem, reactionWindowMs, isFinished, playSound, nextTrial]);
+  }, [trialIndex, wordItem, reactionWindowMs, isFinished, playSound, nextTrial, currentTargetType, effectiveLevel, emitTrialEvent]);
 
   const handleChoice = (selectedColor: ColorDef) => {
     if (isFinished || !wordItem) return;
@@ -141,7 +165,7 @@ export const StroopClashGame: React.FC = () => {
       setReactionTimes(prev => [...prev, rt]);
       
       // Speed bonus: faster reaction gives more points
-      const speedFactor = Math.max(1, Math.round((reactionWindowMs - rt) / 10));
+      const speedFactor = Math.max(1, Math.round((reactionWindowMs - rt) / 15));
       const addedScore = 50 + (effectiveLevel * 10) + speedFactor + (nextCombo * 10);
       setScore(s => s + addedScore);
       setFlashFeedback('CORRECT');
@@ -224,9 +248,18 @@ export const StroopClashGame: React.FC = () => {
         </div>
       </div>
 
+      {/* Trial Countdown Timer Bar */}
+      <div className="w-full bg-slate-200 dark:bg-slate-700/60 h-2 sm:h-2.5 rounded-full overflow-hidden shadow-inner relative">
+        <div 
+          key={trialIndex}
+          className="h-full rounded-full animate-timer-shrink bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500"
+          style={{ animationDuration: `${reactionWindowMs}ms` }}
+        />
+      </div>
+
       {/* Presentation Word Box */}
       <div 
-        className={`h-56 sm:h-72 md:h-80 rounded-3xl flex flex-col items-center justify-center p-6 sm:p-8 shadow-2xl border-4 transition-all duration-150 ${
+        className={`h-56 sm:h-72 md:h-80 rounded-3xl flex flex-col items-center justify-center p-6 sm:p-8 shadow-2xl border-4 transition-all duration-150 relative overflow-hidden ${
           flashFeedback === 'CORRECT' ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500' :
           flashFeedback === 'WRONG' || flashFeedback === 'TIMEOUT' ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 shake' :
           currentTargetType === 'BORDER' && wordItem?.borderColor
@@ -235,9 +268,35 @@ export const StroopClashGame: React.FC = () => {
         }`}
         style={currentTargetType === 'BORDER' && wordItem?.borderColor && !flashFeedback ? {
           borderColor: wordItem.borderColor.hex,
-          borderWidth: '8px'
+          borderWidth: '10px',
+          boxShadow: `0 0 28px ${wordItem.borderColor.hex}44`
         } : undefined}
       >
+        {/* Rule Indicator Badge on Card */}
+        <div className="mb-2 sm:mb-4">
+          {currentTargetType === 'BORDER' && wordItem?.borderColor ? (
+            <span 
+              className="px-3.5 py-1 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider shadow-sm flex items-center gap-1.5"
+              style={{ 
+                backgroundColor: `${wordItem.borderColor.hex}22`, 
+                color: wordItem.borderColor.hex, 
+                border: `1.5px solid ${wordItem.borderColor.hex}` 
+              }}
+            >
+              <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: wordItem.borderColor.hex }} />
+              CHỌN MÀU CỦA VIỀN NGOÀI
+            </span>
+          ) : currentTargetType === 'TEXT' ? (
+            <span className="px-3.5 py-1 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-300">
+              CHỌN Ý NGHĨA CỦA CHỮ
+            </span>
+          ) : (
+            <span className="px-3.5 py-1 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300">
+              CHỌN MÀU MỰC HIỂN THỊ
+            </span>
+          )}
+        </div>
+
         {wordItem && (
           <span 
             className="text-5xl sm:text-7xl md:text-8xl font-black tracking-wider uppercase drop-shadow-md select-none animate-scale-up"
@@ -249,7 +308,7 @@ export const StroopClashGame: React.FC = () => {
 
         {flashFeedback === 'TIMEOUT' && (
           <span className="text-sm font-bold text-rose-500 mt-3 animate-bounce">
-            Quá thời gian ({reactionWindowMs}ms)!
+            Hết thời gian ({reactionWindowMs}ms)!
           </span>
         )}
       </div>

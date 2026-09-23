@@ -544,23 +544,23 @@ export const EXERCISES_METADATA: IExercise[] = [
     iconName: 'Palette',
     scientificBasis: 'Dựa trên hiệu ứng Stroop kinh điển, rèn luyện khả năng ức chế can thiệp thông tin xung đột giữa màu sắc và ngữ nghĩa.',
     instructions: 'Một chữ cái xuất hiện mang nghĩa của một màu sắc nhưng được tô mực bằng màu khác. Hãy bấm nút đúng với MÀU MỰC thực tế.',
-    rulesSummary: 'Không được đọc theo nghĩa của từ! Phải chọn đúng màu mực hiển thị trước khi hết 1.2 giây.',
+    rulesSummary: 'Không được đọc theo nghĩa của từ! Phải chọn đúng màu mực hiển thị nhanh nhất có thể.',
     maxDifficultyLevel: 12,
     defaultDurationSec: 45,
     isFeatured: true,
     levelConfigs: [
-      { level: 1, timeLimitSec: 30, parametersJson: { reactionWindowMs: 1400 } },
-      { level: 2, timeLimitSec: 30, parametersJson: { reactionWindowMs: 1200 } },
-      { level: 3, timeLimitSec: 35, parametersJson: { reactionWindowMs: 1000 } },
-      { level: 4, timeLimitSec: 35, parametersJson: { reactionWindowMs: 850 } },
-      { level: 5, timeLimitSec: 40, parametersJson: { reactionWindowMs: 750 } },
-      { level: 6, timeLimitSec: 40, parametersJson: { reactionWindowMs: 650 } },
-      { level: 7, timeLimitSec: 45, parametersJson: { reactionWindowMs: 550 } },
-      { level: 8, timeLimitSec: 45, parametersJson: { reactionWindowMs: 450 } },
-      { level: 9, timeLimitSec: 45, variantCode: 'REVERSE_STROOP', variantName: 'Đảo Ngược: Chọn Nghĩa Chữ', parametersJson: { reactionWindowMs: 400, reverseStroop: true } },
-      { level: 10, timeLimitSec: 45, variantCode: 'TRIPLE_STROOP', variantName: 'Tam Trùng Xung Đột (Chữ-Màu-Viền)', parametersJson: { reactionWindowMs: 350, borderClash: true } },
-      { level: 11, timeLimitSec: 40, variantCode: 'ALTERNATING_RULE', variantName: 'Luân Phiên Chữ & Màu', parametersJson: { reactionWindowMs: 300, alternatingMode: true } },
-      { level: 12, timeLimitSec: 40, variantCode: 'STROOP_N_BACK', variantName: 'Stroop N-Back Nhớ Lùi', parametersJson: { reactionWindowMs: 250, nBack: 1 } }
+      { level: 1, timeLimitSec: 30, parametersJson: { reactionWindowMs: 3500 } },
+      { level: 2, timeLimitSec: 30, parametersJson: { reactionWindowMs: 3000 } },
+      { level: 3, timeLimitSec: 35, parametersJson: { reactionWindowMs: 2600 } },
+      { level: 4, timeLimitSec: 35, parametersJson: { reactionWindowMs: 2300 } },
+      { level: 5, timeLimitSec: 40, parametersJson: { reactionWindowMs: 2000 } },
+      { level: 6, timeLimitSec: 40, parametersJson: { reactionWindowMs: 1800 } },
+      { level: 7, timeLimitSec: 45, parametersJson: { reactionWindowMs: 1600 } },
+      { level: 8, timeLimitSec: 45, parametersJson: { reactionWindowMs: 1450 } },
+      { level: 9, timeLimitSec: 45, variantCode: 'REVERSE_STROOP', variantName: 'Đảo Ngược: Chọn Nghĩa Chữ', parametersJson: { reactionWindowMs: 1500, reverseStroop: true } },
+      { level: 10, timeLimitSec: 45, variantCode: 'TRIPLE_STROOP', variantName: 'Tam Trùng Xung Đột (Chữ-Màu-Viền)', parametersJson: { reactionWindowMs: 1400, borderClash: true } },
+      { level: 11, timeLimitSec: 40, variantCode: 'ALTERNATING_RULE', variantName: 'Luân Phiên Chữ & Màu', parametersJson: { reactionWindowMs: 1300, alternatingMode: true } },
+      { level: 12, timeLimitSec: 40, variantCode: 'STROOP_N_BACK', variantName: 'Stroop N-Back Nhớ Lùi', parametersJson: { reactionWindowMs: 1200, nBack: 1 } }
     ]
   },
   {
@@ -1155,7 +1155,7 @@ export const EXERCISE_VARIANTS: IExerciseVariant[] = [
     variantCode: 'REVERSE_STROOP',
     variantName: 'Đảo Ngược: Chọn Nghĩa Chữ',
     variantDescription: 'Đảo ngược hoàn toàn quy tắc Stroop: chọn theo NGHĨA CỦA CHỮ thay vì màu mực.',
-    variantConfig: { reverseStroop: true, reactionWindowMs: 400 }
+    variantConfig: { reverseStroop: true, reactionWindowMs: 1500 }
   },
   {
     id: 'var-stroop-triple',
@@ -1165,7 +1165,7 @@ export const EXERCISE_VARIANTS: IExerciseVariant[] = [
     variantCode: 'TRIPLE_STROOP',
     variantName: 'Tam Trùng Xung Đột (Chữ-Màu-Viền)',
     variantDescription: 'Chữ viết, Màu mực và Màu viền ngoài là 3 màu khác nhau. Bấm chọn màu của VIỀN NGOÀI.',
-    variantConfig: { borderClash: true, reactionWindowMs: 350 }
+    variantConfig: { borderClash: true, reactionWindowMs: 1400 }
   },
   // Spatial
   {

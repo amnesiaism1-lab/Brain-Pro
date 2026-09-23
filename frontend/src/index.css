@@ -46,3 +46,31 @@
   transform: scale(0.96);
   filter: brightness(0.95);
 }
+
+/* Trial timer progress countdown */
+@keyframes timerShrink {
+  0% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
+.animate-timer-shrink {
+  animation-name: timerShrink;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+/* Shake feedback animation for wrong / timeout */
+@keyframes errorShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+.shake {
+  animation: errorShake 0.4s ease-in-out;
+}
+

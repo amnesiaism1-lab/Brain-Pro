@@ -16,19 +16,19 @@ export const SaccadeTrackerGame: React.FC = () => {
 
   const jumpIntervalMs = useMemo(() => {
     switch (effectiveLevel) {
-      case 1: return 750;
-      case 2: return 650;
-      case 3: return 550;
-      case 4: return 480;
-      case 5: return 420;
-      case 6: return 360;
-      case 7: return 300;
-      case 8: return 240;
-      case 9: return 200;
-      case 10: return 170;
-      case 11: return 150;
-      case 12: return 120;
-      default: return 120;
+      case 1: return 1200;
+      case 2: return 1050;
+      case 3: return 920;
+      case 4: return 820;
+      case 5: return 720;
+      case 6: return 640;
+      case 7: return 560;
+      case 8: return 500;
+      case 9: return 450;
+      case 10: return 400;
+      case 11: return 360;
+      case 12: return 320;
+      default: return 500;
     }
   }, [effectiveLevel]);
 

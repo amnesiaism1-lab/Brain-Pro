@@ -28,7 +28,7 @@ export const TwinWordsGame: React.FC = () => {
     setShowWords(true);
     // At level 9+, words flash and disappear after a short window (memory challenge)
     if (currentLevel >= 9) {
-      const flashMs = Math.max(400, 1000 - (currentLevel - 9) * 180);
+      const flashMs = Math.max(650, 1250 - (currentLevel - 9) * 160);
       setTimeout(() => setShowWords(false), flashMs);
     }
   };
