@@ -286,6 +286,18 @@ export const EvenOddGame: React.FC = () => {
         </span>
       </div>
 
+      {/* Parity Logic Helper / Cheat Sheet Badge */}
+      {isInfinity && (
+        <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm animate-fade-in">
+          <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          <span className="font-bold text-slate-700 dark:text-slate-200">Mẹo nhẩm Parity:</span>
+          <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-[11px] font-mono">Chẵn ± Chẵn = Chẵn</span>
+          <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-[11px] font-mono">Lẻ ± Lẻ = Chẵn</span>
+          <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-[11px] font-mono">Lẻ × Lẻ = Lẻ</span>
+          <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-[11px] font-mono">Lẻ ± Chẵn = Lẻ</span>
+        </div>
+      )}
+
       {/* Action Buttons Grid */}
       <div className={`grid ${isTripleRule ? 'grid-cols-3' : 'grid-cols-2'} gap-3 sm:gap-4`}>
         <button

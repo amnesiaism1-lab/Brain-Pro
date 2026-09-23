@@ -96,6 +96,8 @@ export const WordSearchGame: React.FC = () => {
   const [selectedCells, setSelectedCells] = useState<Array<{ r: number; c: number }>>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [hintCell, setHintCell] = useState<{ r: number; c: number } | null>(null);
+  const [hintsRemaining, setHintsRemaining] = useState(3);
 
   const startNewBoard = useCallback((themeName: string) => {
     const newWords = pickWords(themeName);
@@ -105,6 +107,8 @@ export const WordSearchGame: React.FC = () => {
     setSelectedCells([]);
     setElapsedSec(0);
     setIsFinished(false);
+    setHintCell(null);
+    setHintsRemaining(3);
   }, [rows, cols, pickWords]);
 
   useEffect(() => {
@@ -160,6 +164,17 @@ export const WordSearchGame: React.FC = () => {
     startNewBoard(newTheme);
   };
 
+  const handleFlashFirstLetter = () => {
+    if (hintsRemaining <= 0 || isFinished) return;
+    const unfoundPlaced = searchData.placedWords.find(p => !foundWords.includes(p.word));
+    if (unfoundPlaced) {
+      playSound('click');
+      setHintsRemaining(h => h - 1);
+      setHintCell({ r: unfoundPlaced.row, c: unfoundPlaced.col });
+      setTimeout(() => setHintCell(null), 1600);
+    }
+  };
+
   const score = (foundWords.length * 150 * currentLevel) + Math.max(0, (120 - elapsedSec) * 5);
 
   return (
@@ -213,6 +228,9 @@ export const WordSearchGame: React.FC = () => {
         {targetWords.map((word) => {
           const isFound = foundWords.includes(word);
           const dictEntry = isInfinity ? CURATED_DICTIONARY.find(d => d.word === word) : null;
+          const placed = searchData.placedWords.find(p => p.word === word);
+          const dirBadge = placed ? (placed.direction === 'H' ? '➡️ Ngang' : '⬇️ Dọc') : null;
+
           let clueText: string | null = null;
           if (currentLevel === 14) {
             const bp = BILINGUAL_WORD_PAIRS.find(b => b.en.toUpperCase().replace(/\s+/g, '') === word);
@@ -244,6 +262,11 @@ export const WordSearchGame: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 {isFound && <Check className="w-4 h-4 text-emerald-500 stroke-[3]" />}
                 <span>{word}</span>
+                {dirBadge && !isFound && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300">
+                    {dirBadge}
+                  </span>
+                )}
               </div>
               {clueText && (
                 <span className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 no-underline mt-0.5">
@@ -266,12 +289,15 @@ export const WordSearchGame: React.FC = () => {
           {searchData.grid.map((row, r) =>
             row.map((letter, c) => {
               const isSelected = selectedCells.some(cell => cell.r === r && cell.c === c);
+              const isHinted = hintCell?.r === r && hintCell?.c === c;
               return (
                 <button
                   key={`${r}-${c}`}
                   onClick={() => handleCellClick(r, c)}
                   className={`w-7 h-7 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-xl sm:rounded-2xl font-black text-xs sm:text-base md:text-lg flex items-center justify-center transition-all duration-150 btn-press ${
-                    isSelected
+                    isHinted
+                      ? 'bg-amber-400 text-slate-950 scale-125 z-20 animate-bounce shadow-xl ring-4 ring-amber-400'
+                      : isSelected
                       ? 'bg-amber-400 text-slate-950 scale-105 shadow-md ring-2 ring-amber-400'
                       : 'bg-[#FDFBF7] dark:bg-slate-900/60 hover:bg-brand-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200'
                   }`}
@@ -284,8 +310,21 @@ export const WordSearchGame: React.FC = () => {
         </div>
       </div>
 
-      {/* Restart Board Button */}
-      <div className="flex justify-end">
+      {/* Controls: Reset + Hint First Letter Button */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        <button
+          onClick={handleFlashFirstLetter}
+          disabled={hintsRemaining <= 0 || isFinished}
+          className={`py-2.5 px-4 rounded-2xl border text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all ${
+            hintsRemaining <= 0
+              ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400'
+              : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-100 shadow-sm'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-amber-500" />
+          <span>Soi chữ cái đầu ({hintsRemaining}/3)</span>
+        </button>
+
         <button
           onClick={() => startNewBoard(selectedTheme)}
           className="py-2.5 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-brand-600 flex items-center gap-1.5 btn-press"

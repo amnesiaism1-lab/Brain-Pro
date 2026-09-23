@@ -60,13 +60,13 @@ export const CardFlipGame: React.FC = () => {
   const infinityTier = getInfinityTier(effectiveLevel);
 
   // Standard modes
-  const isTripleMatch = effectiveLevel === 9 || effectiveLevel === 17; // Level 9 or ∞-V (Triad Match)
+  const isTripleMatch = effectiveLevel === 9 || effectiveLevel === 15 || effectiveLevel === 17; // Level 9, ∞-III (Triad Concept) or ∞-V (POS Triad)
   const isShuffleTrap = effectiveLevel === 10 || effectiveLevel === 19; // Level 10 or ∞-VII (Matrix Drift)
+  const isOrbiting = effectiveLevel === 18; // ∞-VI: Orbiting Cosmic Rows
   const isSpeedDecay = effectiveLevel === 20; // ∞-VIII: Rapid Decay Flash
 
   const pairCount = useMemo(() => {
-    if (effectiveLevel === 17) return 6; // 6 triads of 3 = 18 cards
-    if (isTripleMatch) return 6; // 6 sets of 3 = 18 cards
+    if (isTripleMatch) return 6; // 6 triads of 3 = 18 cards
     if (effectiveLevel <= 2) return 6; // 12 cards
     if (effectiveLevel <= 4) return 8; // 16 cards
     if (effectiveLevel <= 6) return 10; // 20 cards
@@ -94,6 +94,8 @@ export const CardFlipGame: React.FC = () => {
   const [matchedPairsCount, setMatchedPairsCount] = useState(0);
   const [timeLeft, setTimeLeft] = useState(initialTimeLimit);
   const [isFinished, setIsFinished] = useState(false);
+  const [sonarPulsesLeft, setSonarPulsesLeft] = useState(2);
+  const [isSonaring, setIsSonaring] = useState(false);
 
   const initGame = useCallback(() => {
     const cardDeck: CardItem[] = [];
@@ -180,29 +182,41 @@ export const CardFlipGame: React.FC = () => {
         }
 
         case 15: {
-          // ∞-III: Emoji-Word Bridge (Side A: Emoji, Side B: English Word)
-          const emojiPairs = infinityApiService.getEmojiWordPairs(pairCount);
-          emojiPairs.forEach((pair, idx) => {
-            // Card A: Emoji
+          // ∞-III: Triad Concept Matching (Card 1: EN Word, Card 2: VI Meaning, Card 3: Symbol Emoji)
+          const triads = infinityApiService.getTriadConcepts(6);
+          triads.forEach((tc, idx) => {
+            const mKey = `triad-concept-${tc.id}`;
+            // Card A: English Word
             cardDeck.push({
-              id: `card-em-${idx}-${Math.random()}`,
+              id: `card-tc-en-${idx}-${Math.random()}`,
               symbolIndex: idx % CARD_ICONS.length,
-              matchKey: pair.word,
-              cardType: 'emoji',
-              displayText: pair.emoji,
-              emoji: pair.emoji,
-              subText: 'Biểu Tượng',
+              matchKey: mKey,
+              cardType: 'word_en',
+              displayText: tc.word,
+              subText: 'Từ Tiếng Anh',
               isFlipped: false,
               isMatched: false
             });
-            // Card B: English word
+            // Card B: Vietnamese Meaning
             cardDeck.push({
-              id: `card-w-${idx}-${Math.random()}`,
+              id: `card-tc-vi-${idx}-${Math.random()}`,
               symbolIndex: idx % CARD_ICONS.length,
-              matchKey: pair.word,
-              cardType: 'word_en',
-              displayText: pair.word,
-              subText: pair.vi,
+              matchKey: mKey,
+              cardType: 'word_vi',
+              displayText: tc.viMeaning,
+              subText: 'Nghĩa Tiếng Việt',
+              isFlipped: false,
+              isMatched: false
+            });
+            // Card C: Symbol Emoji
+            cardDeck.push({
+              id: `card-tc-sym-${idx}-${Math.random()}`,
+              symbolIndex: idx % CARD_ICONS.length,
+              matchKey: mKey,
+              cardType: 'emoji',
+              displayText: tc.symbol,
+              emoji: tc.symbol,
+              subText: tc.category,
               isFlipped: false,
               isMatched: false
             });
@@ -514,13 +528,15 @@ export const CardFlipGame: React.FC = () => {
     setScore(0);
     setTimeLeft(initialTimeLimit);
     setIsFinished(false);
+    setSonarPulsesLeft(2);
+    setIsSonaring(false);
   }, [pairCount, initialTimeLimit, isTripleMatch, isInfinity, effectiveLevel]);
 
   useEffect(() => {
     initGame();
   }, [initGame]);
 
-  // Countdown timer & Shuffle Trap / Matrix Drift
+  // Countdown timer & Shuffle Trap / Matrix Drift / Orbiting Rows
   useEffect(() => {
     if (isFinished) return;
     const timer = setInterval(() => {
@@ -554,12 +570,44 @@ export const CardFlipGame: React.FC = () => {
           });
         }
 
+        // Orbiting Rows at level 18 (∞-VI): shift rows circularly every 9s
+        if (isOrbiting && t > 1 && t % 9 === 0) {
+          setCards(prev => {
+            if (prev.length < 6) return prev;
+            const updated = [...prev];
+            const chunk = updated.splice(0, 6);
+            chunk.push(chunk.shift()!);
+            return [...chunk, ...updated];
+          });
+        }
+
         return t - 1;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isFinished, isShuffleTrap]);
+  }, [isFinished, isShuffleTrap, isOrbiting]);
+
+  const handleTriggerSonar = () => {
+    if (sonarPulsesLeft <= 0 || isProcessing || isSonaring || isFinished) return;
+    playSound('click');
+    setSonarPulsesLeft(p => p - 1);
+    setIsSonaring(true);
+    const unmatchedIndices: number[] = [];
+    cards.forEach((c, idx) => {
+      if (!c.isMatched && !c.isFlipped) unmatchedIndices.push(idx);
+    });
+    const sample = unmatchedIndices.sort(() => Math.random() - 0.5).slice(0, 4);
+    if (sample.length === 0) {
+      setIsSonaring(false);
+      return;
+    }
+    setCards(prev => prev.map((c, idx) => sample.includes(idx) ? { ...c, isFlipped: true } : c));
+    setTimeout(() => {
+      setCards(prev => prev.map((c, idx) => sample.includes(idx) ? { ...c, isFlipped: false } : c));
+      setIsSonaring(false);
+    }, 700);
+  };
 
   // Speed Decay for Level 20 (∞-VIII): Flipped cards close after 2 seconds if not matched
   useEffect(() => {
@@ -710,22 +758,41 @@ export const CardFlipGame: React.FC = () => {
         </div>
       </div>
 
-      {/* Instruction Tip */}
-      <div className="text-center text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
-        {isInfinity ? (
-          effectiveLevel === 14 ? (
-            '🌌 Cấp Vô Cực ∞-II: Ghép cặp từ Tiếng Việt với từ Tiếng Anh dịch nghĩa tương ứng!'
-          ) : effectiveLevel === 15 ? (
-            '🌌 Cấp Vô Cực ∞-III: Ghép Biểu tượng Emoji với từ vựng Tiếng Anh miêu tả biểu tượng!'
-          ) : effectiveLevel === 16 ? (
-            '🌌 Cấp Vô Cực ∞-IV: Ghép các từ Đồng Nghĩa (Synonyms) Tiếng Anh có chung ngữ nghĩa!'
-          ) : effectiveLevel === 17 ? (
-            '🌌 Cấp Vô Cực ∞-V: Lật mở trọn vẹn Bộ 3: Danh Từ + Động Từ + Tính Từ cùng chủ đề!'
+      {/* Instruction Tip & Sonar Pulse Scaffolding */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="flex-1 text-center sm:text-left">
+          {isInfinity ? (
+            effectiveLevel === 14 ? (
+              '🌌 Cấp Vô Cực ∞-II: Ghép cặp từ Tiếng Việt với từ Tiếng Anh dịch nghĩa tương ứng!'
+            ) : effectiveLevel === 15 ? (
+              '🌌 Cấp Vô Cực ∞-III (Tam Hợp): Lật mở trọn vẹn Bộ 3: Từ Tiếng Anh + Nghĩa Tiếng Việt + Biểu tượng!'
+            ) : effectiveLevel === 16 ? (
+              '🌌 Cấp Vô Cực ∞-IV: Ghép các từ Đồng Nghĩa (Synonyms) Tiếng Anh có chung ngữ nghĩa!'
+            ) : effectiveLevel === 17 ? (
+              '🌌 Cấp Vô Cực ∞-V: Lật mở trọn vẹn Bộ 3: Danh Từ + Động Từ + Tính Từ cùng chủ đề!'
+            ) : effectiveLevel === 18 ? (
+              '🌌 Cấp Vô Cực ∞-VI: Thẻ Thiên Văn NASA - Bàn cờ chuyển động dịch chuyển theo quỹ đạo!'
+            ) : (
+              '🌌 Cấp Vô Cực: Lật mở và kết nối các cặp thực thể song ngữ, ghi nhớ thần tốc!'
+            )
           ) : (
-            '🌌 Cấp Vô Cực: Lật mở và kết nối các cặp thực thể song ngữ, ghi nhớ thần tốc!'
-          )
-        ) : (
-          'Lật mở từng thẻ để ghép cặp các biểu tượng giống nhau. Lật đúng liên tiếp để nhân điểm combo!'
+            'Lật mở từng thẻ để ghép cặp các biểu tượng giống nhau. Lật đúng liên tiếp để nhân điểm combo!'
+          )}
+        </div>
+
+        {isInfinity && (
+          <button
+            onClick={handleTriggerSonar}
+            disabled={sonarPulsesLeft <= 0 || isProcessing || isSonaring}
+            className={`px-3.5 py-1.5 text-xs font-black flex items-center gap-1.5 rounded-xl border transition-all shrink-0 ${
+              sonarPulsesLeft <= 0 || isProcessing || isSonaring
+                ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400'
+                : 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 hover:bg-purple-100 hover:scale-105 active:scale-95 shadow-sm'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+            <span>Radar quét sóng ({sonarPulsesLeft}/2)</span>
+          </button>
         )}
       </div>
 

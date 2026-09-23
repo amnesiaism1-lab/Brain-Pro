@@ -46,6 +46,7 @@ export interface IDictionaryEntry {
   example?: string;
   synonyms?: string[];
   viMeaning: string;
+  syllables?: string[];
 }
 
 export interface IEmotionWord {
@@ -428,56 +429,56 @@ export const POS_TRIADS: IPosTriad[] = [
 
 // 6. Curated Offline Dictionary with IPA, POS, and Dual Definitions (85+ Academic Terms)
 export const CURATED_DICTIONARY: IDictionaryEntry[] = [
-  { word: 'NEURON', phonetic: '/ˈnjʊə.rɒn/', partOfSpeech: 'noun', definition: 'A specialized cell transmitting nerve impulses in the brain', viMeaning: 'Tế bào thần kinh truyền dẫn xung điện trong não bộ' },
-  { word: 'SYNAPSE', phonetic: '/ˈsaɪ.næps/', partOfSpeech: 'noun', definition: 'The micro junction between two communicating neurons', viMeaning: 'Điểm tiếp hợp dẫn truyền giữa hai tế bào thần kinh' },
-  { word: 'MEMORY', phonetic: '/ˈmem.ər.i/', partOfSpeech: 'noun', definition: 'The faculty by which the brain encodes, stores, and retrieves data', viMeaning: 'Trí nhớ, năng lực mã hóa và truy xuất tri thức' },
-  { word: 'FOCUS', phonetic: '/ˈfəʊ.kəs/', partOfSpeech: 'verb', definition: 'To concentrate attention or visual gaze onto a specific stimulus', viMeaning: 'Tập trung chú ý vào một tiêu điểm xác định' },
-  { word: 'COGNITION', phonetic: '/kɒɡˈnɪʃ.ən/', partOfSpeech: 'noun', definition: 'The mental action of acquiring knowledge and understanding', viMeaning: 'Quá trình nhận thức và xử lý thông tin của não bộ' },
-  { word: 'SACCADE', phonetic: '/sæˈkɑːd/', partOfSpeech: 'noun', definition: 'A rapid, ballistic eye movement shifting visual fixation', viMeaning: 'Cử động nhảy nhanh của mắt giữa các điểm nhìn' },
-  { word: 'VELOCITY', phonetic: '/vəˈlɒs.ə.ti/', partOfSpeech: 'noun', definition: 'The speed of an object in a specified directional vector', viMeaning: 'Vận tốc chuyển động có hướng trong không gian' },
-  { word: 'PERIPHERAL', phonetic: '/pəˈrɪf.ər.əl/', partOfSpeech: 'adjective', definition: 'Relating to or situated on the edge or outer boundaries of vision', viMeaning: 'Thuộc vùng biên ngoại vi của tầm nhìn thị giác' },
-  { word: 'LUMINOUS', phonetic: '/ˈluː.mɪ.nəs/', partOfSpeech: 'adjective', definition: 'Radiating, emitting, or reflecting intense glowing light', viMeaning: 'Phát sáng rực rỡ, tỏa ánh quang' },
-  { word: 'QUANTUM', phonetic: '/ˈkwɒn.təm/', partOfSpeech: 'noun', definition: 'A discrete packet of energy in subatomic physics', viMeaning: 'Lượng tử, đơn vị rời rạc của năng lượng vật lý' },
-  { word: 'GALAXY', phonetic: '/ˈɡæl.ək.si/', partOfSpeech: 'noun', definition: 'A gravitationally bound system of stars, gas, and dark matter', viMeaning: 'Thiên hà chứa hàng tỷ ngôi sao liên kết bằng trọng lực' },
-  { word: 'INFINITY', phonetic: '/ɪnˈfɪn.ə.ti/', partOfSpeech: 'noun', definition: 'The state or quality of being boundless, limitless, and unending', viMeaning: 'Vô cực, trạng thái vô tận không giới hạn' },
-  { word: 'INHIBITION', phonetic: '/ˌɪn.hɪˈbɪʃ.ən/', partOfSpeech: 'noun', definition: 'The suppression of prepotent habitual cognitive responses', viMeaning: 'Sự ức chế phản xạ thói quen để kiểm soát tư duy' },
-  { word: 'EXPONENTIAL', phonetic: '/ˌek.spəˈnen.ʃəl/', partOfSpeech: 'adjective', definition: 'Increasing at an accelerating, geometric rate over time', viMeaning: 'Tăng trưởng cấp số nhân với tốc độ thần tốc' },
-  { word: 'ECLIPSE', phonetic: '/ɪˈklɪps/', partOfSpeech: 'noun', definition: 'The total or partial obscuration of one celestial body by another', viMeaning: 'Hiện tượng thiên văn che khuất ánh sáng' },
-  { word: 'HARMONY', phonetic: '/ˈhɑː.mə.ni/', partOfSpeech: 'noun', definition: 'Pleasing congruence and coherence among diverse elements', viMeaning: 'Sự hòa hợp, nhịp nhàng đồng điệu' },
-  { word: 'CHALLENGE', phonetic: '/ˈtʃæl.ɪndʒ/', partOfSpeech: 'noun', definition: 'A demanding task testing maximum mental or physical abilities', viMeaning: 'Thử thách kích hoạt giới hạn tư duy cao nhất' },
-  { word: 'COMPREHEND', phonetic: '/ˌkɒm.prɪˈhend/', partOfSpeech: 'verb', definition: 'To mentally grasp the full significance and context of ideas', viMeaning: 'Thấu hiểu trọn vẹn ngữ nghĩa và bối cảnh' },
-  { word: 'PARADOX', phonetic: '/ˈpær.ə.dɒks/', partOfSpeech: 'noun', definition: 'A seemingly contradictory proposition revealing deep truth', viMeaning: 'Nghịch lý tưởng chừng mâu thuẫn nhưng chứa đựng chân lý' },
-  { word: 'RESILIENCE', phonetic: '/rɪˈzɪl.jəns/', partOfSpeech: 'noun', definition: 'The capacity to recover quickly from cognitive or physical stress', viMeaning: 'Sức bền kiên cường, khả năng phục hồi sau áp lực' },
-  { word: 'ENTANGLEMENT', phonetic: '/ɪnˈtæŋ.ɡəl.mənt/', partOfSpeech: 'noun', definition: 'Quantum linkage where particle states correlate instantaneously', viMeaning: 'Hiện tượng vướng víu lượng tử tương tác tức thời' },
-  { word: 'NEUROPLASTICITY', phonetic: '/ˌnjʊə.rəʊ.plæsˈtɪs.ə.ti/', partOfSpeech: 'noun', definition: 'The ability of the brain to rewire neural circuits through learning', viMeaning: 'Tính mềm dẻo thần kinh, khả năng tái lập mạng não' },
-  { word: 'HEURISTIC', phonetic: '/hjʊəˈrɪs.tɪk/', partOfSpeech: 'noun', definition: 'A practical rule-of-thumb mental strategy solving problems fast', viMeaning: 'Phương pháp giải quyết vấn đề bằng suy nghiệm nhanh' },
-  { word: 'HOMEOSTASIS', phonetic: '/ˌhəʊ.mi.əʊˈsteɪ.sɪs/', partOfSpeech: 'noun', definition: 'The biological tendency toward equilibrium and internal stability', viMeaning: 'Trạng thái cân bằng nội môi sinh học' },
-  { word: 'SUPERNOVA', phonetic: '/ˌsuː.pəˈnəʊ.və/', partOfSpeech: 'noun', definition: 'A colossal cosmic explosion signaling the death of a massive star', viMeaning: 'Vụ nổ siêu tân tinh giải phóng năng lượng vũ trụ khổng lồ' },
-  { word: 'DIVERGENCE', phonetic: '/daɪˈvɜː.dʒəns/', partOfSpeech: 'noun', definition: 'The act of moving apart in different directions from a point', viMeaning: 'Sự phân kỳ, rẽ nhánh theo các hướng khác nhau' },
-  { word: 'CONVERGENCE', phonetic: '/kənˈvɜː.dʒəns/', partOfSpeech: 'noun', definition: 'The coming together of different ideas or visual fields at a point', viMeaning: 'Sự hội tụ các nguồn thông tin tại một điểm chung' },
-  { word: 'EQUILIBRIUM', phonetic: '/ˌek.wɪˈlɪb.ri.əm/', partOfSpeech: 'noun', definition: 'A balanced state where opposing forces or factors cancel out', viMeaning: 'Trạng thái cân bằng động lực hoàn hảo' },
-  { word: 'SUBVOCALIZE', phonetic: '/sʌbˈvəʊ.kəl.aɪz/', partOfSpeech: 'verb', definition: 'To utter words silently in the mind while reading text', viMeaning: 'Phát âm thầm trong đầu khi đọc chữ' },
-  { word: 'PACER', phonetic: '/ˈpeɪ.sər/', partOfSpeech: 'noun', definition: 'A guide or visual beacon setting reading tempo and rhythm', viMeaning: 'Vật dẫn nhịp định hình tốc độ lướt mắt' },
-  { word: 'METABOLISM', phonetic: '/məˈtæb.əl.ɪ.zəm/', partOfSpeech: 'noun', definition: 'Chemical reactions sustaining life and generating cellular energy', viMeaning: 'Quá trình chuyển hóa chất và tạo năng lượng tế bào' },
-  { word: 'ALGORITHM', phonetic: '/ˈæl.ɡə.rɪ.ðəm/', partOfSpeech: 'noun', definition: 'A finite step-by-step computational process solving a problem', viMeaning: 'Thuật toán tính toán tuần tự giải quyết bài toán' },
-  { word: 'HOLISTIC', phonetic: '/həʊˈlɪs.tɪk/', partOfSpeech: 'adjective', definition: 'Characterized by the comprehension of parts as an interconnected whole', viMeaning: 'Tiếp cận toàn diện, nhìn bức tranh tổng thể' },
-  { word: 'EPIGENETICS', phonetic: '/ˌep.ɪ.dʒəˈnet.ɪks/', partOfSpeech: 'noun', definition: 'The study of gene expression changes without altering DNA sequence', viMeaning: 'Di truyền học biểu sinh, biểu hiện gien theo lối sống' },
-  { word: 'SYNERGY', phonetic: '/ˈsɪn.ə.dʒi/', partOfSpeech: 'noun', definition: 'Combined interaction producing total effect greater than sum of parts', viMeaning: 'Hiệu ứng cộng hưởng tạo sức mạnh vượt trội' },
-  { word: 'TELEMETRY', phonetic: '/təˈlem.ə.tri/', partOfSpeech: 'noun', definition: 'The automatic measurement and transmission of performance metrics', viMeaning: 'Đo lường từ xa và truyền dữ liệu chỉ số nhận thức' },
-  { word: 'TRANSCEND', phonetic: '/trænˈsend/', partOfSpeech: 'verb', definition: 'To surpass, exceed, or rise above normal human boundaries', viMeaning: 'Vượt qua giới hạn tầm thường, đạt cảnh giới cao hơn' },
-  { word: 'ENIGMATIC', phonetic: '/ˌen.ɪɡˈmæt.ɪk/', partOfSpeech: 'adjective', definition: 'Mysterious, baffling, and difficult to comprehend fully', viMeaning: 'Bí ẩn huyền diệu kích thích sự tò mò khám phá' },
-  { word: 'LUCIDITY', phonetic: '/luːˈsɪd.ə.ti/', partOfSpeech: 'noun', definition: 'Exceptional cognitive clarity and rational perception', viMeaning: 'Sự sáng suốt tuyệt đối của tâm trí' },
-  { word: 'TENACITY', phonetic: '/təˈnæs.ə.ti/', partOfSpeech: 'noun', definition: 'The quality of being determined, stubborn, and persistent', viMeaning: 'Tính kiên trì, bền chí không bỏ cuộc' },
-  { word: 'PULSAR', phonetic: '/ˈpʌl.sɑːr/', partOfSpeech: 'noun', definition: 'A highly magnetized rotating neutron star emitting beams of radiation', viMeaning: 'Sao xung phát chùm bức xạ tuần hoàn như ngọn hải đăng' },
-  { word: 'PRISM', phonetic: '/ˈprɪz.əm/', partOfSpeech: 'noun', definition: 'A transparent optical element refracting and dispersing light', viMeaning: 'Lăng kính quang học tán sắc ánh sáng trắng' },
-  { word: 'OPTICAL', phonetic: '/ˈɒp.tɪ.kəl/', partOfSpeech: 'adjective', definition: 'Relating to sight, visual rays, or the behavior of light', viMeaning: 'Thuộc về thị giác và quang học ánh sáng' },
-  { word: 'DENDRITE', phonetic: '/ˈden.draɪt/', partOfSpeech: 'noun', definition: 'A branched projection of a neuron conducting input impulses', viMeaning: 'Sợi nhánh của tế bào thần kinh tiếp nhận tín hiệu' },
-  { word: 'MYELIN', phonetic: '/ˈmaɪ.ə.lɪn/', partOfSpeech: 'noun', definition: 'A lipid sheath insulating axons to hasten electrical impulses', viMeaning: 'Bao myelin bọc sợi trục giúp tăng tốc độ dẫn truyền' },
-  { word: 'AXON', phonetic: '/ˈæk.sɒn/', partOfSpeech: 'noun', definition: 'The long slender fiber of a neuron sending action potentials', viMeaning: 'Sợi trục thần kinh truyền phát xung điện xa' },
-  { word: 'CORTEX', phonetic: '/ˈkɔː.teks/', partOfSpeech: 'noun', definition: 'The outer folded mantle of gray matter covering the brain hemispheres', viMeaning: 'Vỏ não chất xám phụ trách tư duy bậc cao' },
-  { word: 'HIPPOCAMPUS', phonetic: '/ˌhɪp.əˈkæm.pəs/', partOfSpeech: 'noun', definition: 'A neural complex in the temporal lobe vital for spatial memory', viMeaning: 'Hồi hải mã, trung tâm củng cố trí nhớ và định hướng' },
-  { word: 'AMYGDALA', phonetic: '/əˈmɪɡ.də.lə/', partOfSpeech: 'noun', definition: 'An almond-shaped brain nucleus processing fear and emotions', viMeaning: 'Hạch hạnh nhân điều hành cảm xúc và phản ứng sinh tồn' },
-  { word: 'DOPAMINE', phonetic: '/ˈdəʊ.pə.miːn/', partOfSpeech: 'noun', definition: 'A neurotransmitter mediating reward anticipation and motivation', viMeaning: 'Chất dẫn truyền thần kinh động lực và phần thưởng' }
+  { word: 'NEURON', phonetic: '/ˈnjʊə.rɒn/', partOfSpeech: 'noun', definition: 'A specialized cell transmitting nerve impulses in the brain', viMeaning: 'Tế bào thần kinh truyền dẫn xung điện trong não bộ', syllables: ['NEU', 'RON'] },
+  { word: 'SYNAPSE', phonetic: '/ˈsaɪ.næps/', partOfSpeech: 'noun', definition: 'The micro junction between two communicating neurons', viMeaning: 'Điểm tiếp hợp dẫn truyền giữa hai tế bào thần kinh', syllables: ['SYN', 'APSE'] },
+  { word: 'MEMORY', phonetic: '/ˈmem.ər.i/', partOfSpeech: 'noun', definition: 'The faculty by which the brain encodes, stores, and retrieves data', viMeaning: 'Trí nhớ, năng lực mã hóa và truy xuất tri thức', syllables: ['MEM', 'O', 'RY'] },
+  { word: 'FOCUS', phonetic: '/ˈfəʊ.kəs/', partOfSpeech: 'verb', definition: 'To concentrate attention or visual gaze onto a specific stimulus', viMeaning: 'Tập trung chú ý vào một tiêu điểm xác định', syllables: ['FO', 'CUS'] },
+  { word: 'COGNITION', phonetic: '/kɒɡˈnɪʃ.ən/', partOfSpeech: 'noun', definition: 'The mental action of acquiring knowledge and understanding', viMeaning: 'Quá trình nhận thức và xử lý thông tin của não bộ', syllables: ['COG', 'NI', 'TION'] },
+  { word: 'SACCADE', phonetic: '/sæˈkɑːd/', partOfSpeech: 'noun', definition: 'A rapid, ballistic eye movement shifting visual fixation', viMeaning: 'Cử động nhảy nhanh của mắt giữa các điểm nhìn', syllables: ['SAC', 'CADE'] },
+  { word: 'VELOCITY', phonetic: '/vəˈlɒs.ə.ti/', partOfSpeech: 'noun', definition: 'The speed of an object in a specified directional vector', viMeaning: 'Vận tốc chuyển động có hướng trong không gian', syllables: ['VE', 'LOC', 'I', 'TY'] },
+  { word: 'PERIPHERAL', phonetic: '/pəˈrɪf.ər.əl/', partOfSpeech: 'adjective', definition: 'Relating to or situated on the edge or outer boundaries of vision', viMeaning: 'Thuộc vùng biên ngoại vi của tầm nhìn thị giác', syllables: ['PER', 'IPH', 'ER', 'AL'] },
+  { word: 'LUMINOUS', phonetic: '/ˈluː.mɪ.nəs/', partOfSpeech: 'adjective', definition: 'Radiating, emitting, or reflecting intense glowing light', viMeaning: 'Phát sáng rực rỡ, tỏa ánh quang', syllables: ['LU', 'MI', 'NOUS'] },
+  { word: 'QUANTUM', phonetic: '/ˈkwɒn.təm/', partOfSpeech: 'noun', definition: 'A discrete packet of energy in subatomic physics', viMeaning: 'Lượng tử, đơn vị rời rạc của năng lượng vật lý', syllables: ['QUAN', 'TUM'] },
+  { word: 'GALAXY', phonetic: '/ˈɡæl.ək.si/', partOfSpeech: 'noun', definition: 'A gravitationally bound system of stars, gas, and dark matter', viMeaning: 'Thiên hà chứa hàng tỷ ngôi sao liên kết bằng trọng lực', syllables: ['GAL', 'AX', 'Y'] },
+  { word: 'INFINITY', phonetic: '/ɪnˈfɪn.ə.ti/', partOfSpeech: 'noun', definition: 'The state or quality of being boundless, limitless, and unending', viMeaning: 'Vô cực, trạng thái vô tận không giới hạn', syllables: ['IN', 'FIN', 'I', 'TY'] },
+  { word: 'INHIBITION', phonetic: '/ˌɪn.hɪˈbɪʃ.ən/', partOfSpeech: 'noun', definition: 'The suppression of prepotent habitual cognitive responses', viMeaning: 'Sự ức chế phản xạ thói quen để kiểm soát tư duy', syllables: ['IN', 'HI', 'BI', 'TION'] },
+  { word: 'EXPONENTIAL', phonetic: '/ˌek.spəˈnen.ʃəl/', partOfSpeech: 'adjective', definition: 'Increasing at an accelerating, geometric rate over time', viMeaning: 'Tăng trưởng cấp số nhân với tốc độ thần tốc', syllables: ['EX', 'PO', 'NEN', 'TIAL'] },
+  { word: 'ECLIPSE', phonetic: '/ɪˈklɪps/', partOfSpeech: 'noun', definition: 'The total or partial obscuration of one celestial body by another', viMeaning: 'Hiện tượng thiên văn che khuất ánh sáng', syllables: ['E', 'CLIPSE'] },
+  { word: 'HARMONY', phonetic: '/ˈhɑː.mə.ni/', partOfSpeech: 'noun', definition: 'Pleasing congruence and coherence among diverse elements', viMeaning: 'Sự hòa hợp, nhịp nhàng đồng điệu', syllables: ['HAR', 'MO', 'NY'] },
+  { word: 'CHALLENGE', phonetic: '/ˈtʃæl.ɪndʒ/', partOfSpeech: 'noun', definition: 'A demanding task testing maximum mental or physical abilities', viMeaning: 'Thử thách kích hoạt giới hạn tư duy cao nhất', syllables: ['CHAL', 'LENGE'] },
+  { word: 'COMPREHEND', phonetic: '/ˌkɒm.prɪˈhend/', partOfSpeech: 'verb', definition: 'To mentally grasp the full significance and context of ideas', viMeaning: 'Thấu hiểu trọn vẹn ngữ nghĩa và bối cảnh', syllables: ['COM', 'PRE', 'HEND'] },
+  { word: 'PARADOX', phonetic: '/ˈpær.ə.dɒks/', partOfSpeech: 'noun', definition: 'A seemingly contradictory proposition revealing deep truth', viMeaning: 'Nghịch lý tưởng chừng mâu thuẫn nhưng chứa đựng chân lý', syllables: ['PAR', 'A', 'DOX'] },
+  { word: 'RESILIENCE', phonetic: '/rɪˈzɪl.jəns/', partOfSpeech: 'noun', definition: 'The capacity to recover quickly from cognitive or physical stress', viMeaning: 'Sức bền kiên cường, khả năng phục hồi sau áp lực', syllables: ['RE', 'SIL', 'IENCE'] },
+  { word: 'ENTANGLEMENT', phonetic: '/ɪnˈtæŋ.ɡəl.mənt/', partOfSpeech: 'noun', definition: 'Quantum linkage where particle states correlate instantaneously', viMeaning: 'Hiện tượng vướng víu lượng tử tương tác tức thời', syllables: ['EN', 'TAN', 'GLE', 'MENT'] },
+  { word: 'NEUROPLASTICITY', phonetic: '/ˌnjʊə.rəʊ.plæsˈtɪs.ə.ti/', partOfSpeech: 'noun', definition: 'The ability of the brain to rewire neural circuits through learning', viMeaning: 'Tính mềm dẻo thần kinh, khả năng tái lập mạng não', syllables: ['NEU', 'RO', 'PLAS', 'TIC', 'I', 'TY'] },
+  { word: 'HEURISTIC', phonetic: '/hjʊəˈrɪs.tɪk/', partOfSpeech: 'noun', definition: 'A practical rule-of-thumb mental strategy solving problems fast', viMeaning: 'Phương pháp giải quyết vấn đề bằng suy nghiệm nhanh', syllables: ['HEU', 'RIS', 'TIC'] },
+  { word: 'HOMEOSTASIS', phonetic: '/ˌhəʊ.mi.əʊˈsteɪ.sɪs/', partOfSpeech: 'noun', definition: 'The biological tendency toward equilibrium and internal stability', viMeaning: 'Trạng thái cân bằng nội môi sinh học', syllables: ['HO', 'MEO', 'STA', 'SIS'] },
+  { word: 'SUPERNOVA', phonetic: '/ˌsuː.pəˈnəʊ.və/', partOfSpeech: 'noun', definition: 'A colossal cosmic explosion signaling the death of a massive star', viMeaning: 'Vụ nổ siêu tân tinh giải phóng năng lượng vũ trụ khổng lồ', syllables: ['SU', 'PER', 'NO', 'VA'] },
+  { word: 'DIVERGENCE', phonetic: '/daɪˈvɜː.dʒəns/', partOfSpeech: 'noun', definition: 'The act of moving apart in different directions from a point', viMeaning: 'Sự phân kỳ, rẽ nhánh theo các hướng khác nhau', syllables: ['DI', 'VER', 'GENCE'] },
+  { word: 'CONVERGENCE', phonetic: '/kənˈvɜː.dʒəns/', partOfSpeech: 'noun', definition: 'The coming together of different ideas or visual fields at a point', viMeaning: 'Sự hội tụ các nguồn thông tin tại một điểm chung', syllables: ['CON', 'VER', 'GENCE'] },
+  { word: 'EQUILIBRIUM', phonetic: '/ˌek.wɪˈlɪb.ri.əm/', partOfSpeech: 'noun', definition: 'A balanced state where opposing forces or factors cancel out', viMeaning: 'Trạng thái cân bằng động lực hoàn hảo', syllables: ['E', 'QUI', 'LIB', 'RI', 'UM'] },
+  { word: 'SUBVOCALIZE', phonetic: '/sʌbˈvəʊ.kəl.aɪz/', partOfSpeech: 'verb', definition: 'To utter words silently in the mind while reading text', viMeaning: 'Phát âm thầm trong đầu khi đọc chữ', syllables: ['SUB', 'VO', 'CAL', 'IZE'] },
+  { word: 'PACER', phonetic: '/ˈpeɪ.sər/', partOfSpeech: 'noun', definition: 'A guide or visual beacon setting reading tempo and rhythm', viMeaning: 'Vật dẫn nhịp định hình tốc độ lướt mắt', syllables: ['PA', 'CER'] },
+  { word: 'METABOLISM', phonetic: '/məˈtæb.əl.ɪ.zəm/', partOfSpeech: 'noun', definition: 'Chemical reactions sustaining life and generating cellular energy', viMeaning: 'Quá trình chuyển hóa chất và tạo năng lượng tế bào', syllables: ['ME', 'TAB', 'O', 'LISM'] },
+  { word: 'ALGORITHM', phonetic: '/ˈæl.ɡə.rɪ.ðəm/', partOfSpeech: 'noun', definition: 'A finite step-by-step computational process solving a problem', viMeaning: 'Thuật toán tính toán tuần tự giải quyết bài toán', syllables: ['AL', 'GO', 'RITHM'] },
+  { word: 'HOLISTIC', phonetic: '/həʊˈlɪs.tɪk/', partOfSpeech: 'adjective', definition: 'Characterized by the comprehension of parts as an interconnected whole', viMeaning: 'Tiếp cận toàn diện, nhìn bức tranh tổng thể', syllables: ['HO', 'LIS', 'TIC'] },
+  { word: 'EPIGENETICS', phonetic: '/ˌep.ɪ.dʒəˈnet.ɪks/', partOfSpeech: 'noun', definition: 'The study of gene expression changes without altering DNA sequence', viMeaning: 'Di truyền học biểu sinh, biểu hiện gien theo lối sống', syllables: ['EP', 'I', 'GE', 'NET', 'ICS'] },
+  { word: 'SYNERGY', phonetic: '/ˈsɪn.ə.dʒi/', partOfSpeech: 'noun', definition: 'Combined interaction producing total effect greater than sum of parts', viMeaning: 'Hiệu ứng cộng hưởng tạo sức mạnh vượt trội', syllables: ['SYN', 'ER', 'GY'] },
+  { word: 'TELEMETRY', phonetic: '/təˈlem.ə.tri/', partOfSpeech: 'noun', definition: 'The automatic measurement and transmission of performance metrics', viMeaning: 'Đo lường từ xa và truyền dữ liệu chỉ số nhận thức', syllables: ['TE', 'LEM', 'E', 'TRY'] },
+  { word: 'TRANSCEND', phonetic: '/trænˈsend/', partOfSpeech: 'verb', definition: 'To surpass, exceed, or rise above normal human boundaries', viMeaning: 'Vượt qua giới hạn tầm thường, đạt cảnh giới cao hơn', syllables: ['TRAN', 'SCEND'] },
+  { word: 'ENIGMATIC', phonetic: '/ˌen.ɪɡˈmæt.ɪk/', partOfSpeech: 'adjective', definition: 'Mysterious, baffling, and difficult to comprehend fully', viMeaning: 'Bí ẩn huyền diệu kích thích sự tò mò khám phá', syllables: ['EN', 'IG', 'MAT', 'IC'] },
+  { word: 'LUCIDITY', phonetic: '/luːˈsɪd.ə.ti/', partOfSpeech: 'noun', definition: 'Exceptional cognitive clarity and rational perception', viMeaning: 'Sự sáng suốt tuyệt đối của tâm trí', syllables: ['LU', 'CID', 'I', 'TY'] },
+  { word: 'TENACITY', phonetic: '/təˈnæs.ə.ti/', partOfSpeech: 'noun', definition: 'The quality of being determined, stubborn, and persistent', viMeaning: 'Tính kiên trì, bền chí không bỏ cuộc', syllables: ['TE', 'NAC', 'I', 'TY'] },
+  { word: 'PULSAR', phonetic: '/ˈpʌl.sɑːr/', partOfSpeech: 'noun', definition: 'A highly magnetized rotating neutron star emitting beams of radiation', viMeaning: 'Sao xung phát chùm bức xạ tuần hoàn như ngọn hải đăng', syllables: ['PUL', 'SAR'] },
+  { word: 'PRISM', phonetic: '/ˈprɪz.əm/', partOfSpeech: 'noun', definition: 'A transparent optical element refracting and dispersing light', viMeaning: 'Lăng kính quang học tán sắc ánh sáng trắng', syllables: ['PRISM'] },
+  { word: 'OPTICAL', phonetic: '/ˈɒp.tɪ.kəl/', partOfSpeech: 'adjective', definition: 'Relating to sight, visual rays, or the behavior of light', viMeaning: 'Thuộc về thị giác và quang học ánh sáng', syllables: ['OP', 'TI', 'CAL'] },
+  { word: 'DENDRITE', phonetic: '/ˈden.draɪt/', partOfSpeech: 'noun', definition: 'A branched projection of a neuron conducting input impulses', viMeaning: 'Sợi nhánh của tế bào thần kinh tiếp nhận tín hiệu', syllables: ['DEN', 'DRITE'] },
+  { word: 'MYELIN', phonetic: '/ˈmaɪ.ə.lɪn/', partOfSpeech: 'noun', definition: 'A lipid sheath insulating axons to hasten electrical impulses', viMeaning: 'Bao myelin bọc sợi trục giúp tăng tốc độ dẫn truyền', syllables: ['MY', 'E', 'LIN'] },
+  { word: 'AXON', phonetic: '/ˈæk.sɒn/', partOfSpeech: 'noun', definition: 'The long slender fiber of a neuron sending action potentials', viMeaning: 'Sợi trục thần kinh truyền phát xung điện xa', syllables: ['AX', 'ON'] },
+  { word: 'CORTEX', phonetic: '/ˈkɔː.teks/', partOfSpeech: 'noun', definition: 'The outer folded mantle of gray matter covering the brain hemispheres', viMeaning: 'Vỏ não chất xám phụ trách tư duy bậc cao', syllables: ['COR', 'TEX'] },
+  { word: 'HIPPOCAMPUS', phonetic: '/ˌhɪp.əˈkæm.pəs/', partOfSpeech: 'noun', definition: 'A neural complex in the temporal lobe vital for spatial memory', viMeaning: 'Hồi hải mã, trung tâm củng cố trí nhớ và định hướng', syllables: ['HIP', 'PO', 'CAM', 'PUS'] },
+  { word: 'AMYGDALA', phonetic: '/əˈmɪɡ.də.lə/', partOfSpeech: 'noun', definition: 'An almond-shaped brain nucleus processing fear and emotions', viMeaning: 'Hạch hạnh nhân điều hành cảm xúc và phản ứng sinh tồn', syllables: ['A', 'MYG', 'DA', 'LA'] },
+  { word: 'DOPAMINE', phonetic: '/ˈdəʊ.pə.miːn/', partOfSpeech: 'noun', definition: 'A neurotransmitter mediating reward anticipation and motivation', viMeaning: 'Chất dẫn truyền thần kinh động lực và phần thưởng', syllables: ['DO', 'PA', 'MINE'] }
 ];
 
 // 7. Emotion Words for Stroop Clash Level 18 (25 rich words)
@@ -841,6 +842,62 @@ class InfinityApiService {
   getEmotionWords(): IEmotionWord[] {
     return [...EMOTION_WORDS].sort(() => Math.random() - 0.5);
   }
+
+  getTriadConcepts(count = 6) {
+    const shuffled = [...TRIAD_CONCEPTS].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
+  }
+}
+
+export interface ITriadCard {
+  id: string;
+  setId: string;
+  text: string;
+  subtext: string;
+  type: 'word' | 'meaning' | 'symbol';
+  icon?: string;
+}
+
+export const TRIAD_CONCEPTS = [
+  { id: 'triad-1', word: 'NEURON', viMeaning: 'Tế bào thần kinh', symbol: '🧠', category: 'Khoa học Não Bộ' },
+  { id: 'triad-2', word: 'QUANTUM', viMeaning: 'Lượng tử vi mô', symbol: '⚛️', category: 'Vật lý Lượng tử' },
+  { id: 'triad-3', word: 'GALAXY', viMeaning: 'Thiên hà vũ trụ', symbol: '🌌', category: 'Thiên văn học' },
+  { id: 'triad-4', word: 'SYNAPSE', viMeaning: 'Tiếp hợp thần kinh', symbol: '⚡', category: 'Dẫn truyền xung' },
+  { id: 'triad-5', word: 'DNA', viMeaning: 'Chuỗi xoắn di truyền', symbol: '🧬', category: 'Sinh học phân tử' },
+  { id: 'triad-6', word: 'TELESCOPE', viMeaning: 'Kính viễn vọng', symbol: '🔭', category: 'Khám phá vũ trụ' },
+  { id: 'triad-7', word: 'HEURISTIC', viMeaning: 'Suy nghiệm tư duy', symbol: '💡', category: 'Khoa học nhận thức' },
+  { id: 'triad-8', word: 'EQUILIBRIUM', viMeaning: 'Cân bằng động lực', symbol: '⚖️', category: 'Nội môi & Vật lý' },
+];
+
+export function splitWordIntoSyllables(word: string): string[] {
+  const upper = word.toUpperCase().trim().replace(/[^A-Z]/g, '');
+  const entry = CURATED_DICTIONARY.find(d => d.word.toUpperCase() === upper);
+  if (entry?.syllables && entry.syllables.length > 1) {
+    return entry.syllables;
+  }
+  if (upper.length <= 4) return [upper];
+  
+  // Algorithmic syllabification for English words
+  const regex = /[^aeiouy]*[aeiouy]+(?:[^aeiouy]*$|[^aeiouy](?=[^aeiouy]))?/gi;
+  const matches = upper.match(regex);
+  if (matches && matches.join('') === upper && matches.length > 1) {
+    return matches;
+  }
+
+  // Fallback: split in chunks of 3-4 chars
+  const chunks: string[] = [];
+  let remaining = upper;
+  while (remaining.length > 0) {
+    if (remaining.length <= 4) {
+      chunks.push(remaining);
+      break;
+    }
+    const len = remaining.length > 6 ? 3 : 2;
+    chunks.push(remaining.slice(0, len));
+    remaining = remaining.slice(len);
+  }
+  return chunks.length > 0 ? chunks : [upper];
 }
 
 export const infinityApiService = new InfinityApiService();
+

@@ -96,31 +96,37 @@ export const AnagramGame: React.FC = () => {
   const [round, setRound] = useState(1);
   const maxRounds = isEndlessWave ? 25 : 5;
 
+  const [hintsUsedInRound, setHintsUsedInRound] = useState(0);
+
   const currentHint = useMemo(() => {
     if (!isInfinity) return null;
     if (isPhraseMode) {
-      return `Cụm từ thiên văn / AI gồm ${rawTarget.split(' ').length} từ (${rawTarget})`;
+      const parts = rawTarget.split(' ');
+      return `Cụm thuật ngữ khoa học gồm ${parts.length} từ (${parts.map(p => `${p.length} ký tự`).join(' + ')})`;
     }
     if (isSynonymMode) {
       const syn = SYNONYM_PAIRS.find(s => s.wordA.toUpperCase() === targetWord || s.wordB.toUpperCase() === targetWord);
-      if (syn) return `Từ đồng nghĩa với "${syn.wordB}": ${syn.commonMeaning}`;
+      if (syn) return `Từ đồng nghĩa với "${syn.wordB === targetWord ? syn.wordA : syn.wordB}": ${syn.commonMeaning}`;
     }
     if (isAntonymMode) {
       const ant = ANTONYM_PAIRS.find(a => a.wordA.toUpperCase() === targetWord || a.wordB.toUpperCase() === targetWord);
-      if (ant) return `Từ TRÁI NGHĨA với "${ant.wordB}" (${ant.viConcept})`;
+      if (ant) return `Từ TRÁI NGHĨA với "${ant.wordB === targetWord ? ant.wordA : ant.wordB}" (${ant.viConcept})`;
     }
     if (isNasaMode) {
       const card = NASA_OFFLINE_CARDS.find(c => c.title.toUpperCase().includes(targetWord) || c.enLabel.toUpperCase().includes(targetWord));
-      if (card) return `Khái niệm vũ trụ NASA: ${card.emoji} ${card.viLabel} (${card.title})`;
+      if (card) return `Thực thể vũ trụ NASA: ${card.emoji} ${card.viLabel} (${card.enLabel})`;
     }
     if (isAcademicDefMode) {
       const foundDict = CURATED_DICTIONARY.find(d => d.word.toUpperCase() === targetWord);
-      if (foundDict) return `${foundDict.definition} (${foundDict.viMeaning})`;
+      if (foundDict) return `[${foundDict.partOfSpeech.toUpperCase()}] ${foundDict.viMeaning} • ${foundDict.definition}`;
     }
     const foundDict = CURATED_DICTIONARY.find(d => d.word.toUpperCase() === targetWord);
-    if (foundDict) return `${foundDict.phonetic} • ${foundDict.viMeaning}`;
+    if (foundDict) {
+      const syl = foundDict.syllables ? ` • Cấu trúc âm tiết: ${foundDict.syllables.join(' - ')}` : '';
+      return `[${foundDict.partOfSpeech.toUpperCase()}] ${foundDict.viMeaning}${syl}`;
+    }
     const foundEmoji = EMOJI_WORD_PAIRS.find(e => e.word.toUpperCase() === targetWord);
-    if (foundEmoji) return `${foundEmoji.emoji} ${foundEmoji.vi}`;
+    if (foundEmoji) return `${foundEmoji.emoji} Biểu tượng: ${foundEmoji.vi}`;
     return null;
   }, [isInfinity, targetWord, rawTarget, isPhraseMode, isSynonymMode, isAntonymMode, isNasaMode, isAcademicDefMode]);
 
@@ -141,6 +147,7 @@ export const AnagramGame: React.FC = () => {
     setSelectedLetters([]);
     setAvailableTiles(chars.map((c, i) => ({ id: i, char: c, used: false })));
     setRoundTimer(18);
+    setHintsUsedInRound(0);
   };
 
   useEffect(() => {
@@ -226,6 +233,18 @@ export const AnagramGame: React.FC = () => {
     setupRound(targetWord);
   };
 
+  const handleUseHint = () => {
+    if (hintsUsedInRound >= 2 || selectedLetters.length >= targetWord.length) return;
+    const nextTargetChar = targetWord[selectedLetters.length];
+    const availableTile = availableTiles.find(t => !t.used && t.char === nextTargetChar);
+    if (availableTile) {
+      playSound('click');
+      setHintsUsedInRound(h => h + 1);
+      setScoreAcc(s => Math.max(0, s - 25));
+      handleTileClick(availableTile.id, availableTile.char);
+    }
+  };
+
   return (
     <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl mx-auto px-3 sm:px-6 py-4 space-y-5 sm:space-y-6 animate-fade-in pb-24">
       {/* Top HUD */}
@@ -276,7 +295,7 @@ export const AnagramGame: React.FC = () => {
           <Lightbulb className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0" />
           <div>
             <span className="text-[11px] font-bold text-purple-500 uppercase tracking-wider block">
-              Gợi Ý Nghĩa Tiếng Việt / Biểu Tượng
+              Gợi Ý Nghĩa Tiếng Việt & Ngữ Cảnh Học Thuật
             </span>
             <span className="text-xs sm:text-sm font-black text-purple-900 dark:text-purple-200">
               {currentHint}
@@ -287,9 +306,20 @@ export const AnagramGame: React.FC = () => {
 
       {/* Answer Slots Display */}
       <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-3xl border-2 border-slate-200 dark:border-slate-700 shadow-lg flex flex-col items-center justify-center min-h-[160px] space-y-4">
-        <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-          {isInfinity ? 'TỪ VỰNG TIẾNG ANH ĐANG GHÉP' : 'TỪ ĐANG GHÉP'}
-        </span>
+        <div className="flex flex-col items-center gap-2">
+          <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+            {isInfinity ? 'TỪ VỰNG TIẾNG ANH ĐANG GHÉP' : 'TỪ ĐANG GHÉP'}
+          </span>
+          {isInfinity && targetWord.length >= 6 && (
+            <div className="flex items-center gap-2 text-xs font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/50 px-3.5 py-1 rounded-full border border-brand-200 dark:border-brand-800 shadow-sm animate-fade-in">
+              <Sparkles className="w-3.5 h-3.5 text-brand-500" />
+              <span>Chữ cái bắt đầu: <strong className="font-mono font-black text-sm text-brand-700 dark:text-brand-300">'{targetWord[0]}'</strong></span>
+              {targetWord.length >= 8 && (
+                <span className="text-slate-400">| Kết thúc: <strong className="font-mono font-black text-sm text-brand-700 dark:text-brand-300">'{targetWord[targetWord.length - 1]}'</strong></span>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
           {Array.from({ length: targetWord.length }).map((_, idx) => {
@@ -330,15 +360,30 @@ export const AnagramGame: React.FC = () => {
         ))}
       </div>
 
-      {/* Reset Current Word Button */}
-      <div className="flex justify-center pt-2">
+      {/* Controls: Reset + Interactive Hint Button */}
+      <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
         <button
           onClick={handleResetCurrent}
-          className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 transition-colors"
+          className="px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 transition-colors shadow-sm"
         >
           <RotateCcw className="w-3.5 h-3.5" />
           Xếp lại chữ cái
         </button>
+
+        {isInfinity && (
+          <button
+            onClick={handleUseHint}
+            disabled={hintsUsedInRound >= 2 || selectedLetters.length >= targetWord.length}
+            className={`px-4 py-2.5 text-xs font-black flex items-center gap-1.5 rounded-xl border transition-all shadow-sm ${
+              hintsUsedInRound >= 2 || selectedLetters.length >= targetWord.length
+                ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400'
+                : 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 hover:scale-105 active:scale-95'
+            }`}
+          >
+            <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+            <span>Mở khóa 1 ký tự ({2 - hintsUsedInRound}/2)</span>
+          </button>
+        )}
       </div>
 
       {isFinished && (

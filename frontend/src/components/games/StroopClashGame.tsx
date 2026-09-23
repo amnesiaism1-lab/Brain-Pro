@@ -301,6 +301,27 @@ export const StroopClashGame: React.FC = () => {
     }, 450);
   };
 
+  useEffect(() => {
+    if (!isDirectionalStroop || isFinished || !wordItem || flashFeedback) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        handleSelectDirection('UP');
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        handleSelectDirection('DOWN');
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handleSelectDirection('LEFT');
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleSelectDirection('RIGHT');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDirectionalStroop, isFinished, wordItem, flashFeedback, currentTargetType, trialIndex]);
+
   const handleSelectColor = (selectedColor: ColorDef) => {
     if (isFinished || !wordItem || flashFeedback) return;
 

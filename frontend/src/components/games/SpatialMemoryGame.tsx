@@ -44,11 +44,13 @@ export const SpatialMemoryGame: React.FC = () => {
   const [score, setScore] = useState(0);
   const [mistakes, setMistakes] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [replaysLeft, setReplaysLeft] = useState(1);
 
   const totalBlocks = gridSize * gridSize;
 
   // Generate a random non-consecutive block sequence
   const startNewSequence = useCallback((round: number) => {
+    setReplaysLeft(1);
     const seqLength = Math.min(targetSequenceLength, 2 + round);
     const newSeq: number[] = [];
     for (let i = 0; i < seqLength; i++) {
@@ -237,21 +239,36 @@ export const SpatialMemoryGame: React.FC = () => {
       </div>
 
       {/* Mode / Phase Indicator */}
-      <div className={`p-4 rounded-2xl border flex items-center justify-center gap-2 text-xs sm:text-sm font-bold transition-all ${
+      <div className={`p-3.5 sm:p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm font-bold transition-all shadow-sm ${
         isShowingSequence 
           ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 text-amber-700 dark:text-amber-300 animate-pulse' 
           : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-700 dark:text-emerald-300'
       }`}>
-        {isShowingSequence ? (
-          <>
-            <Eye className="w-5 h-5 animate-bounce" />
-            <span>Quan sát chuỗi ô phát sáng...</span>
-          </>
-        ) : (
-          <>
-            <CheckCircle2 className="w-5 h-5" />
-            <span>Đến lượt bạn: Hãy bấm lại theo đúng thứ tự! {isReverseOrder && '(ĐẢO NGƯỢC)'} {isRotatingBoard && '(BẢNG ĐÃ TỰ XOAY 90°)'}</span>
-          </>
+        <div className="flex items-center gap-2">
+          {isShowingSequence ? (
+            <>
+              <Eye className="w-5 h-5 animate-bounce text-amber-600" />
+              <span>Quan sát chuỗi ô phát sáng...</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              <span>Đến lượt bạn: Hãy bấm lại theo đúng thứ tự! {isReverseOrder && '(ĐẢO NGƯỢC)'} {isRotatingBoard && '(BẢNG ĐÃ TỰ XOAY 90°)'}</span>
+            </>
+          )}
+        </div>
+
+        {replaysLeft > 0 && !isShowingSequence && (
+          <button
+            onClick={() => {
+              playSound('click');
+              setReplaysLeft(0);
+              startNewSequence(currentRound);
+            }}
+            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-sm transition-all"
+          >
+            Phát lại chuỗi (1 lần)
+          </button>
         )}
       </div>
 

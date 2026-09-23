@@ -459,6 +459,17 @@ export const SchulteTableGame: React.FC = () => {
     }
   };
 
+  // Auto Radar Ping if user is stuck for > 4.5 seconds
+  useEffect(() => {
+    if (isFinished) return;
+    const autoPingInterval = setInterval(() => {
+      if (Date.now() - lastClickTimeRef.current >= 4500 && !hintActive) {
+        triggerHint();
+      }
+    }, 1000);
+    return () => clearInterval(autoPingInterval);
+  }, [isFinished, hintActive, mode, currentTarget, currentLetterTarget, gorbovTarget]);
+
   // Share / Export handlers
   const handleCopyResults = () => {
     const text = `🧠 Bảng Schulte (${mode.toUpperCase()} ${gridSize}x${gridSize})
