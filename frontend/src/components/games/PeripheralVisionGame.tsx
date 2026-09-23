@@ -14,10 +14,16 @@ export const PeripheralVisionGame: React.FC = () => {
   const currentLevel = getExerciseLevel('peripheral-vision');
   
   // Span expands with level
-  const span = Math.min(180, 70 + (currentLevel * 10));
+  const span = Math.min(220, 75 + (currentLevel * 12));
   
   // Mode: 'letters' vs 'words' (peripheral word recognition)
-  const [contentMode, setContentMode] = useState<'letters' | 'words'>('letters');
+  const [contentMode, setContentMode] = useState<'letters' | 'words'>(() => {
+    try {
+      const saved = localStorage.getItem('be_pref_peripheral_stimulus');
+      if (saved === 'words' || saved === 'letters') return saved;
+    } catch {}
+    return 'letters';
+  });
 
   const pool = useMemo(() => {
     return contentMode === 'words' ? PERIPHERAL_FLASH_WORDS : FULL_ALPHABET;
@@ -30,7 +36,14 @@ export const PeripheralVisionGame: React.FC = () => {
   const [round, setRound] = useState(1);
   const [correctCount, setCorrectCount] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
-  const maxRounds = currentLevel >= 9 ? 8 : 6;
+
+  const maxRounds = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('be_pref_peripheral_rounds');
+      if (saved) return parseInt(saved, 10);
+    } catch {}
+    return currentLevel >= 9 ? 10 : 8;
+  }, [currentLevel]);
 
   const nextRound = useCallback(() => {
     const c1 = pool[Math.floor(Math.random() * pool.length)];
