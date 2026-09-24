@@ -58,7 +58,11 @@ export const FrequencySpectrum: React.FC<IFrequencySpectrumProps> = ({
 
         ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.roundRect(x, y, barWidth, barHeight, [3, 3, 0, 0]);
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(x, y, barWidth, barHeight, [3, 3, 0, 0]);
+        } else {
+          ctx.rect(x, y, barWidth, barHeight);
+        }
         ctx.fill();
       }
     };

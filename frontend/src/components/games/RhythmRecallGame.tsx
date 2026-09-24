@@ -58,10 +58,13 @@ export const RhythmRecallGame: React.FC = () => {
     setPhase('listen');
   }, [stepCount, bpm, effectiveLevel, isSwing, isMultiDrum]);
 
+  const playedRoundRef = useRef<number>(0);
+
   useEffect(() => {
     resetSession();
+    playedRoundRef.current = 0;
     startNewRound();
-  }, [effectiveLevel, resetSession, startNewRound]);
+  }, [effectiveLevel]);
 
   // Global Timer
   useEffect(() => {
@@ -72,39 +75,47 @@ export const RhythmRecallGame: React.FC = () => {
     return () => clearInterval(timer);
   }, [isFinished]);
 
-  // Play audio pattern
+  // Play audio pattern safely
   const playPattern = useCallback(async (dataToPlay = patternData) => {
     if (!dataToPlay || isPlayingAudio) return;
-    setIsPlayingAudio(true);
-    setHasStartedAudio(true);
-    await auditoryEngine.resumeAudioContext();
+    try {
+      setIsPlayingAudio(true);
+      setHasStartedAudio(true);
+      playedRoundRef.current = round;
+      await auditoryEngine.resumeAudioContext();
 
-    for (let i = 0; i < dataToPlay.steps.length; i++) {
-      const step = dataToPlay.steps[i];
-      setCurrentPlayStep(i);
+      for (let i = 0; i < dataToPlay.steps.length; i++) {
+        const step = dataToPlay.steps[i];
+        setCurrentPlayStep(i);
 
-      if (step.isHit) {
-        auditoryEngine.playDrum(step.timbre || 'snare', step.isAccent ? 1.0 : 0.65);
+        if (step.isHit) {
+          auditoryEngine.playDrum(step.timbre || 'snare', step.isAccent ? 1.0 : 0.65);
+        }
+
+        await new Promise(r => setTimeout(r, dataToPlay.stepIntervalMs));
       }
-
-      await new Promise(r => setTimeout(r, dataToPlay.stepIntervalMs));
+    } catch (err) {
+      console.warn('Rhythm playback error:', err);
+    } finally {
+      setCurrentPlayStep(-1);
+      setIsPlayingAudio(false);
+      // Transition to waiting for first user tap to start Beat 1!
+      setPhase('ready-to-tap');
     }
-
-    setCurrentPlayStep(-1);
-    setIsPlayingAudio(false);
-    // Transition to waiting for first user tap to start Beat 1!
-    setPhase('ready-to-tap');
-  }, [patternData, isPlayingAudio]);
+  }, [patternData, isPlayingAudio, round]);
 
   // Auto-play when round starts IF audio was already unlocked
   useEffect(() => {
     if (phase === 'listen' && patternData && hasStartedAudio && !isPlayingAudio) {
-      const t = setTimeout(() => {
-        playPattern(patternData);
-      }, 500);
-      return () => clearTimeout(t);
+      if (playedRoundRef.current !== round) {
+        playedRoundRef.current = round;
+        const t = setTimeout(() => {
+          playPattern(patternData);
+        }, 400);
+        return () => clearTimeout(t);
+      }
     }
-  }, [phase, patternData, hasStartedAudio, isPlayingAudio, playPattern]);
+  }, [phase, round, patternData, hasStartedAudio, isPlayingAudio, playPattern]);
 
   // Handle user tap (Anchored on first tap for Beat 1!)
   const handleUserTap = useCallback(() => {

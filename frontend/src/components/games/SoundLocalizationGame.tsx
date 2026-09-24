@@ -41,6 +41,7 @@ export const SoundLocalizationGame: React.FC = () => {
 
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
+  const playedRoundRef = useRef<number>(-1);
 
   // Build target points
   const generateNewRound = useCallback(() => {
@@ -74,6 +75,7 @@ export const SoundLocalizationGame: React.FC = () => {
 
   useEffect(() => {
     resetSession();
+    playedRoundRef.current = -1;
     generateNewRound();
   }, [effectiveLevel, resetSession, generateNewRound]);
 
@@ -88,32 +90,37 @@ export const SoundLocalizationGame: React.FC = () => {
 
   // Play spatial audio
   const playSpatialSound = useCallback(async (target = currentTarget) => {
-    if (!target || isPlaying) return;
+    if (!target) return;
     setIsPlaying(true);
     setHasStartedAudio(true);
-    await auditoryEngine.resumeAudioContext();
+    try {
+      await auditoryEngine.resumeAudioContext();
 
-    const distanceMeters = target.distanceTier === 'near' ? 1.5 : target.distanceTier === 'far' ? 8.0 : 3.5;
-    const note = round % 2 === 0 ? 'G4' : 'E4';
+      const distanceMeters = target.distanceTier === 'near' ? 1.5 : target.distanceTier === 'far' ? 8.0 : 3.5;
+      const note = round % 2 === 0 ? 'G4' : 'E4';
 
-    // Play with 3D HRTF panner
-    auditoryEngine.play3DSpatialTone(note, target.azimuthDeg, 0, distanceMeters, 0.7);
+      // Play with 3D HRTF panner
+      auditoryEngine.play3DSpatialTone(note, target.azimuthDeg, 0, distanceMeters, 0.7);
 
-    setTimeout(() => {
-      setIsPlaying(false);
+      await new Promise(resolve => setTimeout(resolve, 750));
       trialStartTimeRef.current = Date.now();
-    }, 750);
-  }, [currentTarget, isPlaying, round]);
+    } catch (err) {
+      console.error('Error playing spatial tone:', err);
+    } finally {
+      setIsPlaying(false);
+    }
+  }, [currentTarget, round]);
 
   // Auto-play when target arrives IF audio was already started
   useEffect(() => {
-    if (currentTarget && hasStartedAudio && !isAnswered && !isPlaying) {
+    if (currentTarget && hasStartedAudio && !isAnswered && playedRoundRef.current !== round) {
+      playedRoundRef.current = round;
       const t = setTimeout(() => {
         playSpatialSound(currentTarget);
       }, 400);
       return () => clearTimeout(t);
     }
-  }, [currentTarget, hasStartedAudio, isAnswered, isPlaying, playSpatialSound]);
+  }, [currentTarget, hasStartedAudio, isAnswered, round, playSpatialSound]);
 
   // Interactive audition on point hover/click (like hrtfmixer)
   const handlePreviewAngle = useCallback(async (azimuthDeg: number, distanceTier: 'near' | 'mid' | 'far') => {

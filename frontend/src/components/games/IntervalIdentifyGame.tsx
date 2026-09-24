@@ -48,6 +48,7 @@ export const IntervalIdentifyGame: React.FC = () => {
 
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
+  const playedRoundRef = useRef<number>(0);
 
   // Generate question for current round
   const generateNextQuestion = useCallback(() => {
@@ -60,8 +61,9 @@ export const IntervalIdentifyGame: React.FC = () => {
   // Init on level change
   useEffect(() => {
     resetSession();
+    playedRoundRef.current = 0;
     generateNextQuestion();
-  }, [effectiveLevel, resetSession, generateNextQuestion]);
+  }, [effectiveLevel]);
 
   // Global Timer
   useEffect(() => {
@@ -72,37 +74,45 @@ export const IntervalIdentifyGame: React.FC = () => {
     return () => clearInterval(timer);
   }, [isFinished]);
 
-  // Play current interval
+  // Play current interval safely
   const playCurrentInterval = useCallback(async (qToPlay = question) => {
     if (!qToPlay || isPlaying) return;
-    setIsPlaying(true);
-    setHasStartedAudio(true);
-    await auditoryEngine.resumeAudioContext();
+    try {
+      setIsPlaying(true);
+      setHasStartedAudio(true);
+      playedRoundRef.current = round;
+      await auditoryEngine.resumeAudioContext();
 
-    const duration = isHyperSpeed ? 0.22 : 0.6;
-    const gap = isHyperSpeed ? 160 : 420;
+      const duration = isHyperSpeed ? 0.25 : 0.6;
+      const gap = isHyperSpeed ? 180 : 420;
 
-    await auditoryEngine.playInterval(
-      qToPlay.rootNote,
-      qToPlay.targetNote,
-      qToPlay.playbackDirection,
-      duration,
-      gap
-    );
-
-    setIsPlaying(false);
-    trialStartTimeRef.current = Date.now();
-  }, [question, isPlaying, isHyperSpeed]);
-
-  // Auto-play interval once when round changes, if audio context was already unlocked
-  useEffect(() => {
-    if (question && hasStartedAudio && !isAnswered) {
-      const t = setTimeout(() => {
-        playCurrentInterval(question);
-      }, 350);
-      return () => clearTimeout(t);
+      await auditoryEngine.playInterval(
+        qToPlay.rootNote,
+        qToPlay.targetNote,
+        qToPlay.playbackDirection,
+        duration,
+        gap
+      );
+    } catch (err) {
+      console.warn('Interval playback error:', err);
+    } finally {
+      setIsPlaying(false);
+      trialStartTimeRef.current = Date.now();
     }
-  }, [round, hasStartedAudio]);
+  }, [question, isPlaying, isHyperSpeed, round]);
+
+  // Auto-play interval once when round changes, IF audio context was already started by user
+  useEffect(() => {
+    if (question && hasStartedAudio && !isAnswered && !isPlaying) {
+      if (playedRoundRef.current !== round) {
+        playedRoundRef.current = round;
+        const t = setTimeout(() => {
+          playCurrentInterval(question);
+        }, 350);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [round, question, hasStartedAudio, isAnswered, isPlaying, playCurrentInterval]);
 
   const handleSelectOption = (opt: IIntervalInfo) => {
     if (isAnswered || !question || isPlaying) return;
@@ -135,7 +145,7 @@ export const IntervalIdentifyGame: React.FC = () => {
       correct: isCorrect
     });
 
-    // Advance
+    // Advance to next round smoothly
     setTimeout(() => {
       if (round >= maxRounds) {
         setIsFinished(true);

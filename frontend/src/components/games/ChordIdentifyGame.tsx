@@ -47,6 +47,7 @@ export const ChordIdentifyGame: React.FC = () => {
 
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
+  const playedRoundRef = useRef<number>(0);
 
   const generateNextQuestion = useCallback(() => {
     const q = generateChordQuestion(allowedChordTypes, ['C4', 'D4', 'E4', 'F4', 'G4', 'A4'], optionsCount);
@@ -57,8 +58,9 @@ export const ChordIdentifyGame: React.FC = () => {
 
   useEffect(() => {
     resetSession();
+    playedRoundRef.current = 0;
     generateNextQuestion();
-  }, [effectiveLevel, resetSession, generateNextQuestion]);
+  }, [effectiveLevel]);
 
   // Global Timer
   useEffect(() => {
@@ -69,33 +71,41 @@ export const ChordIdentifyGame: React.FC = () => {
     return () => clearInterval(timer);
   }, [isFinished]);
 
-  // Play chord
+  // Play chord safely
   const playCurrentChord = useCallback(async (qToPlay = question) => {
     if (!qToPlay || isPlaying) return;
-    setIsPlaying(true);
-    setHasStartedAudio(true);
-    await auditoryEngine.resumeAudioContext();
+    try {
+      setIsPlaying(true);
+      setHasStartedAudio(true);
+      playedRoundRef.current = round;
+      await auditoryEngine.resumeAudioContext();
 
-    await auditoryEngine.playChord(
-      qToPlay.notes,
-      playbackMode,
-      1.2,
-      playbackMode === 'arpeggio' ? 80 : 0
-    );
+      await auditoryEngine.playChord(
+        qToPlay.notes,
+        playbackMode,
+        1.2,
+        playbackMode === 'arpeggio' ? 80 : 0
+      );
+    } catch (err) {
+      console.warn('Chord playback error:', err);
+    } finally {
+      setIsPlaying(false);
+      trialStartTimeRef.current = Date.now();
+    }
+  }, [question, isPlaying, playbackMode, round]);
 
-    setIsPlaying(false);
-    trialStartTimeRef.current = Date.now();
-  }, [question, isPlaying, playbackMode]);
-
-  // Auto-play when question appears if audio was already started by user
+  // Auto-play once when question appears if audio was already started by user
   useEffect(() => {
     if (question && hasStartedAudio && !isAnswered && !isPlaying) {
-      const t = setTimeout(() => {
-        playCurrentChord(question);
-      }, 400);
-      return () => clearTimeout(t);
+      if (playedRoundRef.current !== round) {
+        playedRoundRef.current = round;
+        const t = setTimeout(() => {
+          playCurrentChord(question);
+        }, 350);
+        return () => clearTimeout(t);
+      }
     }
-  }, [question, hasStartedAudio, isAnswered, isPlaying, playCurrentChord]);
+  }, [round, question, hasStartedAudio, isAnswered, isPlaying, playCurrentChord]);
 
   const handleSelectOption = (opt: IChordTypeInfo) => {
     if (isAnswered || !question || isPlaying) return;

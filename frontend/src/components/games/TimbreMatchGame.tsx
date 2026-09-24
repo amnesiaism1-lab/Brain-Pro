@@ -100,6 +100,7 @@ export const TimbreMatchGame: React.FC = () => {
 
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
+  const playedRoundRef = useRef<number>(-1);
 
   const generateNextRound = useCallback(() => {
     const pool = [...optionsPool];
@@ -112,6 +113,7 @@ export const TimbreMatchGame: React.FC = () => {
 
   useEffect(() => {
     resetSession();
+    playedRoundRef.current = -1;
     generateNextRound();
   }, [effectiveLevel, resetSession, generateNextRound]);
 
@@ -126,35 +128,40 @@ export const TimbreMatchGame: React.FC = () => {
 
   // Play target sound
   const playTargetSound = useCallback(async (target = targetOption) => {
-    if (!target || isPlaying) return;
+    if (!target) return;
     setIsPlaying(true);
     setHasStartedAudio(true);
-    await auditoryEngine.resumeAudioContext();
+    try {
+      await auditoryEngine.resumeAudioContext();
 
-    const note = effectiveLevel >= 4 ? (round % 2 === 0 ? 'G3' : 'E4') : 'A3';
-    const opts: IPlayNoteOptions = {
-      waveform: target.waveform,
-      filterCutoff: target.filterCutoff,
-      filterType: target.filterType,
-      volume: 0.45
-    };
+      const note = effectiveLevel >= 4 ? (round % 2 === 0 ? 'G3' : 'E4') : 'A3';
+      const opts: IPlayNoteOptions = {
+        waveform: target.waveform,
+        filterCutoff: target.filterCutoff,
+        filterType: target.filterType,
+        volume: 0.45
+      };
 
-    auditoryEngine.playNote(note, 0.9, opts);
-    setTimeout(() => {
-      setIsPlaying(false);
+      auditoryEngine.playNote(note, 0.9, opts);
+      await new Promise(resolve => setTimeout(resolve, 950));
       trialStartTimeRef.current = Date.now();
-    }, 950);
-  }, [targetOption, isPlaying, effectiveLevel, round]);
+    } catch (err) {
+      console.error('Error playing timbre:', err);
+    } finally {
+      setIsPlaying(false);
+    }
+  }, [targetOption, effectiveLevel, round]);
 
   // Auto-play when question changes IF user already unlocked audio
   useEffect(() => {
-    if (targetOption && hasStartedAudio && !isAnswered && !isPlaying) {
+    if (targetOption && hasStartedAudio && !isAnswered && playedRoundRef.current !== round) {
+      playedRoundRef.current = round;
       const t = setTimeout(() => {
         playTargetSound(targetOption);
       }, 400);
       return () => clearTimeout(t);
     }
-  }, [targetOption, hasStartedAudio, isAnswered, isPlaying, playTargetSound]);
+  }, [targetOption, hasStartedAudio, isAnswered, round, playTargetSound]);
 
   // Option preview play button
   const previewOptionSound = async (opt: ITimbreOption, e: React.MouseEvent) => {

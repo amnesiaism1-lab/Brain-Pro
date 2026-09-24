@@ -1,3 +1,4 @@
+import * as Tone from 'tone';
 import { getNoteFrequency } from './musicTheoryService';
 
 export interface IADSREnvelope {
@@ -23,72 +24,90 @@ class AuditoryEngine {
   private masterGain: GainNode | null = null;
   private analyser: AnalyserNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
+  private isUnlocked = false;
 
   public initContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtx) {
-        this.ctx = new AudioCtx();
-        this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.setValueAtTime(0.8, this.ctx.currentTime);
+        try {
+          this.ctx = new AudioCtx();
+          this.masterGain = this.ctx.createGain();
+          this.masterGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
 
-        this.analyser = this.ctx.createAnalyser();
-        this.analyser.fftSize = 256;
-        this.analyser.smoothingTimeConstant = 0.8;
+          this.analyser = this.ctx.createAnalyser();
+          this.analyser.fftSize = 256;
+          this.analyser.smoothingTimeConstant = 0.8;
 
-        this.masterGain.connect(this.analyser);
-        this.analyser.connect(this.ctx.destination);
+          this.masterGain.connect(this.analyser);
+          this.analyser.connect(this.ctx.destination);
 
-        // Pre-create 1 second of white noise for realistic snare / hi-hat
-        this.createNoiseBuffer();
+          // Pre-create 1 second of white noise for realistic snare / hi-hat
+          this.createNoiseBuffer();
 
-        // Configure Listener in 3D space (at origin facing forward -Z)
-        this.setupAudioListener();
+          // Configure Listener in 3D space safely
+          this.setupAudioListener();
+        } catch (e) {
+          console.warn('AudioContext creation error:', e);
+        }
       }
-    }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
     }
     return this.ctx;
   }
 
   public setupAudioListener(): void {
     if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-    const listener = this.ctx.listener;
-    // Set listener at origin facing north (forward = -Z, up = +Y)
-    if (listener.positionX) {
-      listener.positionX.setValueAtTime(0, now);
-      listener.positionY.setValueAtTime(0, now);
-      listener.positionZ.setValueAtTime(0, now);
-      listener.forwardX.setValueAtTime(0, now);
-      listener.forwardY.setValueAtTime(0, now);
-      listener.forwardZ.setValueAtTime(-1, now);
-      listener.upX.setValueAtTime(0, now);
-      listener.upY.setValueAtTime(1, now);
-      listener.upZ.setValueAtTime(0, now);
-    } else {
-      listener.setPosition(0, 0, 0);
-      listener.setOrientation(0, 0, -1, 0, 1, 0);
+    try {
+      const now = this.ctx.currentTime;
+      const listener = this.ctx.listener;
+      if (!listener) return;
+
+      if (listener.positionX && listener.forwardX) {
+        listener.positionX.setValueAtTime(0, now);
+        listener.positionY.setValueAtTime(0, now);
+        listener.positionZ.setValueAtTime(0, now);
+        listener.forwardX.setValueAtTime(0, now);
+        listener.forwardY.setValueAtTime(0, now);
+        listener.forwardZ.setValueAtTime(-1, now);
+        if (listener.upX) listener.upX.setValueAtTime(0, now);
+        if (listener.upY) listener.upY.setValueAtTime(1, now);
+        if (listener.upZ) listener.upZ.setValueAtTime(0, now);
+      } else if (typeof listener.setPosition === 'function') {
+        listener.setPosition(0, 0, 0);
+        if (typeof listener.setOrientation === 'function') {
+          listener.setOrientation(0, 0, -1, 0, 1, 0);
+        }
+      }
+    } catch (e) {
+      console.warn('AudioListener setup fallback:', e);
     }
   }
 
   public async resumeAudioContext(): Promise<boolean> {
+    try {
+      if (Tone.context.state !== 'running') {
+        await Tone.start();
+      }
+    } catch (err) {
+      console.warn('Tone.start resume error:', err);
+    }
+
     const ctx = this.initContext();
     if (!ctx) return false;
     if (ctx.state === 'suspended') {
       try {
         await ctx.resume();
       } catch (err) {
-        console.warn('AudioContext resume error:', err);
+        console.warn('Native AudioContext resume error:', err);
       }
     }
-    return ctx.state === 'running';
+    this.isUnlocked = ctx.state === 'running';
+    return this.isUnlocked;
   }
 
   public isAudioActive(): boolean {
-    return !!this.ctx && this.ctx.state === 'running';
+    return (!!this.ctx && this.ctx.state === 'running') || Tone.context.state === 'running';
   }
 
   private createNoiseBuffer() {
@@ -118,87 +137,101 @@ class AuditoryEngine {
     const ctx = this.initContext();
     if (!ctx || !this.masterGain) return;
 
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
     const baseFreq = typeof noteOrFreq === 'number' ? noteOrFreq : getNoteFrequency(noteOrFreq);
     if (!baseFreq || isNaN(baseFreq) || baseFreq <= 0) return;
 
-    const now = ctx.currentTime;
-    const vol = options.volume ?? 0.35;
+    // Lookahead to prevent scheduling in the past or audio glitching
+    const now = Math.max(ctx.currentTime, 0.04) + 0.02;
     const waveform = options.waveform ?? 'triangle';
     const pan = Math.max(-1, Math.min(1, options.pan ?? 0));
     const detune = options.detuneCents ?? 0;
 
+    // Perceptual loudness compensation
+    let volumeMultiplier = 1.0;
+    if (waveform === 'sine') volumeMultiplier = 1.45;
+    else if (waveform === 'triangle') volumeMultiplier = 1.2;
+    else if (waveform === 'square') volumeMultiplier = 0.75;
+    else if (waveform === 'sawtooth') volumeMultiplier = 0.7;
+    const vol = (options.volume ?? 0.38) * volumeMultiplier;
+
     const adsr: IADSREnvelope = options.adsr ?? {
-      attack: 0.015,
-      decay: 0.12,
-      sustain: 0.45,
-      release: Math.max(0.1, durationSec * 0.35)
+      attack: 0.02,
+      decay: 0.15,
+      sustain: 0.5,
+      release: Math.max(0.12, durationSec * 0.4)
     };
 
-    // Node graph:
-    // [Oscillators] -> [Optional Filter] -> [Gain Envelope] -> [StereoPanner] -> [MasterGain]
-    const gainNode = ctx.createGain();
+    try {
+      const gainNode = ctx.createGain();
 
-    // Envelope shaping
-    gainNode.gain.setValueAtTime(0.0001, now);
-    // Attack
-    gainNode.gain.linearRampToValueAtTime(vol, now + adsr.attack);
-    // Decay to sustain
-    gainNode.gain.exponentialRampToValueAtTime(
-      Math.max(0.001, vol * adsr.sustain),
-      now + adsr.attack + adsr.decay
-    );
-    // Sustain duration
-    const stopTime = now + durationSec;
-    // Release
-    gainNode.gain.exponentialRampToValueAtTime(
-      0.00001,
-      stopTime + adsr.release
-    );
+      // Envelope shaping
+      gainNode.gain.setValueAtTime(0.0001, now);
+      // Attack
+      gainNode.gain.linearRampToValueAtTime(vol, now + adsr.attack);
+      // Decay to sustain
+      gainNode.gain.exponentialRampToValueAtTime(
+        Math.max(0.001, vol * adsr.sustain),
+        now + adsr.attack + adsr.decay
+      );
+      // Sustain duration
+      const stopTime = now + durationSec;
+      // Release
+      gainNode.gain.exponentialRampToValueAtTime(
+        0.00001,
+        stopTime + adsr.release
+      );
 
-    // Optional Biquad Filter
-    let destinationNode: AudioNode = gainNode;
-    if (options.filterCutoff) {
-      const filter = ctx.createBiquadFilter();
-      filter.type = options.filterType || 'lowpass';
-      filter.frequency.setValueAtTime(options.filterCutoff, now);
-      filter.Q.setValueAtTime(options.filterQ || 1.0, now);
-      filter.connect(gainNode);
-      destinationNode = filter;
-    }
+      // Optional Biquad Filter
+      let destinationNode: AudioNode = gainNode;
+      if (options.filterCutoff) {
+        const filter = ctx.createBiquadFilter();
+        filter.type = options.filterType || 'lowpass';
+        filter.frequency.setValueAtTime(options.filterCutoff, now);
+        filter.Q.setValueAtTime(options.filterQ || 1.0, now);
+        filter.connect(gainNode);
+        destinationNode = filter;
+      }
 
-    // Panning
-    if (ctx.createStereoPanner) {
-      const panner = ctx.createStereoPanner();
-      panner.pan.setValueAtTime(pan, now);
-      gainNode.connect(panner);
-      panner.connect(this.masterGain);
-    } else {
-      gainNode.connect(this.masterGain);
-    }
+      // Panning
+      if (typeof ctx.createStereoPanner === 'function') {
+        const panner = ctx.createStereoPanner();
+        panner.pan.setValueAtTime(pan, now);
+        gainNode.connect(panner);
+        panner.connect(this.masterGain);
+      } else {
+        gainNode.connect(this.masterGain);
+      }
 
-    // Fundamental oscillator
-    const osc1 = ctx.createOscillator();
-    osc1.type = waveform;
-    osc1.frequency.setValueAtTime(baseFreq, now);
-    if (detune !== 0) {
-      osc1.detune.setValueAtTime(detune, now);
-    }
-    osc1.connect(destinationNode);
-    osc1.start(now);
-    osc1.stop(stopTime + adsr.release + 0.05);
+      // Fundamental oscillator
+      const osc1 = ctx.createOscillator();
+      osc1.type = waveform;
+      osc1.frequency.setValueAtTime(baseFreq, now);
+      if (detune !== 0) {
+        osc1.detune.setValueAtTime(detune, now);
+      }
+      osc1.connect(destinationNode);
+      osc1.start(now);
+      osc1.stop(stopTime + adsr.release + 0.06);
 
-    // Soft 2nd harmonic (octave overtone for acoustic presence)
-    if (waveform === 'triangle' || waveform === 'sine') {
-      const osc2 = ctx.createOscillator();
-      const osc2Gain = ctx.createGain();
-      osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(baseFreq * 2, now);
-      if (detune !== 0) osc2.detune.setValueAtTime(detune, now);
-      osc2Gain.gain.setValueAtTime(0.18, now);
-      osc2.connect(osc2Gain);
-      osc2Gain.connect(destinationNode);
-      osc2.start(now);
-      osc2.stop(stopTime + adsr.release + 0.05);
+      // Soft 2nd harmonic (octave overtone for acoustic presence)
+      if (waveform === 'triangle' || waveform === 'sine') {
+        const osc2 = ctx.createOscillator();
+        const osc2Gain = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(baseFreq * 2, now);
+        if (detune !== 0) osc2.detune.setValueAtTime(detune, now);
+        osc2Gain.gain.setValueAtTime(0.2, now);
+        osc2.connect(osc2Gain);
+        osc2Gain.connect(destinationNode);
+        osc2.start(now);
+        osc2.stop(stopTime + adsr.release + 0.06);
+      }
+    } catch (e) {
+      console.warn('playNote error:', e);
     }
   }
 
@@ -211,6 +244,7 @@ class AuditoryEngine {
     noteDurationSec = 0.45,
     onNoteTrigger?: (note: string, index: number) => void
   ): Promise<void> {
+    await this.resumeAudioContext();
     for (let i = 0; i < notes.length; i++) {
       const note = notes[i];
       if (onNoteTrigger) {
@@ -219,6 +253,7 @@ class AuditoryEngine {
       this.playNote(note, noteDurationSec);
       await new Promise(resolve => setTimeout(resolve, noteIntervalMs));
     }
+    await new Promise(resolve => setTimeout(resolve, Math.round(noteDurationSec * 1000) + 120));
   }
 
   /**
@@ -231,19 +266,23 @@ class AuditoryEngine {
     durationSec = 0.6,
     gapMs = 450
   ): Promise<void> {
+    await this.resumeAudioContext();
     if (mode === 'harmonic') {
       // Play simultaneously
-      this.playNote(noteA, durationSec, { volume: 0.3 });
-      this.playNote(noteB, durationSec, { volume: 0.3 });
+      this.playNote(noteA, durationSec, { volume: 0.32 });
+      this.playNote(noteB, durationSec, { volume: 0.32 });
+      await new Promise(r => setTimeout(r, Math.round(durationSec * 1000) + 120));
     } else if (mode === 'ascending') {
       this.playNote(noteA, durationSec * 0.85);
       await new Promise(r => setTimeout(r, gapMs));
       this.playNote(noteB, durationSec);
+      await new Promise(r => setTimeout(r, Math.round(durationSec * 1000) + 120));
     } else {
       // descending
       this.playNote(noteB, durationSec * 0.85);
       await new Promise(r => setTimeout(r, gapMs));
       this.playNote(noteA, durationSec);
+      await new Promise(r => setTimeout(r, Math.round(durationSec * 1000) + 120));
     }
   }
 
@@ -256,18 +295,21 @@ class AuditoryEngine {
     durationSec = 1.0,
     arpeggioDelayMs = 60
   ): Promise<void> {
+    await this.resumeAudioContext();
     if (mode === 'block') {
-      const singleVol = Math.max(0.15, 0.45 / Math.sqrt(notes.length));
+      const singleVol = Math.max(0.14, 0.46 / Math.sqrt(notes.length));
       notes.forEach(note => {
         this.playNote(note, durationSec, { volume: singleVol });
       });
+      await new Promise(r => setTimeout(r, Math.round(durationSec * 1000) + 150));
     } else {
       // Arpeggio
       const singleVol = 0.32;
       for (let i = 0; i < notes.length; i++) {
-        this.playNote(notes[i], durationSec - (i * 0.05), { volume: singleVol });
+        this.playNote(notes[i], Math.max(0.4, durationSec - (i * 0.05)), { volume: singleVol });
         await new Promise(r => setTimeout(r, arpeggioDelayMs));
       }
+      await new Promise(r => setTimeout(r, Math.round(durationSec * 1000) + 150));
     }
   }
 

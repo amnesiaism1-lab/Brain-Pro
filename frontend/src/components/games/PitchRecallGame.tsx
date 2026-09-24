@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { calculateGameScore, INFINITY_ROMAN_NUMERALS } from '@brain-exercises/shared';
@@ -22,7 +22,10 @@ export const PitchRecallGame: React.FC = () => {
     ? Math.min(8, 5 + Math.floor(infinityTier / 2))
     : effectiveLevel <= 2 ? 3 : effectiveLevel <= 4 ? 4 : effectiveLevel <= 7 ? 5 : effectiveLevel <= 10 ? 6 : 7;
 
-  const octaveRange: [number, number] = effectiveLevel >= 5 || isInfinity ? [4, 5] : [4, 4];
+  const octaveRange = useMemo<[number, number]>(() => {
+    return effectiveLevel >= 5 || isInfinity ? [4, 5] : [4, 4];
+  }, [effectiveLevel, isInfinity]);
+
   const includeAccidentals = effectiveLevel >= 4 || isInfinity;
   const isReverseRecall = effectiveLevel === 9 || effectiveLevel === 12;
   const isChromaticStorm = effectiveLevel === 13;
@@ -50,21 +53,27 @@ export const PitchRecallGame: React.FC = () => {
 
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
+  const playedRoundRef = useRef<number>(0);
 
   // Generate new round
   const startNewRound = useCallback(() => {
-    const seq = generateRandomPitchSequence(sequenceLength, octaveRange[0] === octaveRange[1] ? [octaveRange[0]] : [4, 5], includeAccidentals);
+    const seq = generateRandomPitchSequence(
+      sequenceLength,
+      octaveRange[0] === octaveRange[1] ? [octaveRange[0]] : [4, 5],
+      includeAccidentals
+    );
     setTargetSequence(seq);
     setUserSequence([]);
     setLastFeedback(null);
     setPhase('listen');
   }, [sequenceLength, octaveRange, includeAccidentals]);
 
-  // Initial setup
+  // Initial setup on level change
   useEffect(() => {
     resetSession();
+    playedRoundRef.current = 0;
     startNewRound();
-  }, [effectiveLevel, resetSession, startNewRound]);
+  }, [effectiveLevel]);
 
   // Timer
   useEffect(() => {
@@ -78,56 +87,66 @@ export const PitchRecallGame: React.FC = () => {
   // Play audio sequence when in listen phase
   const playSequence = useCallback(async (seqToPlay = targetSequence) => {
     if (seqToPlay.length === 0 || isPlayingAudio) return;
-    setIsPlayingAudio(true);
-    setHasStartedAudio(true);
-    await auditoryEngine.resumeAudioContext();
+    try {
+      setIsPlayingAudio(true);
+      setHasStartedAudio(true);
+      setPhase('listen');
+      playedRoundRef.current = round;
+      await auditoryEngine.resumeAudioContext();
 
-    for (let i = 0; i < seqToPlay.length; i++) {
-      const note = seqToPlay[i];
-      if (showVisualHints) {
-        setActiveNotes([note]);
-      }
-      
-      // Delay adjustments for special modes
-      let delay = noteSpeedMs;
-      if (isFibonacciTempo) {
-        const fibDelays = [150, 200, 320, 500, 800];
-        delay = fibDelays[i % fibDelays.length];
-      }
+      for (let i = 0; i < seqToPlay.length; i++) {
+        const note = seqToPlay[i];
+        if (showVisualHints) {
+          setActiveNotes([note]);
+        }
+        
+        // Delay adjustments for special modes
+        let delay = noteSpeedMs;
+        if (isFibonacciTempo) {
+          const fibDelays = [180, 240, 340, 520, 800];
+          delay = fibDelays[i % fibDelays.length];
+        }
 
-      auditoryEngine.playNote(note, 0.4, {
-        detuneCents: isMicrotonal ? (i % 2 === 0 ? 35 : -35) : 0
-      });
+        auditoryEngine.playNote(note, 0.45, {
+          detuneCents: isMicrotonal ? (i % 2 === 0 ? 35 : -35) : 0
+        });
 
-      await new Promise(r => setTimeout(r, delay));
-      if (showVisualHints) {
-        setActiveNotes([]);
+        await new Promise(r => setTimeout(r, delay));
+        if (showVisualHints) {
+          setActiveNotes([]);
+        }
+        await new Promise(r => setTimeout(r, 60));
       }
-      await new Promise(r => setTimeout(r, 60));
+    } catch (err) {
+      console.warn('Pitch recall sequence playback error:', err);
+    } finally {
+      setIsPlayingAudio(false);
+      setActiveNotes([]);
+      setPhase('recall');
+      trialStartTimeRef.current = Date.now();
     }
+  }, [targetSequence, isPlayingAudio, showVisualHints, noteSpeedMs, isFibonacciTempo, isMicrotonal, round]);
 
-    setIsPlayingAudio(false);
-    setActiveNotes([]);
-    setPhase('recall');
-    trialStartTimeRef.current = Date.now();
-  }, [targetSequence, isPlayingAudio, showVisualHints, noteSpeedMs, isFibonacciTempo, isMicrotonal]);
-
-  // Auto play sequence when round starts IF user has already started audio
+  // Auto play sequence once when round starts IF user has already started audio
   useEffect(() => {
     if (phase === 'listen' && targetSequence.length > 0 && hasStartedAudio && !isPlayingAudio) {
-      const timeout = setTimeout(() => {
-        playSequence(targetSequence);
-      }, 500);
-      return () => clearTimeout(timeout);
+      if (playedRoundRef.current !== round) {
+        playedRoundRef.current = round;
+        const timeout = setTimeout(() => {
+          playSequence(targetSequence);
+        }, 400);
+        return () => clearTimeout(timeout);
+      }
     }
-  }, [phase, targetSequence, hasStartedAudio, isPlayingAudio, playSequence]);
+  }, [phase, round, targetSequence, hasStartedAudio, isPlayingAudio, playSequence]);
 
   // Handle user key click
   const handleKeyClick = (note: string) => {
     if (phase !== 'recall' || isPlayingAudio) return;
 
     // Play clicked note sound immediately
-    auditoryEngine.playNote(note, 0.35);
+    auditoryEngine.resumeAudioContext().catch(() => {});
+    auditoryEngine.playNote(note, 0.4);
 
     const nextUserSeq = [...userSequence, note];
     setUserSequence(nextUserSeq);
