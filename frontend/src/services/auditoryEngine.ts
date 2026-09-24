@@ -19,12 +19,20 @@ export interface IPlayNoteOptions {
   filterQ?: number;
 }
 
+interface IActiveVoice {
+  gainNode: GainNode;
+  filterNode: BiquadFilterNode;
+  oscillators: OscillatorNode[];
+  startTime: number;
+}
+
 class AuditoryEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private analyser: AnalyserNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
   private isUnlocked = false;
+  private activeVoices: Map<string, IActiveVoice> = new Map();
 
   public initContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -124,6 +132,163 @@ class AuditoryEngine {
   public getAnalyser(): AnalyserNode | null {
     this.initContext();
     return this.analyser;
+  }
+
+  /**
+   * Start playing a note with dynamic velocity sensitivity (timbre, harmonics, attack, gain)
+   * Designed for real-time MIDI keyboard input and expressive touch.
+   * @param noteOrFreq Note name (e.g. 'C4') or frequency in Hz
+   * @param velocity 0.0 to 1.0 (or raw 1 to 127)
+   */
+  public startNote(
+    noteOrFreq: string | number,
+    velocity = 0.7,
+    options: Partial<IPlayNoteOptions> = {}
+  ): void {
+    const ctx = this.initContext();
+    if (!ctx || !this.masterGain) return;
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    const baseFreq = typeof noteOrFreq === 'number' ? noteOrFreq : getNoteFrequency(noteOrFreq);
+    if (!baseFreq || isNaN(baseFreq) || baseFreq <= 0) return;
+
+    const voiceKey = typeof noteOrFreq === 'number' ? noteOrFreq.toFixed(2) : noteOrFreq;
+
+    // If this note is already active, stop old voice cleanly
+    this.stopNote(voiceKey, 0.04);
+
+    // Normalize velocity (supports 0..1 or raw 1..127 from MIDI)
+    let normVel = velocity > 1.0 ? velocity / 127 : velocity;
+    normVel = Math.max(0.01, Math.min(1.0, normVel));
+
+    const now = Math.max(ctx.currentTime, 0.02) + 0.005;
+
+    // 1. Dynamic Loudness Curve (Logarithmic perceptual curve)
+    // Very soft touch (~0.1) -> gain ~0.03, Hard touch (~1.0) -> gain ~0.82
+    const dynamicGain = Math.max(0.025, Math.min(1.0, Math.pow(normVel, 1.42) * 0.82));
+
+    // 2. Dynamic Timbre Filter (Lowpass filter cutoff modulation)
+    // Piano hammer acoustics: soft strike -> warm & dark; hard strike -> crisp, bright harmonics
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    const minCutoff = Math.max(650, baseFreq * 2.0);
+    const maxCutoff = Math.min(14500, Math.max(minCutoff * 3.5, baseFreq * 16));
+    const targetCutoff = minCutoff + Math.pow(normVel, 1.35) * (maxCutoff - minCutoff);
+    filter.frequency.setValueAtTime(targetCutoff, now);
+    filter.Q.setValueAtTime(0.8 + normVel * 0.9, now);
+
+    // 3. Dynamic Attack Time
+    // Hard strike: 2.5ms punchy transient; Soft strike: 15ms gentle onset
+    const attackTime = 0.015 - normVel * 0.0125;
+
+    // 4. Voice Gain Node & ADSR envelope
+    const voiceGain = ctx.createGain();
+    voiceGain.gain.setValueAtTime(0.0001, now);
+    voiceGain.gain.linearRampToValueAtTime(dynamicGain, now + attackTime);
+    // Natural acoustic piano decay if key held down
+    voiceGain.gain.exponentialRampToValueAtTime(
+      Math.max(0.001, dynamicGain * 0.18),
+      now + attackTime + 3.2
+    );
+    voiceGain.gain.exponentialRampToValueAtTime(
+      0.00001,
+      now + attackTime + 6.0
+    );
+
+    // Filter -> VoiceGain -> MasterGain (which connects to AnalyserNode for oscilloscope)
+    filter.connect(voiceGain);
+    voiceGain.connect(this.masterGain);
+
+    const oscillators: OscillatorNode[] = [];
+
+    // Fundamental oscillator (Triangle wave for rich body)
+    const osc1 = ctx.createOscillator();
+    osc1.type = options.waveform || 'triangle';
+    osc1.frequency.setValueAtTime(baseFreq, now);
+    osc1.connect(filter);
+    osc1.start(now);
+    oscillators.push(osc1);
+
+    // 2nd Harmonic (Octave overtone, shines more with velocity)
+    const osc2 = ctx.createOscillator();
+    const osc2Gain = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(baseFreq * 2, now);
+    const h2Gain = 0.12 + normVel * 0.22;
+    osc2Gain.gain.setValueAtTime(h2Gain, now);
+    osc2.connect(osc2Gain);
+    osc2Gain.connect(filter);
+    osc2.start(now);
+    oscillators.push(osc2);
+
+    // 3rd Harmonic (Twelfth / hammer bite on harder velocities)
+    if (normVel > 0.35) {
+      const osc3 = ctx.createOscillator();
+      const osc3Gain = ctx.createGain();
+      osc3.type = 'sine';
+      osc3.frequency.setValueAtTime(baseFreq * 3, now);
+      const h3Gain = Math.pow(normVel, 2.0) * 0.12;
+      osc3Gain.gain.setValueAtTime(h3Gain, now);
+      osc3.connect(osc3Gain);
+      osc3Gain.connect(filter);
+      osc3.start(now);
+      oscillators.push(osc3);
+    }
+
+    this.activeVoices.set(voiceKey, {
+      gainNode: voiceGain,
+      filterNode: filter,
+      oscillators,
+      startTime: now
+    });
+  }
+
+  /**
+   * Stop playing a note on Note Off event with smooth natural damper release
+   * @param noteOrFreq Note name (e.g. 'C4') or frequency
+   * @param releaseSec Release time in seconds (default 0.18s like piano damper)
+   */
+  public stopNote(noteOrFreq: string | number, releaseSec = 0.18): void {
+    const voiceKey = typeof noteOrFreq === 'number' ? noteOrFreq.toFixed(2) : noteOrFreq;
+    const voice = this.activeVoices.get(voiceKey);
+    if (!voice || !this.ctx) return;
+
+    this.activeVoices.delete(voiceKey);
+
+    const now = this.ctx.currentTime;
+    try {
+      voice.gainNode.gain.cancelScheduledValues(now);
+      // Anchor current gain
+      const currentGain = Math.max(0.0001, voice.gainNode.gain.value);
+      voice.gainNode.gain.setValueAtTime(currentGain, now);
+      voice.gainNode.gain.exponentialRampToValueAtTime(0.00001, now + releaseSec);
+
+      setTimeout(() => {
+        voice.oscillators.forEach(osc => {
+          try {
+            osc.stop();
+            osc.disconnect();
+          } catch (e) {}
+        });
+        try {
+          voice.filterNode.disconnect();
+          voice.gainNode.disconnect();
+        } catch (e) {}
+      }, Math.round((releaseSec + 0.05) * 1000));
+    } catch (e) {
+      console.warn('stopNote error:', e);
+    }
+  }
+
+  /**
+   * Stop all active notes immediately
+   */
+  public stopAllNotes(releaseSec = 0.12): void {
+    const keys = Array.from(this.activeVoices.keys());
+    keys.forEach(k => this.stopNote(k, releaseSec));
   }
 
   /**

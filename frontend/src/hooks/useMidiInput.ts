@@ -16,6 +16,8 @@ export function useMidiInput(options: IUseMidiInputOptions = {}) {
   const [activeDeviceName, setActiveDeviceName] = useState<string | null>(() => midiService.activeDeviceName);
   const [devices, setDevices] = useState<IMidiDevice[]>(() => midiService.getDevices());
   const [activeMidiNotes, setActiveMidiNotes] = useState<string[]>([]);
+  const [lastMidiNote, setLastMidiNote] = useState<string | null>(null);
+  const [lastVelocity, setLastVelocity] = useState<number | null>(null);
 
   // Stable callback refs
   const onNoteOnRef = useRef(onNoteOn);
@@ -54,10 +56,12 @@ export function useMidiInput(options: IUseMidiInputOptions = {}) {
     // Listen for Note On
     const unsubNoteOn = midiService.onNoteOn((note, velocity, midiNumber) => {
       setActiveMidiNotes(prev => prev.includes(note) ? prev : [...prev, note]);
+      setLastMidiNote(note);
+      setLastVelocity(velocity);
 
       if (autoPlayAudioRef.current) {
         auditoryEngine.resumeAudioContext().catch(() => {});
-        auditoryEngine.playNote(note, 0.45, { volume: Math.max(0.2, velocity) });
+        auditoryEngine.startNote(note, velocity);
       }
 
       if (onNoteOnRef.current) {
@@ -69,6 +73,10 @@ export function useMidiInput(options: IUseMidiInputOptions = {}) {
     const unsubNoteOff = midiService.onNoteOff((note, midiNumber) => {
       setActiveMidiNotes(prev => prev.filter(n => n !== note));
 
+      if (autoPlayAudioRef.current) {
+        auditoryEngine.stopNote(note);
+      }
+
       if (onNoteOffRef.current) {
         onNoteOffRef.current(note, midiNumber);
       }
@@ -78,6 +86,9 @@ export function useMidiInput(options: IUseMidiInputOptions = {}) {
       unsubDevice();
       unsubNoteOn();
       unsubNoteOff();
+      if (autoPlayAudioRef.current) {
+        auditoryEngine.stopAllNotes();
+      }
     };
   }, []);
 
@@ -87,6 +98,8 @@ export function useMidiInput(options: IUseMidiInputOptions = {}) {
     activeDeviceName,
     devices,
     activeMidiNotes,
+    lastMidiNote,
+    lastVelocity,
     requestAccess,
     selectDevice
   };

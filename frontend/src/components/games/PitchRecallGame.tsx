@@ -162,11 +162,12 @@ export const PitchRecallGame: React.FC = () => {
   };
 
   // Handle user key click (from virtual piano or MIDI)
-  const handleKeyClick = useCallback((note: string) => {
+  const handleKeyClick = useCallback((note: string, velocity?: number) => {
     // If user clicks during listen phase, remind or free-play sound
     if (phase === 'listen') {
       auditoryEngine.resumeAudioContext().catch(() => {});
-      auditoryEngine.playNote(note, 0.35);
+      const vel = velocity || 0.6;
+      auditoryEngine.playNote(note, 0.35, { volume: Math.max(0.15, Math.pow(vel, 1.3) * 0.65) });
       return;
     }
 
@@ -174,7 +175,8 @@ export const PitchRecallGame: React.FC = () => {
 
     // Play clicked note sound immediately
     auditoryEngine.resumeAudioContext().catch(() => {});
-    auditoryEngine.playNote(note, 0.45);
+    const vel = velocity || 0.65;
+    auditoryEngine.playNote(note, 0.45, { volume: Math.max(0.18, Math.pow(vel, 1.3) * 0.7) });
 
     setUserSequence(prev => {
       const nextUserSeq = [...prev, note];
@@ -237,8 +239,8 @@ export const PitchRecallGame: React.FC = () => {
   // Hook up physical MIDI piano: hitting keys on external MIDI keyboard inputs answers!
   useMidiInput({
     autoPlayAudio: false, // handleKeyClick plays it
-    onNoteOn: (note) => {
-      handleKeyClick(note);
+    onNoteOn: (note, velocity) => {
+      handleKeyClick(note, velocity);
     }
   });
 
@@ -368,6 +370,7 @@ export const PitchRecallGame: React.FC = () => {
           onKeyClick={handleKeyClick}
           showLabels={showVisualHints || effectiveLevel <= 4}
           enableMidiHighlight={true}
+          autoPlayAudio={false}
         />
         <p className="text-[11px] text-slate-400 mt-2">
           💡 Bạn có thể click chuột vào phím đàn hoặc gõ trực tiếp trên đàn piano MIDI USB/Bluetooth.

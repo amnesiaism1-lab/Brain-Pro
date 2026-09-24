@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import { PIANO_KEYS_88 } from '../../services/musicTheoryService';
 import { useMidiInput } from '../../hooks/useMidiInput';
+import { auditoryEngine } from '../../services/auditoryEngine';
 
-interface IPianoKeyboardProps {
+export interface IPianoKeyboardProps {
   activeNotes?: string[];          // Notes currently glowing/sounding
   selectedNotes?: string[];        // Notes selected by user
   disabled?: boolean;
@@ -11,6 +12,8 @@ interface IPianoKeyboardProps {
   onKeyClick?: (note: string) => void;
   className?: string;
   enableMidiHighlight?: boolean;   // Auto-highlight keys pressed on physical MIDI keyboard
+  autoPlayAudio?: boolean;         // Auto play audio on MIDI or click (default true)
+  showVelocityMeter?: boolean;     // Show real-time MIDI velocity touch readout (default true)
 }
 
 export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
@@ -21,11 +24,23 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
   octaveRange = [4, 4],
   onKeyClick,
   className = '',
-  enableMidiHighlight = true
+  enableMidiHighlight = true,
+  autoPlayAudio = true,
+  showVelocityMeter = true
 }) => {
-  const { activeMidiNotes } = useMidiInput({
-    autoPlayAudio: false // Prevent double sound if already played elsewhere
+  const { activeMidiNotes, lastMidiNote, lastVelocity, isConnected } = useMidiInput({
+    autoPlayAudio: autoPlayAudio && !disabled
   });
+
+  const handleKeyAction = (note: string) => {
+    if (disabled) return;
+    if (onKeyClick) {
+      onKeyClick(note);
+    } else if (autoPlayAudio) {
+      auditoryEngine.resumeAudioContext().catch(() => {});
+      auditoryEngine.playNote(note, 0.5, { volume: 0.5 });
+    }
+  };
 
   const mergedActiveNotes = useMemo(() => {
     if (!enableMidiHighlight || activeMidiNotes.length === 0) {
@@ -48,7 +63,7 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
   const whiteKeys = useMemo(() => filteredKeys.filter(k => !k.isBlack), [filteredKeys]);
 
   return (
-    <div className={`relative flex justify-center items-end select-none p-3 bg-slate-900/85 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl overflow-x-auto max-w-full ${className}`}>
+    <div className={`relative flex flex-col items-center select-none p-3.5 bg-slate-900/85 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl overflow-x-auto max-w-full ${className}`}>
       <div className="relative flex items-end">
         {/* White Keys */}
         {whiteKeys.map((key) => {
@@ -60,7 +75,7 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
               key={key.note}
               type="button"
               disabled={disabled}
-              onClick={() => onKeyClick?.(key.note)}
+              onClick={() => handleKeyAction(key.note)}
               className={`relative w-10 sm:w-12 h-36 sm:h-44 rounded-b-lg border-r border-b border-l border-slate-300 transition-all duration-75 flex flex-col justify-end items-center pb-2.5 shadow-md active:scale-[0.98] ${
                 isActive
                   ? 'bg-amber-400 border-amber-500 shadow-lg shadow-amber-400/50 scale-[0.99] z-10'
@@ -101,7 +116,7 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
                 <button
                   type="button"
                   disabled={disabled}
-                  onClick={() => onKeyClick?.(blackNoteName)}
+                  onClick={() => handleKeyAction(blackNoteName)}
                   style={{ transform: 'translateX(50%)' }}
                   className={`pointer-events-auto absolute top-0 right-0 w-6 sm:w-7 h-24 sm:h-28 rounded-b-md z-20 transition-all duration-75 flex flex-col justify-end items-center pb-2 shadow-lg border-b-2 active:scale-[0.96] ${
                     isBlackActive
@@ -124,6 +139,30 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
           })}
         </div>
       </div>
+
+      {/* Real-time MIDI Velocity & Touch Dynamics Readout */}
+      {showVelocityMeter && isConnected && lastMidiNote && lastVelocity !== null && (
+        <div className="mt-3.5 pt-2.5 border-t border-white/10 w-full flex flex-wrap items-center justify-center gap-3 text-xs text-slate-300 font-mono">
+          <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            Nốt: <span className="text-white font-black">{lastMidiNote}</span>
+          </span>
+          <span className="text-slate-600">•</span>
+          <span className="text-slate-400">
+            Lực gõ (Velocity): <strong className="text-amber-300 font-bold">{Math.round(lastVelocity * 127)}/127</strong> ({Math.round(lastVelocity * 100)}%)
+          </span>
+          <span className="text-slate-600">•</span>
+          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+            lastVelocity > 0.8
+              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+              : lastVelocity > 0.45
+              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+              : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+          }`}>
+            {lastVelocity > 0.8 ? 'Forte (Mạnh)' : lastVelocity > 0.45 ? 'Mezzo (Vừa)' : 'Piano (Nhẹ)'}
+          </span>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useMidiInput } from '../../hooks/useMidiInput';
+import { auditoryEngine } from '../../services/auditoryEngine';
 import { Piano, Check, AlertCircle, ChevronDown, RefreshCw } from 'lucide-react';
 
 interface IMidiStatusIndicatorProps {
@@ -19,6 +20,7 @@ export const MidiStatusIndicator: React.FC<IMidiStatusIndicatorProps> = ({
   const [isConnecting, setIsConnecting] = useState(false);
 
   const handleConnect = async () => {
+    auditoryEngine.resumeAudioContext().catch(() => {});
     setIsConnecting(true);
     try {
       await requestAccess();
@@ -45,7 +47,10 @@ export const MidiStatusIndicator: React.FC<IMidiStatusIndicatorProps> = ({
       {isConnected ? (
         <button
           type="button"
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => {
+            auditoryEngine.resumeAudioContext().catch(() => {});
+            setIsOpen(!isOpen);
+          }}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:border-emerald-500/60 shadow-sm transition-all active:scale-95"
           title={`Đã kết nối: ${activeDeviceName}. Bấm để đổi thiết bị.`}
         >
