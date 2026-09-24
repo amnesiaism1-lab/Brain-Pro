@@ -6,7 +6,9 @@ import { useRelationSession } from '../../hooks/useRelationSession';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { generateChordQuestion, IChordTypeInfo } from '../../services/musicTheoryService';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
-import { Layers, Volume2, RotateCcw, CheckCircle2, XCircle, Play } from 'lucide-react';
+import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
+import { useMidiInput } from '../../hooks/useMidiInput';
+import { Music, Volume2, RotateCcw, CheckCircle2, XCircle, Play } from 'lucide-react';
 
 export const ChordIdentifyGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
@@ -16,21 +18,23 @@ export const ChordIdentifyGame: React.FC = () => {
   const isInfinity = effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
-  // Determine allowed types based on level (memoized)
+  // Allowed chord types based on level
   const allowedChordTypes = useMemo(() => {
     if (effectiveLevel <= 2) return ['Major', 'Minor'];
-    if (effectiveLevel <= 3) return ['Major', 'Minor', 'Diminished'];
-    if (effectiveLevel <= 5) return ['Major', 'Minor', 'Diminished', 'Augmented'];
+    if (effectiveLevel <= 4) return ['Major', 'Minor', 'Diminished', 'Augmented'];
     if (effectiveLevel <= 7) return ['Major', 'Minor', 'Maj7', 'm7', 'dom7'];
-    if (effectiveLevel <= 9) return ['Major', 'Minor', 'Maj7', 'm7', 'dom7', 'sus2', 'sus4'];
-    return ['Major', 'Minor', 'Maj7', 'm7', 'dom7', 'm7b5', 'dim7', '9th'];
+    if (effectiveLevel <= 10) return ['Major', 'Minor', 'Maj7', 'm7', 'dom7', 'm7b5', 'dim7'];
+    return ['Major', 'Minor', 'Maj7', 'm7', 'dom7', 'm7b5', 'dim7', 'sus2', 'sus4', '9th'];
   }, [effectiveLevel]);
 
   const playbackMode: 'block' | 'arpeggio' = useMemo(() => {
-    return effectiveLevel === 2 || effectiveLevel === 13 ? 'arpeggio' : 'block';
+    if (effectiveLevel === 5 || effectiveLevel === 6 || effectiveLevel === 14 || effectiveLevel === 18) {
+      return 'arpeggio';
+    }
+    return 'block';
   }, [effectiveLevel]);
 
-  const optionsCount = effectiveLevel >= 6 || isInfinity ? 4 : 3;
+  const optionsCount = effectiveLevel >= 6 || isInfinity ? 5 : 4;
 
   // Game state
   const [round, setRound] = useState(1);
@@ -39,7 +43,8 @@ export const ChordIdentifyGame: React.FC = () => {
   const [selectedOption, setSelectedOption] = useState<IChordTypeInfo | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [hasStartedAudio, setHasStartedAudio] = useState(false);
+  const [hasStartedAudio, setHasStartedAudio] = useState<boolean>(() => auditoryEngine.isAudioActive());
+  const [hasPlayedCurrentRound, setHasPlayedCurrentRound] = useState(false);
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -48,19 +53,36 @@ export const ChordIdentifyGame: React.FC = () => {
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
   const playedRoundRef = useRef<number>(0);
+  const isPlayingRef = useRef<boolean>(false);
+  const currentQuestionRef = useRef<ReturnType<typeof generateChordQuestion> | null>(null);
 
+  // MIDI input
+  useMidiInput({
+    autoPlayAudio: true
+  });
+
+  // Generate question
   const generateNextQuestion = useCallback(() => {
     const q = generateChordQuestion(allowedChordTypes, ['C4', 'D4', 'E4', 'F4', 'G4', 'A4'], optionsCount);
+    currentQuestionRef.current = q;
     setQuestion(q);
     setSelectedOption(null);
     setIsAnswered(false);
+    setHasPlayedCurrentRound(false);
   }, [allowedChordTypes, optionsCount]);
 
+  // Init on level change
   useEffect(() => {
     resetSession();
     playedRoundRef.current = 0;
     generateNextQuestion();
-  }, [effectiveLevel]);
+  }, [effectiveLevel, resetSession, generateNextQuestion]);
+
+  useEffect(() => {
+    if (auditoryEngine.isAudioActive()) {
+      setHasStartedAudio(true);
+    }
+  }, []);
 
   // Global Timer
   useEffect(() => {
@@ -72,12 +94,15 @@ export const ChordIdentifyGame: React.FC = () => {
   }, [isFinished]);
 
   // Play chord safely
-  const playCurrentChord = useCallback(async (qToPlay = question) => {
-    if (!qToPlay || isPlaying) return;
+  const playCurrentChord = useCallback(async (qToPlay = currentQuestionRef.current || question) => {
+    if (!qToPlay || isPlayingRef.current) return;
     try {
+      isPlayingRef.current = true;
       setIsPlaying(true);
       setHasStartedAudio(true);
       playedRoundRef.current = round;
+      setHasPlayedCurrentRound(true);
+
       await auditoryEngine.resumeAudioContext();
 
       await auditoryEngine.playChord(
@@ -89,26 +114,34 @@ export const ChordIdentifyGame: React.FC = () => {
     } catch (err) {
       console.warn('Chord playback error:', err);
     } finally {
+      isPlayingRef.current = false;
       setIsPlaying(false);
       trialStartTimeRef.current = Date.now();
     }
-  }, [question, isPlaying, playbackMode, round]);
+  }, [question, playbackMode, round]);
 
-  // Auto-play once when question appears if audio was already started by user
+  // Auto-play once per round
   useEffect(() => {
-    if (question && hasStartedAudio && !isAnswered && !isPlaying) {
+    if (!hasStartedAudio || isAnswered) return;
+    if (playedRoundRef.current === round) return;
+
+    const t = setTimeout(() => {
       if (playedRoundRef.current !== round) {
-        playedRoundRef.current = round;
-        const t = setTimeout(() => {
-          playCurrentChord(question);
-        }, 350);
-        return () => clearTimeout(t);
+        playCurrentChord(question);
       }
-    }
-  }, [round, question, hasStartedAudio, isAnswered, isPlaying, playCurrentChord]);
+    }, 350);
+
+    return () => clearTimeout(t);
+  }, [round, hasStartedAudio, isAnswered, question, playCurrentChord]);
+
+  const handleManualStart = async () => {
+    await auditoryEngine.resumeAudioContext();
+    setHasStartedAudio(true);
+    playCurrentChord(question);
+  };
 
   const handleSelectOption = (opt: IChordTypeInfo) => {
-    if (isAnswered || !question || isPlaying) return;
+    if (isAnswered || !question || isPlayingRef.current) return;
 
     setSelectedOption(opt);
     setIsAnswered(true);
@@ -150,10 +183,10 @@ export const ChordIdentifyGame: React.FC = () => {
   return (
     <div className="relative w-full max-w-4xl mx-auto my-2 p-5 sm:p-7 bg-[#FAF6F0] dark:bg-slate-900 border border-[#DCD3C3] dark:border-slate-800 rounded-3xl shadow-xl flex flex-col justify-between min-h-[580px] transition-all">
       {/* Top Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-purple-500/10 dark:bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-600 dark:text-purple-400 shadow-sm">
-            <Layers className="w-6 h-6" />
+            <Music className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -162,17 +195,18 @@ export const ChordIdentifyGame: React.FC = () => {
               </h2>
               {isInfinity && (
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-sm">
-                  {INFINITY_ROMAN_NUMERALS[infinityTier - 1]}
+                  {INFINITY_ROMAN_NUMERALS[infinityTier - 1] || 'INF'}
                 </span>
               )}
             </div>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium">
-              Lắng nghe màu sắc hòa âm và chọn đúng loại hợp âm
+              Lắng nghe hòa âm và chọn đúng loại hợp âm (Trưởng, Thứ, 7...)
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs font-mono">
+        <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono">
+          <MidiStatusIndicator compact={true} />
           <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
             Câu: <span className="font-black text-purple-600 dark:text-purple-400">{round}/{maxRounds}</span>
           </div>
@@ -182,38 +216,44 @@ export const ChordIdentifyGame: React.FC = () => {
         </div>
       </div>
 
-      {/* Visualizer & Playback Button */}
-      <div className="my-6 flex flex-col items-center">
+      {/* Visualizer & Audio Control */}
+      <div className="my-5 flex flex-col items-center">
         <FrequencySpectrum height={85} className="w-full max-w-md mb-4 bg-slate-900 dark:bg-slate-950" isActive={isPlaying} />
 
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={() => playCurrentChord()}
-            disabled={isPlaying}
-            className={`px-7 py-3 rounded-full font-black text-sm sm:text-base flex items-center gap-2.5 transition-all shadow-md active:scale-95 ${
-              isPlaying
-                ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-2 border-purple-500 animate-pulse'
-                : 'bg-purple-600 hover:bg-purple-500 text-white border-2 border-purple-400 shadow-purple-600/30 hover:scale-105 cursor-pointer'
-            }`}
-          >
-            {isPlaying ? (
-              <>
-                <Volume2 className="w-5 h-5 animate-spin" />
-                <span>Đang vang hợp âm...</span>
-              </>
-            ) : hasStartedAudio ? (
-              <>
-                <RotateCcw className="w-5 h-5" />
-                <span>Nghe lại hợp âm</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-5 h-5 fill-current" />
-                <span>Bắt đầu nghe hợp âm (Nhấn để phát)</span>
-              </>
-            )}
-          </button>
+          {!hasStartedAudio ? (
+            <button
+              type="button"
+              onClick={handleManualStart}
+              className="px-8 py-3.5 rounded-full font-black text-sm sm:text-base flex items-center gap-2.5 transition-all shadow-xl bg-purple-600 hover:bg-purple-500 text-white border-2 border-purple-400 shadow-purple-600/40 hover:scale-105 cursor-pointer active:scale-95 animate-pulse"
+            >
+              <Play className="w-5 h-5 fill-current" />
+              <span>BẮT ĐẦU NGHE HỢP ÂM (BẤM ĐỂ PHÁT)</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => playCurrentChord()}
+              disabled={isPlaying}
+              className={`px-7 py-3 rounded-full font-black text-sm sm:text-base flex items-center gap-2.5 transition-all shadow-md active:scale-95 ${
+                isPlaying
+                  ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-2 border-purple-500 animate-pulse'
+                  : 'bg-purple-600 hover:bg-purple-500 text-white border-2 border-purple-400 shadow-purple-600/30 hover:scale-105 cursor-pointer'
+              }`}
+            >
+              {isPlaying ? (
+                <>
+                  <Volume2 className="w-5 h-5 animate-spin" />
+                  <span>Đang vang hợp âm...</span>
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-5 h-5" />
+                  <span>Nghe lại hợp âm</span>
+                </>
+              )}
+            </button>
+          )}
 
           <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
             Kiểu phát: {playbackMode === 'arpeggio' ? 'Rải ngón (Arpeggio)' : 'Đồng thanh (Block Chord)'}
@@ -233,14 +273,24 @@ export const ChordIdentifyGame: React.FC = () => {
         )}
       </div>
 
+      {/* Guide text if not started */}
+      {!hasStartedAudio && (
+        <div className="p-3.5 my-2 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-center text-xs text-purple-800 dark:text-purple-300 font-bold animate-pulse">
+          🎧 Hãy bấm nút "BẮT ĐẦU NGHE HỢP ÂM" ở trên để nghe hòa âm và chọn đáp án!
+        </div>
+      )}
+
       {/* Options Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-2xl mx-auto w-full my-3">
         {question?.options.map((opt) => {
           const isSelected = selectedOption?.type === opt.type;
           const isCorrect = opt.type === question.chordType;
+          const isButtonDisabled = isAnswered || isPlaying || !hasStartedAudio || !hasPlayedCurrentRound;
 
-          let btnStyle = 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-slate-700/80 text-slate-900 dark:text-white shadow-sm';
-          if (isAnswered) {
+          let btnStyle = 'bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-slate-700/80 text-slate-900 dark:text-white shadow-sm';
+          if (!hasStartedAudio || !hasPlayedCurrentRound) {
+            btnStyle = 'bg-slate-100/70 dark:bg-slate-800/40 border-2 border-slate-200 dark:border-slate-800 text-slate-400 opacity-60 cursor-not-allowed';
+          } else if (isAnswered) {
             if (isCorrect) {
               btnStyle = 'bg-emerald-500/20 border-emerald-500 text-emerald-800 dark:text-emerald-200 ring-2 ring-emerald-500/50 font-bold';
             } else if (isSelected) {
@@ -253,9 +303,9 @@ export const ChordIdentifyGame: React.FC = () => {
           return (
             <button
               key={opt.type}
-              disabled={isAnswered || isPlaying}
+              disabled={isButtonDisabled}
               onClick={() => handleSelectOption(opt)}
-              className={`p-4 rounded-2xl border text-left flex flex-col justify-between transition-all duration-150 active:scale-[0.98] ${btnStyle}`}
+              className={`p-4 rounded-2xl border-2 text-left flex flex-col justify-between transition-all duration-150 active:scale-[0.98] ${btnStyle}`}
             >
               <div className="flex items-center justify-between w-full">
                 <span className="text-base font-black tracking-tight">{opt.nameVi}</span>
@@ -291,6 +341,7 @@ export const ChordIdentifyGame: React.FC = () => {
             setCorrectCount(0);
             setScore(0);
             startTimeRef.current = Date.now();
+            playedRoundRef.current = 0;
             generateNextQuestion();
           }}
           onClose={() => setActiveGameSlug(null)}

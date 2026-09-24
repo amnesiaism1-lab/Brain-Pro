@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { PIANO_KEYS_88 } from '../../services/musicTheoryService';
+import { useMidiInput } from '../../hooks/useMidiInput';
 
 interface IPianoKeyboardProps {
   activeNotes?: string[];          // Notes currently glowing/sounding
@@ -9,6 +10,7 @@ interface IPianoKeyboardProps {
   octaveRange?: [number, number];  // e.g. [4, 4] for 1 octave, [4, 5] for 2 octaves
   onKeyClick?: (note: string) => void;
   className?: string;
+  enableMidiHighlight?: boolean;   // Auto-highlight keys pressed on physical MIDI keyboard
 }
 
 export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
@@ -18,8 +20,21 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
   showLabels = true,
   octaveRange = [4, 4],
   onKeyClick,
-  className = ''
+  className = '',
+  enableMidiHighlight = true
 }) => {
+  const { activeMidiNotes } = useMidiInput({
+    autoPlayAudio: false // Prevent double sound if already played elsewhere
+  });
+
+  const mergedActiveNotes = useMemo(() => {
+    if (!enableMidiHighlight || activeMidiNotes.length === 0) {
+      return activeNotes;
+    }
+    const set = new Set([...activeNotes, ...activeMidiNotes]);
+    return Array.from(set);
+  }, [activeNotes, activeMidiNotes, enableMidiHighlight]);
+
   const [minOct, maxOct] = octaveRange;
 
   const filteredKeys = useMemo(() => {
@@ -33,11 +48,11 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
   const whiteKeys = useMemo(() => filteredKeys.filter(k => !k.isBlack), [filteredKeys]);
 
   return (
-    <div className={`relative flex justify-center items-end select-none p-3 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl overflow-x-auto max-w-full ${className}`}>
+    <div className={`relative flex justify-center items-end select-none p-3 bg-slate-900/85 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl overflow-x-auto max-w-full ${className}`}>
       <div className="relative flex items-end">
         {/* White Keys */}
         {whiteKeys.map((key) => {
-          const isActive = activeNotes.includes(key.note);
+          const isActive = mergedActiveNotes.includes(key.note);
           const isSelected = selectedNotes.includes(key.note);
 
           return (
@@ -74,7 +89,7 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
             // Black keys exist after C, D, F, G, A
             const hasBlack = ['C', 'D', 'F', 'G', 'A'].includes(noteLetter);
             const blackNoteName = `${noteLetter}#${oct}`;
-            const isBlackActive = activeNotes.includes(blackNoteName);
+            const isBlackActive = mergedActiveNotes.includes(blackNoteName);
             const isBlackSelected = selectedNotes.includes(blackNoteName);
 
             if (!hasBlack) {

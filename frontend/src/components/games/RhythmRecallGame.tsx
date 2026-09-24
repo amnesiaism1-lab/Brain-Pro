@@ -6,6 +6,8 @@ import { useRelationSession } from '../../hooks/useRelationSession';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { generateRhythmPattern, IRhythmStep } from '../../services/musicTheoryService';
 import { RhythmGrid } from '../ui/RhythmGrid';
+import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
+import { useMidiInput } from '../../hooks/useMidiInput';
 import { Activity, Play, RotateCcw, Drum, Volume2 } from 'lucide-react';
 
 export const RhythmRecallGame: React.FC = () => {
@@ -33,7 +35,7 @@ export const RhythmRecallGame: React.FC = () => {
   const [currentPlayStep, setCurrentPlayStep] = useState<number>(-1);
   const [userTaps, setUserTaps] = useState<number[]>([]);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [hasStartedAudio, setHasStartedAudio] = useState(false);
+  const [hasStartedAudio, setHasStartedAudio] = useState<boolean>(() => auditoryEngine.isAudioActive());
   const [score, setScore] = useState(0);
   const [correctRounds, setCorrectRounds] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -144,6 +146,14 @@ export const RhythmRecallGame: React.FC = () => {
     }
   }, [phase, patternData]);
 
+  // Hook up physical MIDI keyboards / drum pads
+  useMidiInput({
+    autoPlayAudio: false,
+    onNoteOn: () => {
+      handleUserTap();
+    }
+  });
+
   // Progress visual step marker during 'tapping' phase
   useEffect(() => {
     if (phase !== 'tapping' || !patternData) return;
@@ -244,7 +254,8 @@ export const RhythmRecallGame: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs font-mono">
+        <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono">
+          <MidiStatusIndicator compact={true} />
           <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
             Hiệp: <span className="font-black text-rose-600 dark:text-rose-400">{round}/{maxRounds}</span>
           </div>

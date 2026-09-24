@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Brain, Settings, User, Cloud, LogIn, LogOut } from 'lucide-react';
+import { Home, Brain, BookOpen, Settings, User, Cloud, LogIn, LogOut } from 'lucide-react';
 import { useAppStore, MainNavTab } from '../../store/useAppStore';
 
 export const Navbar: React.FC = () => {
@@ -22,17 +22,22 @@ export const Navbar: React.FC = () => {
     {
       id: 'home',
       label: 'Trang chủ',
-      icon: <Home className="w-6 h-6" />
+      icon: <Home className="w-5 h-5 sm:w-6 sm:h-6" />
     },
     {
       id: 'exercises',
       label: 'Bài tập',
-      icon: <Brain className="w-6 h-6" />
+      icon: <Brain className="w-5 h-5 sm:w-6 sm:h-6" />
+    },
+    {
+      id: 'learn',
+      label: 'Lý thuyết',
+      icon: <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
     },
     {
       id: 'settings',
       label: 'Cài đặt',
-      icon: <Settings className="w-6 h-6" />
+      icon: <Settings className="w-5 h-5 sm:w-6 sm:h-6" />
     },
     {
       id: 'user',
@@ -41,10 +46,10 @@ export const Navbar: React.FC = () => {
         <img 
           src={authUser.avatarUrl} 
           alt={authUser.username}
-          className="w-6 h-6 rounded-full object-cover ring-1 ring-brand-500" 
+          className="w-5 h-5 sm:w-6 sm:h-6 rounded-full object-cover ring-1 ring-brand-500" 
         />
       ) : (
-        <User className="w-6 h-6" />
+        <User className="w-5 h-5 sm:w-6 sm:h-6" />
       )
     }
   ];
@@ -61,7 +66,7 @@ export const Navbar: React.FC = () => {
         id="app-bottom-nav" 
         className="fixed bottom-0 left-0 right-0 z-40 bg-[#ECE5D8] dark:bg-slate-900 border-t border-[#D5CBB9] dark:border-slate-800 shadow-lg md:hidden"
       >
-        <div className="grid grid-cols-4 max-w-lg mx-auto py-1 px-2">
+        <div className="grid grid-cols-5 max-w-lg mx-auto py-1 px-1">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
             return (

@@ -15,6 +15,8 @@ import { RelationDebriefModal } from './components/cognition/RelationDebriefModa
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { useOfflineSync } from './hooks/useOfflineSync';
 
+import { MusicTheoryView } from './components/learn/MusicTheoryView';
+
 export const App: React.FC = () => {
   const { 
     activeTab, 
@@ -46,6 +48,8 @@ export const App: React.FC = () => {
         return <HomeView />;
       case 'exercises':
         return <ExercisesListView />;
+      case 'learn':
+        return <MusicTheoryView />;
       case 'settings':
         return <SettingsView />;
       case 'user':

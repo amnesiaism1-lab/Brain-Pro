@@ -17,7 +17,7 @@ import {
   updateMasteryFromEvents
 } from '@brain-exercises/shared';
 
-export type MainNavTab = 'home' | 'exercises' | 'settings' | 'user';
+export type MainNavTab = 'home' | 'exercises' | 'learn' | 'settings' | 'user';
 
 interface AppState {
   // Navigation & Modals

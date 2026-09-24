@@ -33,7 +33,7 @@ export const SoundLocalizationGame: React.FC = () => {
   const [targetPingAngle, setTargetPingAngle] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [hasStartedAudio, setHasStartedAudio] = useState(false);
+  const [hasStartedAudio, setHasStartedAudio] = useState<boolean>(() => auditoryEngine.isAudioActive());
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);

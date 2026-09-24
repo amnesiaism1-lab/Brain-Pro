@@ -6,7 +6,9 @@ import { useRelationSession } from '../../hooks/useRelationSession';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { generateIntervalQuestion, IIntervalInfo } from '../../services/musicTheoryService';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
-import { Sliders, Volume2, RotateCcw, CheckCircle2, XCircle, Play } from 'lucide-react';
+import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
+import { useMidiInput } from '../../hooks/useMidiInput';
+import { Sliders, Volume2, RotateCcw, CheckCircle2, XCircle, Play, Headphones } from 'lucide-react';
 
 export const IntervalIdentifyGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
@@ -40,7 +42,8 @@ export const IntervalIdentifyGame: React.FC = () => {
   const [selectedOption, setSelectedOption] = useState<IIntervalInfo | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [hasStartedAudio, setHasStartedAudio] = useState(false);
+  const [hasStartedAudio, setHasStartedAudio] = useState<boolean>(() => auditoryEngine.isAudioActive());
+  const [hasPlayedCurrentRound, setHasPlayedCurrentRound] = useState(false);
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -49,13 +52,22 @@ export const IntervalIdentifyGame: React.FC = () => {
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
   const playedRoundRef = useRef<number>(0);
+  const isPlayingRef = useRef<boolean>(false);
+  const currentQuestionRef = useRef<ReturnType<typeof generateIntervalQuestion> | null>(null);
+
+  // Hook up MIDI
+  useMidiInput({
+    autoPlayAudio: true
+  });
 
   // Generate question for current round
   const generateNextQuestion = useCallback(() => {
     const q = generateIntervalQuestion(intervalPool, playbackMode, optionsCount);
+    currentQuestionRef.current = q;
     setQuestion(q);
     setSelectedOption(null);
     setIsAnswered(false);
+    setHasPlayedCurrentRound(false);
   }, [intervalPool, playbackMode, optionsCount]);
 
   // Init on level change
@@ -63,7 +75,14 @@ export const IntervalIdentifyGame: React.FC = () => {
     resetSession();
     playedRoundRef.current = 0;
     generateNextQuestion();
-  }, [effectiveLevel]);
+  }, [effectiveLevel, resetSession, generateNextQuestion]);
+
+  // Check if audio is already active on mount
+  useEffect(() => {
+    if (auditoryEngine.isAudioActive()) {
+      setHasStartedAudio(true);
+    }
+  }, []);
 
   // Global Timer
   useEffect(() => {
@@ -75,15 +94,18 @@ export const IntervalIdentifyGame: React.FC = () => {
   }, [isFinished]);
 
   // Play current interval safely
-  const playCurrentInterval = useCallback(async (qToPlay = question) => {
-    if (!qToPlay || isPlaying) return;
+  const playCurrentInterval = useCallback(async (qToPlay = currentQuestionRef.current || question) => {
+    if (!qToPlay || isPlayingRef.current) return;
     try {
+      isPlayingRef.current = true;
       setIsPlaying(true);
       setHasStartedAudio(true);
       playedRoundRef.current = round;
+      setHasPlayedCurrentRound(true);
+
       await auditoryEngine.resumeAudioContext();
 
-      const duration = isHyperSpeed ? 0.25 : 0.6;
+      const duration = isHyperSpeed ? 0.28 : 0.6;
       const gap = isHyperSpeed ? 180 : 420;
 
       await auditoryEngine.playInterval(
@@ -96,26 +118,34 @@ export const IntervalIdentifyGame: React.FC = () => {
     } catch (err) {
       console.warn('Interval playback error:', err);
     } finally {
+      isPlayingRef.current = false;
       setIsPlaying(false);
       trialStartTimeRef.current = Date.now();
     }
-  }, [question, isPlaying, isHyperSpeed, round]);
+  }, [question, isHyperSpeed, round]);
 
-  // Auto-play interval once when round changes, IF audio context was already started by user
+  // Auto-play interval once per round when audio is started and round changes
   useEffect(() => {
-    if (question && hasStartedAudio && !isAnswered && !isPlaying) {
+    if (!hasStartedAudio || isAnswered) return;
+    if (playedRoundRef.current === round) return;
+
+    const timer = setTimeout(() => {
       if (playedRoundRef.current !== round) {
-        playedRoundRef.current = round;
-        const t = setTimeout(() => {
-          playCurrentInterval(question);
-        }, 350);
-        return () => clearTimeout(t);
+        playCurrentInterval(question);
       }
-    }
-  }, [round, question, hasStartedAudio, isAnswered, isPlaying, playCurrentInterval]);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [round, hasStartedAudio, isAnswered, question, playCurrentInterval]);
+
+  const handleManualStart = async () => {
+    await auditoryEngine.resumeAudioContext();
+    setHasStartedAudio(true);
+    playCurrentInterval(question);
+  };
 
   const handleSelectOption = (opt: IIntervalInfo) => {
-    if (isAnswered || !question || isPlaying) return;
+    if (isAnswered || !question || isPlayingRef.current) return;
 
     setSelectedOption(opt);
     setIsAnswered(true);
@@ -159,7 +189,7 @@ export const IntervalIdentifyGame: React.FC = () => {
   return (
     <div className="relative w-full max-w-4xl mx-auto my-2 p-5 sm:p-7 bg-[#FAF6F0] dark:bg-slate-900 border border-[#DCD3C3] dark:border-slate-800 rounded-3xl shadow-xl flex flex-col justify-between min-h-[580px] transition-all">
       {/* Top Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 dark:bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shadow-sm">
             <Sliders className="w-6 h-6" />
@@ -171,7 +201,7 @@ export const IntervalIdentifyGame: React.FC = () => {
               </h2>
               {isInfinity && (
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-sm">
-                  {INFINITY_ROMAN_NUMERALS[infinityTier - 1]}
+                  {INFINITY_ROMAN_NUMERALS[infinityTier - 1] || 'INF'}
                 </span>
               )}
             </div>
@@ -183,7 +213,8 @@ export const IntervalIdentifyGame: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs font-mono">
+        <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono">
+          <MidiStatusIndicator compact={true} />
           <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
             Câu: <span className="font-black text-cyan-600 dark:text-cyan-400">{round}/{maxRounds}</span>
           </div>
@@ -194,43 +225,56 @@ export const IntervalIdentifyGame: React.FC = () => {
       </div>
 
       {/* Visualizer & Big Play Audio Action */}
-      <div className="my-6 flex flex-col items-center">
+      <div className="my-5 flex flex-col items-center">
         <FrequencySpectrum height={85} className="w-full max-w-md mb-4 bg-slate-900 dark:bg-slate-950" isActive={isPlaying} />
 
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={() => playCurrentInterval()}
-            disabled={isPlaying}
-            className={`px-7 py-3 rounded-full font-black text-sm sm:text-base flex items-center gap-2.5 transition-all shadow-md active:scale-95 ${
-              isPlaying
-                ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-2 border-cyan-500 animate-pulse'
-                : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 border-2 border-cyan-400 shadow-cyan-500/30 hover:scale-105 cursor-pointer'
-            }`}
-          >
-            {isPlaying ? (
-              <>
-                <Volume2 className="w-5 h-5 animate-spin" />
-                <span>Đang phát quãng...</span>
-              </>
-            ) : hasStartedAudio ? (
-              <>
-                <RotateCcw className="w-5 h-5" />
-                <span>Nghe lại quãng</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-5 h-5 fill-current" />
-                <span>Bắt đầu nghe quãng (Nhấn để phát)</span>
-              </>
-            )}
-          </button>
+          {!hasStartedAudio ? (
+            <button
+              type="button"
+              onClick={handleManualStart}
+              className="px-8 py-3.5 rounded-full font-black text-sm sm:text-base flex items-center gap-2.5 transition-all shadow-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 border-2 border-cyan-300 shadow-cyan-500/40 hover:scale-105 cursor-pointer active:scale-95 animate-pulse"
+            >
+              <Play className="w-5 h-5 fill-current" />
+              <span>BẮT ĐẦU NGHE QUÃNG (BẤM ĐỂ PHÁT)</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => playCurrentInterval()}
+              disabled={isPlaying}
+              className={`px-7 py-3 rounded-full font-black text-sm sm:text-base flex items-center gap-2.5 transition-all shadow-md active:scale-95 ${
+                isPlaying
+                  ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-2 border-cyan-500 animate-pulse'
+                  : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 border-2 border-cyan-400 shadow-cyan-500/30 hover:scale-105 cursor-pointer'
+              }`}
+            >
+              {isPlaying ? (
+                <>
+                  <Volume2 className="w-5 h-5 animate-spin" />
+                  <span>Đang phát quãng...</span>
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-5 h-5" />
+                  <span>Nghe lại quãng</span>
+                </>
+              )}
+            </button>
+          )}
 
           <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
             Chế độ: {question?.playbackDirection === 'harmonic' ? 'Hòa âm đồng thời' : question?.playbackDirection === 'descending' ? 'Đi xuống' : 'Đi lên'}
           </span>
         </div>
       </div>
+
+      {/* Guide text if not started */}
+      {!hasStartedAudio && (
+        <div className="p-3.5 my-2 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-center text-xs text-cyan-800 dark:text-cyan-300 font-bold animate-pulse">
+          🎧 Hãy bấm nút "BẮT ĐẦU NGHE QUÃNG" ở trên để nghe 2 nốt nhạc và chọn câu trả lời!
+        </div>
+      )}
 
       {/* Options Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-2xl mx-auto w-full my-3">
@@ -239,8 +283,12 @@ export const IntervalIdentifyGame: React.FC = () => {
           const targetCode = isInversionMirror ? question.intervalInfo.inversionCode : question.intervalCode;
           const isCorrect = opt.code === targetCode;
 
+          const isButtonDisabled = isAnswered || isPlaying || !hasStartedAudio || !hasPlayedCurrentRound;
+
           let btnStyle = 'bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-cyan-500 text-slate-900 dark:text-white shadow-sm hover:shadow-md';
-          if (isAnswered) {
+          if (!hasStartedAudio || !hasPlayedCurrentRound) {
+            btnStyle = 'bg-slate-100/70 dark:bg-slate-800/40 border-2 border-slate-200 dark:border-slate-800 text-slate-400 opacity-60 cursor-not-allowed';
+          } else if (isAnswered) {
             if (isCorrect) {
               btnStyle = 'bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/40';
             } else if (isSelected) {
@@ -253,7 +301,7 @@ export const IntervalIdentifyGame: React.FC = () => {
           return (
             <button
               key={opt.code}
-              disabled={isAnswered || isPlaying}
+              disabled={isButtonDisabled}
               onClick={() => handleSelectOption(opt)}
               className={`p-4 rounded-2xl text-left flex flex-col justify-between transition-all duration-150 active:scale-[0.98] ${btnStyle}`}
             >
@@ -291,6 +339,7 @@ export const IntervalIdentifyGame: React.FC = () => {
             setCorrectCount(0);
             setScore(0);
             startTimeRef.current = Date.now();
+            playedRoundRef.current = 0;
             generateNextQuestion();
           }}
           onClose={() => setActiveGameSlug(null)}

@@ -7,12 +7,14 @@ import {
 import { useAppStore } from '../../store/useAppStore';
 import { EXERCISES_METADATA, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
 import { infinityApiService, shuffleArray } from '../../services/infinityApiService';
+import { auditoryEngine } from '../../services/auditoryEngine';
 
 export const ExerciseDetailModal: React.FC = () => {
   const { 
     selectedExerciseSlug, 
     setSelectedExerciseSlug, 
     setActiveGameSlug,
+    setActiveTab: setStoreActiveTab,
     getExerciseLevel,
     setExerciseLevel,
     autoDifficulty, 
@@ -67,6 +69,7 @@ export const ExerciseDetailModal: React.FC = () => {
 
   const handleStartGame = () => {
     playSound('click');
+    auditoryEngine.resumeAudioContext().catch(() => {});
     setActiveGameSlug(exercise.slug);
   };
 
@@ -754,6 +757,21 @@ export const ExerciseDetailModal: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Theory Learning Shortcut for Auditory Exercises */}
+          {['pitch-recall', 'interval-identify', 'chord-identify', 'rhythm-recall', 'timbre-match', 'sound-localization'].includes(exercise.slug) && (
+            <button
+              onClick={() => {
+                playSound('click');
+                setSelectedExerciseSlug(null);
+                setStoreActiveTab('learn');
+              }}
+              className="w-full py-3.5 px-4 rounded-2xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-cyan-500/30 transition-all btn-press shadow-sm"
+            >
+              <BookOpen className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+              <span>Học lý thuyết & nghe thử khuôn hình âm thanh trước</span>
+            </button>
+          )}
 
           {/* Big Action CTA Button */}
           <div className="pt-2">
