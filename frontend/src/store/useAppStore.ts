@@ -29,6 +29,9 @@ interface AppState {
   setLastViewedExerciseSlug: (slug: ExerciseSlug | null) => void;
   activeGameSlug: ExerciseSlug | null;
   setActiveGameSlug: (slug: ExerciseSlug | null) => void;
+  activeTheoryModuleId: string | null;
+  setActiveTheoryModuleId: (id: string | null) => void;
+  navigateToTheory: (moduleId: string) => void;
   
   isHowToTrainOpen: boolean;
   setIsHowToTrainOpen: (open: boolean) => void;
@@ -391,6 +394,19 @@ export const useAppStore = create<AppState>((set, get) => {
     })),
     activeGameSlug: null,
     setActiveGameSlug: (slug) => set({ activeGameSlug: slug }),
+    activeTheoryModuleId: null,
+    setActiveTheoryModuleId: (id) => set({ activeTheoryModuleId: id }),
+    navigateToTheory: (moduleId) => {
+      try {
+        localStorage.setItem('be_last_theory_module', moduleId);
+      } catch {}
+      set({
+        activeTheoryModuleId: moduleId,
+        activeGameSlug: null,
+        selectedExerciseSlug: null,
+        activeTab: 'learn'
+      });
+    },
 
     isHowToTrainOpen: false,
     setIsHowToTrainOpen: (open) => set({ isHowToTrainOpen: open }),

@@ -7,23 +7,151 @@ export interface IIntervalInfo {
   semitones: number;  // 4
   ratioDescription: string; // 'Tươi sáng, hoan ca'
   inversionCode: string;    // '6m'
+  mnemonicSongVi?: string;  // Bài hát quen thuộc để gợi nhớ
+  tipVi?: string;           // Lời khuyên nhận diện bằng trực giác thính giác
 }
 
 export const INTERVAL_CATALOG: Record<string, IIntervalInfo> = {
-  '1P': { code: '1P', nameVi: 'Quãng 1 Đúng (Đồng âm)', nameEn: 'Perfect Unison', semitones: 0, ratioDescription: 'Trùng cao độ tuyệt đối (1:1)', inversionCode: '8P' },
-  '2m': { code: '2m', nameVi: 'Quãng 2 Thứ', nameEn: 'Minor 2nd', semitones: 1, ratioDescription: 'Nghịch chát, cọ xát căng thẳng', inversionCode: '7M' },
-  '2M': { code: '2M', nameVi: 'Quãng 2 Trưởng', nameEn: 'Major 2nd', semitones: 2, ratioDescription: 'Bước đi liền bậc, bước sóng nhẹ', inversionCode: '7m' },
-  '3m': { code: '3m', nameVi: 'Quãng 3 Thứ', nameEn: 'Minor 3rd', semitones: 3, ratioDescription: 'U buồn, lắng đọng, trữ tình', inversionCode: '6M' },
-  '3M': { code: '3M', nameVi: 'Quãng 3 Trưởng', nameEn: 'Major 3rd', semitones: 4, ratioDescription: 'Trong sáng, rạng rỡ, hoan ca', inversionCode: '6m' },
-  '4P': { code: '4P', nameVi: 'Quãng 4 Đúng', nameEn: 'Perfect 4th', semitones: 5, ratioDescription: 'Vững chãi, kêu gọi, mở đầu', inversionCode: '5P' },
-  '4A': { code: '4A', nameVi: 'Quãng 4 Tăng (Tritone)', nameEn: 'Augmented 4th / Tritone', semitones: 6, ratioDescription: 'Bất an, ma mị, căng thẳng tột độ (Diabolus in Musica)', inversionCode: '5d' },
-  '5d': { code: '5d', nameVi: 'Quãng 5 Giảm (Tritone)', nameEn: 'Diminished 5th', semitones: 6, ratioDescription: 'Bất an, ma mị, cần giải tỏa hòa âm', inversionCode: '4A' },
-  '5P': { code: '5P', nameVi: 'Quãng 5 Đúng', nameEn: 'Perfect 5th', semitones: 7, ratioDescription: 'Hùng tráng, mở rộng, không gian vũ trụ', inversionCode: '4P' },
-  '6m': { code: '6m', nameVi: 'Quãng 6 Thứ', nameEn: 'Minor 6th', semitones: 8, ratioDescription: 'Da diết, hoài niệm, lãng mạn sâu lắng', inversionCode: '3M' },
-  '6M': { code: '6M', nameVi: 'Quãng 6 Trưởng', nameEn: 'Major 6th', semitones: 9, ratioDescription: 'Ấm áp, êm đềm, du dương', inversionCode: '3m' },
-  '7m': { code: '7m', nameVi: 'Quãng 7 Thứ', nameEn: 'Minor 7th', semitones: 10, ratioDescription: 'Màu sắc Blues/Jazz, hướng ngoại mở', inversionCode: '2M' },
-  '7M': { code: '7M', nameVi: 'Quãng 7 Trưởng', nameEn: 'Major 7th', semitones: 11, ratioDescription: 'Lung linh mơ màng, hoài vọng', inversionCode: '2m' },
-  '8P': { code: '8P', nameVi: 'Quãng 8 Đúng (Bát độ)', nameEn: 'Perfect Octave', semitones: 12, ratioDescription: 'Đồng âm cách một quãng tám (2:1)', inversionCode: '1P' },
+  '1P': { 
+    code: '1P', 
+    nameVi: 'Quãng 1 Đúng (Đồng âm)', 
+    nameEn: 'Perfect Unison', 
+    semitones: 0, 
+    ratioDescription: 'Trùng cao độ tuyệt đối (1:1)', 
+    inversionCode: '8P',
+    mnemonicSongVi: 'Hai nốt cùng vang một cao độ',
+    tipVi: 'Âm thanh hoàn toàn đồng nhất, không có chênh lệch cao độ.'
+  },
+  '2m': { 
+    code: '2m', 
+    nameVi: 'Quãng 2 Thứ', 
+    nameEn: 'Minor 2nd', 
+    semitones: 1, 
+    ratioDescription: 'Nghịch chát, cọ xát căng thẳng', 
+    inversionCode: '7M',
+    mnemonicSongVi: 'Nhạc phim Hàm cá mập (Jaws), Für Elise (2 nốt đầu)',
+    tipVi: '2 nốt nằm sát nhau nhất (nửa cung), cọ xát kịch tính và căng thẳng tột độ.'
+  },
+  '2M': { 
+    code: '2M', 
+    nameVi: 'Quãng 2 Trưởng', 
+    nameEn: 'Major 2nd', 
+    semitones: 2, 
+    ratioDescription: 'Bước đi liền bậc, bước sóng nhẹ', 
+    inversionCode: '7m',
+    mnemonicSongVi: 'Happy Birthday ("Háp-pi"), Đêm Thánh Vô Cùng (Silent Night)',
+    tipVi: 'Bước đi liền bậc cơ bản nhất trong âm giai (1 cung = 2 phím đàn liền kề có phím đen ở giữa).'
+  },
+  '3m': { 
+    code: '3m', 
+    nameVi: 'Quãng 3 Thứ', 
+    nameEn: 'Minor 3rd', 
+    semitones: 3, 
+    ratioDescription: 'U buồn, lắng đọng, trữ tình', 
+    inversionCode: '6M',
+    mnemonicSongVi: 'Greensleeves (2 nốt đầu), Bài hát ru Lullaby (Brahms)',
+    tipVi: 'Cốt lõi tạo nên hợp âm Thứ và điệu thức Thứ, mang màu sắc nội tâm, trầm buồn lắng đọng.'
+  },
+  '3M': { 
+    code: '3M', 
+    nameVi: 'Quãng 3 Trưởng', 
+    nameEn: 'Major 3rd', 
+    semitones: 4, 
+    ratioDescription: 'Trong sáng, rạng rỡ, hoan ca', 
+    inversionCode: '6m',
+    mnemonicSongVi: 'Kìa con bướm vàng ("Kìa-con"), Tiếng chuông Big Ben',
+    tipVi: 'Cốt lõi của điệu thức Trưởng, tạo cảm giác vô cùng tươi sáng, tràn đầy hy vọng và nụ cười.'
+  },
+  '4P': { 
+    code: '4P', 
+    nameVi: 'Quãng 4 Đúng', 
+    nameEn: 'Perfect 4th', 
+    semitones: 5, 
+    ratioDescription: 'Vững chãi, kêu gọi, mở đầu', 
+    inversionCode: '5P',
+    mnemonicSongVi: 'Tiến quân ca ("Đoàn-quân"), Amazing Grace, Hành khúc đám cưới',
+    tipVi: 'Âm thanh vững chãi, uy nghiêm như một lời hiệu triệu, mở đầu cho nhiều bản hành khúc.'
+  },
+  '4A': { 
+    code: '4A', 
+    nameVi: 'Quãng 4 Tăng (Tritone)', 
+    nameEn: 'Augmented 4th / Tritone', 
+    semitones: 6, 
+    ratioDescription: 'Bất an, ma mị, căng thẳng tột độ (Diabolus in Musica)', 
+    inversionCode: '5d',
+    mnemonicSongVi: 'The Simpsons (Chủ đề phim: "The-Simp..."), Maria (West Side Story)',
+    tipVi: 'Chia đôi quãng 8 (đúng 3 cung), cực kỳ bất an và ma mị, đòi hỏi phải giải tỏa về quãng kề.'
+  },
+  '5d': { 
+    code: '5d', 
+    nameVi: 'Quãng 5 Giảm (Tritone)', 
+    nameEn: 'Diminished 5th', 
+    semitones: 6, 
+    ratioDescription: 'Bất an, ma mị, cần giải tỏa hòa âm', 
+    inversionCode: '4A',
+    mnemonicSongVi: 'Cùng số bán âm với 4A (Tritone ma quỷ)',
+    tipVi: 'Chính là quãng tritone nhưng ghi theo tên nốt giảm, âm sắc hồi hộp, bí ẩn và căng thẳng.'
+  },
+  '5P': { 
+    code: '5P', 
+    nameVi: 'Quãng 5 Đúng', 
+    nameEn: 'Perfect 5th', 
+    semitones: 7, 
+    ratioDescription: 'Hùng tráng, mở rộng, không gian vũ trụ', 
+    inversionCode: '4P',
+    mnemonicSongVi: 'Star Wars (Theme hùng tráng), Twinkle Twinkle Little Star',
+    tipVi: 'Quãng thuận tuyệt đối (tỉ lệ 3:2), mang lại cảm giác bao la, hùng vĩ và cân bằng hoàn hảo.'
+  },
+  '6m': { 
+    code: '6m', 
+    nameVi: 'Quãng 6 Thứ', 
+    nameEn: 'Minor 6th', 
+    semitones: 8, 
+    ratioDescription: 'Da diết, hoài niệm, lãng mạn sâu lắng', 
+    inversionCode: '3M',
+    mnemonicSongVi: 'The Entertainer, Nhạc tình ca hoài niệm lãng mạn',
+    tipVi: 'Là nghịch đảo của quãng 3 Trưởng, mang màu sắc da diết, chất chứa nhiều xúc cảm nghẹn ngào.'
+  },
+  '6M': { 
+    code: '6M', 
+    nameVi: 'Quãng 6 Trưởng', 
+    nameEn: 'Major 6th', 
+    semitones: 9, 
+    ratioDescription: 'Ấm áp, êm đềm, du dương', 
+    inversionCode: '3m',
+    mnemonicSongVi: 'Jingle Bells ("Dash-ing through the snow"), My Bonnie Lies Over the Ocean',
+    tipVi: 'Quãng thuận êm dịu, ấm áp, rực rỡ và thân quen trong các khúc hát dân ca.'
+  },
+  '7m': { 
+    code: '7m', 
+    nameVi: 'Quãng 7 Thứ', 
+    nameEn: 'Minor 7th', 
+    semitones: 10, 
+    ratioDescription: 'Màu sắc Blues/Jazz, hướng ngoại mở', 
+    inversionCode: '2M',
+    mnemonicSongVi: 'Somewhere ("There\'s a place for us" - West Side Story), Star Trek Theme',
+    tipVi: 'Màu sắc jazz và blues phóng khoáng, cách quãng 8 đúng một cung (2 phím đàn).'
+  },
+  '7M': { 
+    code: '7M', 
+    nameVi: 'Quãng 7 Trưởng', 
+    nameEn: 'Major 7th', 
+    semitones: 11, 
+    ratioDescription: 'Lung linh mơ màng, hoài vọng', 
+    inversionCode: '2m',
+    mnemonicSongVi: 'Take On Me (Điệp khúc: "Take-on"), Pure Imagination',
+    tipVi: 'Cách quãng 8 đúng chỉ nửa cung, tạo lực hút mãnh liệt hướng lên nốt chủ âm octave.'
+  },
+  '8P': { 
+    code: '8P', 
+    nameVi: 'Quãng 8 Đúng (Bát độ)', 
+    nameEn: 'Perfect Octave', 
+    semitones: 12, 
+    ratioDescription: 'Đồng âm cách một quãng tám (2:1)', 
+    inversionCode: '1P',
+    mnemonicSongVi: 'Somewhere Over the Rainbow ("Some-where..."), Let It Go',
+    tipVi: 'Tần số gấp đôi chính xác (2:1), tai người cảm nhận là cùng một nốt nhưng ở tầng cao mới.'
+  },
 };
 
 export interface IChordTypeInfo {
@@ -33,21 +161,131 @@ export interface IChordTypeInfo {
   formula: string[];      // ['1P', '3M', '5P']
   feelDescription: string;
   symbolSuffix: string;
+  mnemonicVi?: string;
+  tipVi?: string;
 }
 
 export const CHORD_TYPE_CATALOG: Record<string, IChordTypeInfo> = {
-  'Major': { type: 'Major', nameVi: 'Hợp âm Trưởng', nameEn: 'Major Triad', formula: ['1P', '3M', '5P'], feelDescription: 'Vui tươi, sáng sủa, ổn định', symbolSuffix: '' },
-  'Minor': { type: 'Minor', nameVi: 'Hợp âm Thứ', nameEn: 'Minor Triad', formula: ['1P', '3m', '5P'], feelDescription: 'Buồn, êm dịu, nội tâm', symbolSuffix: 'm' },
-  'Diminished': { type: 'Diminished', nameVi: 'Hợp âm Giảm', nameEn: 'Diminished Triad', formula: ['1P', '3m', '5d'], feelDescription: 'Căng thẳng, tối tăm, kịch tính', symbolSuffix: 'dim' },
-  'Augmented': { type: 'Augmented', nameVi: 'Hợp âm Tăng', nameEn: 'Augmented Triad', formula: ['1P', '3M', '5A'], feelDescription: 'Lơ lửng, huyền bí, kỳ ảo', symbolSuffix: 'aug' },
-  'Maj7': { type: 'Maj7', nameVi: 'Trưởng 7 (Major 7th)', nameEn: 'Major 7th', formula: ['1P', '3M', '5P', '7M'], feelDescription: 'Mơ màng, lãng mạn, jazz ấm áp', symbolSuffix: 'maj7' },
-  'm7': { type: 'm7', nameVi: 'Thứ 7 (Minor 7th)', nameEn: 'Minor 7th', formula: ['1P', '3m', '5P', '7m'], feelDescription: 'Sâu lắng, thư thái, neo-soul', symbolSuffix: 'm7' },
-  'dom7': { type: 'dom7', nameVi: 'Át 7 (Dominant 7th)', nameEn: 'Dominant 7th', formula: ['1P', '3M', '5P', '7m'], feelDescription: 'Kêu gọi hút về chủ âm, bluesy', symbolSuffix: '7' },
-  'm7b5': { type: 'm7b5', nameVi: 'Nửa Giảm (Half-Diminished 7th)', nameEn: 'Half-Diminished 7th', formula: ['1P', '3m', '5d', '7m'], feelDescription: 'Dằn vặt, bí ẩn, jazz noir', symbolSuffix: 'm7b5' },
-  'dim7': { type: 'dim7', nameVi: 'Giảm 7 (Diminished 7th)', nameEn: 'Full Diminished 7th', formula: ['1P', '3m', '5d', '6M'], feelDescription: 'Kinh dị, nghẹt thở, đột biến', symbolSuffix: 'dim7' },
-  'sus2': { type: 'sus2', nameVi: 'Treo 2 (Suspended 2nd)', nameEn: 'Suspended 2nd', formula: ['1P', '2M', '5P'], feelDescription: 'Trong trẻo, rộng mở, hiện đại', symbolSuffix: 'sus2' },
-  'sus4': { type: 'sus4', nameVi: 'Treo 4 (Suspended 4th)', nameEn: 'Suspended 4th', formula: ['1P', '4P', '5P'], feelDescription: 'Chờ đợi, háo hức, chưa hồi kết', symbolSuffix: 'sus4' },
-  '9th': { type: '9th', nameVi: 'Hợp âm 9 (Dominant 9th)', nameEn: 'Dominant 9th', formula: ['1P', '3M', '5P', '7m', '9M'], feelDescription: 'Sang trọng, rực rỡ, funk/jazz', symbolSuffix: '9' }
+  'Major': { 
+    type: 'Major', 
+    nameVi: 'Hợp âm Trưởng', 
+    nameEn: 'Major Triad', 
+    formula: ['1P', '3M', '5P'], 
+    feelDescription: 'Vui tươi, sáng sủa, ổn định', 
+    symbolSuffix: '',
+    mnemonicVi: 'Âm thanh tươi vui, sáng sủa và vững chãi (Do - Mi - Sol)',
+    tipVi: 'Gồm quãng 3 Trưởng (4 nửa cung) ở dưới và quãng 3 Thứ ở trên. Cảm giác trọn vẹn, tích cực.'
+  },
+  'Minor': { 
+    type: 'Minor', 
+    nameVi: 'Hợp âm Thứ', 
+    nameEn: 'Minor Triad', 
+    formula: ['1P', '3m', '5P'], 
+    feelDescription: 'Buồn, êm dịu, nội tâm', 
+    symbolSuffix: 'm',
+    mnemonicVi: 'Âm sắc u buồn, sâu lắng, trữ tình nội tâm (La - Do - Mi)',
+    tipVi: 'Gồm quãng 3 Thứ (3 nửa cung) ở dưới. Nghe trầm lặng, dịu dàng hoặc u sầu.'
+  },
+  'Diminished': { 
+    type: 'Diminished', 
+    nameVi: 'Hợp âm Giảm', 
+    nameEn: 'Diminished Triad', 
+    formula: ['1P', '3m', '5d'], 
+    feelDescription: 'Căng thẳng, tối tăm, kịch tính', 
+    symbolSuffix: 'dim',
+    mnemonicVi: 'Bất an, rùng rợn, hồi hộp như trong phim kinh dị',
+    tipVi: '2 quãng 3 Thứ liên tiếp (3 + 3 nửa cung). Quãng 5 Giảm (tritone) làm âm thanh co rút, bất an.'
+  },
+  'Augmented': { 
+    type: 'Augmented', 
+    nameVi: 'Hợp âm Tăng', 
+    nameEn: 'Augmented Triad', 
+    formula: ['1P', '3M', '5A'], 
+    feelDescription: 'Lơ lửng, huyền bí, kỳ ảo', 
+    symbolSuffix: 'aug',
+    mnemonicVi: 'Bay bổng, không gian viễn tưởng vũ trụ, huyền ảo',
+    tipVi: '2 quãng 3 Trưởng liên tiếp (4 + 4 nửa cung). Bậc 5 bị thăng lên tạo cảm giác lơ lửng không đáy.'
+  },
+  'Maj7': { 
+    type: 'Maj7', 
+    nameVi: 'Trưởng 7 (Major 7th)', 
+    nameEn: 'Major 7th', 
+    formula: ['1P', '3M', '5P', '7M'], 
+    feelDescription: 'Mơ màng, lãng mạn, jazz ấm áp', 
+    symbolSuffix: 'maj7',
+    mnemonicVi: 'Không gian quán cà phê Jazz, mơ màng, sang trọng',
+    tipVi: 'Hợp âm Trưởng kết hợp thêm nốt bậc 7 Trưởng, tạo màu sắc lung linh quý phái.'
+  },
+  'm7': { 
+    type: 'm7', 
+    nameVi: 'Thứ 7 (Minor 7th)', 
+    nameEn: 'Minor 7th', 
+    formula: ['1P', '3m', '5P', '7m'], 
+    feelDescription: 'Sâu lắng, thư thái, neo-soul', 
+    symbolSuffix: 'm7',
+    mnemonicVi: 'Nhạc Lofi chill, thư thái, êm ái chiều mưa',
+    tipVi: 'Hợp âm Thứ kết hợp nốt bậc 7 Thứ, xoa dịu nỗi buồn và tăng cảm giác thư giãn hiện đại.'
+  },
+  'dom7': { 
+    type: 'dom7', 
+    nameVi: 'Át 7 (Dominant 7th)', 
+    nameEn: 'Dominant 7th', 
+    formula: ['1P', '3M', '5P', '7m'], 
+    feelDescription: 'Kêu gọi hút về chủ âm, bluesy', 
+    symbolSuffix: '7',
+    mnemonicVi: 'Màu sắc nhạc Blues, Rock n Roll cổ điển, thúc giục chuyển hợp âm',
+    tipVi: 'Hợp âm Trưởng đi với quãng 7 Thứ, chứa cặp nốt nghịch tritone luôn muốn hút về hợp âm chủ.'
+  },
+  'm7b5': { 
+    type: 'm7b5', 
+    nameVi: 'Nửa Giảm (Half-Diminished 7th)', 
+    nameEn: 'Half-Diminished 7th', 
+    formula: ['1P', '3m', '5d', '7m'], 
+    feelDescription: 'Dằn vặt, bí ẩn, jazz noir', 
+    symbolSuffix: 'm7b5',
+    mnemonicVi: 'Dằn vặt, bí ẩn, điện ảnh trinh thám noir',
+    tipVi: 'Hợp âm Giảm nhưng có nốt bậc 7 Thứ. Rất phổ biến ở bậc II trong điệu Thứ của nhạc Jazz.'
+  },
+  'dim7': { 
+    type: 'dim7', 
+    nameVi: 'Giảm 7 (Diminished 7th)', 
+    nameEn: 'Full Diminished 7th', 
+    formula: ['1P', '3m', '5d', '6M'], 
+    feelDescription: 'Kinh dị, nghẹt thở, đột biến', 
+    symbolSuffix: 'dim7',
+    mnemonicVi: 'Cực kỳ căng thẳng, nghẹt thở, cao trào kịch tính',
+    tipVi: '4 nốt cách đều nhau đúng 3 nửa cung đối xứng hoàn hảo, cảm giác nguy hiểm tột độ.'
+  },
+  'sus2': { 
+    type: 'sus2', 
+    nameVi: 'Treo 2 (Suspended 2nd)', 
+    nameEn: 'Suspended 2nd', 
+    formula: ['1P', '2M', '5P'], 
+    feelDescription: 'Trong trẻo, rộng mở, hiện đại', 
+    symbolSuffix: 'sus2',
+    mnemonicVi: 'Trong trẻo như giọt sương mai, hiện đại (Pop Acoustic)',
+    tipVi: 'Thay nốt bậc 3 bằng bậc 2, làm mất đi tính Trưởng/Thứ, tạo sự rộng mở trong sáng.'
+  },
+  'sus4': { 
+    type: 'sus4', 
+    nameVi: 'Treo 4 (Suspended 4th)', 
+    nameEn: 'Suspended 4th', 
+    formula: ['1P', '4P', '5P'], 
+    feelDescription: 'Chờ đợi, háo hức, chưa hồi kết', 
+    symbolSuffix: 'sus4',
+    mnemonicVi: 'Háo hức đợi chờ hồi kết, lơ lửng mong được giải quyết',
+    tipVi: 'Thay nốt bậc 3 bằng bậc 4, nốt bậc 4 tạo sức căng muốn rơi về nốt bậc 3 Trưởng.'
+  },
+  '9th': { 
+    type: '9th', 
+    nameVi: 'Hợp âm 9 (Dominant 9th)', 
+    nameEn: 'Dominant 9th', 
+    formula: ['1P', '3M', '5P', '7m', '9M'], 
+    feelDescription: 'Sang trọng, rực rỡ, funk/jazz', 
+    symbolSuffix: '9',
+    mnemonicVi: 'Sang trọng, rực rỡ, nhún nhảy Funk / R&B hiện đại',
+    tipVi: 'Bổ sung thêm nốt quãng 9 mở rộng, âm thanh đầy đặn và sang trọng.'
+  }
 };
 
 export const PIANO_KEYS_88 = [

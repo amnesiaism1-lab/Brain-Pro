@@ -5,7 +5,7 @@ import { calculateGameScore, INFINITY_ROMAN_NUMERALS } from '@brain-exercises/sh
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { auditoryEngine, IPlayNoteOptions } from '../../services/auditoryEngine';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
-import { Radio, Volume2, Play, CheckCircle2, XCircle, RotateCcw } from 'lucide-react';
+import { Radio, Volume2, Play, CheckCircle2, XCircle, RotateCcw, GraduationCap, Zap, BookOpen, ArrowRight } from 'lucide-react';
 
 interface ITimbreOption {
   id: string;
@@ -73,7 +73,7 @@ const FILTER_OPTIONS: ITimbreOption[] = [
 ];
 
 export const TimbreMatchGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
 
   const effectiveLevel = getExerciseLevel('timbre-match') || currentLevel || 1;
@@ -97,6 +97,8 @@ export const TimbreMatchGame: React.FC = () => {
   const [correctCount, setCorrectCount] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [isLearnMode, setIsLearnMode] = useState<boolean>(true);
+  const [playingPreviewId, setPlayingPreviewId] = useState<string | null>(null);
 
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
@@ -166,15 +168,32 @@ export const TimbreMatchGame: React.FC = () => {
   // Option preview play button
   const previewOptionSound = async (opt: ITimbreOption, e: React.MouseEvent) => {
     e.stopPropagation();
-    await auditoryEngine.resumeAudioContext();
-    const note = effectiveLevel >= 4 ? (round % 2 === 0 ? 'G3' : 'E4') : 'A3';
-    auditoryEngine.playNote(note, 0.5, {
-      waveform: opt.waveform,
-      filterCutoff: opt.filterCutoff,
-      filterType: opt.filterType,
-      volume: 0.35
-    });
+    try {
+      setPlayingPreviewId(opt.id);
+      await auditoryEngine.resumeAudioContext();
+      const note = effectiveLevel >= 4 ? (round % 2 === 0 ? 'G3' : 'E4') : 'A3';
+      auditoryEngine.playNote(note, 0.65, {
+        waveform: opt.waveform,
+        filterCutoff: opt.filterCutoff,
+        filterType: opt.filterType,
+        volume: 0.4
+      });
+      await new Promise(r => setTimeout(r, 700));
+    } catch (err) {
+      console.warn('Timbre preview error:', err);
+    } finally {
+      setPlayingPreviewId(null);
+    }
   };
+
+  const handleProceedNextRound = useCallback(() => {
+    if (round >= maxRounds) {
+      setIsFinished(true);
+    } else {
+      setRound(prev => prev + 1);
+      generateNextRound();
+    }
+  }, [round, maxRounds, generateNextRound]);
 
   const handleSelectOption = (opt: ITimbreOption) => {
     if (isAnswered || !targetOption || isPlaying) return;
@@ -205,20 +224,17 @@ export const TimbreMatchGame: React.FC = () => {
       correct: isCorrect
     });
 
-    setTimeout(() => {
-      if (round >= maxRounds) {
-        setIsFinished(true);
-      } else {
-        setRound(prev => prev + 1);
-        generateNextRound();
-      }
-    }, 1500);
+    if (!isLearnMode) {
+      setTimeout(() => {
+        handleProceedNextRound();
+      }, 1500);
+    }
   };
 
   return (
     <div className="relative w-full max-w-4xl mx-auto my-2 p-5 sm:p-7 bg-[#FAF6F0] dark:bg-slate-900 border border-[#DCD3C3] dark:border-slate-800 rounded-3xl shadow-xl flex flex-col justify-between min-h-[580px] transition-all">
       {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm">
             <Radio className="w-6 h-6" />
@@ -240,7 +256,29 @@ export const TimbreMatchGame: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs font-mono">
+        <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono">
+          <button
+            type="button"
+            onClick={() => setIsLearnMode(!isLearnMode)}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+              isLearnMode
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+            }`}
+            title="Bật/Tắt chế độ học sâu với gợi ý âm sắc và đối chiếu phổ âm"
+          >
+            {isLearnMode ? (
+              <>
+                <GraduationCap className="w-4 h-4 text-emerald-500" />
+                <span>Chế độ: Học sâu</span>
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4 text-slate-400" />
+                <span>Chế độ: Thử thách</span>
+              </>
+            )}
+          </button>
           <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
             Câu: <span className="font-black text-emerald-600 dark:text-emerald-400">{round}/{maxRounds}</span>
           </div>
@@ -310,14 +348,20 @@ export const TimbreMatchGame: React.FC = () => {
             >
               <div className="flex items-center justify-between w-full">
                 <span className="text-base font-black tracking-tight">{opt.nameVi}</span>
-                <button
-                  type="button"
-                  title="Nghe thử âm sắc mẫu này"
-                  onClick={(e) => previewOptionSound(opt, e)}
-                  className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-emerald-600 dark:text-emerald-400 transition-colors shadow-sm"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    title={`Nghe thử mẫu ${opt.nameVi}`}
+                    onClick={(e) => previewOptionSound(opt, e)}
+                    className={`p-1.5 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                      playingPreviewId === opt.id
+                        ? 'bg-emerald-500 text-white border-emerald-400 animate-pulse scale-105 shadow-md'
+                        : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/20 hover:scale-110 active:scale-95'
+                    }`}
+                  >
+                    <Volume2 className={`w-3.5 h-3.5 ${playingPreviewId === opt.id ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
               </div>
               <p className="mt-2 text-xs font-medium text-slate-600 dark:text-slate-400">{opt.descriptionVi}</p>
               <div className="mt-2 flex items-center justify-end">
@@ -328,6 +372,111 @@ export const TimbreMatchGame: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Deliberate Learning & Audio Calibration Card */}
+      {isAnswered && isLearnMode && targetOption && (
+        <div className="w-full max-w-2xl mx-auto my-3 p-5 rounded-2xl bg-white/95 dark:bg-slate-900/95 border-2 border-emerald-500/40 dark:border-emerald-500/30 shadow-xl backdrop-blur-md animate-fadeIn">
+          {/* Header result */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2.5">
+              {selectedOptionId === targetOption.id ? (
+                <>
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                      Chính xác! Bạn đã nhận diện đúng {targetOption.nameVi}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Tai bạn đã bắt chuẩn phổ hoạ âm và độ sắc của âm sắc.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                    <XCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-rose-600 dark:text-rose-400">
+                      Chưa chính xác — Hãy đối chiếu âm sắc
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Bạn đã chọn <span className="font-bold text-rose-600 dark:text-rose-400">{currentOptions.find(o => o.id === selectedOptionId)?.nameVi}</span>, đáp án đúng là <span className="font-bold text-emerald-600 dark:text-emerald-400">{targetOption.nameVi}</span>.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleProceedNextRound}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            >
+              <span>{round >= maxRounds ? 'Xem Kết Quả' : 'Câu Kế Tiếp'}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* 3-way Audio Calibration Station */}
+          <div className="my-4">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">
+              🎧 Trạm đối chiếu âm học (A/B Audio Comparison):
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <button
+                type="button"
+                disabled={isPlaying}
+                onClick={() => playTargetSound(targetOption)}
+                className="py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer shadow-xs active:scale-95"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                <span>Nghe Lại Câu Hỏi</span>
+              </button>
+
+              {selectedOptionId && selectedOptionId !== targetOption.id && (
+                <button
+                  type="button"
+                  disabled={isPlaying}
+                  onClick={(e) => {
+                    const picked = currentOptions.find(o => o.id === selectedOptionId);
+                    if (picked) previewOptionSound(picked, e);
+                  }}
+                  className="py-2.5 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-800 dark:text-rose-200 text-xs font-bold flex items-center justify-center gap-1.5 border border-rose-500/30 transition-all cursor-pointer shadow-xs active:scale-95"
+                >
+                  <Volume2 className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Nghe Lựa Chọn Của Bạn</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                disabled={isPlaying}
+                onClick={() => playTargetSound(targetOption)}
+                className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>Nghe Mẫu Chuẩn ({targetOption.nameVi.split(' ')[0]})</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Educational Note & Theory Link */}
+          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <p className="text-slate-600 dark:text-slate-400 text-xs italic max-w-md">
+              💡 Đặc tính: Sóng Sin êm dịu thuần khiết (không có bồi âm). Sóng Tam giác ấm áp (bồi âm lẻ tắt nhanh). Sóng Vuông sắc cạnh 8-bit. Sóng Răng cưa sáng và bén nhất (trọn vẹn mọi hoạ âm).
+            </p>
+            <button
+              type="button"
+              onClick={() => navigateToTheory('timbre')}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Mở bài học: 6. Âm Sắc (Timbre)</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Result Modal */}
       {isFinished && (

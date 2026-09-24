@@ -31,7 +31,7 @@ const THEORY_TABS: ITheoryTab[] = [
 ];
 
 export const MusicTheoryView: React.FC = () => {
-  const { setActiveTab } = useAppStore();
+  const { setActiveTab, activeTheoryModuleId, setActiveTheoryModuleId } = useAppStore();
   const [activeModuleId, setActiveModuleId] = useState<TheoryModuleId>(() => {
     try {
       const saved = localStorage.getItem('be_last_theory_module');
@@ -41,6 +41,13 @@ export const MusicTheoryView: React.FC = () => {
     } catch {}
     return 'notes';
   });
+
+  useEffect(() => {
+    if (activeTheoryModuleId && THEORY_TABS.some(t => t.id === activeTheoryModuleId)) {
+      setActiveModuleId(activeTheoryModuleId as TheoryModuleId);
+      setActiveTheoryModuleId(null);
+    }
+  }, [activeTheoryModuleId, setActiveTheoryModuleId]);
 
   const [completedModules, setCompletedModules] = useState<string[]>(() => {
     try {

@@ -4,11 +4,12 @@ import { GameResultModal } from './GameResultModal';
 import { calculateGameScore, INFINITY_ROMAN_NUMERALS } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { auditoryEngine } from '../../services/auditoryEngine';
-import { generateIntervalQuestion, IIntervalInfo } from '../../services/musicTheoryService';
+import { generateIntervalQuestion, IIntervalInfo, transposeNote } from '../../services/musicTheoryService';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
-import { Sliders, Volume2, RotateCcw, CheckCircle2, XCircle, Play, Headphones } from 'lucide-react';
+import { EarTrainingLearningCard } from '../ui/EarTrainingLearningCard';
+import { Sliders, Volume2, RotateCcw, CheckCircle2, XCircle, Play, Headphones, GraduationCap, Zap } from 'lucide-react';
 
 export const IntervalIdentifyGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
@@ -48,6 +49,8 @@ export const IntervalIdentifyGame: React.FC = () => {
   const [correctCount, setCorrectCount] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [playingPreviewCode, setPlayingPreviewCode] = useState<string | null>(null);
+  const [isLearnMode, setIsLearnMode] = useState<boolean>(true);
 
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
@@ -68,6 +71,7 @@ export const IntervalIdentifyGame: React.FC = () => {
     setSelectedOption(null);
     setIsAnswered(false);
     setHasPlayedCurrentRound(false);
+    setPlayingPreviewCode(null);
   }, [intervalPool, playbackMode, optionsCount]);
 
   // Init on level change
@@ -124,6 +128,61 @@ export const IntervalIdentifyGame: React.FC = () => {
     }
   }, [question, isHyperSpeed, round]);
 
+  // Preview an option's interval starting on question's rootNote
+  const handlePreviewOption = async (e: React.MouseEvent, opt: IIntervalInfo) => {
+    e.stopPropagation();
+    if (isPlayingRef.current || !question) return;
+    try {
+      setPlayingPreviewCode(opt.code);
+      await auditoryEngine.resumeAudioContext();
+      const previewTarget = question.playbackDirection === 'descending'
+        ? transposeNote(question.rootNote, '-' + opt.code)
+        : transposeNote(question.rootNote, opt.code);
+      const duration = isHyperSpeed ? 0.28 : 0.55;
+      const gap = isHyperSpeed ? 180 : 380;
+      await auditoryEngine.playInterval(
+        question.rootNote,
+        previewTarget,
+        question.playbackDirection,
+        duration,
+        gap
+      );
+    } catch (err) {
+      console.warn('Option preview error:', err);
+    } finally {
+      setPlayingPreviewCode(null);
+    }
+  };
+
+  // Play what user selected for A/B comparison
+  const playUserChoiceAudio = useCallback(async () => {
+    if (!question || !selectedOption) return;
+    try {
+      await auditoryEngine.resumeAudioContext();
+      const userTarget = question.playbackDirection === 'descending'
+        ? transposeNote(question.rootNote, '-' + selectedOption.code)
+        : transposeNote(question.rootNote, selectedOption.code);
+      await auditoryEngine.playInterval(
+        question.rootNote,
+        userTarget,
+        question.playbackDirection,
+        0.6,
+        400
+      );
+    } catch (e) {
+      console.warn('User choice playback error:', e);
+    }
+  }, [question, selectedOption]);
+
+  const handleProceedNextRound = useCallback(() => {
+    if (round >= maxRounds) {
+      setIsFinished(true);
+    } else {
+      setRound(prev => prev + 1);
+      generateNextQuestion();
+    }
+  }, [round, maxRounds, generateNextQuestion]);
+
   // Auto-play interval once per round when audio is started and round changes
   useEffect(() => {
     if (!hasStartedAudio || isAnswered) return;
@@ -175,15 +234,12 @@ export const IntervalIdentifyGame: React.FC = () => {
       correct: isCorrect
     });
 
-    // Advance to next round smoothly
-    setTimeout(() => {
-      if (round >= maxRounds) {
-        setIsFinished(true);
-      } else {
-        setRound(prev => prev + 1);
-        generateNextQuestion();
-      }
-    }, 1500);
+    // In Challenge mode, auto advance after 1.5s; In Learn mode, EarTrainingLearningCard controls the deliberate study!
+    if (!isLearnMode) {
+      setTimeout(() => {
+        handleProceedNextRound();
+      }, 1500);
+    }
   };
 
   return (
@@ -214,6 +270,19 @@ export const IntervalIdentifyGame: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono">
+          <button
+            type="button"
+            onClick={() => setIsLearnMode(!isLearnMode)}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+              isLearnMode
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+            }`}
+            title="Bật/Tắt chế độ phát triển thính giác (nghe thử đáp án & phân tích chi tiết)"
+          >
+            {isLearnMode ? <GraduationCap className="w-4 h-4 text-amber-500" /> : <Zap className="w-4 h-4" />}
+            <span className="hidden sm:inline">{isLearnMode ? 'Chế độ Luyện Tai' : 'Thử Thách Nhanh'}</span>
+          </button>
           <MidiStatusIndicator compact={true} />
           <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
             Câu: <span className="font-black text-cyan-600 dark:text-cyan-400">{round}/{maxRounds}</span>
@@ -307,9 +376,26 @@ export const IntervalIdentifyGame: React.FC = () => {
             >
               <div className="flex items-center justify-between w-full">
                 <span className="text-base font-black tracking-tight">{opt.nameVi}</span>
-                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-cyan-700 dark:text-cyan-300">
-                  {opt.code}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {isLearnMode && (
+                    <button
+                      type="button"
+                      title={`Nghe thử mẫu ${opt.nameVi}`}
+                      disabled={isPlaying || !hasStartedAudio}
+                      onClick={(e) => handlePreviewOption(e, opt)}
+                      className={`p-1.5 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                        playingPreviewCode === opt.code
+                          ? 'bg-cyan-500 text-slate-950 border-cyan-400 animate-pulse scale-105 shadow-md'
+                          : 'bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/20 hover:scale-110 active:scale-95'
+                      }`}
+                    >
+                      <Volume2 className={`w-3.5 h-3.5 ${playingPreviewCode === opt.code ? 'animate-spin' : ''}`} />
+                    </button>
+                  )}
+                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-cyan-700 dark:text-cyan-300">
+                    {opt.code}
+                  </span>
+                </div>
               </div>
               <div className="mt-1.5 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 font-medium">
                 <span>{opt.semitones} nửa cung &bull; {opt.ratioDescription}</span>
@@ -320,6 +406,42 @@ export const IntervalIdentifyGame: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Deliberate Practice & Ear Training Deep Feedback */}
+      {question && isLearnMode && (
+        <EarTrainingLearningCard
+          theoryModuleId="intervals"
+          theoryTitle="2. Quãng Âm (Intervals)"
+          isAnswered={isAnswered}
+          isCorrect={selectedOption?.code === (isInversionMirror ? question.intervalInfo.inversionCode : question.intervalCode)}
+          rootNote={question.rootNote}
+          targetNotes={[question.targetNote]}
+          correctName={question.intervalInfo.nameVi}
+          correctCode={isInversionMirror ? question.intervalInfo.inversionCode : question.intervalInfo.code}
+          correctDescription={`${question.intervalInfo.semitones} nửa cung • ${question.intervalInfo.ratioDescription}`}
+          mnemonicSong={question.intervalInfo.mnemonicSongVi}
+          pedagogicalTip={question.intervalInfo.tipVi}
+          userChoiceName={selectedOption?.nameVi}
+          userChoiceCode={selectedOption?.code}
+          onPlayQuestion={() => playCurrentInterval(question)}
+          onPlayUserChoice={playUserChoiceAudio}
+          onPlayCorrectSample={() => playCurrentInterval(question)}
+          onNextRound={handleProceedNextRound}
+          isLastRound={round >= maxRounds}
+          preAnswerHints={question.options.map(opt => ({
+            code: opt.code,
+            name: opt.nameVi,
+            description: `${opt.semitones} nửa cung • ${opt.ratioDescription}`,
+            mnemonic: opt.mnemonicSongVi,
+            onPreviewAudio: () => {
+              const previewTarget = question.playbackDirection === 'descending'
+                ? transposeNote(question.rootNote, '-' + opt.code)
+                : transposeNote(question.rootNote, opt.code);
+              auditoryEngine.playInterval(question.rootNote, previewTarget, question.playbackDirection);
+            }
+          }))}
+        />
+      )}
 
       {/* Result Modal */}
       {isFinished && (

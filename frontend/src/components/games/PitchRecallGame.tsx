@@ -9,10 +9,10 @@ import { PianoKeyboard } from '../ui/PianoKeyboard';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
-import { Volume2, RotateCcw, Play, Music, Sparkles } from 'lucide-react';
+import { Volume2, RotateCcw, Play, Music, Sparkles, GraduationCap, Zap, CheckCircle2, XCircle, ArrowRight, BookOpen } from 'lucide-react';
 
 export const PitchRecallGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
 
   const effectiveLevel = getExerciseLevel('pitch-recall') || currentLevel || 1;
@@ -43,15 +43,18 @@ export const PitchRecallGame: React.FC = () => {
   const maxRounds = 4;
   const [targetSequence, setTargetSequence] = useState<string[]>([]);
   const [userSequence, setUserSequence] = useState<string[]>([]);
+  const [recordedUserSequence, setRecordedUserSequence] = useState<string[]>([]);
   const [activeNotes, setActiveNotes] = useState<string[]>([]);
   const [phase, setPhase] = useState<'listen' | 'recall' | 'feedback'>('listen');
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [playingComparison, setPlayingComparison] = useState<'target' | 'user' | null>(null);
   const [hasStartedAudio, setHasStartedAudio] = useState<boolean>(() => auditoryEngine.isAudioActive());
   const [score, setScore] = useState(0);
   const [correctRounds, setCorrectRounds] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
-  const [lastFeedback, setLastFeedback] = useState<{ isCorrect: boolean; message: string } | null>(null);
+  const [isLearnMode, setIsLearnMode] = useState<boolean>(true);
+  const [lastFeedback, setLastFeedback] = useState<{ isCorrect: boolean; message: string; expected: string[] } | null>(null);
 
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
@@ -195,15 +198,21 @@ export const PitchRecallGame: React.FC = () => {
         const isCorrect = nextUserSeq.every((n, idx) => n === expected[idx]);
 
         auditoryEngine.playFeedback(isCorrect);
+        setRecordedUserSequence(nextUserSeq);
 
         if (isCorrect) {
           setCorrectRounds(p => p + 1);
           setScore(p => p + 250);
-          setLastFeedback({ isCorrect: true, message: 'Chính xác hoàn hảo!' });
+          setLastFeedback({
+            isCorrect: true,
+            message: 'Chính xác hoàn hảo!',
+            expected
+          });
         } else {
           setLastFeedback({
             isCorrect: false,
-            message: `Chưa đúng! Chuỗi nốt đúng là: ${expected.join(' - ')}`
+            message: `Chưa đúng! Chuỗi nốt đúng là: ${expected.join(' - ')}`,
+            expected
           });
         }
 
@@ -221,20 +230,22 @@ export const PitchRecallGame: React.FC = () => {
           correct: isCorrect
         });
 
-        // Next round or finish
-        setTimeout(() => {
-          if (round >= maxRounds) {
-            setIsFinished(true);
-          } else {
-            setRound(r => r + 1);
-            startNewRound();
-          }
-        }, 1600);
+        // If not in deliberate learn mode, auto-advance for fast pacing
+        if (!isLearnMode) {
+          setTimeout(() => {
+            if (round >= maxRounds) {
+              setIsFinished(true);
+            } else {
+              setRound(r => r + 1);
+              startNewRound();
+            }
+          }, 1600);
+        }
       }
 
       return nextUserSeq;
     });
-  }, [phase, targetSequence, isReverseRecall, round, maxRounds, effectiveLevel, emitTrialEvent, startNewRound]);
+  }, [phase, targetSequence, isReverseRecall, round, maxRounds, effectiveLevel, emitTrialEvent, startNewRound, isLearnMode]);
 
   // Hook up physical MIDI piano: hitting keys on external MIDI keyboard inputs answers!
   useMidiInput({
@@ -251,6 +262,40 @@ export const PitchRecallGame: React.FC = () => {
       playSequence();
     }
   };
+
+  // Play a sequence of notes for A/B comparison
+  const playSequenceNotes = useCallback(async (seq: string[], type: 'target' | 'user') => {
+    if (seq.length === 0 || isPlayingRef.current) return;
+    try {
+      isPlayingRef.current = true;
+      setPlayingComparison(type);
+      await auditoryEngine.resumeAudioContext();
+
+      for (let i = 0; i < seq.length; i++) {
+        const n = seq[i];
+        setActiveNotes([n]);
+        auditoryEngine.playNote(n, 0.45, { volume: 0.7 });
+        await new Promise(r => setTimeout(r, noteSpeedMs));
+        setActiveNotes([]);
+        await new Promise(r => setTimeout(r, 60));
+      }
+    } catch (e) {
+      console.warn('Comparison playback error:', e);
+    } finally {
+      isPlayingRef.current = false;
+      setPlayingComparison(null);
+      setActiveNotes([]);
+    }
+  }, [noteSpeedMs]);
+
+  const handleProceedNextRound = useCallback(() => {
+    if (round >= maxRounds) {
+      setIsFinished(true);
+    } else {
+      setRound(r => r + 1);
+      startNewRound();
+    }
+  }, [round, maxRounds, startNewRound]);
 
   return (
     <div className="relative w-full max-w-4xl mx-auto my-2 p-5 sm:p-7 bg-[#FAF6F0] dark:bg-slate-900 border border-[#DCD3C3] dark:border-slate-800 rounded-3xl shadow-xl flex flex-col justify-between min-h-[580px] transition-all">
@@ -280,6 +325,28 @@ export const PitchRecallGame: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono">
+          <button
+            type="button"
+            onClick={() => setIsLearnMode(!isLearnMode)}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+              isLearnMode
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+            }`}
+            title="Bật/Tắt chế độ học sâu với gợi ý lý thuyết và đối chiếu âm thanh"
+          >
+            {isLearnMode ? (
+              <>
+                <GraduationCap className="w-4 h-4 text-amber-500" />
+                <span>Chế độ: Học sâu</span>
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4 text-slate-400" />
+                <span>Chế độ: Thử thách</span>
+              </>
+            )}
+          </button>
           <MidiStatusIndicator compact={true} />
           <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
             Hiệp: <span className="font-black text-amber-600 dark:text-amber-400">{round}/{maxRounds}</span>
@@ -366,7 +433,7 @@ export const PitchRecallGame: React.FC = () => {
           octaveRange={octaveRange}
           activeNotes={activeNotes}
           selectedNotes={userSequence}
-          disabled={isPlayingAudio}
+          disabled={isPlayingAudio || (phase === 'feedback' && isLearnMode)}
           onKeyClick={handleKeyClick}
           showLabels={showVisualHints || effectiveLevel <= 4}
           enableMidiHighlight={true}
@@ -376,6 +443,133 @@ export const PitchRecallGame: React.FC = () => {
           💡 Bạn có thể click chuột vào phím đàn hoặc gõ trực tiếp trên đàn piano MIDI USB/Bluetooth.
         </p>
       </div>
+
+      {/* Deliberate Learning & Audio Calibration Card */}
+      {phase === 'feedback' && isLearnMode && lastFeedback && (
+        <div className="w-full max-w-2xl mx-auto my-3 p-5 rounded-2xl bg-white/95 dark:bg-slate-900/95 border-2 border-amber-500/40 dark:border-amber-500/30 shadow-xl backdrop-blur-md animate-fadeIn">
+          {/* Header result */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2.5">
+              {lastFeedback.isCorrect ? (
+                <>
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                      Chính xác hoàn hảo!
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Tai bạn đã bắt chuẩn chính xác cao độ và chuỗi giai điệu.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                    <XCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-rose-600 dark:text-rose-400">
+                      Chưa chính xác — Hãy đối chiếu âm thanh
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Nghe lại mẫu đúng và chuỗi bạn đã gõ để nhận diện sai lệch cao độ.</p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleProceedNextRound}
+              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            >
+              <span>{round >= maxRounds ? 'Xem Kết Quả' : 'Câu Kế Tiếp'}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Sequences A/B Comparison */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 my-4">
+            {/* Target Sequence */}
+            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                  Chuỗi mẫu chuẩn {isReverseRecall ? '(Đảo ngược)' : ''}:
+                </span>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {lastFeedback.expected.map((n, i) => (
+                    <span key={i} className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 font-mono font-black text-xs border border-emerald-500/30 shadow-xs">
+                      {n}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={isPlayingAudio || playingComparison !== null}
+                onClick={() => playSequenceNotes(lastFeedback.expected, 'target')}
+                className="mt-3 w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                <Volume2 className={`w-3.5 h-3.5 ${playingComparison === 'target' ? 'animate-spin' : ''}`} />
+                <span>{playingComparison === 'target' ? 'Đang phát...' : '🎧 Nghe lại chuỗi mẫu chuẩn'}</span>
+              </button>
+            </div>
+
+            {/* User Sequence */}
+            <div className={`p-3.5 rounded-xl border flex flex-col justify-between ${
+              lastFeedback.isCorrect ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-rose-500/10 border-rose-500/30'
+            }`}>
+              <div>
+                <span className={`text-xs font-bold ${lastFeedback.isCorrect ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
+                  Chuỗi bạn đã bấm:
+                </span>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {recordedUserSequence.map((n, i) => {
+                    const isNoteMatch = n === lastFeedback.expected[i];
+                    return (
+                      <span
+                        key={i}
+                        className={`px-2.5 py-1 rounded-lg font-mono font-black text-xs border shadow-xs ${
+                          isNoteMatch
+                            ? 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border-emerald-500/30'
+                            : 'bg-rose-500/20 text-rose-800 dark:text-rose-200 border-rose-500/30 line-through'
+                        }`}
+                      >
+                        {n}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={isPlayingAudio || playingComparison !== null || recordedUserSequence.length === 0}
+                onClick={() => playSequenceNotes(recordedUserSequence, 'user')}
+                className="mt-3 w-full py-2 px-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${playingComparison === 'user' ? 'animate-spin' : ''}`} />
+                <span>{playingComparison === 'user' ? 'Đang phát...' : '🔊 Nghe lại chuỗi bạn đã bấm'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Theory Link & Hint */}
+          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <p className="text-slate-600 dark:text-slate-400 text-xs italic">
+              💡 Hãy chú ý cao độ tương đối giữa các nốt (nốt sau cao hơn hay trầm hơn nốt trước).
+            </p>
+            <button
+              type="button"
+              onClick={() => navigateToTheory('notes')}
+              className="px-3.5 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Mở bài học: 1. Nốt Nhạc & Cao Độ</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Result Modal */}
       {isFinished && (

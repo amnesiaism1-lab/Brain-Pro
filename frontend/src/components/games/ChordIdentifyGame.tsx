@@ -4,11 +4,12 @@ import { GameResultModal } from './GameResultModal';
 import { calculateGameScore, INFINITY_ROMAN_NUMERALS } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { auditoryEngine } from '../../services/auditoryEngine';
-import { generateChordQuestion, IChordTypeInfo } from '../../services/musicTheoryService';
+import { generateChordQuestion, IChordTypeInfo, transposeNote } from '../../services/musicTheoryService';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
-import { Music, Volume2, RotateCcw, CheckCircle2, XCircle, Play } from 'lucide-react';
+import { EarTrainingLearningCard } from '../ui/EarTrainingLearningCard';
+import { Music, Volume2, RotateCcw, CheckCircle2, XCircle, Play, GraduationCap, Zap } from 'lucide-react';
 
 export const ChordIdentifyGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
@@ -49,6 +50,8 @@ export const ChordIdentifyGame: React.FC = () => {
   const [correctCount, setCorrectCount] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [playingPreviewType, setPlayingPreviewType] = useState<string | null>(null);
+  const [isLearnMode, setIsLearnMode] = useState<boolean>(true);
 
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
@@ -120,6 +123,53 @@ export const ChordIdentifyGame: React.FC = () => {
     }
   }, [question, playbackMode, round]);
 
+  // Preview an option chord starting on question's rootNote
+  const handlePreviewOption = async (e: React.MouseEvent, opt: IChordTypeInfo) => {
+    e.stopPropagation();
+    if (isPlayingRef.current || !question) return;
+    try {
+      setPlayingPreviewType(opt.type);
+      await auditoryEngine.resumeAudioContext();
+      const previewNotes = opt.formula.map(interval => transposeNote(question.rootNote, interval));
+      await auditoryEngine.playChord(
+        previewNotes,
+        playbackMode,
+        1.1,
+        playbackMode === 'arpeggio' ? 80 : 0
+      );
+    } catch (err) {
+      console.warn('Chord option preview error:', err);
+    } finally {
+      setPlayingPreviewType(null);
+    }
+  };
+
+  // Play what user selected for comparison
+  const playUserChoiceChord = useCallback(async () => {
+    if (!question || !selectedOption) return;
+    try {
+      await auditoryEngine.resumeAudioContext();
+      const userNotes = selectedOption.formula.map(interval => transposeNote(question.rootNote, interval));
+      await auditoryEngine.playChord(
+        userNotes,
+        playbackMode,
+        1.2,
+        playbackMode === 'arpeggio' ? 80 : 0
+      );
+    } catch (e) {
+      console.warn('User choice chord error:', e);
+    }
+  }, [question, selectedOption, playbackMode]);
+
+  const handleProceedNextRound = useCallback(() => {
+    if (round >= maxRounds) {
+      setIsFinished(true);
+    } else {
+      setRound(prev => prev + 1);
+      generateNextQuestion();
+    }
+  }, [round, maxRounds, generateNextQuestion]);
+
   // Auto-play once per round
   useEffect(() => {
     if (!hasStartedAudio || isAnswered) return;
@@ -169,15 +219,11 @@ export const ChordIdentifyGame: React.FC = () => {
       correct: isCorrect
     });
 
-    // Advance
-    setTimeout(() => {
-      if (round >= maxRounds) {
-        setIsFinished(true);
-      } else {
-        setRound(prev => prev + 1);
-        generateNextQuestion();
-      }
-    }, 1500);
+    if (!isLearnMode) {
+      setTimeout(() => {
+        handleProceedNextRound();
+      }, 1500);
+    }
   };
 
   return (
@@ -206,6 +252,19 @@ export const ChordIdentifyGame: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono">
+          <button
+            type="button"
+            onClick={() => setIsLearnMode(!isLearnMode)}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+              isLearnMode
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+            }`}
+            title="Bật/Tắt chế độ phát triển thính giác (nghe thử đáp án & phân tích chi tiết)"
+          >
+            {isLearnMode ? <GraduationCap className="w-4 h-4 text-amber-500" /> : <Zap className="w-4 h-4" />}
+            <span className="hidden sm:inline">{isLearnMode ? 'Chế độ Luyện Tai' : 'Thử Thách Nhanh'}</span>
+          </button>
           <MidiStatusIndicator compact={true} />
           <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
             Câu: <span className="font-black text-purple-600 dark:text-purple-400">{round}/{maxRounds}</span>
@@ -309,9 +368,26 @@ export const ChordIdentifyGame: React.FC = () => {
             >
               <div className="flex items-center justify-between w-full">
                 <span className="text-base font-black tracking-tight">{opt.nameVi}</span>
-                <span className="text-xs font-mono font-black px-2.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700">
-                  {opt.type}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {isLearnMode && (
+                    <button
+                      type="button"
+                      title={`Nghe thử mẫu hợp âm ${opt.nameVi}`}
+                      disabled={isPlaying || !hasStartedAudio}
+                      onClick={(e) => handlePreviewOption(e, opt)}
+                      className={`p-1.5 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                        playingPreviewType === opt.type
+                          ? 'bg-purple-500 text-white border-purple-400 animate-pulse scale-105 shadow-md'
+                          : 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-500/20 hover:scale-110 active:scale-95'
+                      }`}
+                    >
+                      <Volume2 className={`w-3.5 h-3.5 ${playingPreviewType === opt.type ? 'animate-spin' : ''}`} />
+                    </button>
+                  )}
+                  <span className="text-xs font-mono font-black px-2.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700">
+                    {opt.type}
+                  </span>
+                </div>
               </div>
               <div className="mt-2 flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-400">
                 <span>{opt.feelDescription}</span>
@@ -322,6 +398,30 @@ export const ChordIdentifyGame: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Deliberate Practice & Ear Training Deep Feedback */}
+      {question && isLearnMode && (
+        <EarTrainingLearningCard
+          theoryModuleId="chords"
+          theoryTitle="3. Hợp Âm (Chords)"
+          isAnswered={isAnswered}
+          isCorrect={selectedOption?.type === question.chordType}
+          rootNote={question.rootNote}
+          targetNotes={question.notes}
+          correctName={question.typeInfo.nameVi}
+          correctCode={question.typeInfo.type}
+          correctDescription={`Công thức: [${question.typeInfo.formula.join(', ')}] • ${question.typeInfo.feelDescription}`}
+          mnemonicSong={question.typeInfo.mnemonicVi}
+          pedagogicalTip={question.typeInfo.tipVi}
+          userChoiceName={selectedOption?.nameVi}
+          userChoiceCode={selectedOption?.type}
+          onPlayQuestion={() => playCurrentChord(question)}
+          onPlayUserChoice={playUserChoiceChord}
+          onPlayCorrectSample={() => playCurrentChord(question)}
+          onNextRound={handleProceedNextRound}
+          isLastRound={round >= maxRounds}
+        />
+      )}
 
       {/* Result Modal */}
       {isFinished && (
