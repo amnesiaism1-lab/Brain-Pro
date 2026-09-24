@@ -19,6 +19,12 @@ import { CardFlipGame } from './CardFlipGame';
 import { StroopClashGame } from './StroopClashGame';
 import { SpatialMemoryGame } from './SpatialMemoryGame';
 import { SaccadeTrackerGame } from './SaccadeTrackerGame';
+import { PitchRecallGame } from './PitchRecallGame';
+import { IntervalIdentifyGame } from './IntervalIdentifyGame';
+import { RhythmRecallGame } from './RhythmRecallGame';
+import { ChordIdentifyGame } from './ChordIdentifyGame';
+import { TimbreMatchGame } from './TimbreMatchGame';
+import { SoundLocalizationGame } from './SoundLocalizationGame';
 import { EXERCISES_METADATA } from '@brain-exercises/shared';
 import { Sparkles, Zap, Flame, ArrowRight, X } from 'lucide-react';
 
@@ -79,6 +85,18 @@ export const ActiveGameContainer: React.FC = () => {
         return <SpatialMemoryGame />;
       case 'saccade-tracker':
         return <SaccadeTrackerGame />;
+      case 'pitch-recall':
+        return <PitchRecallGame />;
+      case 'interval-identify':
+        return <IntervalIdentifyGame />;
+      case 'rhythm-recall':
+        return <RhythmRecallGame />;
+      case 'chord-identify':
+        return <ChordIdentifyGame />;
+      case 'timbre-match':
+        return <TimbreMatchGame />;
+      case 'sound-localization':
+        return <SoundLocalizationGame />;
       default:
         return <SchulteTableGame />;
     }

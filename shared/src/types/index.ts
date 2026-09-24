@@ -3,7 +3,8 @@ export type CognitiveCategoryCode =
   | 'PERIPHERAL_VISION'
   | 'MEMORY'
   | 'ATTENTION'
-  | 'REACTION';
+  | 'REACTION'
+  | 'AUDITORY_MEMORY';
 
 export type ExerciseSlug =
   | 'anagram'              // Đảo ngữ
@@ -24,7 +25,13 @@ export type ExerciseSlug =
   | 'card-flip'            // Lật Thẻ Trí Nhớ 3D (Phát triển nâng cao)
   | 'stroop-clash'         // Đấu Màu Nhận Thức (Stroop Effect)
   | 'spatial-memory'       // Nhớ Khối Không Gian (Corsi Block Tapping)
-  | 'saccade-tracker';     // Theo Dõi Mắt Nhanh (Saccadic Eye Tracking)
+  | 'saccade-tracker'      // Theo Dõi Mắt Nhanh (Saccadic Eye Tracking)
+  | 'pitch-recall'         // Nhớ Cao Độ
+  | 'interval-identify'    // Nhận Diện Quãng
+  | 'rhythm-recall'        // Nhớ Nhịp Điệu
+  | 'chord-identify'       // Nhận Diện Hợp Âm
+  | 'timbre-match'         // Phân Biệt Âm Sắc
+  | 'sound-localization';  // Định Vị Âm Thanh 3D
 
 export type WorkoutRoutineCode =
   | 'QUICK_5M'

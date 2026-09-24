@@ -2006,5 +2006,623 @@ exports.INFINITY_LEVEL_CONFIGS = {
             infinityMetadata: { tier: 10, romanNumeral: '∞-X', pattern: 'chaos' },
             parametersJson: { infinityMode: true, targetCount: 10, movementMode: 'brownian', filterBySymbol: 'star' }
         }
+    ],
+    // 20. Nhớ Cao Độ (pitch-recall)
+    'pitch-recall': [
+        {
+            level: 13,
+            timeLimitSec: 50,
+            targetItemCount: 7,
+            variantCode: 'INF_PITCH_CHROMATIC',
+            variantName: '∞-I: Chromatic Storm',
+            infinityTier: 1,
+            infinityMetadata: { tier: 1, romanNumeral: '∞-I', enTheme: 'Chromatic Scale Random Walk' },
+            parametersJson: { infinityMode: true, scaleType: 'chromatic', sequenceLength: 6, keyCount: 12, noteSpeedMs: 380 }
+        },
+        {
+            level: 14,
+            timeLimitSec: 45,
+            targetItemCount: 7,
+            variantCode: 'INF_PITCH_INTERVAL_ECHO',
+            variantName: '∞-II: Interval Echo',
+            infinityTier: 2,
+            infinityMetadata: { tier: 2, romanNumeral: '∞-II', enTheme: 'Large Interval Jumps & Tritones' },
+            parametersJson: { infinityMode: true, wideLeaps: true, sequenceLength: 6, noteSpeedMs: 360 }
+        },
+        {
+            level: 15,
+            timeLimitSec: 45,
+            targetItemCount: 8,
+            variantCode: 'INF_PITCH_SCALE_DETECT',
+            variantName: '∞-III: Scale Detective',
+            infinityTier: 3,
+            infinityMetadata: { tier: 3, romanNumeral: '∞-III', enTheme: 'Exotic Scales (Blues, Dorian, Pentatonic)' },
+            parametersJson: { infinityMode: true, exoticScaleMode: true, sequenceLength: 7, noteSpeedMs: 350 }
+        },
+        {
+            level: 16,
+            timeLimitSec: 50,
+            targetItemCount: 8,
+            variantCode: 'INF_PITCH_TRANSPOSE',
+            variantName: '∞-IV: Transposition Challenge',
+            infinityTier: 4,
+            infinityMetadata: { tier: 4, romanNumeral: '∞-IV', enTheme: 'Real-time Semitone Transposition' },
+            parametersJson: { infinityMode: true, transposeOffset: 2, sequenceLength: 6, noteSpeedMs: 400 }
+        },
+        {
+            level: 17,
+            timeLimitSec: 45,
+            targetItemCount: 8,
+            variantCode: 'INF_PITCH_FIBONACCI',
+            variantName: '∞-V: Fibonacci Cadence',
+            infinityTier: 5,
+            infinityMetadata: { tier: 5, romanNumeral: '∞-V', pattern: 'fibonacci' },
+            parametersJson: { infinityMode: true, patternMode: 'fibonacci', tempoDelaysMs: [120, 120, 240, 360, 600, 960], sequenceLength: 6 }
+        },
+        {
+            level: 18,
+            timeLimitSec: 45,
+            targetItemCount: 8,
+            variantCode: 'INF_PITCH_BINAURAL',
+            variantName: '∞-VI: Binaural Pitch Dichotic',
+            infinityTier: 6,
+            infinityMetadata: { tier: 6, romanNumeral: '∞-VI', enTheme: 'Dichotic Dual-Ear Notes' },
+            parametersJson: { infinityMode: true, binauralStereo: true, sequenceLength: 7, noteSpeedMs: 320 }
+        },
+        {
+            level: 19,
+            timeLimitSec: 40,
+            targetItemCount: 9,
+            variantCode: 'INF_PITCH_TIMBRE_SHIFT',
+            variantName: '∞-VII: Timbre Shift Mirage',
+            infinityTier: 7,
+            infinityMetadata: { tier: 7, romanNumeral: '∞-VII', pattern: 'cascade' },
+            parametersJson: { infinityMode: true, dynamicTimbre: true, sequenceLength: 7, noteSpeedMs: 300 }
+        },
+        {
+            level: 20,
+            timeLimitSec: 40,
+            targetItemCount: 9,
+            variantCode: 'INF_PITCH_MICROTONAL',
+            variantName: '∞-VIII: Microtonal Ear',
+            infinityTier: 8,
+            infinityMetadata: { tier: 8, romanNumeral: '∞-VIII', enTheme: 'Quarter-Tone Discrimination' },
+            parametersJson: { infinityMode: true, microtonalCents: 50, sequenceLength: 7, noteSpeedMs: 300 }
+        },
+        {
+            level: 21,
+            timeLimitSec: 35,
+            targetItemCount: 10,
+            variantCode: 'INF_PITCH_POLYRHYTHM',
+            variantName: '∞-IX: Polyrhythmic Recall',
+            infinityTier: 9,
+            infinityMetadata: { tier: 9, romanNumeral: '∞-IX', pattern: 'rhythm' },
+            parametersJson: { infinityMode: true, polyrhythmicVoices: 2, sequenceLength: 8, noteSpeedMs: 260 }
+        },
+        {
+            level: 22,
+            timeLimitSec: 35,
+            targetItemCount: 10,
+            variantCode: 'INF_PITCH_ABSOLUTE',
+            variantName: '∞-X: Absolute Pitch Vortex',
+            infinityTier: 10,
+            infinityMetadata: { tier: 10, romanNumeral: '∞-X', pattern: 'infinite' },
+            parametersJson: { infinityMode: true, flashDurationMs: 120, noVisualHints: true, sequenceLength: 8, noteSpeedMs: 220 }
+        }
+    ],
+    // 21. Nhận Diện Quãng (interval-identify)
+    'interval-identify': [
+        {
+            level: 13,
+            timeLimitSec: 40,
+            targetItemCount: 10,
+            variantCode: 'INF_INTERVAL_SPEED',
+            variantName: '∞-I: Hyper-Speed Intervals',
+            infinityTier: 1,
+            infinityMetadata: { tier: 1, romanNumeral: '∞-I', enTheme: 'Rapid Flash Note Intervals' },
+            parametersJson: { infinityMode: true, noteSpeedMs: 150, optionsCount: 5, playbackMode: 'mixed' }
+        },
+        {
+            level: 14,
+            timeLimitSec: 45,
+            targetItemCount: 10,
+            variantCode: 'INF_INTERVAL_CHAIN',
+            variantName: '∞-II: Interval Chain Cascade',
+            infinityTier: 2,
+            infinityMetadata: { tier: 2, romanNumeral: '∞-II', pattern: 'cascade' },
+            parametersJson: { infinityMode: true, chainLength: 3, optionsCount: 5 }
+        },
+        {
+            level: 15,
+            timeLimitSec: 40,
+            targetItemCount: 10,
+            variantCode: 'INF_INTERVAL_INVERSION',
+            variantName: '∞-III: Mirror Inversion',
+            infinityTier: 3,
+            infinityMetadata: { tier: 3, romanNumeral: '∞-III', pattern: 'mirror' },
+            parametersJson: { infinityMode: true, inversionMode: true, optionsCount: 5 }
+        },
+        {
+            level: 16,
+            timeLimitSec: 45,
+            targetItemCount: 11,
+            variantCode: 'INF_INTERVAL_ACOUSTIC',
+            variantName: '∞-IV: Realistic Piano Timbre',
+            infinityTier: 4,
+            infinityMetadata: { tier: 4, romanNumeral: '∞-IV', enTheme: 'Acoustic Grand Harmonics' },
+            parametersJson: { infinityMode: true, acousticSampler: true, optionsCount: 5, playbackMode: 'harmonic' }
+        },
+        {
+            level: 17,
+            timeLimitSec: 40,
+            targetItemCount: 11,
+            variantCode: 'INF_INTERVAL_MICROTONE',
+            variantName: '∞-V: Quarter-Tone Dissonance',
+            infinityTier: 5,
+            infinityMetadata: { tier: 5, romanNumeral: '∞-V', enTheme: 'Quarter-Tone 50 Cents Steps' },
+            parametersJson: { infinityMode: true, microtonal: true, optionsCount: 6 }
+        },
+        {
+            level: 18,
+            timeLimitSec: 40,
+            targetItemCount: 11,
+            variantCode: 'INF_INTERVAL_MELODY_EMBED',
+            variantName: '∞-VI: Melody Embedded Interval',
+            infinityTier: 6,
+            infinityMetadata: { tier: 6, romanNumeral: '∞-VI', enTheme: 'Interval Extraction from Melody' },
+            parametersJson: { infinityMode: true, melodyLickContext: true, optionsCount: 6 }
+        },
+        {
+            level: 19,
+            timeLimitSec: 35,
+            targetItemCount: 12,
+            variantCode: 'INF_INTERVAL_DICHOTIC',
+            variantName: '∞-VII: Dichotic Interval',
+            infinityTier: 7,
+            infinityMetadata: { tier: 7, romanNumeral: '∞-VII', pattern: 'pendulum' },
+            parametersJson: { infinityMode: true, leftRightSeparation: true, optionsCount: 6 }
+        },
+        {
+            level: 20,
+            timeLimitSec: 35,
+            targetItemCount: 12,
+            variantCode: 'INF_INTERVAL_ENHARMONIC',
+            variantName: '∞-VIII: Enharmonic Paradox',
+            infinityTier: 8,
+            infinityMetadata: { tier: 8, romanNumeral: '∞-VIII', enTheme: 'Augmented 4th vs Diminished 5th' },
+            parametersJson: { infinityMode: true, enharmonicTricks: true, optionsCount: 6 }
+        },
+        {
+            level: 21,
+            timeLimitSec: 30,
+            targetItemCount: 12,
+            variantCode: 'INF_INTERVAL_OCTAVE_DISPLACE',
+            variantName: '∞-IX: Octave Displacement',
+            infinityTier: 9,
+            infinityMetadata: { tier: 9, romanNumeral: '∞-IX', enTheme: 'Displaced Register Jump' },
+            parametersJson: { infinityMode: true, registerSpanOctaves: 3, optionsCount: 6 }
+        },
+        {
+            level: 22,
+            timeLimitSec: 30,
+            targetItemCount: 13,
+            variantCode: 'INF_INTERVAL_CHROMATIC_CHAOS',
+            variantName: '∞-X: Omni-Register Chaos',
+            infinityTier: 10,
+            infinityMetadata: { tier: 10, romanNumeral: '∞-X', pattern: 'chaos' },
+            parametersJson: { infinityMode: true, fullRange4Octaves: true, harmonic: true, optionsCount: 7 }
+        }
+    ],
+    // 22. Nhớ Nhịp Điệu (rhythm-recall)
+    'rhythm-recall': [
+        {
+            level: 13,
+            timeLimitSec: 45,
+            targetItemCount: 8,
+            variantCode: 'INF_RHYTHM_SWING',
+            variantName: '∞-I: Swing Feel Ratio',
+            infinityTier: 1,
+            infinityMetadata: { tier: 1, romanNumeral: '∞-I', pattern: 'rhythm' },
+            parametersJson: { infinityMode: true, groove: 'swing', swingRatio: 0.66, stepCount: 12, bpm: 120 }
+        },
+        {
+            level: 14,
+            timeLimitSec: 45,
+            targetItemCount: 8,
+            variantCode: 'INF_RHYTHM_ODD_METER',
+            variantName: '∞-II: Odd Meter 5/8 & 7/8',
+            infinityTier: 2,
+            infinityMetadata: { tier: 2, romanNumeral: '∞-II', enTheme: 'Balkan Asymmetric Time Signatures' },
+            parametersJson: { infinityMode: true, timeSignature: '7/8', stepCount: 14, bpm: 125 }
+        },
+        {
+            level: 15,
+            timeLimitSec: 40,
+            targetItemCount: 9,
+            variantCode: 'INF_RHYTHM_GHOST_NOTES',
+            variantName: '∞-III: Ghost Notes Stealth',
+            infinityTier: 3,
+            infinityMetadata: { tier: 3, romanNumeral: '∞-III', enTheme: 'Dynamic Velocity & 15% Volume Ghost Beats' },
+            parametersJson: { infinityMode: true, ghostNotes: true, stepCount: 14, bpm: 130 }
+        },
+        {
+            level: 16,
+            timeLimitSec: 40,
+            targetItemCount: 9,
+            variantCode: 'INF_RHYTHM_TEMPO_MORPH',
+            variantName: '∞-IV: Accelerando Pulse',
+            infinityTier: 4,
+            infinityMetadata: { tier: 4, romanNumeral: '∞-IV', pattern: 'cascade' },
+            parametersJson: { infinityMode: true, accelerando: true, bpmDelta: 25, stepCount: 14 }
+        },
+        {
+            level: 17,
+            timeLimitSec: 40,
+            targetItemCount: 9,
+            variantCode: 'INF_RHYTHM_METRIC_MOD',
+            variantName: '∞-V: Metric Modulation',
+            infinityTier: 5,
+            infinityMetadata: { tier: 5, romanNumeral: '∞-V', pattern: 'pendulum' },
+            parametersJson: { infinityMode: true, metricModulation: true, stepCount: 16 }
+        },
+        {
+            level: 18,
+            timeLimitSec: 35,
+            targetItemCount: 10,
+            variantCode: 'INF_RHYTHM_POLYMETER',
+            variantName: '∞-VI: Polymetric Clash',
+            infinityTier: 6,
+            infinityMetadata: { tier: 6, romanNumeral: '∞-VI', enTheme: '3 over 4 Metric Layering' },
+            parametersJson: { infinityMode: true, polymeter: '3:4', stepCount: 16, bpm: 135 }
+        },
+        {
+            level: 19,
+            timeLimitSec: 35,
+            targetItemCount: 10,
+            variantCode: 'INF_RHYTHM_EUCLIDEAN',
+            variantName: '∞-VII: Euclidean Geometry Rhythm',
+            infinityTier: 7,
+            infinityMetadata: { tier: 7, romanNumeral: '∞-VII', pattern: 'fibonacci' },
+            parametersJson: { infinityMode: true, euclideanRhythm: true, pulses: 5, steps: 16 }
+        },
+        {
+            level: 20,
+            timeLimitSec: 35,
+            targetItemCount: 10,
+            variantCode: 'INF_RHYTHM_PERCUSSION_KIT',
+            variantName: '∞-VIII: 4-Piece Drum Matrix',
+            infinityTier: 8,
+            infinityMetadata: { tier: 8, romanNumeral: '∞-VIII', enTheme: 'Kick, Snare, Hi-Hat, Tom Sequencing' },
+            parametersJson: { infinityMode: true, multiInstrument: true, stepCount: 16, bpm: 135 }
+        },
+        {
+            level: 21,
+            timeLimitSec: 30,
+            targetItemCount: 11,
+            variantCode: 'INF_RHYTHM_FIBONACCI_TIME',
+            variantName: '∞-IX: Fibonacci Time Warp',
+            infinityTier: 9,
+            infinityMetadata: { tier: 9, romanNumeral: '∞-IX', pattern: 'fibonacci' },
+            parametersJson: { infinityMode: true, fibonacciSpacing: true, stepCount: 16 }
+        },
+        {
+            level: 22,
+            timeLimitSec: 30,
+            targetItemCount: 12,
+            variantCode: 'INF_RHYTHM_CHAOS_QUANTUM',
+            variantName: '∞-X: Micro-Timing Precision',
+            infinityTier: 10,
+            infinityMetadata: { tier: 10, romanNumeral: '∞-X', pattern: 'chaos' },
+            parametersJson: { infinityMode: true, toleranceMs: 38, stepCount: 16, bpm: 145 }
+        }
+    ],
+    // 23. Nhận Diện Hợp Âm (chord-identify)
+    'chord-identify': [
+        {
+            level: 13,
+            timeLimitSec: 40,
+            targetItemCount: 10,
+            variantCode: 'INF_CHORD_ARPEGGIO',
+            variantName: '∞-I: Arpeggiated Sweep',
+            infinityTier: 1,
+            infinityMetadata: { tier: 1, romanNumeral: '∞-I', pattern: 'cascade' },
+            parametersJson: { infinityMode: true, arpeggioSpeedMs: 65, optionsCount: 4 }
+        },
+        {
+            level: 14,
+            timeLimitSec: 40,
+            targetItemCount: 10,
+            variantCode: 'INF_CHORD_JAZZ_EXTENDED',
+            variantName: '∞-II: Modern Jazz 9th/11th/13th',
+            infinityTier: 2,
+            infinityMetadata: { tier: 2, romanNumeral: '∞-II', apiSource: 'chords_api', enTheme: 'Extended Jazz Voicings' },
+            parametersJson: { infinityMode: true, jazzExtended: true, optionsCount: 4 }
+        },
+        {
+            level: 15,
+            timeLimitSec: 45,
+            targetItemCount: 10,
+            variantCode: 'INF_CHORD_PROGRESSION',
+            variantName: '∞-III: Cadence Progression',
+            infinityTier: 3,
+            infinityMetadata: { tier: 3, romanNumeral: '∞-III', pattern: 'rhythm' },
+            parametersJson: { infinityMode: true, progressionCount: 3, optionsCount: 4 }
+        },
+        {
+            level: 16,
+            timeLimitSec: 35,
+            targetItemCount: 11,
+            variantCode: 'INF_CHORD_POLYCHORD',
+            variantName: '∞-IV: Polychord Bi-Tonal',
+            infinityTier: 4,
+            infinityMetadata: { tier: 4, romanNumeral: '∞-IV', enTheme: 'Dual Simultaneous Chords' },
+            parametersJson: { infinityMode: true, polychord: true, optionsCount: 4 }
+        },
+        {
+            level: 17,
+            timeLimitSec: 35,
+            targetItemCount: 11,
+            variantCode: 'INF_CHORD_TIMBRE_HYBRID',
+            variantName: '∞-V: Multi-Instrument Chord',
+            infinityTier: 5,
+            infinityMetadata: { tier: 5, romanNumeral: '∞-V', pattern: 'mirror' },
+            parametersJson: { infinityMode: true, multiTimbreChord: true, optionsCount: 5 }
+        },
+        {
+            level: 18,
+            timeLimitSec: 35,
+            targetItemCount: 11,
+            variantCode: 'INF_CHORD_OPEN_VOICING',
+            variantName: '∞-VI: Drop-2 & Wide Voicings',
+            infinityTier: 6,
+            infinityMetadata: { tier: 6, romanNumeral: '∞-VI', enTheme: 'Spread Voicings Across 3 Octaves' },
+            parametersJson: { infinityMode: true, wideVoicing: true, optionsCount: 5 }
+        },
+        {
+            level: 19,
+            timeLimitSec: 35,
+            targetItemCount: 12,
+            variantCode: 'INF_CHORD_CLUSTER',
+            variantName: '∞-VII: Tone Cluster Tension',
+            infinityTier: 7,
+            infinityMetadata: { tier: 7, romanNumeral: '∞-VII', pattern: 'chaos' },
+            parametersJson: { infinityMode: true, toneClusters: true, optionsCount: 5 }
+        },
+        {
+            level: 20,
+            timeLimitSec: 30,
+            targetItemCount: 12,
+            variantCode: 'INF_CHORD_MODAL',
+            variantName: '∞-VIII: Modal Harmony',
+            infinityTier: 8,
+            infinityMetadata: { tier: 8, romanNumeral: '∞-VIII', enTheme: 'Dorian, Lydian, Mixolydian Chords' },
+            parametersJson: { infinityMode: true, modalChords: true, optionsCount: 5 }
+        },
+        {
+            level: 21,
+            timeLimitSec: 30,
+            targetItemCount: 12,
+            variantCode: 'INF_CHORD_SLASH',
+            variantName: '∞-IX: Slash Chord Inversions',
+            infinityTier: 9,
+            infinityMetadata: { tier: 9, romanNumeral: '∞-IX', enTheme: 'Altered Bass Voicing (C/E, G/B)' },
+            parametersJson: { infinityMode: true, slashChords: true, optionsCount: 5 }
+        },
+        {
+            level: 22,
+            timeLimitSec: 28,
+            targetItemCount: 13,
+            variantCode: 'INF_CHORD_SPECTRAL',
+            variantName: '∞-X: Microtonal Chord Spectrum',
+            infinityTier: 10,
+            infinityMetadata: { tier: 10, romanNumeral: '∞-X', pattern: 'infinite' },
+            parametersJson: { infinityMode: true, spectralOvertoneChord: true, optionsCount: 6 }
+        }
+    ],
+    // 24. Phân Biệt Âm Sắc (timbre-match)
+    'timbre-match': [
+        {
+            level: 13,
+            timeLimitSec: 40,
+            targetItemCount: 10,
+            variantCode: 'INF_TIMBRE_HARMONIC_SERIES',
+            variantName: '∞-I: Harmonic Series Anomaly',
+            infinityTier: 1,
+            infinityMetadata: { tier: 1, romanNumeral: '∞-I', enTheme: 'Missing 3rd or 5th Harmonic' },
+            parametersJson: { infinityMode: true, missingHarmonics: true, optionsCount: 4 }
+        },
+        {
+            level: 14,
+            timeLimitSec: 40,
+            targetItemCount: 10,
+            variantCode: 'INF_TIMBRE_ADSR_SCULPT',
+            variantName: '∞-II: ADSR Envelope Sculpt',
+            infinityTier: 2,
+            infinityMetadata: { tier: 2, romanNumeral: '∞-II', pattern: 'cascade' },
+            parametersJson: { infinityMode: true, adsrDiscrimination: true, optionsCount: 4 }
+        },
+        {
+            level: 15,
+            timeLimitSec: 40,
+            targetItemCount: 10,
+            variantCode: 'INF_TIMBRE_RESONANCE_SWEEP',
+            variantName: '∞-III: Resonance Filter Sweep',
+            infinityTier: 3,
+            infinityMetadata: { tier: 3, romanNumeral: '∞-III', pattern: 'pendulum' },
+            parametersJson: { infinityMode: true, qFactorSweep: true, optionsCount: 4 }
+        },
+        {
+            level: 16,
+            timeLimitSec: 35,
+            targetItemCount: 11,
+            variantCode: 'INF_TIMBRE_MICRO_DETUNE',
+            variantName: '∞-IV: Micro-Detune Flange',
+            infinityTier: 4,
+            infinityMetadata: { tier: 4, romanNumeral: '∞-IV', enTheme: 'Detune Cents Discrimination' },
+            parametersJson: { infinityMode: true, microDetuneCents: 12, optionsCount: 4 }
+        },
+        {
+            level: 17,
+            timeLimitSec: 35,
+            targetItemCount: 11,
+            variantCode: 'INF_TIMBRE_FM_SYNTH',
+            variantName: '∞-V: FM vs AM Synthesis',
+            infinityTier: 5,
+            infinityMetadata: { tier: 5, romanNumeral: '∞-V', pattern: 'mirror' },
+            parametersJson: { infinityMode: true, synthesisType: 'fm-vs-am', optionsCount: 4 }
+        },
+        {
+            level: 18,
+            timeLimitSec: 35,
+            targetItemCount: 11,
+            variantCode: 'INF_TIMBRE_CONVOLUTION_SPACE',
+            variantName: '∞-VI: Spatial Convolver',
+            infinityTier: 6,
+            infinityMetadata: { tier: 6, romanNumeral: '∞-VI', enTheme: 'Acoustic Impulse Response Spaces' },
+            parametersJson: { infinityMode: true, reverbAcoustics: true, optionsCount: 4 }
+        },
+        {
+            level: 19,
+            timeLimitSec: 35,
+            targetItemCount: 12,
+            variantCode: 'INF_TIMBRE_BITCRUSH_LOFI',
+            variantName: '∞-VII: Bitcrush Resolution',
+            infinityTier: 7,
+            infinityMetadata: { tier: 7, romanNumeral: '∞-VII', pattern: 'chaos' },
+            parametersJson: { infinityMode: true, bitDepthReduction: true, optionsCount: 4 }
+        },
+        {
+            level: 20,
+            timeLimitSec: 30,
+            targetItemCount: 12,
+            variantCode: 'INF_TIMBRE_STEREO_PHASE',
+            variantName: '∞-VIII: Binaural Phase Cancellation',
+            infinityTier: 8,
+            infinityMetadata: { tier: 8, romanNumeral: '∞-VIII', enTheme: '90° and 180° Phase Shifts' },
+            parametersJson: { infinityMode: true, phaseShiftDeg: 180, optionsCount: 4 }
+        },
+        {
+            level: 21,
+            timeLimitSec: 30,
+            targetItemCount: 12,
+            variantCode: 'INF_TIMBRE_WAVETABLE_MORPH',
+            variantName: '∞-IX: Wavetable Morphing',
+            infinityTier: 9,
+            infinityMetadata: { tier: 9, romanNumeral: '∞-IX', pattern: 'cascade' },
+            parametersJson: { infinityMode: true, dynamicWaveMorph: true, optionsCount: 5 }
+        },
+        {
+            level: 22,
+            timeLimitSec: 28,
+            targetItemCount: 13,
+            variantCode: 'INF_TIMBRE_POLY_SPECTRAL',
+            variantName: '∞-X: Omni-Spectral Deconstruction',
+            infinityTier: 10,
+            infinityMetadata: { tier: 10, romanNumeral: '∞-X', pattern: 'infinite' },
+            parametersJson: { infinityMode: true, tripleLayerExtraction: true, optionsCount: 5 }
+        }
+    ],
+    // 25. Định Vị Âm Thanh 3D (sound-localization)
+    'sound-localization': [
+        {
+            level: 13,
+            timeLimitSec: 40,
+            targetItemCount: 10,
+            variantCode: 'INF_LOC_MOVING_PAN',
+            variantName: '∞-I: Dynamic Vector Panning',
+            infinityTier: 1,
+            infinityMetadata: { tier: 1, romanNumeral: '∞-I', pattern: 'pendulum' },
+            parametersJson: { infinityMode: true, continuousPanSpeed: 1.2, optionsCount: 4 }
+        },
+        {
+            level: 14,
+            timeLimitSec: 40,
+            targetItemCount: 10,
+            variantCode: 'INF_LOC_MULTI_SOURCE',
+            variantName: '∞-II: Dual Target Triangulation',
+            infinityTier: 2,
+            infinityMetadata: { tier: 2, romanNumeral: '∞-II', pattern: 'mirror' },
+            parametersJson: { infinityMode: true, dualSimultaneousSources: true, optionsCount: 6 }
+        },
+        {
+            level: 15,
+            timeLimitSec: 40,
+            targetItemCount: 10,
+            variantCode: 'INF_LOC_DISTANCE_ATTENUATION',
+            variantName: '∞-III: Distance Cue Proximity',
+            infinityTier: 3,
+            infinityMetadata: { tier: 3, romanNumeral: '∞-III', enTheme: 'Acoustic Air Attenuation (1m vs 15m)' },
+            parametersJson: { infinityMode: true, distancePerception: true, optionsCount: 6 }
+        },
+        {
+            level: 16,
+            timeLimitSec: 35,
+            targetItemCount: 11,
+            variantCode: 'INF_LOC_DOPPLER_HIGHWAY',
+            variantName: '∞-IV: Doppler Shift Velocity',
+            infinityTier: 4,
+            infinityMetadata: { tier: 4, romanNumeral: '∞-IV', enTheme: 'High-speed 100km/h Doppler Swoop' },
+            parametersJson: { infinityMode: true, dopplerFlyby: true, optionsCount: 6 }
+        },
+        {
+            level: 17,
+            timeLimitSec: 35,
+            targetItemCount: 11,
+            variantCode: 'INF_LOC_HRTF_3D_SPHERE',
+            variantName: '∞-V: Full 3D Sphere Elevation',
+            infinityTier: 5,
+            infinityMetadata: { tier: 5, romanNumeral: '∞-V', pattern: 'rhythm' },
+            parametersJson: { infinityMode: true, hrtfFullSphere: true, elevationSteps: [-45, 0, 45, 90], optionsCount: 8 }
+        },
+        {
+            level: 18,
+            timeLimitSec: 35,
+            targetItemCount: 11,
+            variantCode: 'INF_LOC_ACOUSTIC_ECHO',
+            variantName: '∞-VI: Echo Suppression Haas Effect',
+            infinityTier: 6,
+            infinityMetadata: { tier: 6, romanNumeral: '∞-VI', enTheme: 'Haas Precedence & Direct vs Reflected' },
+            parametersJson: { infinityMode: true, haasPrecedence: true, optionsCount: 6 }
+        },
+        {
+            level: 19,
+            timeLimitSec: 35,
+            targetItemCount: 12,
+            variantCode: 'INF_LOC_ORBITAL_TRAJECTORY',
+            variantName: '∞-VII: Orbital Helix 3D',
+            infinityTier: 7,
+            infinityMetadata: { tier: 7, romanNumeral: '∞-VII', pattern: 'cascade' },
+            parametersJson: { infinityMode: true, helicalTrajectory: true, optionsCount: 8 }
+        },
+        {
+            level: 20,
+            timeLimitSec: 30,
+            targetItemCount: 12,
+            variantCode: 'INF_LOC_COCKTAIL_PARTY',
+            variantName: '∞-VIII: Cocktail Party Filter',
+            infinityTier: 8,
+            infinityMetadata: { tier: 8, romanNumeral: '∞-VIII', enTheme: 'Focus on Target Amid 3 Spatial Distractors' },
+            parametersJson: { infinityMode: true, spatialDistractorsCount: 3, optionsCount: 8 }
+        },
+        {
+            level: 21,
+            timeLimitSec: 30,
+            targetItemCount: 12,
+            variantCode: 'INF_LOC_FREQUENCY_SPLIT',
+            variantName: '∞-IX: Frequency Split Pan',
+            infinityTier: 9,
+            infinityMetadata: { tier: 9, romanNumeral: '∞-IX', pattern: 'mirror' },
+            parametersJson: { infinityMode: true, dualFrequencyOpposing: true, optionsCount: 8 }
+        },
+        {
+            level: 22,
+            timeLimitSec: 28,
+            targetItemCount: 13,
+            variantCode: 'INF_LOC_CHRONO_SPATIAL',
+            variantName: '∞-X: Chrono-Spatial Constellation',
+            infinityTier: 10,
+            infinityMetadata: { tier: 10, romanNumeral: '∞-X', pattern: 'infinite' },
+            parametersJson: { infinityMode: true, spatialSequenceLength: 6, optionsCount: 8 }
+        }
     ]
 };

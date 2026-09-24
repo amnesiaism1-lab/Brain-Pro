@@ -161,6 +161,70 @@ function renderExerciseIcon(slug: string) {
           </div>
         </div>
       );
+    case 'pitch-recall':
+      return (
+        <div className="flex flex-col items-center justify-center text-white">
+          <div className="flex items-end gap-0.5 mb-1">
+            <div className="w-2 h-5 bg-white rounded-t-sm" />
+            <div className="w-2 h-4 bg-amber-300 rounded-t-sm" />
+            <div className="w-2 h-6 bg-white rounded-t-sm" />
+            <div className="w-2 h-4 bg-amber-300 rounded-t-sm" />
+          </div>
+          <span className="text-[9px] font-black tracking-wider text-amber-300">PITCH</span>
+        </div>
+      );
+    case 'interval-identify':
+      return (
+        <div className="flex flex-col items-center justify-center text-white">
+          <div className="flex items-center gap-1.5 font-bold font-mono text-xs">
+            <span className="text-cyan-300">C4</span>
+            <span className="text-[10px] text-white/70">↔</span>
+            <span className="text-amber-300">G4</span>
+          </div>
+          <span className="text-[9px] font-black text-cyan-300 mt-1">QUÃNG 5</span>
+        </div>
+      );
+    case 'rhythm-recall':
+      return (
+        <div className="flex flex-col items-center justify-center text-white">
+          <div className="flex items-center gap-1 mb-1">
+            <div className="w-2 h-2 rounded-full bg-rose-400 animate-ping" />
+            <div className="w-2 h-2 rounded-full bg-white/40" />
+            <div className="w-2 h-2 rounded-full bg-rose-400" />
+            <div className="w-2 h-2 rounded-full bg-white/40" />
+          </div>
+          <span className="text-[9px] font-black tracking-wider text-rose-300">RHYTHM</span>
+        </div>
+      );
+    case 'chord-identify':
+      return (
+        <div className="flex flex-col items-center justify-center text-white">
+          <div className="flex flex-col items-center gap-0.5 leading-none mb-1">
+            <span className="text-[9px] font-mono font-bold text-purple-200">G</span>
+            <span className="text-[9px] font-mono font-bold text-purple-300">E</span>
+            <span className="text-[9px] font-mono font-bold text-amber-300">C</span>
+          </div>
+          <span className="text-[8px] font-black text-purple-300">CHORD</span>
+        </div>
+      );
+    case 'timbre-match':
+      return (
+        <div className="flex flex-col items-center justify-center text-white">
+          <div className="text-xs font-mono font-black text-emerald-300 mb-0.5">
+            ∿ ⊓ ⩓
+          </div>
+          <span className="text-[8px] font-black text-emerald-300">TIMBRE</span>
+        </div>
+      );
+    case 'sound-localization':
+      return (
+        <div className="relative flex items-center justify-center text-white">
+          <div className="w-8 h-8 rounded-full border border-dashed border-cyan-400/50 flex items-center justify-center">
+            <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+          </div>
+          <span className="absolute -bottom-2 text-[7px] font-black text-cyan-300">3D</span>
+        </div>
+      );
     default:
       return <Grid className="w-6 h-6 text-white" />;
   }
@@ -198,7 +262,8 @@ export const ExercisesListView: React.FC = () => {
     { id: 'PERIPHERAL_VISION', label: 'Thị giác ngoại vi' },
     { id: 'ATTENTION', label: 'Tập trung' },
     { id: 'MEMORY', label: 'Trí nhớ' },
-    { id: 'REACTION', label: 'Phản xạ' }
+    { id: 'REACTION', label: 'Phản xạ' },
+    { id: 'AUDITORY_MEMORY', label: 'Cảm âm & Thính giác' }
   ];
 
   const filteredExercises = EXERCISES_METADATA.filter(ex => 

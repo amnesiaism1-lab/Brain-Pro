@@ -181,6 +181,61 @@ export const EXERCISE_RELATION_MAP: Record<ExerciseSlug, IExerciseRelationMappin
     levelAffinity: {
       4: ['TARGET_POSITION', 'SPATIAL_TRANSFORM']
     }
+  },
+  'pitch-recall': {
+    slug: 'pitch-recall',
+    primaryRelation: 'ORDER_SEQUENCE',
+    secondaryRelations: ['IDENTITY_MATCH', 'TEMPORAL_PREDICT'],
+    levelAffinity: {
+      9: ['ORDER_SEQUENCE', 'IDENTITY_MATCH'],
+      11: ['ORDER_SEQUENCE', 'SPATIAL_TRANSFORM'],
+      16: ['IDENTITY_MATCH', 'RULE_ACTION']
+    }
+  },
+  'interval-identify': {
+    slug: 'interval-identify',
+    primaryRelation: 'SIMILARITY_DIFF',
+    secondaryRelations: ['IDENTITY_MATCH', 'RULE_ACTION'],
+    levelAffinity: {
+      7: ['SIMILARITY_DIFF', 'IDENTITY_MATCH'],
+      11: ['SIMILARITY_DIFF', 'SPATIAL_TRANSFORM']
+    }
+  },
+  'rhythm-recall': {
+    slug: 'rhythm-recall',
+    primaryRelation: 'TEMPORAL_PREDICT',
+    secondaryRelations: ['ORDER_SEQUENCE', 'RULE_ACTION'],
+    levelAffinity: {
+      7: ['TEMPORAL_PREDICT', 'ORDER_SEQUENCE'],
+      10: ['TEMPORAL_PREDICT', 'INHIBITION']
+    }
+  },
+  'chord-identify': {
+    slug: 'chord-identify',
+    primaryRelation: 'IDENTITY_MATCH',
+    secondaryRelations: ['SIMILARITY_DIFF', 'PART_WHOLE'],
+    levelAffinity: {
+      6: ['IDENTITY_MATCH', 'PART_WHOLE'],
+      9: ['IDENTITY_MATCH', 'SPATIAL_TRANSFORM']
+    }
+  },
+  'timbre-match': {
+    slug: 'timbre-match',
+    primaryRelation: 'SIMILARITY_DIFF',
+    secondaryRelations: ['IDENTITY_MATCH', 'FOCUS_FIELD'],
+    levelAffinity: {
+      5: ['SIMILARITY_DIFF', 'FOCUS_FIELD'],
+      8: ['SIMILARITY_DIFF', 'INHIBITION']
+    }
+  },
+  'sound-localization': {
+    slug: 'sound-localization',
+    primaryRelation: 'TARGET_POSITION',
+    secondaryRelations: ['SPATIAL_TRANSFORM', 'FOCUS_FIELD'],
+    levelAffinity: {
+      4: ['TARGET_POSITION', 'SPATIAL_TRANSFORM'],
+      9: ['TARGET_POSITION', 'TEMPORAL_PREDICT']
+    }
   }
 };
 

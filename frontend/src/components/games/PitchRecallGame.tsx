@@ -1,0 +1,320 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useAppStore } from '../../store/useAppStore';
+import { GameResultModal } from './GameResultModal';
+import { calculateGameScore, INFINITY_ROMAN_NUMERALS } from '@brain-exercises/shared';
+import { useRelationSession } from '../../hooks/useRelationSession';
+import { auditoryEngine } from '../../services/auditoryEngine';
+import { generateRandomPitchSequence } from '../../services/musicTheoryService';
+import { PianoKeyboard } from '../ui/PianoKeyboard';
+import { FrequencySpectrum } from '../ui/FrequencySpectrum';
+import { Volume2, RotateCcw, ArrowRight, Music, AlertCircle } from 'lucide-react';
+
+export const PitchRecallGame: React.FC = () => {
+  const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
+  const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
+
+  const effectiveLevel = getExerciseLevel('pitch-recall') || currentLevel || 1;
+  const isInfinity = effectiveLevel >= 13;
+  const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
+
+  // Level configuration
+  const sequenceLength = isInfinity
+    ? Math.min(8, 5 + Math.floor(infinityTier / 2))
+    : effectiveLevel <= 2 ? 3 : effectiveLevel <= 4 ? 4 : effectiveLevel <= 7 ? 5 : effectiveLevel <= 10 ? 6 : 7;
+
+  const octaveRange: [number, number] = effectiveLevel >= 5 || isInfinity ? [4, 5] : [4, 4];
+  const includeAccidentals = effectiveLevel >= 4 || isInfinity;
+  const isReverseRecall = effectiveLevel === 9 || effectiveLevel === 12;
+  const isChromaticStorm = effectiveLevel === 13;
+  const isTranspositionMode = effectiveLevel === 16;
+  const isFibonacciTempo = effectiveLevel === 17;
+  const isMicrotonal = effectiveLevel === 20;
+
+  const showVisualHints = effectiveLevel <= 2 && !isInfinity;
+  const noteSpeedMs = effectiveLevel >= 10 ? 350 : 550;
+
+  // Game state
+  const [round, setRound] = useState(1);
+  const maxRounds = 4;
+  const [targetSequence, setTargetSequence] = useState<string[]>([]);
+  const [userSequence, setUserSequence] = useState<string[]>([]);
+  const [activeNotes, setActiveNotes] = useState<string[]>([]);
+  const [phase, setPhase] = useState<'listen' | 'recall' | 'feedback'>('listen');
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [score, setScore] = useState(0);
+  const [correctRounds, setCorrectRounds] = useState(0);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [isFinished, setIsFinished] = useState(false);
+  const [lastFeedback, setLastFeedback] = useState<{ isCorrect: boolean; message: string } | null>(null);
+
+  const startTimeRef = useRef<number>(Date.now());
+  const trialStartTimeRef = useRef<number>(Date.now());
+
+  // Generate new round
+  const startNewRound = useCallback(() => {
+    const seq = generateRandomPitchSequence(sequenceLength, octaveRange[0] === octaveRange[1] ? [octaveRange[0]] : [4, 5], includeAccidentals);
+    setTargetSequence(seq);
+    setUserSequence([]);
+    setLastFeedback(null);
+    setPhase('listen');
+  }, [sequenceLength, octaveRange, includeAccidentals]);
+
+  // Initial setup
+  useEffect(() => {
+    resetSession();
+    startNewRound();
+  }, [effectiveLevel, resetSession, startNewRound]);
+
+  // Timer
+  useEffect(() => {
+    if (isFinished) return;
+    const timer = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - startTimeRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isFinished]);
+
+  // Play audio sequence when in listen phase
+  const playSequence = useCallback(async () => {
+    if (targetSequence.length === 0 || isPlayingAudio) return;
+    setIsPlayingAudio(true);
+    auditoryEngine.initContext();
+
+    for (let i = 0; i < targetSequence.length; i++) {
+      const note = targetSequence[i];
+      if (showVisualHints) {
+        setActiveNotes([note]);
+      }
+      
+      // Delay adjustments for special modes
+      let delay = noteSpeedMs;
+      if (isFibonacciTempo) {
+        const fibDelays = [150, 200, 320, 500, 800];
+        delay = fibDelays[i % fibDelays.length];
+      }
+
+      auditoryEngine.playNote(note, 0.4, {
+        detuneCents: isMicrotonal ? (i % 2 === 0 ? 35 : -35) : 0
+      });
+
+      await new Promise(r => setTimeout(r, delay));
+      if (showVisualHints) {
+        setActiveNotes([]);
+      }
+      await new Promise(r => setTimeout(r, 60));
+    }
+
+    setIsPlayingAudio(false);
+    setActiveNotes([]);
+    setPhase('recall');
+    trialStartTimeRef.current = Date.now();
+  }, [targetSequence, isPlayingAudio, showVisualHints, noteSpeedMs, isFibonacciTempo, isMicrotonal]);
+
+  // Auto play sequence when round starts
+  useEffect(() => {
+    if (phase === 'listen' && targetSequence.length > 0 && !isPlayingAudio) {
+      const timeout = setTimeout(() => {
+        playSequence();
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [phase, targetSequence, isPlayingAudio, playSequence]);
+
+  // Handle user key click
+  const handleKeyClick = (note: string) => {
+    if (phase !== 'recall' || isPlayingAudio) return;
+
+    // Play clicked note sound immediately
+    auditoryEngine.playNote(note, 0.35);
+
+    const nextUserSeq = [...userSequence, note];
+    setUserSequence(nextUserSeq);
+
+    // Flash key briefly
+    setActiveNotes([note]);
+    setTimeout(() => setActiveNotes([]), 150);
+
+    // If reached expected length
+    if (nextUserSeq.length >= targetSequence.length) {
+      setPhase('feedback');
+      const reactionMs = Date.now() - trialStartTimeRef.current;
+
+      // Expected target sequence
+      const expected = isReverseRecall ? [...targetSequence].reverse() : targetSequence;
+      const isCorrect = nextUserSeq.every((n, idx) => n === expected[idx]);
+
+      auditoryEngine.playFeedback(isCorrect);
+
+      if (isCorrect) {
+        setCorrectRounds(prev => prev + 1);
+        setScore(prev => prev + 250);
+        setLastFeedback({ isCorrect: true, message: 'Chính xác hoàn hảo!' });
+      } else {
+        setLastFeedback({
+          isCorrect: false,
+          message: `Chưa đúng! Đáp án đúng: ${expected.join(' - ')}`
+        });
+      }
+
+      emitTrialEvent({
+        exerciseSlug: 'pitch-recall',
+        level: effectiveLevel,
+        relationId: isReverseRecall ? 'ORDER_SEQUENCE' : 'IDENTITY_MATCH',
+        entities: {
+          target: targetSequence.join(','),
+          response: nextUserSeq.join(',')
+        },
+        stateBefore: 'listen',
+        stateAfter: 'recall',
+        responseMs: reactionMs,
+        correct: isCorrect
+      });
+
+      // Next round or finish
+      setTimeout(() => {
+        if (round >= maxRounds) {
+          setIsFinished(true);
+        } else {
+          setRound(prev => prev + 1);
+          startNewRound();
+        }
+      }, 1600);
+    }
+  };
+
+  const handleReplay = () => {
+    if (phase === 'recall' && !isPlayingAudio) {
+      setUserSequence([]);
+      setPhase('listen');
+      playSequence();
+    }
+  };
+
+  return (
+    <div className="relative min-h-[580px] flex flex-col justify-between p-4 max-w-4xl mx-auto">
+      {/* Top Header Bar */}
+      <div className="flex items-center justify-between pb-3 border-b border-white/10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400">
+            <Music className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-white">Nhớ Cao Độ (Pitch Recall)</h2>
+              {isInfinity && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950">
+                  {INFINITY_ROMAN_NUMERALS[infinityTier - 1]}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-400">
+              {isReverseRecall
+                ? '⚠️ Chế độ đảo ngược: Nhập theo thứ tự TỪ CUỐI LÊN ĐẦU'
+                : 'Lắng nghe chuỗi nốt và bấm lại theo đúng thứ tự'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 text-xs font-mono">
+          <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-white/10 text-slate-300">
+            Hiệp: <span className="font-bold text-amber-400">{round}/{maxRounds}</span>
+          </div>
+          <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-white/10 text-slate-300">
+            Thời gian: <span className="font-bold text-cyan-400">{elapsedSec}s</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Visualizer & Status */}
+      <div className="my-4 flex flex-col items-center">
+        <FrequencySpectrum height={70} className="w-full max-w-md mb-3" isActive={isPlayingAudio} />
+
+        <div className="flex items-center gap-3">
+          <div className={`px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 border ${
+            phase === 'listen'
+              ? 'bg-amber-400/20 border-amber-400 text-amber-300 animate-pulse'
+              : phase === 'recall'
+              ? 'bg-emerald-400/20 border-emerald-400 text-emerald-300'
+              : 'bg-indigo-400/20 border-indigo-400 text-indigo-300'
+          }`}>
+            <Volume2 className="w-4 h-4" />
+            {phase === 'listen' ? 'Đang phát chuỗi âm thanh...' : phase === 'recall' ? 'Lượt của bạn: Hãy gõ các nốt!' : 'Đang đối chiếu...'}
+          </div>
+
+          {phase === 'recall' && (
+            <button
+              onClick={handleReplay}
+              disabled={isPlayingAudio}
+              className="px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 flex items-center gap-1 border border-white/10"
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Nghe lại
+            </button>
+          )}
+        </div>
+
+        {/* User Progress Sequence Slots */}
+        <div className="flex items-center gap-2 mt-4">
+          {targetSequence.map((_, idx) => {
+            const userNote = userSequence[idx];
+            return (
+              <div
+                key={`slot-${idx}`}
+                className={`w-11 h-12 rounded-xl flex items-center justify-center font-bold font-mono text-sm border transition-all ${
+                  userNote
+                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md scale-105'
+                    : 'bg-slate-800/60 text-slate-600 border-slate-700'
+                }`}
+              >
+                {userNote || (idx + 1)}
+              </div>
+            );
+          })}
+        </div>
+
+        {lastFeedback && (
+          <div className={`mt-3 text-xs font-bold px-3 py-1 rounded-lg ${
+            lastFeedback.isCorrect ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+          }`}>
+            {lastFeedback.message}
+          </div>
+        )}
+      </div>
+
+      {/* Piano Keyboard */}
+      <div className="flex flex-col items-center">
+        <PianoKeyboard
+          octaveRange={octaveRange}
+          activeNotes={activeNotes}
+          selectedNotes={userSequence}
+          disabled={phase !== 'recall' || isPlayingAudio}
+          onKeyClick={handleKeyClick}
+          showLabels={showVisualHints || effectiveLevel <= 4}
+        />
+      </div>
+
+      {/* Result Modal */}
+      {isFinished && (
+        <GameResultModal
+          score={calculateGameScore({
+            level: effectiveLevel,
+            accuracyRate: Math.round((correctRounds / maxRounds) * 100),
+            timeLimitSec: 60,
+            timeSpentSec: elapsedSec
+          })}
+          accuracyRate={Math.round((correctRounds / maxRounds) * 100)}
+          timeSpentSec={elapsedSec}
+          rawMetricsJson={getRawMetricsJson()}
+          onRestart={() => {
+            setIsFinished(false);
+            setRound(1);
+            setCorrectRounds(0);
+            setScore(0);
+            startTimeRef.current = Date.now();
+            startNewRound();
+          }}
+          onClose={() => setActiveGameSlug(null)}
+        />
+      )}
+    </div>
+  );
+};
