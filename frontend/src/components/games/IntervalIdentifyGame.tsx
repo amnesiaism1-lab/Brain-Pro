@@ -34,7 +34,6 @@ export const IntervalIdentifyGame: React.FC = () => {
 
   const optionsCount = effectiveLevel >= 8 || isInfinity ? 5 : 4;
   const isHyperSpeed = effectiveLevel === 13;
-  const isInversionMirror = effectiveLevel === 15;
 
   // Game state
   const [round, setRound] = useState(1);
@@ -210,8 +209,7 @@ export const IntervalIdentifyGame: React.FC = () => {
     setIsAnswered(true);
     const reactionMs = Date.now() - trialStartTimeRef.current;
 
-    const targetCode = isInversionMirror ? question.intervalInfo.inversionCode : question.intervalCode;
-    const isCorrect = opt.code === targetCode;
+    const isCorrect = opt.code === question.intervalCode;
 
     auditoryEngine.playFeedback(isCorrect);
 
@@ -262,9 +260,7 @@ export const IntervalIdentifyGame: React.FC = () => {
               )}
             </div>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium">
-              {isInversionMirror
-                ? '⚠️ Chế độ gương đảo: Hãy chọn QUÃNG ĐẢO NGƯỢC của quãng bạn vừa nghe'
-                : 'Lắng nghe 2 nốt nhạc và chọn đúng tên quãng'}
+              Lắng nghe 2 nốt nhạc và chọn đúng tên quãng
             </p>
           </div>
         </div>
@@ -349,8 +345,7 @@ export const IntervalIdentifyGame: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-2xl mx-auto w-full my-3">
         {question?.options.map((opt) => {
           const isSelected = selectedOption?.code === opt.code;
-          const targetCode = isInversionMirror ? question.intervalInfo.inversionCode : question.intervalCode;
-          const isCorrect = opt.code === targetCode;
+          const isCorrect = opt.code === question.intervalCode;
 
           const isButtonDisabled = isAnswered || isPlaying || !hasStartedAudio || !hasPlayedCurrentRound;
 
@@ -413,11 +408,11 @@ export const IntervalIdentifyGame: React.FC = () => {
           theoryModuleId="intervals"
           theoryTitle="2. Quãng Âm (Intervals)"
           isAnswered={isAnswered}
-          isCorrect={selectedOption?.code === (isInversionMirror ? question.intervalInfo.inversionCode : question.intervalCode)}
+          isCorrect={selectedOption?.code === question.intervalCode}
           rootNote={question.rootNote}
           targetNotes={[question.targetNote]}
           correctName={question.intervalInfo.nameVi}
-          correctCode={isInversionMirror ? question.intervalInfo.inversionCode : question.intervalInfo.code}
+          correctCode={question.intervalInfo.code}
           correctDescription={`${question.intervalInfo.semitones} nửa cung • ${question.intervalInfo.ratioDescription}`}
           mnemonicSong={question.intervalInfo.mnemonicSongVi}
           pedagogicalTip={question.intervalInfo.tipVi}

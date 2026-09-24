@@ -83,6 +83,10 @@ export const EarTrainingLearningCard: React.FC<IEarTrainingLearningCardProps> = 
   preAnswerHints = []
 }) => {
   const { navigateToTheory } = useAppStore();
+
+  const isAnswerTrulyCorrect = isCorrect || Boolean(
+    userChoiceCode && correctCode && userChoiceCode.trim().toLowerCase() === correctCode.trim().toLowerCase()
+  );
   
   // UI states
   const [isPreAnswerHintOpen, setIsPreAnswerHintOpen] = useState(false);
@@ -238,35 +242,35 @@ export const EarTrainingLearningCard: React.FC<IEarTrainingLearningCardProps> = 
       {/* 2. POST-ANSWER DEEP LEARNING & COMPARISON PANEL */}
       {isAnswered && (
         <div className={`p-5 rounded-3xl border shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-250 ${
-          isCorrect 
+          isAnswerTrulyCorrect 
             ? 'bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/30' 
             : 'bg-rose-500/5 dark:bg-rose-950/20 border-rose-500/30'
         }`}>
-          {/* Header result banner */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center gap-2.5">
-              {isCorrect ? (
-                <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-sm">
-                  <CheckCircle2 className="w-5 h-5" />
+            {/* Header result banner */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                {isAnswerTrulyCorrect ? (
+                  <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-sm">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                ) : (
+                  <div className="w-9 h-9 rounded-2xl bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-sm">
+                    <XCircle className="w-5 h-5" />
+                  </div>
+                )}
+                <div>
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                    {isAnswerTrulyCorrect ? 'Chính Xác Hoàn Hảo!' : 'Chưa Đúng — Cùng Luyện Tai Ngay'}
+                    {isAnswerTrulyCorrect && <Sparkles className="w-4 h-4 text-emerald-500" />}
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {isAnswerTrulyCorrect 
+                      ? `Bạn đã nhận diện chuẩn xác: ${correctName}`
+                      : `Bạn đã chọn: ${userChoiceName || userChoiceCode || 'Khác'} • Đáp án đúng là: ${correctName}`
+                    }
+                  </p>
                 </div>
-              ) : (
-                <div className="w-9 h-9 rounded-2xl bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-sm">
-                  <XCircle className="w-5 h-5" />
-                </div>
-              )}
-              <div>
-                <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                  {isCorrect ? 'Chính Xác Hoàn Hảo!' : 'Chưa Đúng — Cùng Luyện Tai Ngay'}
-                  {isCorrect && <Sparkles className="w-4 h-4 text-emerald-500" />}
-                </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {isCorrect 
-                    ? `Bạn đã nhận diện chuẩn xác: ${correctName}`
-                    : `Bạn đã chọn: ${userChoiceName || userChoiceCode || 'Khác'} • Đáp án đúng là: ${correctName}`
-                  }
-                </p>
               </div>
-            </div>
 
             {/* Auto-advance timer pill */}
             <div className="flex items-center gap-2">
@@ -326,7 +330,7 @@ export const EarTrainingLearningCard: React.FC<IEarTrainingLearningCardProps> = 
               </button>
 
               {/* Button 2: Replay User Choice (if wrong) */}
-              {!isCorrect && userChoiceName && onPlayUserChoice && (
+              {!isAnswerTrulyCorrect && userChoiceName && onPlayUserChoice && (
                 <button
                   type="button"
                   onClick={() => handlePlayAudio('user')}
