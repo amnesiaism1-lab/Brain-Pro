@@ -7,7 +7,7 @@ import { auditoryEngine } from '../../services/auditoryEngine';
 import { generateRandomPitchSequence } from '../../services/musicTheoryService';
 import { PianoKeyboard } from '../ui/PianoKeyboard';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
-import { Volume2, RotateCcw, ArrowRight, Music, AlertCircle } from 'lucide-react';
+import { Volume2, RotateCcw, Play, Music } from 'lucide-react';
 
 export const PitchRecallGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
@@ -41,6 +41,7 @@ export const PitchRecallGame: React.FC = () => {
   const [activeNotes, setActiveNotes] = useState<string[]>([]);
   const [phase, setPhase] = useState<'listen' | 'recall' | 'feedback'>('listen');
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [hasStartedAudio, setHasStartedAudio] = useState(false);
   const [score, setScore] = useState(0);
   const [correctRounds, setCorrectRounds] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -75,13 +76,14 @@ export const PitchRecallGame: React.FC = () => {
   }, [isFinished]);
 
   // Play audio sequence when in listen phase
-  const playSequence = useCallback(async () => {
-    if (targetSequence.length === 0 || isPlayingAudio) return;
+  const playSequence = useCallback(async (seqToPlay = targetSequence) => {
+    if (seqToPlay.length === 0 || isPlayingAudio) return;
     setIsPlayingAudio(true);
-    auditoryEngine.initContext();
+    setHasStartedAudio(true);
+    await auditoryEngine.resumeAudioContext();
 
-    for (let i = 0; i < targetSequence.length; i++) {
-      const note = targetSequence[i];
+    for (let i = 0; i < seqToPlay.length; i++) {
+      const note = seqToPlay[i];
       if (showVisualHints) {
         setActiveNotes([note]);
       }
@@ -110,15 +112,15 @@ export const PitchRecallGame: React.FC = () => {
     trialStartTimeRef.current = Date.now();
   }, [targetSequence, isPlayingAudio, showVisualHints, noteSpeedMs, isFibonacciTempo, isMicrotonal]);
 
-  // Auto play sequence when round starts
+  // Auto play sequence when round starts IF user has already started audio
   useEffect(() => {
-    if (phase === 'listen' && targetSequence.length > 0 && !isPlayingAudio) {
+    if (phase === 'listen' && targetSequence.length > 0 && hasStartedAudio && !isPlayingAudio) {
       const timeout = setTimeout(() => {
-        playSequence();
+        playSequence(targetSequence);
       }, 500);
       return () => clearTimeout(timeout);
     }
-  }, [phase, targetSequence, isPlayingAudio, playSequence]);
+  }, [phase, targetSequence, hasStartedAudio, isPlayingAudio, playSequence]);
 
   // Handle user key click
   const handleKeyClick = (note: string) => {
@@ -183,7 +185,7 @@ export const PitchRecallGame: React.FC = () => {
   };
 
   const handleReplay = () => {
-    if (phase === 'recall' && !isPlayingAudio) {
+    if (!isPlayingAudio) {
       setUserSequence([]);
       setPhase('listen');
       playSequence();
@@ -191,23 +193,25 @@ export const PitchRecallGame: React.FC = () => {
   };
 
   return (
-    <div className="relative min-h-[580px] flex flex-col justify-between p-4 max-w-4xl mx-auto">
+    <div className="relative w-full max-w-4xl mx-auto my-2 p-5 sm:p-7 bg-[#FAF6F0] dark:bg-slate-900 border border-[#DCD3C3] dark:border-slate-800 rounded-3xl shadow-xl flex flex-col justify-between min-h-[580px] transition-all">
       {/* Top Header Bar */}
-      <div className="flex items-center justify-between pb-3 border-b border-white/10">
+      <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400">
-            <Music className="w-5 h-5" />
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-sm">
+            <Music className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-white">Nhớ Cao Độ (Pitch Recall)</h2>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                Nhớ Cao Độ (Pitch Recall)
+              </h2>
               {isInfinity && (
-                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950">
-                  {INFINITY_ROMAN_NUMERALS[infinityTier - 1]}
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm">
+                  {INFINITY_ROMAN_NUMERALS[infinityTier - 1] || 'INF'}
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium">
               {isReverseRecall
                 ? '⚠️ Chế độ đảo ngược: Nhập theo thứ tự TỪ CUỐI LÊN ĐẦU'
                 : 'Lắng nghe chuỗi nốt và bấm lại theo đúng thứ tự'}
@@ -215,54 +219,65 @@ export const PitchRecallGame: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-xs font-mono">
-          <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-white/10 text-slate-300">
-            Hiệp: <span className="font-bold text-amber-400">{round}/{maxRounds}</span>
+        <div className="flex items-center gap-3 text-xs font-mono">
+          <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
+            Hiệp: <span className="font-black text-amber-600 dark:text-amber-400">{round}/{maxRounds}</span>
           </div>
-          <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-white/10 text-slate-300">
-            Thời gian: <span className="font-bold text-cyan-400">{elapsedSec}s</span>
+          <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
+            Thời gian: <span className="font-black text-cyan-600 dark:text-cyan-400">{elapsedSec}s</span>
           </div>
         </div>
       </div>
 
       {/* Visualizer & Status */}
       <div className="my-4 flex flex-col items-center">
-        <FrequencySpectrum height={70} className="w-full max-w-md mb-3" isActive={isPlayingAudio} />
+        <FrequencySpectrum height={75} className="w-full max-w-md mb-4 bg-slate-900 dark:bg-slate-950" isActive={isPlayingAudio} />
 
-        <div className="flex items-center gap-3">
-          <div className={`px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 border ${
-            phase === 'listen'
-              ? 'bg-amber-400/20 border-amber-400 text-amber-300 animate-pulse'
-              : phase === 'recall'
-              ? 'bg-emerald-400/20 border-emerald-400 text-emerald-300'
-              : 'bg-indigo-400/20 border-indigo-400 text-indigo-300'
-          }`}>
-            <Volume2 className="w-4 h-4" />
-            {phase === 'listen' ? 'Đang phát chuỗi âm thanh...' : phase === 'recall' ? 'Lượt của bạn: Hãy gõ các nốt!' : 'Đang đối chiếu...'}
-          </div>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {!hasStartedAudio ? (
+            <button
+              type="button"
+              onClick={() => playSequence()}
+              className="px-7 py-3 rounded-full font-black text-sm sm:text-base flex items-center gap-2.5 transition-all shadow-md bg-amber-500 hover:bg-amber-400 text-slate-950 border-2 border-amber-300 shadow-amber-500/30 hover:scale-105 cursor-pointer active:scale-95"
+            >
+              <Play className="w-5 h-5 fill-current" />
+              <span>Bắt đầu nghe chuỗi nốt (Nhấn để phát)</span>
+            </button>
+          ) : (
+            <div className={`px-5 py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 border shadow-sm ${
+              phase === 'listen'
+                ? 'bg-amber-500/20 border-amber-400 text-amber-700 dark:text-amber-300 animate-pulse'
+                : phase === 'recall'
+                ? 'bg-emerald-500/20 border-emerald-400 text-emerald-800 dark:text-emerald-300 font-black'
+                : 'bg-indigo-500/20 border-indigo-400 text-indigo-700 dark:text-indigo-300'
+            }`}>
+              <Volume2 className="w-4 h-4" />
+              {phase === 'listen' ? 'Đang phát chuỗi âm thanh...' : phase === 'recall' ? 'Lượt của bạn: Hãy gõ các nốt trên bàn phím!' : 'Đang đối chiếu...'}
+            </div>
+          )}
 
-          {phase === 'recall' && (
+          {hasStartedAudio && phase === 'recall' && (
             <button
               onClick={handleReplay}
               disabled={isPlayingAudio}
-              className="px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 flex items-center gap-1 border border-white/10"
+              className="px-4 py-2 rounded-full bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 border border-slate-300 dark:border-slate-700 shadow-sm transition-all"
             >
-              <RotateCcw className="w-3.5 h-3.5" /> Nghe lại
+              <RotateCcw className="w-4 h-4" /> Nghe lại
             </button>
           )}
         </div>
 
         {/* User Progress Sequence Slots */}
-        <div className="flex items-center gap-2 mt-4">
+        <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
           {targetSequence.map((_, idx) => {
             const userNote = userSequence[idx];
             return (
               <div
                 key={`slot-${idx}`}
-                className={`w-11 h-12 rounded-xl flex items-center justify-center font-bold font-mono text-sm border transition-all ${
+                className={`w-12 h-14 rounded-2xl flex items-center justify-center font-black font-mono text-base border-2 transition-all ${
                   userNote
-                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md scale-105'
-                    : 'bg-slate-800/60 text-slate-600 border-slate-700'
+                    ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-md scale-105'
+                    : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 shadow-inner'
                 }`}
               >
                 {userNote || (idx + 1)}
@@ -272,8 +287,8 @@ export const PitchRecallGame: React.FC = () => {
         </div>
 
         {lastFeedback && (
-          <div className={`mt-3 text-xs font-bold px-3 py-1 rounded-lg ${
-            lastFeedback.isCorrect ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+          <div className={`mt-3 text-xs sm:text-sm font-black px-4 py-1.5 rounded-xl border ${
+            lastFeedback.isCorrect ? 'bg-emerald-500/20 border-emerald-400 text-emerald-800 dark:text-emerald-300' : 'bg-rose-500/20 border-rose-400 text-rose-800 dark:text-rose-300'
           }`}>
             {lastFeedback.message}
           </div>
@@ -281,7 +296,7 @@ export const PitchRecallGame: React.FC = () => {
       </div>
 
       {/* Piano Keyboard */}
-      <div className="flex flex-col items-center">
+      <div className="flex flex-col items-center my-2">
         <PianoKeyboard
           octaveRange={octaveRange}
           activeNotes={activeNotes}

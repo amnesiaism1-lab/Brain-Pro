@@ -42,12 +42,53 @@ class AuditoryEngine {
 
         // Pre-create 1 second of white noise for realistic snare / hi-hat
         this.createNoiseBuffer();
+
+        // Configure Listener in 3D space (at origin facing forward -Z)
+        this.setupAudioListener();
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
     return this.ctx;
+  }
+
+  public setupAudioListener(): void {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const listener = this.ctx.listener;
+    // Set listener at origin facing north (forward = -Z, up = +Y)
+    if (listener.positionX) {
+      listener.positionX.setValueAtTime(0, now);
+      listener.positionY.setValueAtTime(0, now);
+      listener.positionZ.setValueAtTime(0, now);
+      listener.forwardX.setValueAtTime(0, now);
+      listener.forwardY.setValueAtTime(0, now);
+      listener.forwardZ.setValueAtTime(-1, now);
+      listener.upX.setValueAtTime(0, now);
+      listener.upY.setValueAtTime(1, now);
+      listener.upZ.setValueAtTime(0, now);
+    } else {
+      listener.setPosition(0, 0, 0);
+      listener.setOrientation(0, 0, -1, 0, 1, 0);
+    }
+  }
+
+  public async resumeAudioContext(): Promise<boolean> {
+    const ctx = this.initContext();
+    if (!ctx) return false;
+    if (ctx.state === 'suspended') {
+      try {
+        await ctx.resume();
+      } catch (err) {
+        console.warn('AudioContext resume error:', err);
+      }
+    }
+    return ctx.state === 'running';
+  }
+
+  public isAudioActive(): boolean {
+    return !!this.ctx && this.ctx.state === 'running';
   }
 
   private createNoiseBuffer() {
@@ -343,7 +384,7 @@ class AuditoryEngine {
   }
 
   /**
-   * 3D Spatial Audio using HRTF PannerNode
+   * 3D Spatial Audio using HRTF PannerNode with Pinna Spectral Cues
    * Azimuth: 0 = straight ahead, 90 = right, 180 = behind, 270 = left
    * Elevation: -90 = below, 0 = level, +90 = above
    * Distance: meters (1 to 20)
@@ -353,10 +394,12 @@ class AuditoryEngine {
     azimuthDeg = 0,
     elevationDeg = 0,
     distanceMeters = 2.0,
-    durationSec = 0.5
+    durationSec = 0.55
   ): void {
     const ctx = this.initContext();
     if (!ctx || !this.masterGain) return;
+
+    this.setupAudioListener();
 
     const baseFreq = typeof noteOrFreq === 'number' ? noteOrFreq : getNoteFrequency(noteOrFreq);
     const now = ctx.currentTime;
@@ -369,15 +412,13 @@ class AuditoryEngine {
     const y = distanceMeters * Math.sin(elRad);
     const z = -distanceMeters * Math.cos(azRad) * Math.cos(elRad);
 
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+    // HRTF Panner
     const panner = ctx.createPanner();
-
     panner.panningModel = 'HRTF';
     panner.distanceModel = 'inverse';
     panner.refDistance = 1;
-    panner.maxDistance = 10000;
-    panner.rolloffFactor = 1;
+    panner.maxDistance = 1000;
+    panner.rolloffFactor = 1.2;
 
     if (panner.positionX) {
       panner.positionX.setValueAtTime(x, now);
@@ -387,19 +428,54 @@ class AuditoryEngine {
       panner.setPosition(x, y, z);
     }
 
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(baseFreq, now);
+    // Pinna spectral filter (Behind vs Front cues)
+    // When sound is behind (90° < angle < 270°), the human pinna dampens frequencies above 3.5kHz
+    const isBehind = azimuthDeg > 110 && azimuthDeg < 250;
+    const pinnaFilter = ctx.createBiquadFilter();
+    if (isBehind) {
+      pinnaFilter.type = 'lowpass';
+      pinnaFilter.frequency.setValueAtTime(2800, now);
+      pinnaFilter.Q.setValueAtTime(0.7, now);
+    } else {
+      pinnaFilter.type = 'peaking';
+      pinnaFilter.frequency.setValueAtTime(3600, now);
+      pinnaFilter.gain.setValueAtTime(4.0, now);
+      pinnaFilter.Q.setValueAtTime(1.2, now);
+    }
 
+    // Gain envelope
+    const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.4, now + 0.03);
+    gain.gain.linearRampToValueAtTime(0.5, now + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + durationSec);
 
-    osc.connect(gain);
-    gain.connect(panner);
+    // Rich dual-oscillator acoustic spatial pulse (fundamental + bright transient harmonic for instant localization)
+    const osc1 = ctx.createOscillator();
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(baseFreq, now);
+
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'sine';
+    // Frequency sweep downward for clear sonar/radar acoustic ping
+    osc2.frequency.setValueAtTime(baseFreq * 2.5, now);
+    osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, now + 0.15);
+
+    const osc2Gain = ctx.createGain();
+    osc2Gain.gain.setValueAtTime(0.35, now);
+    osc2Gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+    osc1.connect(gain);
+    osc2.connect(osc2Gain);
+    osc2Gain.connect(gain);
+
+    gain.connect(pinnaFilter);
+    pinnaFilter.connect(panner);
     panner.connect(this.masterGain);
 
-    osc.start(now);
-    osc.stop(now + durationSec + 0.05);
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + durationSec + 0.05);
+    osc2.stop(now + 0.25);
   }
 
   /**
@@ -418,3 +494,16 @@ class AuditoryEngine {
 }
 
 export const auditoryEngine = new AuditoryEngine();
+
+// Auto-unlock AudioContext on the very first user click, touch or keydown anywhere on the page
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    auditoryEngine.resumeAudioContext();
+    window.removeEventListener('click', unlockAudio);
+    window.removeEventListener('touchstart', unlockAudio);
+    window.removeEventListener('keydown', unlockAudio);
+  };
+  window.addEventListener('click', unlockAudio, { once: true, passive: true });
+  window.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
+  window.addEventListener('keydown', unlockAudio, { once: true, passive: true });
+}

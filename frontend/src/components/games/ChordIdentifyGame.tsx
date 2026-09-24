@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { calculateGameScore, INFINITY_ROMAN_NUMERALS } from '@brain-exercises/shared';
@@ -6,7 +6,7 @@ import { useRelationSession } from '../../hooks/useRelationSession';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { generateChordQuestion, IChordTypeInfo } from '../../services/musicTheoryService';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
-import { Layers, Volume2, RotateCcw, CheckCircle2, XCircle, Sparkles } from 'lucide-react';
+import { Layers, Volume2, RotateCcw, CheckCircle2, XCircle, Play } from 'lucide-react';
 
 export const ChordIdentifyGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
@@ -16,20 +16,20 @@ export const ChordIdentifyGame: React.FC = () => {
   const isInfinity = effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
-  // Determine allowed types based on level
-  const allowedChordTypes = effectiveLevel <= 2
-    ? ['Major', 'Minor']
-    : effectiveLevel <= 3
-    ? ['Major', 'Minor', 'Diminished']
-    : effectiveLevel <= 5
-    ? ['Major', 'Minor', 'Diminished', 'Augmented']
-    : effectiveLevel <= 7
-    ? ['Major', 'Minor', 'Maj7', 'm7', 'dom7']
-    : effectiveLevel <= 9
-    ? ['Major', 'Minor', 'Maj7', 'm7', 'dom7', 'sus2', 'sus4']
-    : ['Major', 'Minor', 'Maj7', 'm7', 'dom7', 'm7b5', 'dim7', '9th'];
+  // Determine allowed types based on level (memoized)
+  const allowedChordTypes = useMemo(() => {
+    if (effectiveLevel <= 2) return ['Major', 'Minor'];
+    if (effectiveLevel <= 3) return ['Major', 'Minor', 'Diminished'];
+    if (effectiveLevel <= 5) return ['Major', 'Minor', 'Diminished', 'Augmented'];
+    if (effectiveLevel <= 7) return ['Major', 'Minor', 'Maj7', 'm7', 'dom7'];
+    if (effectiveLevel <= 9) return ['Major', 'Minor', 'Maj7', 'm7', 'dom7', 'sus2', 'sus4'];
+    return ['Major', 'Minor', 'Maj7', 'm7', 'dom7', 'm7b5', 'dim7', '9th'];
+  }, [effectiveLevel]);
 
-  const playbackMode: 'block' | 'arpeggio' = effectiveLevel === 2 || effectiveLevel === 13 ? 'arpeggio' : 'block';
+  const playbackMode: 'block' | 'arpeggio' = useMemo(() => {
+    return effectiveLevel === 2 || effectiveLevel === 13 ? 'arpeggio' : 'block';
+  }, [effectiveLevel]);
+
   const optionsCount = effectiveLevel >= 6 || isInfinity ? 4 : 3;
 
   // Game state
@@ -39,6 +39,7 @@ export const ChordIdentifyGame: React.FC = () => {
   const [selectedOption, setSelectedOption] = useState<IChordTypeInfo | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [hasStartedAudio, setHasStartedAudio] = useState(false);
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -69,13 +70,14 @@ export const ChordIdentifyGame: React.FC = () => {
   }, [isFinished]);
 
   // Play chord
-  const playCurrentChord = useCallback(async () => {
-    if (!question || isPlaying) return;
+  const playCurrentChord = useCallback(async (qToPlay = question) => {
+    if (!qToPlay || isPlaying) return;
     setIsPlaying(true);
-    auditoryEngine.initContext();
+    setHasStartedAudio(true);
+    await auditoryEngine.resumeAudioContext();
 
     await auditoryEngine.playChord(
-      question.notes,
+      qToPlay.notes,
       playbackMode,
       1.2,
       playbackMode === 'arpeggio' ? 80 : 0
@@ -85,15 +87,15 @@ export const ChordIdentifyGame: React.FC = () => {
     trialStartTimeRef.current = Date.now();
   }, [question, isPlaying, playbackMode]);
 
-  // Auto-play when question appears
+  // Auto-play when question appears if audio was already started by user
   useEffect(() => {
-    if (question && !isAnswered && !isPlaying) {
+    if (question && hasStartedAudio && !isAnswered && !isPlaying) {
       const t = setTimeout(() => {
-        playCurrentChord();
+        playCurrentChord(question);
       }, 400);
       return () => clearTimeout(t);
     }
-  }, [question, isAnswered, isPlaying, playCurrentChord]);
+  }, [question, hasStartedAudio, isAnswered, isPlaying, playCurrentChord]);
 
   const handleSelectOption = (opt: IChordTypeInfo) => {
     if (isAnswered || !question || isPlaying) return;
@@ -136,67 +138,84 @@ export const ChordIdentifyGame: React.FC = () => {
   };
 
   return (
-    <div className="relative min-h-[560px] flex flex-col justify-between p-4 max-w-3xl mx-auto">
+    <div className="relative w-full max-w-4xl mx-auto my-2 p-5 sm:p-7 bg-[#FAF6F0] dark:bg-slate-900 border border-[#DCD3C3] dark:border-slate-800 rounded-3xl shadow-xl flex flex-col justify-between min-h-[580px] transition-all">
       {/* Top Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-white/10">
+      <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-400">
-            <Layers className="w-5 h-5" />
+          <div className="w-12 h-12 rounded-2xl bg-purple-500/10 dark:bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-600 dark:text-purple-400 shadow-sm">
+            <Layers className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-white">Nhận Diện Hợp Âm (Chord Identify)</h2>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                Nhận Diện Hợp Âm (Chord Identify)
+              </h2>
               {isInfinity && (
-                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-purple-400 to-indigo-500 text-slate-950">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-sm">
                   {INFINITY_ROMAN_NUMERALS[infinityTier - 1]}
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium">
               Lắng nghe màu sắc hòa âm và chọn đúng loại hợp âm
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-xs font-mono">
-          <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-white/10 text-slate-300">
-            Câu: <span className="font-bold text-purple-400">{round}/{maxRounds}</span>
+        <div className="flex items-center gap-3 text-xs font-mono">
+          <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
+            Câu: <span className="font-black text-purple-600 dark:text-purple-400">{round}/{maxRounds}</span>
           </div>
-          <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-white/10 text-slate-300">
-            Thời gian: <span className="font-bold text-amber-400">{elapsedSec}s</span>
+          <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
+            Thời gian: <span className="font-black text-amber-600 dark:text-amber-400">{elapsedSec}s</span>
           </div>
         </div>
       </div>
 
       {/* Visualizer & Playback Button */}
       <div className="my-6 flex flex-col items-center">
-        <FrequencySpectrum height={85} className="w-full max-w-md mb-4" isActive={isPlaying} />
+        <FrequencySpectrum height={85} className="w-full max-w-md mb-4 bg-slate-900 dark:bg-slate-950" isActive={isPlaying} />
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-3">
           <button
-            onClick={playCurrentChord}
+            type="button"
+            onClick={() => playCurrentChord()}
             disabled={isPlaying}
-            className={`px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 border transition-all ${
+            className={`px-7 py-3 rounded-full font-black text-sm sm:text-base flex items-center gap-2.5 transition-all shadow-md active:scale-95 ${
               isPlaying
-                ? 'bg-purple-500/30 border-purple-400 text-purple-300 animate-pulse'
-                : 'bg-purple-500 hover:bg-purple-400 text-slate-950 border-purple-300 shadow-lg shadow-purple-500/40 hover:scale-105'
+                ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-2 border-purple-500 animate-pulse'
+                : 'bg-purple-600 hover:bg-purple-500 text-white border-2 border-purple-400 shadow-purple-600/30 hover:scale-105 cursor-pointer'
             }`}
           >
-            <Volume2 className="w-4 h-4" />
-            {isPlaying ? 'Đang vang hợp âm...' : 'Phát lại hợp âm'}
+            {isPlaying ? (
+              <>
+                <Volume2 className="w-5 h-5 animate-spin" />
+                <span>Đang vang hợp âm...</span>
+              </>
+            ) : hasStartedAudio ? (
+              <>
+                <RotateCcw className="w-5 h-5" />
+                <span>Nghe lại hợp âm</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-5 h-5 fill-current" />
+                <span>Bắt đầu nghe hợp âm (Nhấn để phát)</span>
+              </>
+            )}
           </button>
 
-          <span className="text-xs px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+          <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
             Kiểu phát: {playbackMode === 'arpeggio' ? 'Rải ngón (Arpeggio)' : 'Đồng thanh (Block Chord)'}
           </span>
         </div>
 
         {/* Reveal notes after answered */}
         {isAnswered && (
-          <div className="mt-4 flex items-center gap-2 animate-fadeIn">
-            <span className="text-xs text-slate-400">Các nốt trong hợp âm:</span>
+          <div className="mt-4 flex flex-wrap items-center gap-2 animate-fadeIn justify-center">
+            <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Các nốt trong hợp âm:</span>
             {question?.notes.map(n => (
-              <span key={n} className="px-2 py-0.5 rounded bg-purple-500/20 border border-purple-400 text-xs font-mono font-bold text-purple-300">
+              <span key={n} className="px-2.5 py-0.5 rounded-lg bg-purple-500/20 border border-purple-400 text-xs font-mono font-black text-purple-800 dark:text-purple-300 shadow-sm">
                 {n}
               </span>
             ))}
@@ -205,19 +224,19 @@ export const ChordIdentifyGame: React.FC = () => {
       </div>
 
       {/* Options Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-2xl mx-auto w-full my-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-2xl mx-auto w-full my-3">
         {question?.options.map((opt) => {
           const isSelected = selectedOption?.type === opt.type;
           const isCorrect = opt.type === question.chordType;
 
-          let btnStyle = 'bg-slate-900/80 border-slate-700 hover:border-purple-400 hover:bg-slate-800/80 text-white';
+          let btnStyle = 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-slate-700/80 text-slate-900 dark:text-white shadow-sm';
           if (isAnswered) {
             if (isCorrect) {
-              btnStyle = 'bg-emerald-500/30 border-emerald-400 text-emerald-200 ring-2 ring-emerald-400/50';
+              btnStyle = 'bg-emerald-500/20 border-emerald-500 text-emerald-800 dark:text-emerald-200 ring-2 ring-emerald-500/50 font-bold';
             } else if (isSelected) {
-              btnStyle = 'bg-rose-500/30 border-rose-400 text-rose-200';
+              btnStyle = 'bg-rose-500/20 border-rose-500 text-rose-800 dark:text-rose-200 font-bold';
             } else {
-              btnStyle = 'bg-slate-950/40 border-slate-800 text-slate-500 opacity-60';
+              btnStyle = 'bg-slate-100 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 text-slate-400 opacity-60';
             }
           }
 
@@ -230,14 +249,14 @@ export const ChordIdentifyGame: React.FC = () => {
             >
               <div className="flex items-center justify-between w-full">
                 <span className="text-base font-black tracking-tight">{opt.nameVi}</span>
-                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-white/10 text-purple-300">
+                <span className="text-xs font-mono font-black px-2.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700">
                   {opt.type}
                 </span>
               </div>
-              <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
+              <div className="mt-2 flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-400">
                 <span>{opt.feelDescription}</span>
-                {isAnswered && isCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-                {isAnswered && isSelected && !isCorrect && <XCircle className="w-4 h-4 text-rose-400" />}
+                {isAnswered && isCorrect && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 ml-2" />}
+                {isAnswered && isSelected && !isCorrect && <XCircle className="w-5 h-5 text-rose-500 shrink-0 ml-2" />}
               </div>
             </button>
           );

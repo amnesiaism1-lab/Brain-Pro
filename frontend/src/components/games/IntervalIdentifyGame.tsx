@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { calculateGameScore, INFINITY_ROMAN_NUMERALS } from '@brain-exercises/shared';
@@ -6,7 +6,7 @@ import { useRelationSession } from '../../hooks/useRelationSession';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { generateIntervalQuestion, IIntervalInfo } from '../../services/musicTheoryService';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
-import { Sliders, Volume2, RotateCcw, CheckCircle2, XCircle } from 'lucide-react';
+import { Sliders, Volume2, RotateCcw, CheckCircle2, XCircle, Play } from 'lucide-react';
 
 export const IntervalIdentifyGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
@@ -16,17 +16,18 @@ export const IntervalIdentifyGame: React.FC = () => {
   const isInfinity = effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
-  // Determine allowed pool
-  const intervalPool = effectiveLevel <= 2
-    ? ['1P', '3M', '5P', '8P']
-    : effectiveLevel <= 4
-    ? ['2M', '3m', '3M', '4P', '5P', '6M', '8P']
-    : effectiveLevel <= 6
-    ? ['2m', '2M', '3m', '3M', '4P', '4A', '5P', '6m', '6M', '7m', '7M', '8P']
-    : ['2m', '2M', '3m', '3M', '4P', '4A', '5P', '6m', '6M', '7m', '7M', '8P'];
+  // Stable pool based on level
+  const intervalPool = useMemo(() => {
+    if (effectiveLevel <= 2) return ['1P', '3M', '5P', '8P'];
+    if (effectiveLevel <= 4) return ['2M', '3m', '3M', '4P', '5P', '6M', '8P'];
+    return ['2m', '2M', '3m', '3M', '4P', '4A', '5P', '6m', '6M', '7m', '7M', '8P'];
+  }, [effectiveLevel]);
 
-  const playbackMode: 'ascending' | 'descending' | 'harmonic' | 'mixed' =
-    effectiveLevel >= 7 || effectiveLevel === 22 ? 'harmonic' : effectiveLevel >= 4 ? 'mixed' : 'ascending';
+  const playbackMode: 'ascending' | 'descending' | 'harmonic' | 'mixed' = useMemo(() => {
+    if (effectiveLevel >= 7 || effectiveLevel === 22) return 'harmonic';
+    if (effectiveLevel >= 4) return 'mixed';
+    return 'ascending';
+  }, [effectiveLevel]);
 
   const optionsCount = effectiveLevel >= 8 || isInfinity ? 5 : 4;
   const isHyperSpeed = effectiveLevel === 13;
@@ -39,6 +40,7 @@ export const IntervalIdentifyGame: React.FC = () => {
   const [selectedOption, setSelectedOption] = useState<IIntervalInfo | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [hasStartedAudio, setHasStartedAudio] = useState(false);
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -47,6 +49,7 @@ export const IntervalIdentifyGame: React.FC = () => {
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
 
+  // Generate question for current round
   const generateNextQuestion = useCallback(() => {
     const q = generateIntervalQuestion(intervalPool, playbackMode, optionsCount);
     setQuestion(q);
@@ -54,12 +57,13 @@ export const IntervalIdentifyGame: React.FC = () => {
     setIsAnswered(false);
   }, [intervalPool, playbackMode, optionsCount]);
 
+  // Init on level change
   useEffect(() => {
     resetSession();
     generateNextQuestion();
   }, [effectiveLevel, resetSession, generateNextQuestion]);
 
-  // Timer
+  // Global Timer
   useEffect(() => {
     if (isFinished) return;
     const timer = setInterval(() => {
@@ -68,19 +72,20 @@ export const IntervalIdentifyGame: React.FC = () => {
     return () => clearInterval(timer);
   }, [isFinished]);
 
-  // Play the interval
-  const playCurrentInterval = useCallback(async () => {
-    if (!question || isPlaying) return;
+  // Play current interval
+  const playCurrentInterval = useCallback(async (qToPlay = question) => {
+    if (!qToPlay || isPlaying) return;
     setIsPlaying(true);
-    auditoryEngine.initContext();
+    setHasStartedAudio(true);
+    await auditoryEngine.resumeAudioContext();
 
     const duration = isHyperSpeed ? 0.22 : 0.6;
     const gap = isHyperSpeed ? 160 : 420;
 
     await auditoryEngine.playInterval(
-      question.rootNote,
-      question.targetNote,
-      question.playbackDirection,
+      qToPlay.rootNote,
+      qToPlay.targetNote,
+      qToPlay.playbackDirection,
       duration,
       gap
     );
@@ -89,15 +94,15 @@ export const IntervalIdentifyGame: React.FC = () => {
     trialStartTimeRef.current = Date.now();
   }, [question, isPlaying, isHyperSpeed]);
 
-  // Auto-play when question changes
+  // Auto-play interval once when round changes, if audio context was already unlocked
   useEffect(() => {
-    if (question && !isAnswered && !isPlaying) {
+    if (question && hasStartedAudio && !isAnswered) {
       const t = setTimeout(() => {
-        playCurrentInterval();
-      }, 400);
+        playCurrentInterval(question);
+      }, 350);
       return () => clearTimeout(t);
     }
-  }, [question, isAnswered, isPlaying, playCurrentInterval]);
+  }, [round, hasStartedAudio]);
 
   const handleSelectOption = (opt: IIntervalInfo) => {
     if (isAnswered || !question || isPlaying) return;
@@ -138,83 +143,100 @@ export const IntervalIdentifyGame: React.FC = () => {
         setRound(prev => prev + 1);
         generateNextQuestion();
       }
-    }, 1400);
+    }, 1500);
   };
 
   return (
-    <div className="relative min-h-[560px] flex flex-col justify-between p-4 max-w-3xl mx-auto">
+    <div className="relative w-full max-w-4xl mx-auto my-2 p-5 sm:p-7 bg-[#FAF6F0] dark:bg-slate-900 border border-[#DCD3C3] dark:border-slate-800 rounded-3xl shadow-xl flex flex-col justify-between min-h-[580px] transition-all">
       {/* Top Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-white/10">
+      <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-400">
-            <Sliders className="w-5 h-5" />
+          <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 dark:bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shadow-sm">
+            <Sliders className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-white">Nhận Diện Quãng (Interval Identify)</h2>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                Nhận Diện Quãng (Interval Identify)
+              </h2>
               {isInfinity && (
-                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-sm">
                   {INFINITY_ROMAN_NUMERALS[infinityTier - 1]}
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium">
               {isInversionMirror
-                ? '⚠️ Chế độ gương đảo: Chọn QUÃNG ĐẢO NGƯỢC (Inversion) của quãng bạn nghe'
+                ? '⚠️ Chế độ gương đảo: Hãy chọn QUÃNG ĐẢO NGƯỢC của quãng bạn vừa nghe'
                 : 'Lắng nghe 2 nốt nhạc và chọn đúng tên quãng'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-xs font-mono">
-          <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-white/10 text-slate-300">
-            Câu: <span className="font-bold text-cyan-400">{round}/{maxRounds}</span>
+        <div className="flex items-center gap-3 text-xs font-mono">
+          <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
+            Câu: <span className="font-black text-cyan-600 dark:text-cyan-400">{round}/{maxRounds}</span>
           </div>
-          <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-white/10 text-slate-300">
-            Thời gian: <span className="font-bold text-amber-400">{elapsedSec}s</span>
+          <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
+            Thời gian: <span className="font-black text-amber-600 dark:text-amber-400">{elapsedSec}s</span>
           </div>
         </div>
       </div>
 
-      {/* Audio Playback Zone */}
+      {/* Visualizer & Big Play Audio Action */}
       <div className="my-6 flex flex-col items-center">
-        <FrequencySpectrum height={80} className="w-full max-w-sm mb-4" isActive={isPlaying} />
+        <FrequencySpectrum height={85} className="w-full max-w-md mb-4 bg-slate-900 dark:bg-slate-950" isActive={isPlaying} />
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-3">
           <button
-            onClick={playCurrentInterval}
+            type="button"
+            onClick={() => playCurrentInterval()}
             disabled={isPlaying}
-            className={`px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 border transition-all ${
+            className={`px-7 py-3 rounded-full font-black text-sm sm:text-base flex items-center gap-2.5 transition-all shadow-md active:scale-95 ${
               isPlaying
-                ? 'bg-cyan-500/30 border-cyan-400 text-cyan-300 animate-pulse'
-                : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 border-cyan-300 shadow-lg shadow-cyan-500/40 hover:scale-105'
+                ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-2 border-cyan-500 animate-pulse'
+                : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 border-2 border-cyan-400 shadow-cyan-500/30 hover:scale-105 cursor-pointer'
             }`}
           >
-            <Volume2 className="w-4 h-4" />
-            {isPlaying ? 'Đang phát quãng...' : 'Phát lại âm thanh'}
+            {isPlaying ? (
+              <>
+                <Volume2 className="w-5 h-5 animate-spin" />
+                <span>Đang phát quãng...</span>
+              </>
+            ) : hasStartedAudio ? (
+              <>
+                <RotateCcw className="w-5 h-5" />
+                <span>Nghe lại quãng</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-5 h-5 fill-current" />
+                <span>Bắt đầu nghe quãng (Nhấn để phát)</span>
+              </>
+            )}
           </button>
 
-          <span className="text-xs px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+          <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
             Chế độ: {question?.playbackDirection === 'harmonic' ? 'Hòa âm đồng thời' : question?.playbackDirection === 'descending' ? 'Đi xuống' : 'Đi lên'}
           </span>
         </div>
       </div>
 
       {/* Options Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto w-full my-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-2xl mx-auto w-full my-3">
         {question?.options.map((opt) => {
           const isSelected = selectedOption?.code === opt.code;
           const targetCode = isInversionMirror ? question.intervalInfo.inversionCode : question.intervalCode;
           const isCorrect = opt.code === targetCode;
 
-          let btnStyle = 'bg-slate-900/80 border-slate-700 hover:border-cyan-400 hover:bg-slate-800/80 text-white';
+          let btnStyle = 'bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-cyan-500 text-slate-900 dark:text-white shadow-sm hover:shadow-md';
           if (isAnswered) {
             if (isCorrect) {
-              btnStyle = 'bg-emerald-500/30 border-emerald-400 text-emerald-200 ring-2 ring-emerald-400/50';
+              btnStyle = 'bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/40';
             } else if (isSelected) {
-              btnStyle = 'bg-rose-500/30 border-rose-400 text-rose-200';
+              btnStyle = 'bg-rose-50 dark:bg-rose-950/40 border-2 border-rose-500 text-rose-900 dark:text-rose-200';
             } else {
-              btnStyle = 'bg-slate-950/40 border-slate-800 text-slate-500 opacity-60';
+              btnStyle = 'bg-slate-100 dark:bg-slate-800/40 border-2 border-slate-200 dark:border-slate-800 text-slate-400 opacity-60';
             }
           }
 
@@ -223,18 +245,18 @@ export const IntervalIdentifyGame: React.FC = () => {
               key={opt.code}
               disabled={isAnswered || isPlaying}
               onClick={() => handleSelectOption(opt)}
-              className={`p-4 rounded-2xl border text-left flex flex-col justify-between transition-all duration-150 active:scale-[0.98] ${btnStyle}`}
+              className={`p-4 rounded-2xl text-left flex flex-col justify-between transition-all duration-150 active:scale-[0.98] ${btnStyle}`}
             >
               <div className="flex items-center justify-between w-full">
                 <span className="text-base font-black tracking-tight">{opt.nameVi}</span>
-                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-white/10 text-cyan-300">
+                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-cyan-700 dark:text-cyan-300">
                   {opt.code}
                 </span>
               </div>
-              <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
-                <span>{opt.semitones} nửa cung (semitones)</span>
-                {isAnswered && isCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-                {isAnswered && isSelected && !isCorrect && <XCircle className="w-4 h-4 text-rose-400" />}
+              <div className="mt-1.5 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 font-medium">
+                <span>{opt.semitones} nửa cung &bull; {opt.ratioDescription}</span>
+                {isAnswered && isCorrect && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
+                {isAnswered && isSelected && !isCorrect && <XCircle className="w-5 h-5 text-rose-500" />}
               </div>
             </button>
           );
