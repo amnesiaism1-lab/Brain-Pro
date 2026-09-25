@@ -260,6 +260,39 @@ export const EXERCISE_RELATION_MAP: Record<ExerciseSlug, IExerciseRelationMappin
       4: ['TEMPORAL_PREDICT', 'RULE_ACTION'],
       5: ['PART_WHOLE', 'INHIBITION', 'TEMPORAL_PREDICT']
     }
+  },
+  'causal-cascade': {
+    slug: 'causal-cascade',
+    primaryRelation: 'TEMPORAL_PREDICT',
+    secondaryRelations: ['RULE_ACTION', 'INHIBITION', 'CONTEXT_MEANING'],
+    levelAffinity: {
+      1: ['RULE_ACTION'],
+      3: ['TEMPORAL_PREDICT', 'RULE_ACTION'],
+      6: ['INHIBITION', 'TEMPORAL_PREDICT'],
+      9: ['CONTEXT_MEANING', 'RULE_ACTION']
+    }
+  },
+  'graph-memory-matrix': {
+    slug: 'graph-memory-matrix',
+    primaryRelation: 'ORDER_SEQUENCE',
+    secondaryRelations: ['SPATIAL_TRANSFORM', 'IDENTITY_MATCH', 'PART_WHOLE'],
+    levelAffinity: {
+      1: ['ORDER_SEQUENCE', 'PART_WHOLE'],
+      4: ['SPATIAL_TRANSFORM', 'ORDER_SEQUENCE'],
+      7: ['IDENTITY_MATCH', 'PART_WHOLE'],
+      10: ['SPATIAL_TRANSFORM', 'PART_WHOLE']
+    }
+  },
+  'rule-mutation-clash': {
+    slug: 'rule-mutation-clash',
+    primaryRelation: 'INHIBITION',
+    secondaryRelations: ['RULE_ACTION', 'SIMILARITY_DIFF', 'FOCUS_FIELD'],
+    levelAffinity: {
+      1: ['RULE_ACTION'],
+      4: ['INHIBITION', 'RULE_ACTION'],
+      7: ['INHIBITION', 'SIMILARITY_DIFF'],
+      10: ['INHIBITION', 'FOCUS_FIELD']
+    }
   }
 };
 

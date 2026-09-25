@@ -1190,3 +1190,165 @@ export function generateVoiceTrackingChallenge(
     explanationVi
   };
 }
+
+// ============================================================================
+// AUDITORY PERCEPTION & EAR TRAINING CHALLENGE GENERATORS
+// ============================================================================
+
+export interface IOvertoneChallenge {
+  baseNote: string;
+  baseFreq: number;
+  boostedPartial: number; // 2, 3, 4, 5
+  boostedPartialNameVi: string;
+  questionTextVi: string;
+  options: Array<{ id: string; partialIndex: number; labelVi: string; intervalNameVi: string }>;
+  correctAnswerId: string;
+  explanationVi: string;
+}
+
+export function generateOvertoneChallenge(): IOvertoneChallenge {
+  const rootNotes = [
+    { note: 'C3', freq: 130.81 },
+    { note: 'D3', freq: 146.83 },
+    { note: 'F3', freq: 174.61 },
+    { note: 'G3', freq: 196.00 }
+  ];
+  const root = rootNotes[Math.floor(Math.random() * rootNotes.length)];
+
+  // Partial 2 (Octave), 3 (Fifth), 4 (Double Octave), 5 (Major 3rd above double octave)
+  const partials = [
+    { index: 2, labelVi: 'Hài âm 2 (Quãng 8 trên - Octave)', intervalNameVi: 'Quãng 8' },
+    { index: 3, labelVi: 'Hài âm 3 (Quãng 5 trên Quãng 8 - Twelfth)', intervalNameVi: 'Quãng 12 (Quãng 5 + 8)' },
+    { index: 4, labelVi: 'Hài âm 4 (Hai Quãng 8 trên - Double Octave)', intervalNameVi: '2 Quãng 8' },
+    { index: 5, labelVi: 'Hài âm 5 (Quãng 3 Trưởng trên - 17th)', intervalNameVi: 'Quãng 17 (Quãng 3 + 16)' }
+  ];
+
+  const selected = partials[Math.floor(Math.random() * partials.length)];
+
+  return {
+    baseNote: root.note,
+    baseFreq: root.freq,
+    boostedPartial: selected.index,
+    boostedPartialNameVi: selected.labelVi,
+    questionTextVi: `Lắng nghe bồi âm: Hài âm (Overtone) nào đang được kích thích nổi bật nhất trên nốt nền ${root.note}?`,
+    options: partials.map(p => ({
+      id: `partial-${p.index}`,
+      partialIndex: p.index,
+      labelVi: p.labelVi,
+      intervalNameVi: p.intervalNameVi
+    })),
+    correctAnswerId: `partial-${selected.index}`,
+    explanationVi: `Khi nốt ${root.note} (${root.freq} Hz) vang lên, hài âm thứ ${selected.index} (${(root.freq * selected.index).toFixed(1)} Hz) tạo nên màu sắc nổi bật (${selected.intervalNameVi}).`
+  };
+}
+
+export interface IArticulationChallenge {
+  notes: string[];
+  articulation: 'legato' | 'staccato' | 'tenuto' | 'accent';
+  questionTextVi: string;
+  options: Array<{ id: string; labelVi: string; descriptionVi: string; icon: string }>;
+  correctAnswerId: string;
+  explanationVi: string;
+}
+
+export function generateArticulationChallenge(): IArticulationChallenge {
+  const notePhrases = [
+    ['C4', 'E4', 'G4', 'C5'],
+    ['D4', 'F#4', 'A4', 'D5'],
+    ['G3', 'B3', 'D4', 'G4']
+  ];
+  const phrase = notePhrases[Math.floor(Math.random() * notePhrases.length)];
+
+  const articulations: Array<'legato' | 'staccato' | 'tenuto' | 'accent'> = ['legato', 'staccato', 'tenuto', 'accent'];
+  const target = articulations[Math.floor(Math.random() * articulations.length)];
+
+  const meta = {
+    legato: { label: 'Legato (Liền tiếng)', desc: 'Các nốt gối đầu mượt mà, không ngắt quãng', icon: '〰' },
+    staccato: { label: 'Staccato (Nảy tiếng)', desc: 'Nốt ngắn gọn, nảy tưng, sắc nét', icon: '•' },
+    tenuto: { label: 'Tenuto (Ngân đủ trường độ)', desc: 'Ngân trọn vẹn độ dài của từng phách', icon: '—' },
+    accent: { label: 'Accent (Nhấn mạnh đầu nốt)', desc: 'Lực đánh bộc phát mạnh mẽ ở transient đầu', icon: '>' }
+  };
+
+  return {
+    notes: phrase,
+    articulation: target,
+    questionTextVi: 'Phân tích cách phát âm (Articulation): Chuỗi nốt vừa vang lên được thể hiện theo kỹ thuật nào?',
+    options: articulations.map(a => ({
+      id: a,
+      labelVi: meta[a].label,
+      descriptionVi: meta[a].desc,
+      icon: meta[a].icon
+    })),
+    correctAnswerId: target,
+    explanationVi: `Chuỗi nốt được thể hiện bằng kỹ thuật ${meta[target].label}: ${meta[target].desc}.`
+  };
+}
+
+export interface IMelodicContourChallenge {
+  notes: string[];
+  contourType: 'UP' | 'DOWN' | 'ARCH' | 'INVERTED_ARCH' | 'REPEAT';
+  questionTextVi: string;
+  options: Array<{ id: string; labelVi: string; asciiShape: string }>;
+  correctAnswerId: string;
+  explanationVi: string;
+}
+
+export function generateMelodicContourChallenge(): IMelodicContourChallenge {
+  const templates = [
+    { type: 'UP' as const, notes: ['C4', 'E4', 'G4', 'B4', 'C5'], label: 'Đi Lên Liên Tục (Ascending)', shape: '↗ /' },
+    { type: 'DOWN' as const, notes: ['C5', 'A4', 'F4', 'D4', 'C4'], label: 'Đi Xuống Liên Tục (Descending)', shape: '↘ \\' },
+    { type: 'ARCH' as const, notes: ['C4', 'G4', 'E5', 'G4', 'C4'], label: 'Hình Cầu Vồng (Arch: Lên rồi Xuống)', shape: '∧ ⌒' },
+    { type: 'INVERTED_ARCH' as const, notes: ['G4', 'D4', 'B3', 'D4', 'G4'], label: 'Hình Thung Lũng (Inverted Arch: Xuống rồi Lên)', shape: '∨ ∪' },
+    { type: 'REPEAT' as const, notes: ['E4', 'E4', 'E4', 'E4', 'E4'], label: 'Đứng Yên / Lặp Cao Độ (Static Repeat)', shape: '— =' }
+  ];
+
+  const selected = templates[Math.floor(Math.random() * templates.length)];
+
+  return {
+    notes: selected.notes,
+    contourType: selected.type,
+    questionTextVi: 'Đường nét giai điệu (Melodic Contour): Hình thái chuyển động tổng thể của câu nhạc là gì?',
+    options: templates.map(t => ({
+      id: t.type,
+      labelVi: t.label,
+      asciiShape: t.shape
+    })),
+    correctAnswerId: selected.type,
+    explanationVi: `Giai điệu chuyển động theo dạng ${selected.label} (${selected.notes.join(' -> ')}).`
+  };
+}
+
+export interface ICadenceChallenge {
+  cadenceType: 'AUTHENTIC' | 'HALF' | 'DECEPTIVE' | 'PLAGAL';
+  rootNote: string;
+  questionTextVi: string;
+  options: Array<{ id: string; labelVi: string; romanVi: string; feelVi: string }>;
+  correctAnswerId: string;
+  explanationVi: string;
+}
+
+export function generateCadenceChallenge(): ICadenceChallenge {
+  const cadences = [
+    { type: 'AUTHENTIC' as const, label: 'Kết Hoàn Toàn (Authentic Cadence)', roman: 'V ⟶ I', feel: 'Dứt khoát, về nhà trọn vẹn, thỏa mãn' },
+    { type: 'HALF' as const, label: 'Kết Nửa / Lửng (Half Cadence)', roman: 'I/IV ⟶ V', feel: 'Chưa hết câu, lửng lơ trên Dominant, đòi hỏi tiếp tục' },
+    { type: 'DECEPTIVE' as const, label: 'Kết Bất Ngờ / Hụt Hẫng (Deceptive Cadence)', roman: 'V ⟶ vi', feel: 'Tưởng về I nhưng rẽ sang Hợp âm Thứ, đầy bất ngờ' },
+    { type: 'PLAGAL' as const, label: 'Kết Amen (Plagal Cadence)', roman: 'IV ⟶ I', feel: 'Êm dịu, trang nghiêm, thanh thản như tiếng chuông nhà thờ' }
+  ];
+
+  const target = cadences[Math.floor(Math.random() * cadences.length)];
+
+  return {
+    cadenceType: target.type,
+    rootNote: 'C',
+    questionTextVi: 'Tiến trình kết câu (Cadence): Cặp hợp âm kết thúc mang tính chất hòa âm nào?',
+    options: cadences.map(c => ({
+      id: c.type,
+      labelVi: c.label,
+      romanVi: c.roman,
+      feelVi: c.feel
+    })),
+    correctAnswerId: target.type,
+    explanationVi: `Đây là tiến trình ${target.label} (${target.roman}): ${target.feel}.`
+  };
+}
+

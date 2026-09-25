@@ -37,7 +37,7 @@ export const COGNITIVE_RELATIONS: Record<RelationId, ICognitiveRelationDef> = {
     nameVi: 'Thứ Tự → Chuỗi',
     nameEn: 'Order and Sequence',
     definition: 'Nhận diện quan hệ thứ tự tiếp nối (A đứng trước B; next hợp lệ theo quy tắc).',
-    representativeGames: ['schulte-table', 'digit-span', 'spatial-memory'],
+    representativeGames: ['schulte-table', 'digit-span', 'spatial-memory', 'graph-memory-matrix'],
     iconName: 'ListOrdered',
     descriptionVi: 'Khả năng duy trì và tái hiện trình tự nối tiếp của các mắt xích thông tin.'
   },
@@ -73,7 +73,7 @@ export const COGNITIVE_RELATIONS: Record<RelationId, ICognitiveRelationDef> = {
     nameVi: 'Luật → Hành Động',
     nameEn: 'Rule to Action',
     definition: 'Kích thích đầu vào kết hợp quy tắc hiện hành để sinh ra hành vi phản hồi tương ứng.',
-    representativeGames: ['even-odd', 'stroop-clash'],
+    representativeGames: ['even-odd', 'stroop-clash', 'relational-network'],
     iconName: 'Workflow',
     descriptionVi: 'Khả năng áp dụng quy tắc điều kiện để thực hiện thao tác quyết định tức thì.'
   },
@@ -82,7 +82,7 @@ export const COGNITIVE_RELATIONS: Record<RelationId, ICognitiveRelationDef> = {
     nameVi: 'Ức Chế Xung Đột',
     nameEn: 'Inhibition Control',
     definition: 'Ức chế phản xạ thói quen tự động khi có quy tắc mới hoặc tín hiệu xung đột.',
-    representativeGames: ['stroop-clash', 'even-odd', 'schulte-table'],
+    representativeGames: ['stroop-clash', 'even-odd', 'rule-mutation-clash'],
     iconName: 'ShieldAlert',
     descriptionVi: 'Năng lực làm chủ và chặn đứng phản ứng tự động không phù hợp.'
   },
@@ -118,7 +118,7 @@ export const COGNITIVE_RELATIONS: Record<RelationId, ICognitiveRelationDef> = {
     nameVi: 'Dự Đoán Thời Gian',
     nameEn: 'Temporal Prediction',
     definition: 'Dự đoán và đón đầu tín hiệu tiếp theo theo dòng thời gian liên tục.',
-    representativeGames: ['rsvp-speed-reader', 'reading-pacer', 'digit-span'],
+    representativeGames: ['rsvp-speed-reader', 'reading-pacer', 'digit-span', 'causal-cascade'],
     iconName: 'Hourglass',
     descriptionVi: 'Khả năng bắt nhịp và đón nhận luồng thông tin tốc độ cao theo thời gian thực.'
   },

@@ -8,10 +8,11 @@ import { RhythmModule } from './RhythmModule';
 import { TimbreModule } from './TimbreModule';
 import { SpatialAudioModule } from './SpatialAudioModule';
 import { PolyphonyModule } from './PolyphonyModule';
+import { SoundNetworkModule } from './SoundNetworkModule';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { BookOpen, CheckCircle, ChevronLeft, ChevronRight, Brain } from 'lucide-react';
 
-export type TheoryModuleId = 'notes' | 'intervals' | 'chords' | 'scales' | 'rhythm' | 'timbre' | 'spatial' | 'polyphony';
+export type TheoryModuleId = 'notes' | 'intervals' | 'chords' | 'scales' | 'rhythm' | 'timbre' | 'spatial' | 'polyphony' | 'sound-network';
 
 interface ITheoryTab {
   id: TheoryModuleId;
@@ -30,6 +31,7 @@ const THEORY_TABS: ITheoryTab[] = [
   { id: 'timbre', title: '6. Âm Sắc (Timbre)', shortTitle: 'Âm Sắc', icon: '🎸', component: TimbreModule },
   { id: 'spatial', title: '7. Âm Thanh 3D Không Gian', shortTitle: '3D Không Gian', icon: '🔊', component: SpatialAudioModule },
   { id: 'polyphony', title: '8. Đa Thanh & Bè Phối', shortTitle: 'Đa Thanh & Bè', icon: '🪈', component: PolyphonyModule },
+  { id: 'sound-network', title: '9. Mạng Lưới Hòa Âm & Cảm Âm Nâng Cao', shortTitle: 'Mạng Hòa Âm & Cảm Âm', icon: '⚡', component: SoundNetworkModule },
 ];
 
 export const MusicTheoryView: React.FC = () => {

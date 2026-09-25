@@ -510,7 +510,6 @@ class AuditoryEngine {
       // V -> I Classical cadence to lock tonal expectation
       // Determine approximate Dominant (V)
       const domRoot = letter === 'C' ? 'G' : letter === 'F' ? 'C' : letter === 'G' ? 'D' : 'G';
-      const domNotes = [`${domRoot}${oct - 1}`, `${domRoot}#` ? `${domRoot}${oct}` : `${domRoot}${oct}`];
       await this.playChord([`${domRoot}${oct - 1}`, `${letter}${oct}`], 'block', 0.42);
       await new Promise(r => setTimeout(r, 80));
       // Resolve to Tonic triad
@@ -1151,8 +1150,196 @@ class AuditoryEngine {
   }
 
   /**
-   * Sound effect for correct or incorrect answers in audio exercises
+   * Sound effect for connecting two nodes in Relational Dynamics / Sound Network
+   * Synthesizes the harmonic interval between the two nodes
    */
+  public playRelationalConnection(freq1 = 261.63, freq2 = 392.00, relationType = 'FLOW_CONNECT'): void {
+    const ctx = this.initContext();
+    if (!ctx || !this.masterGain) return;
+
+    this.playNote(freq1, 0.45, { volume: 0.28, waveform: 'triangle', pan: -0.2 });
+    setTimeout(() => {
+      this.playNote(freq2, 0.45, { volume: 0.28, waveform: 'sine', pan: 0.2 });
+    }, 45);
+
+    // Subtle resonant harmonic shimmer for harmony relations
+    if (relationType === 'SOUND_HARMONIZE' || relationType === 'FLOW_CONNECT') {
+      setTimeout(() => {
+        const overtoneFreq = Math.max(freq1, freq2) * 1.5;
+        this.playNote(overtoneFreq, 0.25, { volume: 0.12, waveform: 'triangle' });
+      }, 90);
+    }
+  }
+
+  /**
+   * Sound effect for slicing/cutting a connection in Relational Dynamics
+   * Pitch changes with cutRatio (higher pitch for target cuts, deeper resonant snap for source cuts)
+   */
+  public playRelationalCut(baseFrequency = 440, cutRatio = 0.5): void {
+    const ctx = this.initContext();
+    if (!ctx || !this.masterGain) return;
+
+    const now = ctx.currentTime;
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      const startFreq = baseFrequency * (0.8 + cutRatio * 1.4);
+      const endFreq = baseFrequency * 0.35;
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(startFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(40, endFreq), now + 0.14);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.35, now + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(startFreq * 1.2, now);
+      filter.Q.setValueAtTime(3.5, now);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(now);
+      osc.stop(now + 0.16);
+    } catch (e) {
+      console.warn('playRelationalCut error:', e);
+    }
+  }
+
+  /**
+   * Play additive synthesis note with a boosted harmonic overtone (Overtone Spotting)
+   * @param baseFreq Fundamental frequency in Hz (e.g. 130.81 for C3)
+   * @param boostedPartial 1=Fundamental, 2=Octave, 3=Twelfth/Fifth, 4=Double Octave, 5=Major 17th
+   */
+  public async playOvertoneSpotting(baseFreq = 130.81, boostedPartial = 2, durationSec = 1.2): Promise<void> {
+    const ctx = this.initContext();
+    if (!ctx || !this.masterGain) return;
+    await this.resumeAudioContext();
+
+    const now = ctx.currentTime + 0.02;
+    const partials = [1, 2, 3, 4, 5];
+
+    partials.forEach(p => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const freq = baseFreq * p;
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+
+      // Normal partial rolloff: 1/p
+      let pVol = (0.28 / Math.sqrt(p));
+      if (p === boostedPartial) {
+        // Prominently boost the target overtone
+        pVol *= 2.8;
+      } else {
+        pVol *= 0.65;
+      }
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(pVol, now + 0.05);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, pVol * 0.4), now + durationSec * 0.7);
+      gain.gain.exponentialRampToValueAtTime(0.00001, now + durationSec);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+
+      osc.start(now);
+      osc.stop(now + durationSec + 0.05);
+    });
+
+    await new Promise(r => setTimeout(r, Math.round(durationSec * 1000) + 100));
+  }
+
+  /**
+   * Play an articulation sequence with exact acoustic physics
+   * staccato = 28% duration; legato = 105% duration with overlap; tenuto = 90% duration; accent = +6dB initial punch
+   */
+  public async playArticulationSequence(
+    notes: string[],
+    articulation: 'legato' | 'staccato' | 'tenuto' | 'accent',
+    stepDurationSec = 0.45
+  ): Promise<void> {
+    await this.resumeAudioContext();
+    for (let i = 0; i < notes.length; i++) {
+      const note = notes[i];
+      let noteDuration = stepDurationSec * 0.8;
+      let vol = 0.35;
+      let attack = 0.02;
+
+      if (articulation === 'staccato') {
+        noteDuration = stepDurationSec * 0.28;
+        attack = 0.008;
+      } else if (articulation === 'legato') {
+        noteDuration = stepDurationSec * 1.08; // smooth overlap
+        attack = 0.035;
+      } else if (articulation === 'tenuto') {
+        noteDuration = stepDurationSec * 0.92;
+        attack = 0.02;
+      } else if (articulation === 'accent') {
+        noteDuration = stepDurationSec * 0.75;
+        vol = 0.55;
+        attack = 0.005;
+      }
+
+      this.playNote(note, noteDuration, { volume: vol, adsr: { attack, decay: 0.1, sustain: 0.6, release: 0.05 } });
+      await new Promise(r => setTimeout(r, Math.round(stepDurationSec * 1000)));
+    }
+  }
+
+  /**
+   * Play Classical Cadence progression (V-I, x-V, V-vi, IV-I) with full 4-part harmony
+   */
+  public async playCadenceProgression(
+    cadenceType: 'AUTHENTIC' | 'HALF' | 'DECEPTIVE' | 'PLAGAL',
+    _rootNote = 'C4'
+  ): Promise<void> {
+    await this.resumeAudioContext();
+    let chord1: string[] = [];
+    let chord2: string[] = [];
+
+    if (cadenceType === 'AUTHENTIC') {
+      // V -> I (G Major -> C Major)
+      chord1 = ['G3', 'B3', 'D4', 'G4'];
+      chord2 = ['C3', 'E4', 'G4', 'C5'];
+    } else if (cadenceType === 'HALF') {
+      // IV -> V (F Major -> G Major)
+      chord1 = ['F3', 'A3', 'C4', 'F4'];
+      chord2 = ['G3', 'B3', 'D4', 'G4'];
+    } else if (cadenceType === 'DECEPTIVE') {
+      // V -> vi (G Major -> A Minor)
+      chord1 = ['G3', 'B3', 'D4', 'G4'];
+      chord2 = ['A3', 'C4', 'E4', 'A4'];
+    } else {
+      // PLAGAL (IV -> I: Amen cadence)
+      chord1 = ['F3', 'A3', 'C4', 'F4'];
+      chord2 = ['C3', 'E4', 'G4', 'C5'];
+    }
+
+    await this.playChord(chord1, 'block', 0.65, 0);
+    await new Promise(r => setTimeout(r, 120));
+    await this.playChord(chord2, 'block', 0.95, 0);
+    await new Promise(r => setTimeout(r, 1000));
+  }
+
+  /**
+   * Play domino step sound for Causal Cascade
+   */
+  public playCausalDominoStep(stepIndex = 1, isTarget = false): void {
+    if (isTarget) {
+      this.playNote('C5', 0.3, { volume: 0.35, waveform: 'triangle' });
+      setTimeout(() => this.playNote('E5', 0.3, { volume: 0.35, waveform: 'triangle' }), 60);
+      setTimeout(() => this.playNote('G5', 0.5, { volume: 0.4, waveform: 'sine' }), 120);
+    } else {
+      const baseFreq = 220 * Math.pow(1.059463, Math.min(18, stepIndex * 2));
+      this.playNote(baseFreq, 0.12, { volume: 0.28, waveform: 'triangle', adsr: { attack: 0.005, decay: 0.05, sustain: 0.2, release: 0.04 } });
+    }
+  }
   public playFeedback(isCorrect: boolean): void {
     if (isCorrect) {
       this.playNote('E5', 0.12, { volume: 0.25, waveform: 'sine' });

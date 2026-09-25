@@ -1,6 +1,8 @@
 export type CognitiveCategoryCode = 'SPEED_READING' | 'PERIPHERAL_VISION' | 'MEMORY' | 'ATTENTION' | 'REACTION' | 'AUDITORY_MEMORY';
-export type ExerciseSlug = 'anagram' | 'schulte-table' | 'find-letter' | 'find-number' | 'even-odd' | 'digit-span' | 'rsvp-speed-reader' | 'word-search' | 'twin-words' | 'peripheral-vision' | 'green-dot' | 'word-chunking' | 'reading-assessment' | 'reading-pacer' | 'text-scanning' | 'card-flip' | 'stroop-clash' | 'spatial-memory' | 'saccade-tracker' | 'pitch-recall' | 'interval-identify' | 'rhythm-recall' | 'chord-identify' | 'timbre-match' | 'sound-localization' | 'voice-track' | 'relational-network';
+export type ExerciseSlug = 'anagram' | 'schulte-table' | 'find-letter' | 'find-number' | 'even-odd' | 'digit-span' | 'rsvp-speed-reader' | 'word-search' | 'twin-words' | 'peripheral-vision' | 'green-dot' | 'word-chunking' | 'reading-assessment' | 'reading-pacer' | 'text-scanning' | 'card-flip' | 'stroop-clash' | 'spatial-memory' | 'saccade-tracker' | 'pitch-recall' | 'interval-identify' | 'rhythm-recall' | 'chord-identify' | 'timbre-match' | 'sound-localization' | 'voice-track' | 'relational-network' | 'causal-cascade' | 'graph-memory-matrix' | 'rule-mutation-clash';
 export type ArticulationType = 'legato' | 'staccato' | 'tenuto' | 'accent';
+export type MelodicContourCode = 'UP' | 'DOWN' | 'REPEAT' | 'ARCH' | 'INVERTED_ARCH';
+export type CadenceType = 'AUTHENTIC' | 'HALF' | 'DECEPTIVE' | 'PLAGAL';
 export interface IAudioEvent {
     note?: string;
     freq?: number;

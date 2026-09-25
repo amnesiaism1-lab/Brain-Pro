@@ -27,6 +27,9 @@ import { TimbreMatchGame } from './TimbreMatchGame';
 import { SoundLocalizationGame } from './SoundLocalizationGame';
 import { VoiceTrackGame } from './VoiceTrackGame';
 import { RelationalNetworkGame } from './RelationalNetworkGame';
+import { CausalCascadeGame } from './CausalCascadeGame';
+import { GraphMemoryMatrixGame } from './GraphMemoryMatrixGame';
+import { RuleMutationClashGame } from './RuleMutationClashGame';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { EXERCISES_METADATA } from '@brain-exercises/shared';
 import { Sparkles, Zap, Flame, ArrowRight, X } from 'lucide-react';
@@ -111,6 +114,12 @@ export const ActiveGameContainer: React.FC = () => {
         return <VoiceTrackGame />;
       case 'relational-network':
         return <RelationalNetworkGame />;
+      case 'causal-cascade':
+        return <CausalCascadeGame />;
+      case 'graph-memory-matrix':
+        return <GraphMemoryMatrixGame />;
+      case 'rule-mutation-clash':
+        return <RuleMutationClashGame />;
       default:
         return <SchulteTableGame />;
     }

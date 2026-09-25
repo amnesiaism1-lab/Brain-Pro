@@ -1,4 +1,4 @@
-import { IRdeBoardState, IRdeEntity, IRdeAction } from './types';
+import { IRdeBoardState, IRdeEntity, IRdeAction, ICausalNode, ICausalConnection } from './types';
 /**
  * Kiểm tra xem đoạn thẳng (x1, y1)-(x2, y2) có cắt chướng ngại vật (x3, y3)-(x4, y4) không
  */
@@ -24,4 +24,20 @@ export declare function applyAction(currentState: IRdeBoardState, action: IRdeAc
  * Bước tính toán động học thời gian thực (Simulation Step for dt seconds)
  */
 export declare function stepSimulationDynamics(state: IRdeBoardState, dtSec: number): IRdeBoardState;
+/**
+ * Tính mức độ thuận tai (consonance) của một quãng âm theo khoảng cách bán âm
+ */
+export declare function calculateHarmonicConsonance(semitones: number): {
+    consonance: 'PERFECT_CONSONANCE' | 'IMPERFECT_CONSONANCE' | 'DISSONANCE' | 'NEUTRAL';
+    energyBonus: number;
+    descriptionVi: string;
+};
+/**
+ * Tính toán bước kích hoạt tiếp theo của mạch Domino Nhân Quả
+ */
+export declare function evaluateCausalCascadeCircuit(nodes: ICausalNode[], connections: ICausalConnection[]): {
+    nextNodes: ICausalNode[];
+    hasReachedTarget: boolean;
+    targetAchieved: boolean;
+};
 //# sourceMappingURL=transition-solver.d.ts.map

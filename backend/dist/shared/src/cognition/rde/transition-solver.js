@@ -4,6 +4,8 @@ exports.checkLineIntersection = checkLineIntersection;
 exports.isConnectionBlockedByWall = isConnectionBlockedByWall;
 exports.applyAction = applyAction;
 exports.stepSimulationDynamics = stepSimulationDynamics;
+exports.calculateHarmonicConsonance = calculateHarmonicConsonance;
+exports.evaluateCausalCascadeCircuit = evaluateCausalCascadeCircuit;
 function checkLineIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
     const ccw = (ax, ay, bx, by, cx, cy) => {
         return (cy - ay) * (bx - ax) > (by - ay) * (cx - ax);
@@ -205,5 +207,69 @@ function stepSimulationDynamics(state, dtSec) {
         entities: nextEntities,
         stepCount: state.stepCount + 1
     };
+}
+function calculateHarmonicConsonance(semitones) {
+    const norm = ((Math.abs(semitones) % 12) + 12) % 12;
+    switch (norm) {
+        case 0:
+        case 7:
+            return { consonance: 'PERFECT_CONSONANCE', energyBonus: 1.5, descriptionVi: 'Thuận Tuyệt Đối (Hùng Tráng)' };
+        case 5:
+            return { consonance: 'PERFECT_CONSONANCE', energyBonus: 1.3, descriptionVi: 'Thuận Đúng (Cân Bằng)' };
+        case 3:
+        case 4:
+        case 8:
+        case 9:
+            return { consonance: 'IMPERFECT_CONSONANCE', energyBonus: 1.25, descriptionVi: 'Thuận Êm Dịu (Trữ Tình/Tươi Sáng)' };
+        case 1:
+        case 2:
+        case 6:
+        case 10:
+        case 11:
+            return { consonance: 'DISSONANCE', energyBonus: 0.8, descriptionVi: 'Nghịch Căng Thẳng (Kịch Tính/Ma Mị)' };
+        default:
+            return { consonance: 'NEUTRAL', energyBonus: 1.0, descriptionVi: 'Trung Tính' };
+    }
+}
+function evaluateCausalCascadeCircuit(nodes, connections) {
+    const nextNodes = nodes.map(n => ({ ...n }));
+    let targetAchieved = false;
+    for (const conn of connections) {
+        if (conn.isBroken)
+            continue;
+        const fromNode = nextNodes.find(n => n.id === conn.fromNodeId);
+        const toNode = nextNodes.find(n => n.id === conn.toNodeId);
+        if (!fromNode || !toNode)
+            continue;
+        if (fromNode.state === 'ON') {
+            conn.isFlowing = true;
+            if (toNode.type === 'GATE_AND') {
+                const incoming = connections.filter(c => c.toNodeId === toNode.id && !c.isBroken);
+                const allOn = incoming.every(c => {
+                    const src = nextNodes.find(n => n.id === c.fromNodeId);
+                    return src && src.state === 'ON';
+                });
+                toNode.state = allOn ? 'ON' : 'OFF';
+            }
+            else if (toNode.type === 'GATE_OR') {
+                toNode.state = 'ON';
+            }
+            else if (toNode.type === 'INVERTER') {
+                toNode.state = fromNode.state === 'ON' ? 'OFF' : 'ON';
+            }
+            else if (toNode.type === 'TARGET') {
+                toNode.value = Math.min(100, toNode.value + 40);
+                if (toNode.value >= (toNode.threshold || 75)) {
+                    toNode.state = 'ON';
+                    targetAchieved = true;
+                }
+            }
+            else if (toNode.type !== 'LEVER') {
+                toNode.state = 'ON';
+            }
+        }
+    }
+    const hasReachedTarget = nextNodes.some(n => n.type === 'TARGET' && n.state === 'ON');
+    return { nextNodes, hasReachedTarget, targetAchieved };
 }
 //# sourceMappingURL=transition-solver.js.map

@@ -878,6 +878,96 @@ export const EXERCISES_METADATA: IExercise[] = [
       { level: 11, timeLimitSec: 45, targetItemCount: 8, variantCode: 'REL_DYNAMIC_VORTEX', variantName: 'Xoáy Không Gian Chắn Đường', parametersJson: { nodeCount: 8, vortexWalls: 2 } },
       { level: 12, timeLimitSec: 40, targetItemCount: 8, variantCode: 'REL_GRAND_SYNAPSE_WAR', variantName: 'Đại Chiến Synapse Toàn Diện', parametersJson: { nodeCount: 9, hasCore: true, fullDynamics: true } }
     ]
+  },
+  {
+    id: 'ex-causal-cascade',
+    categoryId: 'cat-5',
+    categoryCode: 'REACTION',
+    categoryName: 'Phản Xạ Nhận Thức',
+    slug: 'causal-cascade',
+    title: 'Hiệu Ứng Domino Nhân Quả',
+    subtitle: 'Mạch suy luận nhân quả, can thiệp điểm nút tối thiểu (Minimum Intervention) và logic dây chuyền',
+    iconName: 'GitMerge',
+    scientificBasis: 'Rèn luyện mô hình tư duy nhân quả bậc cao (Causal Graphical Models) của thùy trán, suy luận điều kiện "Nếu - Thì" và tối ưu hóa giải pháp can thiệp với chi phí nhận thức nhỏ nhất.',
+    instructions: 'Quan sát toàn bộ mạch liên hoàn từ nguồn cấp năng lượng tới đích. Dự đoán phản ứng dây chuyền, sau đó thực hiện 1 can thiệp tối thiểu (gạt cần, đảo cổng logic, kích hoạt van) để dẫn dòng chảy về đích hoặc ngăn chặn hệ thống quá tải.',
+    rulesSummary: 'Mỗi cấp độ chỉ cho phép số lần can thiệp hữu hạn (1-2 can thiệp). Cần tính toán độ trễ lan truyền (Propagation Delay) và các điều kiện kích hoạt dây chuyền.',
+    maxDifficultyLevel: 12,
+    defaultDurationSec: 60,
+    isFeatured: true,
+    levelConfigs: [
+      { level: 1, timeLimitSec: 45, targetItemCount: 3, parametersJson: { nodeCount: 3, allowedInterventions: 1 } },
+      { level: 2, timeLimitSec: 45, targetItemCount: 4, parametersJson: { nodeCount: 4, allowedInterventions: 1 } },
+      { level: 3, timeLimitSec: 50, targetItemCount: 5, parametersJson: { nodeCount: 5, hasInverter: true, allowedInterventions: 1 } },
+      { level: 4, timeLimitSec: 50, targetItemCount: 5, parametersJson: { nodeCount: 6, hasGateAnd: true, allowedInterventions: 1 } },
+      { level: 5, timeLimitSec: 55, targetItemCount: 6, parametersJson: { nodeCount: 6, propagationDelayMs: 600, allowedInterventions: 1 } },
+      { level: 6, timeLimitSec: 55, targetItemCount: 6, variantCode: 'CAUSAL_FEEDBACK_LOOP', variantName: 'Vòng Lặp Phản Hồi Ngược', parametersJson: { nodeCount: 7, feedbackLoop: true } },
+      { level: 7, timeLimitSec: 55, targetItemCount: 7, parametersJson: { nodeCount: 7, hasGateOr: true, allowedInterventions: 2 } },
+      { level: 8, timeLimitSec: 60, targetItemCount: 7, parametersJson: { nodeCount: 8, dualTargets: true, allowedInterventions: 2 } },
+      { level: 9, timeLimitSec: 55, targetItemCount: 8, variantCode: 'CAUSAL_TIME_CRITICAL', variantName: 'Độ Trễ Phân Kỳ Cực Hạn', parametersJson: { nodeCount: 8, timeCritical: true } },
+      { level: 10, timeLimitSec: 50, targetItemCount: 8, variantCode: 'CAUSAL_DYNAMIC_RESERVOIR', variantName: 'Bể Chứa Áp Suất Động', parametersJson: { nodeCount: 9, reservoirNodes: 2 } },
+      { level: 11, timeLimitSec: 45, targetItemCount: 9, variantCode: 'CAUSAL_TRIPLE_LOGIC_MAZE', variantName: 'Mê Cung Tam Trùng Logic', parametersJson: { nodeCount: 10, gateCount: 4 } },
+      { level: 12, timeLimitSec: 40, targetItemCount: 9, variantCode: 'CAUSAL_MASTER_INTERVENTION', variantName: 'Can Thiệp Tối Thượng Master', parametersJson: { nodeCount: 11, fullDominoCircuit: true } }
+    ]
+  },
+  {
+    id: 'ex-graph-memory-matrix',
+    categoryId: 'cat-3',
+    categoryCode: 'MEMORY',
+    categoryName: 'Trí Nhớ Làm Việc',
+    slug: 'graph-memory-matrix',
+    title: 'Trí Nhớ Ma Trận Đồ Thị',
+    subtitle: 'Ghi nhớ cấu trúc topo mạng liên kết đa chiều và truy vấn nhận thức gián tiếp',
+    iconName: 'Share2',
+    scientificBasis: 'Phát triển năng lực mã hóa và lưu giữ cấu trúc đồ thị đa quan hệ trong bộ nhớ làm việc không gian (Relational Graph Working Memory) của hồi hải mã và vỏ não trước trán.',
+    instructions: 'Ghi nhớ toàn bộ mạng lưới nút và các đường liên kết trong vài giây ngắn ngủi. Khi các đường nối biến mất, hãy trả lời chính xác các câu hỏi suy luận cấu trúc gián tiếp.',
+    rulesSummary: 'Mạng lưới hiển thị từ 3.5 - 5 giây rồi ẩn đường nối. Các câu hỏi kiểm tra: đường đi ngắn nhất, điểm nút nghẽn (bottleneck), tính liên thông và sự tồn tại của chu trình khép kín.',
+    maxDifficultyLevel: 12,
+    defaultDurationSec: 60,
+    isFeatured: true,
+    levelConfigs: [
+      { level: 1, timeLimitSec: 45, targetItemCount: 3, parametersJson: { nodeCount: 4, edgeCount: 3, memorizeSec: 5.0 } },
+      { level: 2, timeLimitSec: 45, targetItemCount: 4, parametersJson: { nodeCount: 5, edgeCount: 5, memorizeSec: 4.5 } },
+      { level: 3, timeLimitSec: 50, targetItemCount: 4, parametersJson: { nodeCount: 5, edgeCount: 6, isDirected: true, memorizeSec: 4.5 } },
+      { level: 4, timeLimitSec: 50, targetItemCount: 5, parametersJson: { nodeCount: 6, edgeCount: 7, queryType: 'BOTTLENECK', memorizeSec: 4.0 } },
+      { level: 5, timeLimitSec: 55, targetItemCount: 5, parametersJson: { nodeCount: 6, edgeCount: 8, queryType: 'LOOP_DETECT', memorizeSec: 4.0 } },
+      { level: 6, timeLimitSec: 55, targetItemCount: 6, variantCode: 'GRAPH_WEIGHTED_EDGES', variantName: 'Cạnh Trọng Số Năng Lượng', parametersJson: { nodeCount: 7, weighted: true, memorizeSec: 4.0 } },
+      { level: 7, timeLimitSec: 55, targetItemCount: 6, parametersJson: { nodeCount: 7, edgeCount: 9, memorizeSec: 3.5 } },
+      { level: 8, timeLimitSec: 60, targetItemCount: 7, parametersJson: { nodeCount: 8, edgeCount: 11, memorizeSec: 3.5 } },
+      { level: 9, timeLimitSec: 55, targetItemCount: 7, variantCode: 'GRAPH_NODE_PERMUTATION', variantName: 'Xáo Trộn Vị Trí Điểm Nút', parametersJson: { nodeCount: 8, shufflePositions: true } },
+      { level: 10, timeLimitSec: 50, targetItemCount: 8, variantCode: 'GRAPH_DUAL_DISCONNECT', variantName: 'Phân Đôi Mạng Lưới Kép', parametersJson: { nodeCount: 9, disconnectedClusters: true } },
+      { level: 11, timeLimitSec: 45, targetItemCount: 8, variantCode: 'GRAPH_HYPER_TOPOLOGY', variantName: 'Siêu Cấu Trúc Đồ Thị Không Gian', parametersJson: { nodeCount: 10, edgeCount: 15 } },
+      { level: 12, timeLimitSec: 40, targetItemCount: 9, variantCode: 'GRAPH_MASTER_SYNAPSE_RECALL', variantName: 'Bậc Thầy Tái Hiện Mạng Nơ-ron', parametersJson: { nodeCount: 12, fullMatrixRecall: true } }
+    ]
+  },
+  {
+    id: 'ex-rule-mutation-clash',
+    categoryId: 'cat-4',
+    categoryCode: 'ATTENTION',
+    categoryName: 'Tập Trung & Chú Ý',
+    slug: 'rule-mutation-clash',
+    title: 'Xung Đột Quy Tắc Biến Dị',
+    subtitle: 'Ức chế quy tắc cũ, thích ứng với quy tắc đột biến và đo lường chi phí can thiệp (Interference Cost)',
+    iconName: 'Shuffle',
+    scientificBasis: 'Kích hoạt vỏ não đai trước (Anterior Cingulate Cortex) và mạng lưới kiểm soát điều hành (Executive Control Network) để ức chế thói quen máy móc và tăng cường độ dẻo dai nhận thức (Cognitive Flexibility).',
+    instructions: 'Phân loại và tương tác với các thực thể theo bộ quy tắc hiện tại. Khi tín hiệu "Đột Biến" (Mutation) kích hoạt, lập tức thích ứng với quy tắc mới đảo ngược hoặc hoán đổi vị trí.',
+    rulesSummary: 'Phản xạ chính xác với quy tắc động. Tốc độ và độ chính xác sau khoảnh khắc đột biến quy tắc sẽ phản ánh mức độ linh hoạt nhận thức của não bộ.',
+    maxDifficultyLevel: 12,
+    defaultDurationSec: 60,
+    isFeatured: true,
+    levelConfigs: [
+      { level: 1, timeLimitSec: 45, targetItemCount: 5, parametersJson: { ruleCount: 2, mutationFrequency: 0 } },
+      { level: 2, timeLimitSec: 45, targetItemCount: 6, parametersJson: { ruleCount: 2, mutationFrequency: 1 } },
+      { level: 3, timeLimitSec: 50, targetItemCount: 7, parametersJson: { ruleCount: 3, mutationFrequency: 2 } },
+      { level: 4, timeLimitSec: 50, targetItemCount: 8, parametersJson: { ruleCount: 3, mutationFrequency: 3, timeLimitPerItemMs: 2500 } },
+      { level: 5, timeLimitSec: 55, targetItemCount: 8, parametersJson: { ruleCount: 4, mutationFrequency: 3, timeLimitPerItemMs: 2200 } },
+      { level: 6, timeLimitSec: 55, targetItemCount: 9, variantCode: 'RULE_INVERT_INHIBITION', variantName: 'Ức Chế Phản Đảo Quy Tắc', parametersJson: { ruleCount: 4, inverseMutation: true } },
+      { level: 7, timeLimitSec: 55, targetItemCount: 9, parametersJson: { ruleCount: 4, mutationFrequency: 4, timeLimitPerItemMs: 1900 } },
+      { level: 8, timeLimitSec: 60, targetItemCount: 10, parametersJson: { ruleCount: 5, mutationFrequency: 4, timeLimitPerItemMs: 1700 } },
+      { level: 9, timeLimitSec: 55, targetItemCount: 10, variantCode: 'RULE_AUDIO_VISUAL_CLASH', variantName: 'Xung Đột Đa Giác Quan Nghe - Nhìn', parametersJson: { audioVisualClash: true } },
+      { level: 10, timeLimitSec: 50, targetItemCount: 11, variantCode: 'RULE_RAPID_DOUBLE_MUTATION', variantName: 'Đột Biến Đôi Chớp Nhoáng', parametersJson: { doubleMutation: true, timeLimitPerItemMs: 1400 } },
+      { level: 11, timeLimitSec: 45, targetItemCount: 11, variantCode: 'RULE_STROOP_CASCADE_HYBRID', variantName: 'Giao Thoa Stroop Động Lực', parametersJson: { stroopClashHybrid: true } },
+      { level: 12, timeLimitSec: 40, targetItemCount: 12, variantCode: 'RULE_SUPREME_EXECUTIVE_CONTROL', variantName: 'Kiểm Soát Điều Hành Tối Cao', parametersJson: { supremeSpeed: true, timeLimitPerItemMs: 1100 } }
+    ]
   }
 ];
 
@@ -1616,6 +1706,167 @@ export const EXERCISE_VARIANTS: IExerciseVariant[] = [
     variantName: 'Song Mục Tiêu Nhảy Nhót',
     variantDescription: 'Hai mục tiêu nhảy cóc cùng lúc, chỉ phản xạ khi CẢ HAI mục tiêu đều hiện chữ X.',
     variantConfig: { multiTargetCount: 2 }
+  },
+  // Relational Dynamics Flagships (Stage III Variants)
+  {
+    id: 'var-rel-rule-mutation',
+    exerciseSlug: 'relational-network',
+    minLevel: 9,
+    maxLevel: 9,
+    variantCode: 'REL_RULE_MUTATION',
+    variantName: 'Đột Biến Quy Tắc Xúc Tu',
+    variantDescription: 'Quy tắc hồi máu và sát thương bị đột biến đảo ngược vị trí, đòi hỏi tái cấu trúc mô hình tâm trí tức thì.',
+    variantConfig: { ruleMutation: true }
+  },
+  {
+    id: 'var-rel-multi-cascade',
+    exerciseSlug: 'relational-network',
+    minLevel: 10,
+    maxLevel: 10,
+    variantCode: 'REL_MULTI_CASCADE',
+    variantName: 'Phản Ứng Dây Chuyền Tam Cấp',
+    variantDescription: 'Một đường cắt kích hoạt chuỗi sụp đổ qua 3 tầng nút phụ thuộc, đòi hỏi dự đoán sâu nhiều bước.',
+    variantConfig: { cascadeSteps: 4 }
+  },
+  {
+    id: 'var-rel-dynamic-vortex',
+    exerciseSlug: 'relational-network',
+    minLevel: 11,
+    maxLevel: 11,
+    variantCode: 'REL_DYNAMIC_VORTEX',
+    variantName: 'Xoáy Không Gian Chắn Đường',
+    variantDescription: 'Các tường chắn năng lượng xoay tròn cản trở đường kéo nối, buộc tính toán quỹ đạo cong lẩn tránh.',
+    variantConfig: { vortexWalls: 2 }
+  },
+  {
+    id: 'var-rel-grand-war',
+    exerciseSlug: 'relational-network',
+    minLevel: 12,
+    maxLevel: 12,
+    variantCode: 'REL_GRAND_SYNAPSE_WAR',
+    variantName: 'Đại Chiến Synapse Toàn Diện',
+    variantDescription: 'Trận chiến tranh đoạt nút mạng nơ-ron toàn diện với nút lõi, xúc tu đa tầng và âm thoa cộng hưởng.',
+    variantConfig: { fullDynamics: true }
+  },
+  {
+    id: 'var-causal-time-critical',
+    exerciseSlug: 'causal-cascade',
+    minLevel: 9,
+    maxLevel: 9,
+    variantCode: 'CAUSAL_TIME_CRITICAL',
+    variantName: 'Độ Trễ Phân Kỳ Cực Hạn',
+    variantDescription: 'Mạch Domino lan truyền với tốc độ gia tốc, chỉ cho phép thời gian can thiệp tính bằng mili-giây.',
+    variantConfig: { timeCritical: true }
+  },
+  {
+    id: 'var-causal-reservoir',
+    exerciseSlug: 'causal-cascade',
+    minLevel: 10,
+    maxLevel: 10,
+    variantCode: 'CAUSAL_DYNAMIC_RESERVOIR',
+    variantName: 'Bể Chứa Áp Suất Động',
+    variantDescription: 'Bổ sung các bể chứa logic tích lũy áp lực; chỉ phóng thích dòng chảy khi đạt ngưỡng kích hoạt.',
+    variantConfig: { reservoirNodes: 2 }
+  },
+  {
+    id: 'var-causal-triple-maze',
+    exerciseSlug: 'causal-cascade',
+    minLevel: 11,
+    maxLevel: 11,
+    variantCode: 'CAUSAL_TRIPLE_LOGIC_MAZE',
+    variantName: 'Mê Cung Tam Trùng Logic',
+    variantDescription: 'Mê cung 4 cổng logic kết hợp AND/OR/INVERT phân nhánh đa chiều với các điều kiện ràng buộc khắt khe.',
+    variantConfig: { gateCount: 4 }
+  },
+  {
+    id: 'var-causal-master',
+    exerciseSlug: 'causal-cascade',
+    minLevel: 12,
+    maxLevel: 12,
+    variantCode: 'CAUSAL_MASTER_INTERVENTION',
+    variantName: 'Can Thiệp Tối Thượng Master',
+    variantDescription: 'Toàn bộ mạch Domino 11 điểm nút đòi hỏi đúng duy nhất 1 can thiệp đòn bẩy hoàn hảo để kích hoạt toàn mạng.',
+    variantConfig: { fullDominoCircuit: true }
+  },
+  {
+    id: 'var-graph-permutation',
+    exerciseSlug: 'graph-memory-matrix',
+    minLevel: 9,
+    maxLevel: 9,
+    variantCode: 'GRAPH_NODE_PERMUTATION',
+    variantName: 'Xáo Trộn Vị Trí Điểm Nút',
+    variantDescription: 'Sau thời gian ghi nhớ, các nút bị hoán đổi vị trí hiển thị, buộc não ghi nhớ topo quan hệ thay vì tọa độ hình học.',
+    variantConfig: { shufflePositions: true }
+  },
+  {
+    id: 'var-graph-dual-disconnect',
+    exerciseSlug: 'graph-memory-matrix',
+    minLevel: 10,
+    maxLevel: 10,
+    variantCode: 'GRAPH_DUAL_DISCONNECT',
+    variantName: 'Phân Đôi Mạng Lưới Kép',
+    variantDescription: 'Đồ thị tách thành 2 cụm mạng con độc lập, kiểm tra khả năng phát hiện điểm đứt gãy liên thông.',
+    variantConfig: { disconnectedClusters: true }
+  },
+  {
+    id: 'var-graph-hyper-topology',
+    exerciseSlug: 'graph-memory-matrix',
+    minLevel: 11,
+    maxLevel: 11,
+    variantCode: 'GRAPH_HYPER_TOPOLOGY',
+    variantName: 'Siêu Cấu Trúc Đồ Thị Không Gian',
+    variantDescription: '10 điểm nút cùng 15 cạnh liên kết phức tạp với các chu trình lồng nhau đòi hỏi dung lượng bộ nhớ làm việc đỉnh cao.',
+    variantConfig: { edgeCount: 15 }
+  },
+  {
+    id: 'var-graph-master-synapse',
+    exerciseSlug: 'graph-memory-matrix',
+    minLevel: 12,
+    maxLevel: 12,
+    variantCode: 'GRAPH_MASTER_SYNAPSE_RECALL',
+    variantName: 'Bậc Thầy Tái Hiện Mạng Nơ-ron',
+    variantDescription: 'Tái cấu trúc toàn bộ ma trận liên kết 12 nút từ bộ nhớ làm việc mà không bỏ sót bất kỳ liên kết tiềm ẩn nào.',
+    variantConfig: { fullMatrixRecall: true }
+  },
+  {
+    id: 'var-rule-audio-visual',
+    exerciseSlug: 'rule-mutation-clash',
+    minLevel: 9,
+    maxLevel: 9,
+    variantCode: 'RULE_AUDIO_VISUAL_CLASH',
+    variantName: 'Xung Đột Đa Giác Quan Nghe - Nhìn',
+    variantDescription: 'Tín hiệu đột biến phát ra bằng âm thanh đối nghịch với ký hiệu thị giác, thử thách kiểm soát ức chế đa giác quan.',
+    variantConfig: { audioVisualClash: true }
+  },
+  {
+    id: 'var-rule-rapid-mutation',
+    exerciseSlug: 'rule-mutation-clash',
+    minLevel: 10,
+    maxLevel: 10,
+    variantCode: 'RULE_RAPID_DOUBLE_MUTATION',
+    variantName: 'Đột Biến Đôi Chớp Nhoáng',
+    variantDescription: 'Hai lần đột biến liên tiếp trong khoảng thời gian siêu ngắn, kiểm tra tốc độ thích ứng linh hoạt nhận thức.',
+    variantConfig: { doubleMutation: true }
+  },
+  {
+    id: 'var-rule-stroop-hybrid',
+    exerciseSlug: 'rule-mutation-clash',
+    minLevel: 11,
+    maxLevel: 11,
+    variantCode: 'RULE_STROOP_CASCADE_HYBRID',
+    variantName: 'Giao Thoa Stroop Động Lực',
+    variantDescription: 'Kết hợp hiệu ứng Stroop kinh điển với quy tắc phân loại động cơ bản, tối đa hóa chi phí can thiệp nhận thức.',
+    variantConfig: { stroopClashHybrid: true }
+  },
+  {
+    id: 'var-rule-supreme-control',
+    exerciseSlug: 'rule-mutation-clash',
+    minLevel: 12,
+    maxLevel: 12,
+    variantCode: 'RULE_SUPREME_EXECUTIVE_CONTROL',
+    variantName: 'Kiểm Soát Điều Hành Tối Cao',
+    variantDescription: 'Tốc độ phản xạ cực hạn với 5 quy tắc thay đổi liên tục, kích hoạt mạng lưới kiểm soát điều hành tối đa.',
+    variantConfig: { supremeSpeed: true }
   }
 ];
 
@@ -1691,6 +1942,33 @@ export const EXERCISE_SYNERGIES: IExerciseSynergy[] = [
     title: 'Hấp Thụ Khối Ý Nghĩa',
     description: 'Điểm cố định kích hoạt trạng thái tập trung mềm (Soft Focus), Chuỗi từ rèn luyện gom cụm nhảy nhãn cầu theo từng khối ngữ pháp.',
     bonusXpPercent: 20
+  },
+  {
+    id: 'syn-network-cascade',
+    exerciseASlug: 'relational-network',
+    exerciseBSlug: 'causal-cascade',
+    synergyType: 'COMPLEMENTARY',
+    title: 'Động Lực Mạng Lưới & Domino Nhân Quả',
+    description: 'Phẫu thuật cấu trúc quan hệ động học kết hợp tối ưu hóa can thiệp dây chuyền logic nhân quả toàn diện.',
+    bonusXpPercent: 30
+  },
+  {
+    id: 'syn-graph-mutation',
+    exerciseASlug: 'graph-memory-matrix',
+    exerciseBSlug: 'rule-mutation-clash',
+    synergyType: 'PROGRESSIVE',
+    title: 'Trí Nhớ Đồ Thị & Thích Ứng Quy Tắc',
+    description: 'Mã hóa topo mạng đa chiều trong bộ nhớ làm việc rồi bứt phá với bài tập thích ứng đột biến quy tắc tốc độ cao.',
+    bonusXpPercent: 25
+  },
+  {
+    id: 'syn-sound-network-interval',
+    exerciseASlug: 'relational-network',
+    exerciseBSlug: 'interval-identify',
+    synergyType: 'COMPLEMENTARY',
+    title: 'Hòa Âm Thính Giác & Mạng Lưới Nơ-ron',
+    description: 'Cảm nhận quãng hòa âm thuận tai khi nối các điểm nút, kết hợp nhận diện quãng âm nâng cao cảm thụ thính giác.',
+    bonusXpPercent: 30
   }
 ];
 

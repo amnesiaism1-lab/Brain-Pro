@@ -23,8 +23,14 @@ export interface IRdeEntity {
     };
     state: IRdeEntityState;
     metadata?: Record<string, unknown>;
+    soundProps?: {
+        pitch?: string;
+        freq?: number;
+        harmonyRole?: 'TONIC' | 'DOMINANT' | 'SUBDOMINANT' | 'MEDIANT' | 'PASSING';
+        overtoneIndex?: number;
+    };
 }
-export type RdeRelationType = 'FLOW_CONNECT' | 'ATTACK_DRAIN' | 'HEAL_BUFF' | 'CONTROL_DEPEND' | 'INHIBIT_BLOCK' | 'TRANSFORM_ALIGN';
+export type RdeRelationType = 'FLOW_CONNECT' | 'ATTACK_DRAIN' | 'HEAL_BUFF' | 'CONTROL_DEPEND' | 'INHIBIT_BLOCK' | 'TRANSFORM_ALIGN' | 'SOUND_HARMONIZE';
 export type CutAffinity = 'SOURCE_BIASED' | 'TARGET_BIASED' | 'BALANCED';
 export interface IRdeRelationProperties {
     strength: number;
@@ -34,6 +40,8 @@ export interface IRdeRelationProperties {
     cuttable: boolean;
     cutAffinity: CutAffinity;
     flowSpeed: number;
+    harmonicConsonance?: 'PERFECT_CONSONANCE' | 'IMPERFECT_CONSONANCE' | 'DISSONANCE' | 'NEUTRAL';
+    intervalSemitones?: number;
 }
 export interface IRdeRelation {
     id: string;
@@ -67,6 +75,7 @@ export interface IRdeBoardState {
         y2: number;
     }>;
     stepCount: number;
+    soundNetworkActive?: boolean;
 }
 export interface IRdePredictionQuery {
     questionVi: string;
@@ -102,7 +111,7 @@ export interface IRdeTrialEvidence {
 export interface IRdeChallengeLevel {
     level: number;
     titleVi: string;
-    mode: 'SURGICAL_CUT' | 'CORE_DOMINANCE' | 'CASCADE_PREDICT' | 'DYNAMIC_WORLD';
+    mode: 'SURGICAL_CUT' | 'CORE_DOMINANCE' | 'CASCADE_PREDICT' | 'DYNAMIC_WORLD' | 'SOUND_NETWORK';
     entities: IRdeEntity[];
     relations: IRdeRelation[];
     obstacles?: Array<{
@@ -116,4 +125,101 @@ export interface IRdeChallengeLevel {
     targetRelations: RelationId[];
     timeLimitSec: number;
     requiredScore: number;
+}
+export type CausalNodeType = 'SOURCE' | 'LEVER' | 'GATE_AND' | 'GATE_OR' | 'INVERTER' | 'RESERVOIR' | 'TARGET';
+export interface ICausalNode {
+    id: string;
+    label: string;
+    type: CausalNodeType;
+    position: {
+        x: number;
+        y: number;
+    };
+    state: 'OFF' | 'ON' | 'OVERLOAD' | 'DISABLED';
+    value: number;
+    threshold?: number;
+    ruleVi?: string;
+}
+export interface ICausalConnection {
+    id: string;
+    fromNodeId: string;
+    toNodeId: string;
+    delayMs: number;
+    isFlowing: boolean;
+    isBroken?: boolean;
+}
+export interface ICausalChallenge {
+    id: string;
+    level: number;
+    titleVi: string;
+    goalDescriptionVi: string;
+    nodes: ICausalNode[];
+    connections: ICausalConnection[];
+    allowedInterventions: number;
+    timeLimitSec: number;
+    predictionQuestion?: string;
+    predictionOptions?: Array<{
+        id: string;
+        labelVi: string;
+        isCorrect: boolean;
+    }>;
+}
+export interface IGraphMemoryNode {
+    id: string;
+    label: string;
+    color?: string;
+    position: {
+        x: number;
+        y: number;
+    };
+}
+export interface IGraphMemoryEdge {
+    id: string;
+    sourceId: string;
+    targetId: string;
+    isDirected: boolean;
+    weight?: number;
+}
+export interface IGraphMemoryQuery {
+    id: string;
+    questionVi: string;
+    queryType: 'SHORTEST_PATH' | 'REACHABILITY' | 'BOTTLENECK' | 'LOOP_DETECT' | 'NEIGHBOR_COUNT';
+    options: Array<{
+        id: string;
+        labelVi: string;
+    }>;
+    correctOptionId: string;
+    explanationVi: string;
+}
+export interface IGraphMemoryLevel {
+    level: number;
+    titleVi: string;
+    nodes: IGraphMemoryNode[];
+    edges: IGraphMemoryEdge[];
+    memorizeDurationSec: number;
+    queries: IGraphMemoryQuery[];
+}
+export interface IRuleItem {
+    attribute: string;
+    action: string;
+    condition?: string;
+}
+export interface IRuleMutationTrial {
+    id: string;
+    round: number;
+    stimulus: {
+        color: string;
+        shape: string;
+        soundPitch?: string;
+        orientation?: string;
+    };
+    activeRules: IRuleItem[];
+    hasMutated: boolean;
+    mutationAlertVi?: string;
+    correctAction: string;
+    options: Array<{
+        id: string;
+        labelVi: string;
+        action: string;
+    }>;
 }

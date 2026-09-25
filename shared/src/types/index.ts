@@ -33,9 +33,14 @@ export type ExerciseSlug =
   | 'timbre-match'         // Phân Biệt Âm Sắc
   | 'sound-localization'  // Định Vị Âm Thanh 3D
   | 'voice-track'          // Theo Dõi Bè Đa Thanh (Auditory Streaming)
-  | 'relational-network';  // Mạng Lưới Quan Hệ Động Học (Relational Dynamics)
+  | 'relational-network'   // Mạng Lưới Quan Hệ Động Học (Relational Dynamics)
+  | 'causal-cascade'       // Hiệu Ứng Domino Nhân Quả (Causal Cascade)
+  | 'graph-memory-matrix'  // Trí Nhớ Ma Trận Đồ Thị (Graph Working Memory)
+  | 'rule-mutation-clash'; // Xung Đột Quy Tắc Biến Dị (Rule Mutation & Flexibility)
 
 export type ArticulationType = 'legato' | 'staccato' | 'tenuto' | 'accent';
+export type MelodicContourCode = 'UP' | 'DOWN' | 'REPEAT' | 'ARCH' | 'INVERTED_ARCH';
+export type CadenceType = 'AUTHENTIC' | 'HALF' | 'DECEPTIVE' | 'PLAGAL';
 
 export interface IAudioEvent {
   note?: string;

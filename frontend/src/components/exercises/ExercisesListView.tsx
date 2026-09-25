@@ -8,7 +8,7 @@ import {
   FileSearch
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import { EXERCISES_METADATA, CognitiveCategoryCode, INFINITY_ROMAN_NUMERALS, getInfinityLabel } from '@brain-exercises/shared';
+import { EXERCISES_METADATA, CognitiveCategoryCode, INFINITY_ROMAN_NUMERALS, getInfinityLabel, EXERCISE_SYNERGIES } from '@brain-exercises/shared';
 
 // Map slugs to representative custom graphic icons matching app screenshots
 function renderExerciseIcon(slug: string) {
@@ -244,6 +244,39 @@ function renderExerciseIcon(slug: string) {
           <div className="absolute bottom-1 left-2 w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_6px_#f59e0b]" />
         </div>
       );
+    case 'causal-cascade':
+      return (
+        <div className="flex flex-col items-center justify-center text-amber-300 w-full h-full">
+          <div className="flex items-center gap-1 mb-0.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+            <span className="text-[10px] font-bold">➔</span>
+            <div className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
+            <span className="text-[10px] font-bold">➔</span>
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+          </div>
+          <span className="text-[8px] font-black text-amber-300 tracking-wider">DOMINO</span>
+        </div>
+      );
+    case 'graph-memory-matrix':
+      return (
+        <div className="relative flex items-center justify-center text-white w-full h-full">
+          <div className="w-7 h-7 rounded-xl border border-purple-400/70 flex items-center justify-center bg-purple-900/40 shadow-[0_0_10px_rgba(168,85,247,0.5)]">
+            <span className="text-[9px] font-bold font-mono text-purple-200">G(V,E)</span>
+          </div>
+          <span className="absolute -bottom-2 text-[7px] font-black text-purple-300">TOPOLOGY</span>
+        </div>
+      );
+    case 'rule-mutation-clash':
+      return (
+        <div className="flex flex-col items-center justify-center text-white w-full h-full">
+          <div className="flex items-center gap-1 text-[11px] font-black mb-0.5">
+            <span className="text-rose-400">⚡</span>
+            <span className="text-cyan-400">⇆</span>
+            <span className="text-emerald-400">🛡️</span>
+          </div>
+          <span className="text-[8px] font-black text-rose-300 tracking-wider">MUTATION</span>
+        </div>
+      );
     default:
       return <Grid className="w-6 h-6 text-white" />;
   }
@@ -324,12 +357,12 @@ export const ExercisesListView: React.FC = () => {
           const stageName = isInfinity 
             ? `Vô Cực (${INFINITY_ROMAN_NUMERALS[exLevel - 13]})` 
             : exLevel >= 9 ? 'Siêu Phàm' : exLevel >= 5 ? 'Bứt Phá' : 'Khởi Động';
-          const isSynergyCandidate = lastPlayedSlug && lastPlayedSlug !== exercise.slug && (
-            (lastPlayedSlug === 'schulte-table' && exercise.slug === 'peripheral-vision') ||
-            (lastPlayedSlug === 'peripheral-vision' && exercise.slug === 'schulte-table') ||
-            (lastPlayedSlug === 'rsvp-speed-reader' && exercise.slug === 'reading-assessment') ||
-            (lastPlayedSlug === 'stroop-clash' && exercise.slug === 'even-odd')
-          );
+          const activeSynergy = lastPlayedSlug && lastPlayedSlug !== exercise.slug
+            ? EXERCISE_SYNERGIES.find(syn => 
+                (syn.exerciseASlug === lastPlayedSlug && syn.exerciseBSlug === exercise.slug) ||
+                (syn.exerciseBSlug === lastPlayedSlug && syn.exerciseASlug === exercise.slug)
+              )
+            : null;
 
           return (
             <div
@@ -359,9 +392,12 @@ export const ExercisesListView: React.FC = () => {
                   <h3 className="text-base sm:text-lg font-black text-slate-800 dark:text-white truncate">
                     {exercise.title}
                   </h3>
-                  {isSynergyCandidate && (
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-white shrink-0 shadow-sm animate-pulse">
-                      ⚡ +25%
+                  {activeSynergy && (
+                    <span 
+                      className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-white shrink-0 shadow-sm animate-pulse"
+                      title={activeSynergy.title}
+                    >
+                      ⚡ +{activeSynergy.bonusXpPercent}%
                     </span>
                   )}
                 </div>

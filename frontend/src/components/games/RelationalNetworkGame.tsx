@@ -15,18 +15,18 @@ import {
   IRdePredictionAnswer,
   IRelationEvent,
   IRawMetricsJson,
-  checkLineIntersection
+  checkLineIntersection,
+  calculateHarmonicConsonance
 } from '@brain-exercises/shared';
+import { auditoryEngine } from '../../services/auditoryEngine';
 import { 
   Zap, 
   Brain, 
   Clock, 
   ShieldAlert, 
-  Layers, 
-  Info,
-  Maximize2,
-  Sparkles,
-  Scissors
+  Sparkles, 
+  Scissors, 
+  Music
 } from 'lucide-react';
 
 export const RelationalNetworkGame: React.FC = () => {
@@ -55,6 +55,7 @@ export const RelationalNetworkGame: React.FC = () => {
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
   const [score, setScore] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<string>('Bắt đầu thử thách nhận thức');
+  const [isSoundNetworkMode, setIsSoundNetworkMode] = useState<boolean>(() => challenge.mode === 'SOUND_NETWORK' || currentLevel >= 8);
   
   // Prediction Phase State
   const [predictionEvaluation, setPredictionEvaluation] = useState<IPredictionEvaluation | null>(null);
@@ -68,7 +69,6 @@ export const RelationalNetworkGame: React.FC = () => {
   const dragStartNodeRef = useRef<IRdeEntity | null>(null);
   const dragCurrentPosRef = useRef<{ x: number; y: number } | null>(null);
   const sliceLineRef = useRef<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
-  const sliceCutPointsRef = useRef<Array<{ x: number; y: number; life: number }>>([]);
 
   // Particles for flow animation along connections
   const particlesRef = useRef<Array<{ relId: string; progress: number; speed: number }>>([]);
@@ -266,6 +266,21 @@ export const RelationalNetworkGame: React.FC = () => {
       ctx.lineTo(target.position.x, target.position.y);
       ctx.stroke();
 
+      // Sound Network Interval Pill on Edge
+      if (isSoundNetworkMode && source.soundProps?.pitch && target.soundProps?.pitch) {
+        const mx = (source.position.x + target.position.x) / 2;
+        const my = (source.position.y + target.position.y) / 2;
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(mx - 28, my - 9, 56, 18);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mx - 28, my - 9, 56, 18);
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 9px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${source.soundProps.pitch}↔${target.soundProps.pitch}`, mx, my + 3);
+      }
+
       // Draw pulse particles along this relation
       const relParticles = particlesRef.current.filter(p => p.relId === rel.id);
       relParticles.forEach(p => {
@@ -364,8 +379,12 @@ export const RelationalNetworkGame: React.FC = () => {
       ctx.font = '10px Inter, sans-serif';
       ctx.fillText(entity.label, x, y + radius + 14);
 
-      // Role Badge above node
-      if (entity.state.role !== 'NORMAL') {
+      // Role or Sound Pitch Badge above node
+      if (entity.soundProps?.pitch) {
+        ctx.fillStyle = '#c084fc';
+        ctx.font = 'bold 10px Inter, sans-serif';
+        ctx.fillText(`🎵 ${entity.soundProps.pitch}`, x, y - radius - 6);
+      } else if (entity.state.role !== 'NORMAL') {
         ctx.fillStyle = '#38bdf8';
         ctx.font = 'bold 9px Inter, sans-serif';
         ctx.fillText(`[${entity.state.role}]`, x, y - radius - 6);
@@ -426,10 +445,15 @@ export const RelationalNetworkGame: React.FC = () => {
     const coords = getCanvasCoords(e);
     const clickedEntity = findEntityAt(coords.x, coords.y);
 
-    if (clickedEntity && clickedEntity.faction === 'PLAYER') {
-      // Start Drag Tether from Player Node
-      dragStartNodeRef.current = clickedEntity;
-      dragCurrentPosRef.current = coords;
+    if (clickedEntity) {
+      if (clickedEntity.soundProps?.pitch) {
+        auditoryEngine.playNote(clickedEntity.soundProps.pitch, 0.35, { volume: 0.35, waveform: 'triangle' });
+      }
+      if (clickedEntity.faction === 'PLAYER') {
+        // Start Drag Tether from Player Node
+        dragStartNodeRef.current = clickedEntity;
+        dragCurrentPosRef.current = coords;
+      }
     } else {
       // Start Slicing gesture in empty space
       sliceLineRef.current = { x1: coords.x, y1: coords.y, x2: coords.x, y2: coords.y };
@@ -466,7 +490,12 @@ export const RelationalNetworkGame: React.FC = () => {
         });
         setBoardState(result.nextState);
         setStatusMessage(result.effectDescriptionVi);
-        playSound('click');
+        
+        // Synthesize musical interval between the two nodes
+        const sFreq = dragStartNodeRef.current.soundProps?.freq || 261.63;
+        const tFreq = targetEntity.soundProps?.freq || 392.00;
+        auditoryEngine.playRelationalConnection(sFreq, tFreq, 'FLOW_CONNECT');
+        
         setScore(s => s + 10);
       }
       dragStartNodeRef.current = null;
@@ -488,7 +517,12 @@ export const RelationalNetworkGame: React.FC = () => {
         });
         setBoardState(result.nextState);
         setStatusMessage(result.effectDescriptionVi);
-        playSound('click');
+        
+        // Play laser cut sonic snap proportional to cutRatio
+        const s = boardState.entities.find(e => e.id === hit.relation.sourceId);
+        const cutBaseFreq = s?.soundProps?.freq || 440;
+        auditoryEngine.playRelationalCut(cutBaseFreq, hit.cutRatio);
+        
         setScore(s => s + 25);
       }
 
@@ -533,14 +567,41 @@ export const RelationalNetworkGame: React.FC = () => {
               </span>
               <span>•</span>
               <span className="text-cyan-300 font-semibold">Điểm: {score}</span>
+              {predictionEvaluation && (
+                <>
+                  <span>•</span>
+                  <span className={`text-[11px] font-bold ${predictionEvaluation.isCorrect ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {predictionEvaluation.isCorrect ? '✓ Dự đoán chuẩn' : '✕ Lệch dự đoán'}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Action Status Ticker */}
-        <div className="flex items-center gap-2 bg-slate-800/60 border border-slate-700/50 rounded-xl px-4 py-2 text-xs text-slate-200">
-          <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
-          <span>{statusMessage}</span>
+        <div className="flex items-center gap-2">
+          {/* Sound Network Mode Button */}
+          <button
+            onClick={() => {
+              setIsSoundNetworkMode(!isSoundNetworkMode);
+              playSound('click');
+            }}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              isSoundNetworkMode
+                ? 'bg-purple-600/25 border-purple-500/60 text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.35)]'
+                : 'bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
+            }`}
+            title="Kích hoạt chế độ Cảm Âm & Hòa Âm (Sound Network Mode)"
+          >
+            <Music className="w-3.5 h-3.5 text-purple-400" />
+            <span>Mạng Hòa Âm {isSoundNetworkMode ? 'ON' : 'OFF'}</span>
+          </button>
+
+          {/* Action Status Ticker */}
+          <div className="flex items-center gap-2 bg-slate-800/60 border border-slate-700/50 rounded-xl px-4 py-2 text-xs text-slate-200">
+            <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span>{statusMessage}</span>
+          </div>
         </div>
       </div>
 

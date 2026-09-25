@@ -23,6 +23,12 @@ export interface IRdeEntity {
   position: { x: number; y: number };
   state: IRdeEntityState;
   metadata?: Record<string, unknown>;
+  soundProps?: {
+    pitch?: string;
+    freq?: number;
+    harmonyRole?: 'TONIC' | 'DOMINANT' | 'SUBDOMINANT' | 'MEDIANT' | 'PASSING';
+    overtoneIndex?: number;
+  };
 }
 
 export type RdeRelationType =
@@ -31,7 +37,8 @@ export type RdeRelationType =
   | 'HEAL_BUFF'         // Bơm hồi phục đồng minh
   | 'CONTROL_DEPEND'    // Quan hệ phụ thuộc (Core -> Node con)
   | 'INHIBIT_BLOCK'     // Chặn / đóng băng dòng chảy
-  | 'TRANSFORM_ALIGN';  // Biến đổi bản chất / chuyển phe
+  | 'TRANSFORM_ALIGN'   // Biến đổi bản chất / chuyển phe
+  | 'SOUND_HARMONIZE';  // Hòa âm tương hỗ giữa 2 cao độ
 
 export type CutAffinity = 'SOURCE_BIASED' | 'TARGET_BIASED' | 'BALANCED';
 
@@ -43,6 +50,8 @@ export interface IRdeRelationProperties {
   cuttable: boolean;
   cutAffinity: CutAffinity; // Cắt gần source hay gần target tạo hậu quả khác nhau
   flowSpeed: number;      // Tốc độ hạt năng lượng chạy trên đường nối
+  harmonicConsonance?: 'PERFECT_CONSONANCE' | 'IMPERFECT_CONSONANCE' | 'DISSONANCE' | 'NEUTRAL';
+  intervalSemitones?: number;
 }
 
 export interface IRdeRelation {
@@ -81,6 +90,7 @@ export interface IRdeBoardState {
     y2: number;
   }>;
   stepCount: number;
+  soundNetworkActive?: boolean;
 }
 
 export interface IRdePredictionQuery {
@@ -120,7 +130,7 @@ export interface IRdeTrialEvidence {
 export interface IRdeChallengeLevel {
   level: number;
   titleVi: string;
-  mode: 'SURGICAL_CUT' | 'CORE_DOMINANCE' | 'CASCADE_PREDICT' | 'DYNAMIC_WORLD';
+  mode: 'SURGICAL_CUT' | 'CORE_DOMINANCE' | 'CASCADE_PREDICT' | 'DYNAMIC_WORLD' | 'SOUND_NETWORK';
   entities: IRdeEntity[];
   relations: IRdeRelation[];
   obstacles?: Array<{ id: string; x1: number; y1: number; x2: number; y2: number }>;
@@ -128,4 +138,103 @@ export interface IRdeChallengeLevel {
   targetRelations: RelationId[];
   timeLimitSec: number;
   requiredScore: number;
+}
+
+// -------------------------------------------------------------
+// CAUSAL CASCADE DOMAIN (Hiệu ứng Domino Nhân Quả)
+// -------------------------------------------------------------
+export type CausalNodeType = 'SOURCE' | 'LEVER' | 'GATE_AND' | 'GATE_OR' | 'INVERTER' | 'RESERVOIR' | 'TARGET';
+
+export interface ICausalNode {
+  id: string;
+  label: string;
+  type: CausalNodeType;
+  position: { x: number; y: number };
+  state: 'OFF' | 'ON' | 'OVERLOAD' | 'DISABLED';
+  value: number; // 0..100
+  threshold?: number;
+  ruleVi?: string;
+}
+
+export interface ICausalConnection {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+  delayMs: number;
+  isFlowing: boolean;
+  isBroken?: boolean;
+}
+
+export interface ICausalChallenge {
+  id: string;
+  level: number;
+  titleVi: string;
+  goalDescriptionVi: string;
+  nodes: ICausalNode[];
+  connections: ICausalConnection[];
+  allowedInterventions: number; // e.g. 1 can thiệp tối thiểu
+  timeLimitSec: number;
+  predictionQuestion?: string;
+  predictionOptions?: Array<{ id: string; labelVi: string; isCorrect: boolean }>;
+}
+
+// -------------------------------------------------------------
+// GRAPH MEMORY MATRIX DOMAIN (Trí nhớ Làm việc Mạng Đồ thị)
+// -------------------------------------------------------------
+export interface IGraphMemoryNode {
+  id: string;
+  label: string;
+  color?: string;
+  position: { x: number; y: number };
+}
+
+export interface IGraphMemoryEdge {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  isDirected: boolean;
+  weight?: number;
+}
+
+export interface IGraphMemoryQuery {
+  id: string;
+  questionVi: string;
+  queryType: 'SHORTEST_PATH' | 'REACHABILITY' | 'BOTTLENECK' | 'LOOP_DETECT' | 'NEIGHBOR_COUNT';
+  options: Array<{ id: string; labelVi: string }>;
+  correctOptionId: string;
+  explanationVi: string;
+}
+
+export interface IGraphMemoryLevel {
+  level: number;
+  titleVi: string;
+  nodes: IGraphMemoryNode[];
+  edges: IGraphMemoryEdge[];
+  memorizeDurationSec: number; // e.g. 3.5s - 5s
+  queries: IGraphMemoryQuery[];
+}
+
+// -------------------------------------------------------------
+// RULE MUTATION CLASH DOMAIN (Xung Đột Quy Tắc Biến Dị)
+// -------------------------------------------------------------
+export interface IRuleItem {
+  attribute: string; // e.g. 'color:red'
+  action: string;    // e.g. 'ATTACK' | 'DEFEND'
+  condition?: string;
+}
+
+export interface IRuleMutationTrial {
+  id: string;
+  round: number;
+  stimulus: {
+    color: string;
+    shape: string;
+    soundPitch?: string;
+    orientation?: string;
+  };
+  activeRules: IRuleItem[];
+  hasMutated: boolean;
+  mutationAlertVi?: string;
+  correctAction: string;
+  options: Array<{ id: string; labelVi: string; action: string }>;
 }
