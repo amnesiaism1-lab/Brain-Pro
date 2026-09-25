@@ -4,7 +4,12 @@ import { GameResultModal } from './GameResultModal';
 import { calculateGameScore, INFINITY_ROMAN_NUMERALS } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { auditoryEngine } from '../../services/auditoryEngine';
-import { generateRandomPitchSequence } from '../../services/musicTheoryService';
+import { 
+  generateRandomPitchSequence, 
+  generateContourQuestion, 
+  generateChromaticOddballQuestion, 
+  IMelodicContourInfo 
+} from '../../services/musicTheoryService';
 import { PianoKeyboard } from '../ui/PianoKeyboard';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
@@ -27,6 +32,14 @@ export const PitchRecallGame: React.FC = () => {
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
   // Level configuration
+  const isContourMode = effectiveLevel === 10;
+  const isOddballMode = effectiveLevel === 12;
+  const isReverseRecall = effectiveLevel === 9;
+  const isChromaticStorm = effectiveLevel === 13;
+  const isTranspositionMode = effectiveLevel === 16;
+  const isFibonacciTempo = effectiveLevel === 17;
+  const isMicrotonal = effectiveLevel === 20;
+
   const sequenceLength = isInfinity
     ? Math.min(8, 4 + Math.floor(infinityTier / 2))
     : effectiveLevel <= 2 ? 3 : effectiveLevel <= 4 ? 4 : effectiveLevel <= 7 ? 5 : effectiveLevel <= 10 ? 6 : 7;
@@ -36,12 +49,6 @@ export const PitchRecallGame: React.FC = () => {
   }, [effectiveLevel, isInfinity]);
 
   const includeAccidentals = effectiveLevel >= 4 || isInfinity;
-  const isReverseRecall = effectiveLevel === 9 || effectiveLevel === 12;
-  const isChromaticStorm = effectiveLevel === 13;
-  const isTranspositionMode = effectiveLevel === 16;
-  const isFibonacciTempo = effectiveLevel === 17;
-  const isMicrotonal = effectiveLevel === 20;
-
   const showVisualHints = effectiveLevel <= 2 && !isInfinity;
   const noteSpeedMs = effectiveLevel >= 10 ? 360 : 520;
 
@@ -63,6 +70,13 @@ export const PitchRecallGame: React.FC = () => {
   const [isLearnMode, setIsLearnMode] = useState<boolean>(true);
   const [lastFeedback, setLastFeedback] = useState<{ isCorrect: boolean; message: string; expected: string[] } | null>(null);
 
+  // Contour & Oddball state (M1-1, M0-4)
+  const [contourQuestion, setContourQuestion] = useState<ReturnType<typeof generateContourQuestion> | null>(null);
+  const [selectedContourType, setSelectedContourType] = useState<string | null>(null);
+
+  const [oddballQuestion, setOddballQuestion] = useState<ReturnType<typeof generateChromaticOddballQuestion> | null>(null);
+  const [selectedOddballIdx, setSelectedOddballIdx] = useState<number | null>(null);
+
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
   const playedRoundRef = useRef<number>(0);
@@ -71,17 +85,37 @@ export const PitchRecallGame: React.FC = () => {
 
   // Generate new round
   const startNewRound = useCallback(() => {
-    const seq = generateRandomPitchSequence(
-      sequenceLength,
-      octaveRange[0] === octaveRange[1] ? [octaveRange[0]] : [4, 5],
-      includeAccidentals
-    );
-    targetSeqRef.current = seq;
-    setTargetSequence(seq);
-    setUserSequence([]);
-    setLastFeedback(null);
-    setPhase('listen');
-  }, [sequenceLength, octaveRange, includeAccidentals]);
+    if (isContourMode) {
+      const q = generateContourQuestion(['ascend', 'descend', 'arch', 'wave'], 'C4');
+      setContourQuestion(q);
+      setSelectedContourType(null);
+      targetSeqRef.current = q.notes;
+      setTargetSequence(q.notes);
+      setUserSequence([]);
+      setLastFeedback(null);
+      setPhase('listen');
+    } else if (isOddballMode) {
+      const q = generateChromaticOddballQuestion('C4', 6);
+      setOddballQuestion(q);
+      setSelectedOddballIdx(null);
+      targetSeqRef.current = q.notes;
+      setTargetSequence(q.notes);
+      setUserSequence([]);
+      setLastFeedback(null);
+      setPhase('listen');
+    } else {
+      const seq = generateRandomPitchSequence(
+        sequenceLength,
+        octaveRange[0] === octaveRange[1] ? [octaveRange[0]] : [4, 5],
+        includeAccidentals
+      );
+      targetSeqRef.current = seq;
+      setTargetSequence(seq);
+      setUserSequence([]);
+      setLastFeedback(null);
+      setPhase('listen');
+    }
+  }, [sequenceLength, octaveRange, includeAccidentals, isContourMode, isOddballMode]);
 
   // Initial setup on level change
   useEffect(() => {
@@ -316,6 +350,81 @@ export const PitchRecallGame: React.FC = () => {
     }
   }, [noteSpeedMs]);
 
+  const handleSelectContour = (contour: IMelodicContourInfo) => {
+    if (phase !== 'recall' || !contourQuestion) return;
+    setSelectedContourType(contour.type);
+    setPhase('feedback');
+    const reactionMs = Date.now() - trialStartTimeRef.current;
+    const isCorrect = contour.type === contourQuestion.targetContour.type;
+    auditoryEngine.playFeedback(isCorrect);
+    if (isCorrect) {
+      setCorrectRounds(p => p + 1);
+      setScore(p => p + 250);
+      setLastFeedback({
+        isCorrect: true,
+        message: `Chính xác! Giai điệu chuyển động theo hướng ${contour.nameVi} (${contour.symbol})`,
+        expected: contourQuestion.notes
+      });
+    } else {
+      setLastFeedback({
+        isCorrect: false,
+        message: `Chưa đúng! Hướng chuẩn là: ${contourQuestion.targetContour.nameVi} (${contourQuestion.targetContour.symbol})`,
+        expected: contourQuestion.notes
+      });
+    }
+    emitTrialEvent({
+      exerciseSlug: 'pitch-recall',
+      level: effectiveLevel,
+      relationId: 'SPATIAL_TRANSFORM',
+      entities: {
+        targetContour: contourQuestion.targetContour.type,
+        selectedContour: contour.type
+      },
+      stateBefore: 'listen',
+      stateAfter: 'feedback',
+      responseMs: reactionMs,
+      correct: isCorrect
+    });
+  };
+
+  const handleSelectOddball = (idx: number) => {
+    if (phase !== 'recall' || !oddballQuestion) return;
+    setSelectedOddballIdx(idx);
+    setPhase('feedback');
+    const reactionMs = Date.now() - trialStartTimeRef.current;
+    const isCorrect = idx === oddballQuestion.oddballIndex;
+    auditoryEngine.playFeedback(isCorrect);
+    if (isCorrect) {
+      setCorrectRounds(p => p + 1);
+      setScore(p => p + 250);
+      setLastFeedback({
+        isCorrect: true,
+        message: `Chính xác! Nốt thứ ${idx + 1} (${oddballQuestion.oddballNote}) là nốt ngoại điệu`,
+        expected: oddballQuestion.notes
+      });
+    } else {
+      setLastFeedback({
+        isCorrect: false,
+        message: `Chưa đúng! Nốt ngoại điệu nằm ở vị trí thứ ${oddballQuestion.oddballIndex + 1} (${oddballQuestion.oddballNote})`,
+        expected: oddballQuestion.notes
+      });
+    }
+    emitTrialEvent({
+      exerciseSlug: 'pitch-recall',
+      level: effectiveLevel,
+      relationId: 'TARGET_DISTRACTOR',
+      entities: {
+        targetIndex: oddballQuestion.oddballIndex,
+        selectedIndex: idx,
+        oddballNote: oddballQuestion.oddballNote
+      },
+      stateBefore: 'listen',
+      stateAfter: 'feedback',
+      responseMs: reactionMs,
+      correct: isCorrect
+    });
+  };
+
   const handleProceedNextRound = useCallback(() => {
     if (round >= maxRounds) {
       setIsFinished(true);
@@ -336,7 +445,7 @@ export const PitchRecallGame: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                Nhớ Cao Độ (Pitch Recall)
+                {isContourMode ? 'Đường Nét Giai Điệu (Melodic Contour - Cấp 10)' : isOddballMode ? 'Nốt Ngoại Điệu (Chromatic Oddball - Cấp 12)' : 'Nhớ Cao Độ (Pitch Recall)'}
               </h2>
               {isInfinity && (
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm">
@@ -345,7 +454,11 @@ export const PitchRecallGame: React.FC = () => {
               )}
             </div>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium">
-              {isReverseRecall
+              {isContourMode
+                ? 'Nhận diện hình dáng quỹ đạo của câu nhạc (Mã Parsons: Lên ↗, Xuống ↘, Cầu Vồng ∧, Lượn Sóng ∿)'
+                : isOddballMode
+                ? 'Lắng nghe giai điệu trong âm giai Đô Trưởng và phát hiện nốt thăng lạ lẫm chen ngang'
+                : isReverseRecall
                 ? '⚠️ Chế độ đảo ngược: Nhập theo thứ tự TỪ CUỐI LÊN ĐẦU'
                 : 'Lắng nghe chuỗi nốt và bấm lại theo đúng thứ tự (Hỗ trợ đàn MIDI)'}
             </p>
@@ -376,21 +489,23 @@ export const PitchRecallGame: React.FC = () => {
             )}
           </button>
 
-          <button
-            type="button"
-            onClick={() => setEnableTonicAnchor(!enableTonicAnchor)}
-            className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
-              enableTonicAnchor
-                ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300'
-                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
-            }`}
-            title="Bật/Tắt Neo Âm Chủ (Tonic Anchor) - phát âm chuẩn nốt đầu tiên giúp định hình cao độ tương đối"
-          >
-            <Anchor className={`w-3.5 h-3.5 ${enableTonicAnchor ? 'text-amber-500' : ''}`} />
-            <span className="hidden sm:inline">Neo Âm Chủ</span>
-          </button>
+          {!isContourMode && !isOddballMode && (
+            <button
+              type="button"
+              onClick={() => setEnableTonicAnchor(!enableTonicAnchor)}
+              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+                enableTonicAnchor
+                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300'
+                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+              }`}
+              title="Bật/Tắt Neo Âm Chủ (Tonic Anchor) - phát âm chuẩn nốt đầu tiên giúp định hình cao độ tương đối"
+            >
+              <Anchor className={`w-3.5 h-3.5 ${enableTonicAnchor ? 'text-amber-500' : ''}`} />
+              <span className="hidden sm:inline">Neo Âm Chủ</span>
+            </button>
+          )}
 
-          <MidiStatusIndicator compact={true} />
+          {!isContourMode && !isOddballMode && <MidiStatusIndicator compact={true} />}
           <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
             Hiệp: <span className="font-black text-amber-600 dark:text-amber-400">{round}/{maxRounds}</span>
           </div>
@@ -424,9 +539,9 @@ export const PitchRecallGame: React.FC = () => {
             }`}>
               <Volume2 className="w-4 h-4" />
               {phase === 'listen' 
-                ? '🎧 Đang phát chuỗi nốt mẫu... Hãy lắng nghe kỹ!' 
+                ? '🎧 Đang phát chuỗi nốt... Hãy lắng nghe kỹ!' 
                 : phase === 'recall' 
-                ? `🎹 Lượt của bạn: Hãy gõ các nốt trên phím đàn hoặc đàn MIDI (${userSequence.length}/${targetSequence.length})` 
+                ? (isContourMode ? '📐 Hãy chọn hình dáng đường nét của giai điệu bên dưới' : isOddballMode ? '🎯 Hãy bấm vào nốt nào bạn nghe thấy là nốt ngoại điệu (lệch giọng)' : `🎹 Lượt của bạn: Hãy gõ các nốt (${userSequence.length}/${targetSequence.length})`) 
                 : 'Đang đối chiếu...'}
             </div>
           )}
@@ -441,7 +556,7 @@ export const PitchRecallGame: React.FC = () => {
               >
                 <RotateCcw className="w-4 h-4" /> Nghe lại chuỗi
               </button>
-              {targetSequence[0] && (
+              {!isContourMode && !isOddballMode && targetSequence[0] && (
                 <button
                   type="button"
                   onClick={handlePlayAnchor}
@@ -457,24 +572,26 @@ export const PitchRecallGame: React.FC = () => {
           )}
         </div>
 
-        {/* User Progress Sequence Slots */}
-        <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
-          {targetSequence.map((_, idx) => {
-            const userNote = userSequence[idx];
-            return (
-              <div
-                key={`slot-${idx}`}
-                className={`w-12 h-14 rounded-2xl flex items-center justify-center font-black font-mono text-base border-2 transition-all ${
-                  userNote
-                    ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-md scale-105'
-                    : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 shadow-inner'
-                }`}
-              >
-                {userNote || (idx + 1)}
-              </div>
-            );
-          })}
-        </div>
+        {/* User Progress Sequence Slots (Standard Mode Only) */}
+        {!isContourMode && !isOddballMode && (
+          <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
+            {targetSequence.map((_, idx) => {
+              const userNote = userSequence[idx];
+              return (
+                <div
+                  key={`slot-${idx}`}
+                  className={`w-12 h-14 rounded-2xl flex items-center justify-center font-black font-mono text-base border-2 transition-all ${
+                    userNote
+                      ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-md scale-105'
+                      : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 shadow-inner'
+                  }`}
+                >
+                  {userNote || (idx + 1)}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {lastFeedback && (
           <div className={`mt-3 text-xs sm:text-sm font-black px-4 py-1.5 rounded-xl border ${
@@ -485,26 +602,113 @@ export const PitchRecallGame: React.FC = () => {
         )}
       </div>
 
-      {/* Piano Keyboard */}
-      <div className="flex flex-col items-center my-2">
-        <PianoKeyboard
-          octaveRange={octaveRange}
-          activeNotes={activeNotes}
-          selectedNotes={userSequence}
-          wrongNotes={phase === 'feedback' && lastFeedback && !lastFeedback.isCorrect 
-            ? recordedUserSequence.filter((n, idx) => n !== lastFeedback.expected[idx]) 
-            : []
-          }
-          disabled={isPlayingAudio || (phase === 'feedback' && isLearnMode)}
-          onKeyClick={handleKeyClick}
-          showLabels={showVisualHints || effectiveLevel <= 4}
-          enableMidiHighlight={true}
-          autoPlayAudio={false}
-        />
-        <p className="text-[11px] text-slate-400 mt-2">
-          💡 Bạn có thể click chuột vào phím đàn hoặc gõ trực tiếp trên đàn piano MIDI USB/Bluetooth.
-        </p>
-      </div>
+      {/* Melodic Contour Options (Level 10) */}
+      {isContourMode && contourQuestion && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-2xl mx-auto w-full my-3">
+          {contourQuestion.options.map((opt) => {
+            const isSelected = selectedContourType === opt.type;
+            const isCorrect = opt.type === contourQuestion.targetContour.type;
+
+            let btnStyle = 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:bg-amber-50/50 dark:hover:bg-slate-700/80 text-slate-900 dark:text-white shadow-sm';
+            if (phase === 'feedback') {
+              if (isCorrect) {
+                btnStyle = 'bg-emerald-500/20 border-emerald-500 text-emerald-800 dark:text-emerald-200 ring-2 ring-emerald-500/50 font-bold';
+              } else if (isSelected) {
+                btnStyle = 'bg-rose-500/20 border-rose-500 text-rose-800 dark:text-rose-200 font-bold';
+              } else {
+                btnStyle = 'bg-slate-100 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 text-slate-400 opacity-60';
+              }
+            }
+
+            return (
+              <button
+                key={opt.type}
+                type="button"
+                disabled={phase !== 'recall'}
+                onClick={() => handleSelectContour(opt)}
+                className={`p-4 rounded-2xl border text-left flex items-center justify-between transition-all duration-150 cursor-pointer active:scale-[0.98] ${btnStyle}`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl font-black font-mono text-amber-600 dark:text-amber-400">{opt.symbol}</span>
+                  <div>
+                    <span className="text-base font-black tracking-tight">{opt.nameVi}</span>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{opt.shapeDescriptionVi}</p>
+                  </div>
+                </div>
+                {phase === 'feedback' && isCorrect && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
+                {phase === 'feedback' && isSelected && !isCorrect && <XCircle className="w-5 h-5 text-rose-500" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Chromatic Oddball Selection (Level 12) */}
+      {isOddballMode && oddballQuestion && (
+        <div className="flex flex-col items-center max-w-2xl mx-auto w-full my-4">
+          <p className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-400 mb-3 text-center">
+            Bấm chọn nốt bạn cảm nhận là "nốt lạ" không thuộc âm giai Đô Trưởng:
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {oddballQuestion.notes.map((note, idx) => {
+              const isSelected = selectedOddballIdx === idx;
+              const isTargetOddball = idx === oddballQuestion.oddballIndex;
+
+              let btnStyle = 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-amber-500 hover:scale-105';
+              if (phase === 'feedback') {
+                if (isTargetOddball) {
+                  btnStyle = 'bg-emerald-500/20 border-emerald-500 text-emerald-800 dark:text-emerald-300 font-black ring-2 ring-emerald-500/50 scale-105';
+                } else if (isSelected) {
+                  btnStyle = 'bg-rose-500/20 border-rose-500 text-rose-800 dark:text-rose-300 font-bold';
+                } else {
+                  btnStyle = 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 opacity-60';
+                }
+              }
+
+              return (
+                <button
+                  key={`oddball-btn-${idx}`}
+                  type="button"
+                  disabled={phase !== 'recall'}
+                  onClick={() => handleSelectOddball(idx)}
+                  className={`w-16 h-20 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 shadow-md transition-all cursor-pointer active:scale-95 ${btnStyle}`}
+                >
+                  <span className="text-xs font-mono font-bold text-slate-500">Nốt {idx + 1}</span>
+                  <span className="text-base font-black font-mono">
+                    {phase === 'feedback' ? note : '?'}
+                  </span>
+                  {phase === 'feedback' && isTargetOddball && (
+                    <span className="text-[10px] px-1 bg-emerald-500 text-white rounded font-bold">Lạ</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Piano Keyboard (Standard Mode Only) */}
+      {!isContourMode && !isOddballMode && (
+        <div className="flex flex-col items-center my-2">
+          <PianoKeyboard
+            octaveRange={octaveRange}
+            activeNotes={activeNotes}
+            selectedNotes={userSequence}
+            wrongNotes={phase === 'feedback' && lastFeedback && !lastFeedback.isCorrect 
+              ? recordedUserSequence.filter((n, idx) => n !== lastFeedback.expected[idx]) 
+              : []
+            }
+            disabled={isPlayingAudio || (phase === 'feedback' && isLearnMode)}
+            onKeyClick={handleKeyClick}
+            showLabels={showVisualHints || effectiveLevel <= 4}
+            enableMidiHighlight={true}
+            autoPlayAudio={false}
+          />
+          <p className="text-[11px] text-slate-400 mt-2">
+            💡 Bạn có thể click chuột vào phím đàn hoặc gõ trực tiếp trên đàn piano MIDI USB/Bluetooth.
+          </p>
+        </div>
+      )}
 
       {/* Deliberate Learning & Audio Calibration Card */}
       {phase === 'feedback' && isLearnMode && lastFeedback && (
@@ -551,19 +755,36 @@ export const PitchRecallGame: React.FC = () => {
 
           {/* Sequences A/B Comparison */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 my-4">
-            {/* Target Sequence */}
+            {/* Target Sequence / Pattern */}
             <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col justify-between">
               <div>
                 <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                  Chuỗi mẫu chuẩn {isReverseRecall ? '(Đảo ngược)' : ''}:
+                  {isContourMode ? 'Đường nét giai điệu chuẩn:' : isOddballMode ? 'Chuỗi nốt phát ra:' : `Chuỗi mẫu chuẩn ${isReverseRecall ? '(Đảo ngược)' : ''}:`}
                 </span>
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {lastFeedback.expected.map((n, i) => (
-                    <span key={i} className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 font-mono font-black text-xs border border-emerald-500/30 shadow-xs">
+                    <span 
+                      key={i} 
+                      className={`px-2.5 py-1 rounded-lg font-mono font-black text-xs border shadow-xs ${
+                        isOddballMode && oddballQuestion && i === oddballQuestion.oddballIndex
+                          ? 'bg-rose-500 text-white ring-2 ring-rose-400'
+                          : 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border-emerald-500/30'
+                      }`}
+                    >
                       {n}
                     </span>
                   ))}
                 </div>
+                {isOddballMode && oddballQuestion && (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                    💡 {oddballQuestion.explanationVi}
+                  </p>
+                )}
+                {isContourMode && contourQuestion && (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                    💡 Mã Parsons: {contourQuestion.targetContour.parsonsPattern.join(' → ')} ({contourQuestion.targetContour.shapeDescriptionVi})
+                  </p>
+                )}
               </div>
 
               <button
@@ -577,49 +798,65 @@ export const PitchRecallGame: React.FC = () => {
               </button>
             </div>
 
-            {/* User Sequence */}
+            {/* User Input or Selection */}
             <div className={`p-3.5 rounded-xl border flex flex-col justify-between ${
               lastFeedback.isCorrect ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-rose-500/10 border-rose-500/30'
             }`}>
               <div>
                 <span className={`text-xs font-bold ${lastFeedback.isCorrect ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
-                  Chuỗi bạn đã bấm:
+                  {isContourMode ? 'Lựa chọn của bạn:' : isOddballMode ? 'Vị trí bạn đã bấm:' : 'Chuỗi bạn đã bấm:'}
                 </span>
                 <div className="flex flex-wrap gap-1.5 mt-2">
-                  {recordedUserSequence.map((n, i) => {
-                    const isNoteMatch = n === lastFeedback.expected[i];
-                    return (
-                      <span
-                        key={i}
-                        className={`px-2.5 py-1 rounded-lg font-mono font-black text-xs border shadow-xs ${
-                          isNoteMatch
-                            ? 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border-emerald-500/30'
-                            : 'bg-rose-500/20 text-rose-800 dark:text-rose-200 border-rose-500/30 line-through'
-                        }`}
-                      >
-                        {n}
-                      </span>
-                    );
-                  })}
+                  {isContourMode ? (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-black bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/30">
+                      {selectedContourType ? `${contourQuestion?.options.find(o => o.type === selectedContourType)?.symbol} ${contourQuestion?.options.find(o => o.type === selectedContourType)?.nameVi}` : 'Chưa chọn'}
+                    </span>
+                  ) : isOddballMode ? (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-black bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/30">
+                      {selectedOddballIdx !== null ? `Nốt ${selectedOddballIdx + 1} (${oddballQuestion?.notes[selectedOddballIdx]})` : 'Chưa chọn'}
+                    </span>
+                  ) : (
+                    recordedUserSequence.map((n, i) => {
+                      const isNoteMatch = n === lastFeedback.expected[i];
+                      return (
+                        <span
+                          key={i}
+                          className={`px-2.5 py-1 rounded-lg font-mono font-black text-xs border shadow-xs ${
+                            isNoteMatch
+                              ? 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border-emerald-500/30'
+                              : 'bg-rose-500/20 text-rose-800 dark:text-rose-200 border-rose-500/30 line-through'
+                          }`}
+                        >
+                          {n}
+                        </span>
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
-              <button
-                type="button"
-                disabled={isPlayingAudio || playingComparison !== null || recordedUserSequence.length === 0}
-                onClick={() => playSequenceNotes(recordedUserSequence, 'user')}
-                className="mt-3 w-full py-2 px-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
-              >
-                <RotateCcw className={`w-3.5 h-3.5 ${playingComparison === 'user' ? 'animate-spin' : ''}`} />
-                <span>{playingComparison === 'user' ? 'Đang phát...' : '🔊 Nghe lại chuỗi bạn đã bấm'}</span>
-              </button>
+              {!isContourMode && !isOddballMode && (
+                <button
+                  type="button"
+                  disabled={isPlayingAudio || playingComparison !== null || recordedUserSequence.length === 0}
+                  onClick={() => playSequenceNotes(recordedUserSequence, 'user')}
+                  className="mt-3 w-full py-2 px-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 ${playingComparison === 'user' ? 'animate-spin' : ''}`} />
+                  <span>{playingComparison === 'user' ? 'Đang phát...' : '🔊 Nghe lại chuỗi bạn đã bấm'}</span>
+                </button>
+              )}
             </div>
           </div>
 
           {/* Theory Link & Hint */}
           <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
             <p className="text-slate-600 dark:text-slate-400 text-xs italic">
-              💡 Hãy chú ý cao độ tương đối giữa các nốt (nốt sau cao hơn hay trầm hơn nốt trước).
+              {isContourMode
+                ? '💡 Parsons Code: U=Up, D=Down, R=Repeat. Bộ não xử lý hình dáng giai điệu trước khi phân tích từng cao độ tuyệt đối.'
+                : isOddballMode
+                ? '💡 Mọi giai điệu phương Tây đều dựa trên hệ âm chuẩn (tonal context). Nốt lạ kích hoạt phản ứng thính giác MMN (Mismatch Negativity).'
+                : '💡 Hãy chú ý cao độ tương đối giữa các nốt (nốt sau cao hơn hay trầm hơn nốt trước).'}
             </p>
             <button
               type="button"

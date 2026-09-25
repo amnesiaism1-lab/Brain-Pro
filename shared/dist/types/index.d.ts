@@ -1,5 +1,20 @@
 export type CognitiveCategoryCode = 'SPEED_READING' | 'PERIPHERAL_VISION' | 'MEMORY' | 'ATTENTION' | 'REACTION' | 'AUDITORY_MEMORY';
-export type ExerciseSlug = 'anagram' | 'schulte-table' | 'find-letter' | 'find-number' | 'even-odd' | 'digit-span' | 'rsvp-speed-reader' | 'word-search' | 'twin-words' | 'peripheral-vision' | 'green-dot' | 'word-chunking' | 'reading-assessment' | 'reading-pacer' | 'text-scanning' | 'card-flip' | 'stroop-clash' | 'spatial-memory' | 'saccade-tracker' | 'pitch-recall' | 'interval-identify' | 'rhythm-recall' | 'chord-identify' | 'timbre-match' | 'sound-localization';
+export type ExerciseSlug = 'anagram' | 'schulte-table' | 'find-letter' | 'find-number' | 'even-odd' | 'digit-span' | 'rsvp-speed-reader' | 'word-search' | 'twin-words' | 'peripheral-vision' | 'green-dot' | 'word-chunking' | 'reading-assessment' | 'reading-pacer' | 'text-scanning' | 'card-flip' | 'stroop-clash' | 'spatial-memory' | 'saccade-tracker' | 'pitch-recall' | 'interval-identify' | 'rhythm-recall' | 'chord-identify' | 'timbre-match' | 'sound-localization' | 'voice-track';
+export type ArticulationType = 'legato' | 'staccato' | 'tenuto' | 'accent';
+export interface IAudioEvent {
+    note?: string;
+    freq?: number;
+    timeMs: number;
+    durationMs: number;
+    velocity?: number;
+    pan?: number;
+    timbre?: string;
+    articulation?: ArticulationType;
+    partialGains?: number[];
+    rest?: boolean;
+    layer?: 'A' | 'B' | 'C';
+    harmonyChange?: boolean;
+}
 export type WorkoutRoutineCode = 'QUICK_5M' | 'REGULAR_10M' | 'OPTIMAL_30M' | 'INTENSIVE_60M';
 export interface ICognitiveCategory {
     id: string;

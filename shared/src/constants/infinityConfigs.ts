@@ -2648,5 +2648,109 @@ export const INFINITY_LEVEL_CONFIGS: Record<ExerciseSlug, IExerciseLevelConfig[]
       infinityMetadata: { tier: 10, romanNumeral: '∞-X', pattern: 'infinite' },
       parametersJson: { infinityMode: true, spatialSequenceLength: 6, optionsCount: 8 }
     }
+  ],
+
+  // 25. Theo Dõi Bè Đa Thanh (voice-track)
+  'voice-track': [
+    {
+      level: 13,
+      timeLimitSec: 40,
+      targetItemCount: 7,
+      variantCode: 'INF_VOICE_POLY_MIRROR',
+      variantName: '∞-I: Đối Xứng Gương Đa Bè',
+      infinityTier: 1,
+      infinityMetadata: { tier: 1, romanNumeral: '∞-I', pattern: 'mirror', enTheme: 'Mirror Counterpoint' },
+      parametersJson: { infinityMode: true, voicesCount: 3, mirrorCounterpoint: true, targetVoice: 'soprano' }
+    },
+    {
+      level: 14,
+      timeLimitSec: 40,
+      targetItemCount: 8,
+      variantCode: 'INF_VOICE_FUGAL_ENTRY',
+      variantName: '∞-II: Lối Vào Phú-ga (Fugal Entrances)',
+      infinityTier: 2,
+      infinityMetadata: { tier: 2, romanNumeral: '∞-II', pattern: 'cascade' },
+      parametersJson: { infinityMode: true, voicesCount: 3, fugalEntry: true, targetVoice: 'alto' }
+    },
+    {
+      level: 15,
+      timeLimitSec: 38,
+      targetItemCount: 8,
+      variantCode: 'INF_VOICE_TIMBRE_CHAMELEON',
+      variantName: '∞-III: Âm Sắc Hoán Đổi Biến Thể',
+      infinityTier: 3,
+      infinityMetadata: { tier: 3, romanNumeral: '∞-III', pattern: 'chaos' },
+      parametersJson: { infinityMode: true, voicesCount: 3, dynamicTimbreShift: true }
+    },
+    {
+      level: 16,
+      timeLimitSec: 38,
+      targetItemCount: 9,
+      variantCode: 'INF_VOICE_CROSS_STREAM',
+      variantName: '∞-IV: Xuyên Giao Âm Vực Đa Bè',
+      infinityTier: 4,
+      infinityMetadata: { tier: 4, romanNumeral: '∞-IV', pattern: 'pendulum' },
+      parametersJson: { infinityMode: true, voicesCount: 3, voiceCrossing: true }
+    },
+    {
+      level: 17,
+      timeLimitSec: 35,
+      targetItemCount: 9,
+      variantCode: 'INF_VOICE_ODDBALL_STORM',
+      variantName: '∞-V: Cơn Bão Đột Biến Bè Đích',
+      infinityTier: 5,
+      infinityMetadata: { tier: 5, romanNumeral: '∞-V', pattern: 'rhythm' },
+      parametersJson: { infinityMode: true, voicesCount: 3, subtleOddballCents: 25 }
+    },
+    {
+      level: 18,
+      timeLimitSec: 35,
+      targetItemCount: 10,
+      variantCode: 'INF_VOICE_SATB_FOURSOME',
+      variantName: '∞-VI: Tứ Tấu SATB Bốn Bè Toàn Diện',
+      infinityTier: 6,
+      infinityMetadata: { tier: 6, romanNumeral: '∞-VI', pattern: 'cascade' },
+      parametersJson: { infinityMode: true, voicesCount: 4, fullSatb: true }
+    },
+    {
+      level: 19,
+      timeLimitSec: 32,
+      targetItemCount: 10,
+      variantCode: 'INF_VOICE_SPATIAL_ORBIT',
+      variantName: '∞-VII: Quỹ Đạo Không Gian Xoay Vòng',
+      infinityTier: 7,
+      infinityMetadata: { tier: 7, romanNumeral: '∞-VII', pattern: 'pendulum' },
+      parametersJson: { infinityMode: true, voicesCount: 3, dynamicPannerRotation: true }
+    },
+    {
+      level: 20,
+      timeLimitSec: 30,
+      targetItemCount: 11,
+      variantCode: 'INF_VOICE_POLYMETRIC',
+      variantName: '∞-VIII: Đa Nhịp Phức Hợp 3:4:5',
+      infinityTier: 8,
+      infinityMetadata: { tier: 8, romanNumeral: '∞-VIII', pattern: 'rhythm' },
+      parametersJson: { infinityMode: true, voicesCount: 3, polymetricStreams: true }
+    },
+    {
+      level: 21,
+      timeLimitSec: 28,
+      targetItemCount: 11,
+      variantCode: 'INF_VOICE_MICROTONAL_CANON',
+      variantName: '∞-IX: Luân Vũ Vi Quãng Microtonal',
+      infinityTier: 9,
+      infinityMetadata: { tier: 9, romanNumeral: '∞-IX', pattern: 'infinite' },
+      parametersJson: { infinityMode: true, voicesCount: 3, microtonalCounterpoint: true }
+    },
+    {
+      level: 22,
+      timeLimitSec: 25,
+      targetItemCount: 12,
+      variantCode: 'INF_VOICE_ARCHITECT_ZENITH',
+      variantName: '∞-X: Đỉnh Cao Kiến Trúc Thính Giác Bregman',
+      infinityTier: 10,
+      infinityMetadata: { tier: 10, romanNumeral: '∞-X', pattern: 'infinite' },
+      parametersJson: { infinityMode: true, voicesCount: 4, masterPolyphony: true }
+    }
   ]
 };

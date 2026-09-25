@@ -8,15 +8,18 @@ import { generateRhythmPattern, IRhythmStep } from '../../services/musicTheorySe
 import { RhythmGrid } from '../ui/RhythmGrid';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
-import { Activity, Play, RotateCcw, Drum, Volume2 } from 'lucide-react';
+import { Activity, Play, RotateCcw, Drum, Volume2, BookOpen } from 'lucide-react';
 
 export const RhythmRecallGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
 
   const effectiveLevel = getExerciseLevel('rhythm-recall') || currentLevel || 1;
   const isInfinity = effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
+
+  const isRestMode = effectiveLevel === 10;
+  const isAccentMode = effectiveLevel === 7 || effectiveLevel === 8;
 
   // Level configuration
   const stepCount = isInfinity
@@ -189,10 +192,11 @@ export const RhythmRecallGame: React.FC = () => {
           setScore(prev => prev + Math.round(acc * 2.5));
         }
 
+        const relationId = isRestMode ? 'INHIBITION' : isAccentMode ? 'TARGET_DISTRACTOR' : 'TEMPORAL_PREDICT';
         emitTrialEvent({
           exerciseSlug: 'rhythm-recall',
           level: effectiveLevel,
-          relationId: 'TEMPORAL_PREDICT',
+          relationId,
           entities: {
             target: targetHits.join(','),
             response: userTaps.join(',')
@@ -215,7 +219,7 @@ export const RhythmRecallGame: React.FC = () => {
     }, 40);
 
     return () => clearInterval(interval);
-  }, [phase, patternData, userTaps, round, maxRounds, effectiveLevel, emitTrialEvent, startNewRound]);
+  }, [phase, patternData, userTaps, round, maxRounds, effectiveLevel, emitTrialEvent, startNewRound, isRestMode, isAccentMode]);
 
   // Keyboard Space listener for desktop
   useEffect(() => {
@@ -240,7 +244,7 @@ export const RhythmRecallGame: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                Nhớ Nhịp Điệu (Rhythm Recall)
+                {isRestMode ? 'Phách Lặng & Ức Chế (Rhythm Rest Spotting)' : isAccentMode ? 'Trọng Âm Động Lực (Dynamic Accent)' : 'Nhớ Nhịp Điệu (Rhythm Recall)'}
               </h2>
               {isInfinity && (
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-sm">
@@ -249,7 +253,11 @@ export const RhythmRecallGame: React.FC = () => {
               )}
             </div>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium">
-              Lắng nghe tiết tấu nhịp rồi gõ lại bằng phím Space hoặc nút TAP (nhấn lần đầu để bắt đầu đếm nhịp 1)
+              {isRestMode
+                ? 'Lắng nghe tiết tấu và kiểm soát ức chế (Inhibition): Tuyệt đối KHÔNG gõ vào các phách lặng!'
+                : isAccentMode
+                ? 'Lắng nghe sự chênh lệch năng lượng: Phách nhấn mạnh (Accent) nảy bật hơn phách thường'
+                : 'Lắng nghe tiết tấu nhịp rồi gõ lại bằng phím Space hoặc nút TAP (nhấn lần đầu để bắt đầu đếm nhịp 1)'}
             </p>
           </div>
         </div>
@@ -342,6 +350,25 @@ export const RhythmRecallGame: React.FC = () => {
           <Drum className="w-10 h-10" />
           <span>{phase === 'ready-to-tap' ? 'BẮT ĐẦU NHỊP 1' : 'GÕ NHỊP'}</span>
           <span className="text-xs font-mono font-bold tracking-wider opacity-90">HOẶC [SPACE]</span>
+        </button>
+      </div>
+
+      {/* Educational Link Footer */}
+      <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <p className="text-slate-600 dark:text-slate-400 text-xs italic">
+          {isRestMode 
+            ? '💡 Dấu lặng trong âm nhạc không phải là khoảng trống vô nghĩa, mà là sự im lặng có chủ ý đòi hỏi sự tập trung ức chế cao độ.'
+            : isAccentMode
+            ? '💡 Trọng âm (Accent) là nhịp đập trung tâm định hình nhịp điệu (Metric feel) và tạo sức sống cho âm nhạc.'
+            : '💡 Tiết tấu kết nối trực tiếp với vùng vỏ não vận động (Motor Cortex), kích hoạt phản xạ nhịp tự nhiên.'}
+        </p>
+        <button
+          type="button"
+          onClick={() => navigateToTheory('rhythm')}
+          className="px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30 font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>Mở bài học: 4. Tiết Tấu & Nhịp Điệu</span>
         </button>
       </div>
 

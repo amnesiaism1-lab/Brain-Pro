@@ -266,6 +266,121 @@ export const RhythmModule: React.FC = () => {
         </div>
       </div>
 
+      {/* NEW: Dấu Nghỉ (Rests as Musical Entities - M0-2) */}
+      <div className="p-6 bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl shadow-sm space-y-4">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🤫</span>
+          <div>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">
+              Dấu Nghỉ & Không Gian Âm Bản (Musical Rests & Negative Space)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Âm nhạc được tạo nên bởi nốt nhạc VÀ chỗ không nốt. Dấu nghỉ đòi hỏi sự ức chế phản xạ (Inhibition Control)
+            </p>
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+          Nhiều người nghĩ im lặng là thụ động. Nhưng trong tiết tấu, dấu nghỉ là một cú nén năng lượng đầy chủ động. 
+          Rèn luyện khả năng phát hiện đúng vị trí ô nghỉ (Rest Spotting) giúp bạn giữ nhịp vững vàng không bị cuốn theo tốc độ.
+        </p>
+
+        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(step => (
+              <div
+                key={step}
+                className={`w-9 h-11 rounded-xl flex flex-col items-center justify-center text-xs font-bold font-mono border ${
+                  step === 4
+                    ? 'bg-rose-500/10 border-rose-400 text-rose-600 dark:text-rose-400 ring-2 ring-rose-500/20'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200'
+                }`}
+              >
+                <span>{step === 4 ? '𝄽' : '♩'}</span>
+                <span className="text-[9px] text-slate-400">{step}</span>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={async () => {
+              await auditoryEngine.resumeAudioContext();
+              // 8-step groove with step 4 silent
+              for (let i = 1; i <= 8; i++) {
+                if (i !== 4) {
+                  auditoryEngine.playDrum(i === 1 ? 'kick' : i === 5 ? 'snare' : 'hihat', i === 1 ? 0.9 : 0.6);
+                }
+                await new Promise(r => setTimeout(r, 220));
+              }
+            }}
+            className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-2 shadow-md active:scale-95 transition-all"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>Nghe Mẫu Tiết Tấu Có Ô Nghỉ (Bước 4)</span>
+          </button>
+        </div>
+      </div>
+
+      {/* NEW: Cảm Nhận Phách & Loại Nhịp (Meter Feel: 3/4 vs 4/4 vs 6/8 - M1-5) */}
+      <div className="p-6 bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl shadow-sm space-y-4">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🥁</span>
+          <div>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">
+              Cảm Nhận Nhịp Phách & Điểm Nhấn Phách 1 (Meter Feel & Downbeat)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Phách 1 (Downbeat) luôn là phách mạnh nhất neo giữ toàn bộ cấu trúc bài nhạc
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            {
+              meter: 'Nhịp 2/4 (Hành khúc)',
+              feel: 'Mạnh - Nhẹ (1 - 2)',
+              steps: [1.0, 0.4]
+            },
+            {
+              meter: 'Nhịp 3/4 (Valse khiêu vũ)',
+              feel: 'Mạnh - Nhẹ - Nhẹ (1 - 2 - 3)',
+              steps: [1.0, 0.4, 0.4]
+            },
+            {
+              meter: 'Nhịp 4/4 (Pop/Rock thông dụng)',
+              feel: 'Mạnh - Nhẹ - Vừa - Nhẹ (1 - 2 - 3 - 4)',
+              steps: [1.0, 0.4, 0.7, 0.4]
+            }
+          ].map(m => (
+            <button
+              key={m.meter}
+              onClick={async () => {
+                await auditoryEngine.resumeAudioContext();
+                for (let round = 0; round < 2; round++) {
+                  for (let i = 0; i < m.steps.length; i++) {
+                    const vol = m.steps[i];
+                    auditoryEngine.playDrum(i === 0 ? 'kick' : 'hihat', vol);
+                    await new Promise(r => setTimeout(r, 320));
+                  }
+                }
+              }}
+              className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 text-left hover:border-amber-400 transition-all active:scale-98 flex items-center justify-between"
+            >
+              <div>
+                <span className="text-xs font-black text-slate-900 dark:text-white block">
+                  {m.meter}
+                </span>
+                <span className="text-[11px] text-amber-600 dark:text-amber-400 font-mono mt-0.5 block">
+                  {m.feel}
+                </span>
+              </div>
+              <Play className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-2" />
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* CTA */}
       <div className="p-6 bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-orange-500/10 border border-amber-500/30 rounded-3xl flex flex-wrap items-center justify-between gap-4">
         <div>

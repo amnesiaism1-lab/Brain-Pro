@@ -225,6 +225,15 @@ function renderExerciseIcon(slug: string) {
           <span className="absolute -bottom-2 text-[7px] font-black text-cyan-300">3D</span>
         </div>
       );
+    case 'voice-track':
+      return (
+        <div className="flex flex-col items-center justify-center text-white">
+          <div className="text-xs font-mono font-black text-violet-300 mb-0.5 tracking-tighter">
+            ♫ ⫾ ♬
+          </div>
+          <span className="text-[7px] font-black text-violet-300 tracking-wider">STREAM</span>
+        </div>
+      );
     default:
       return <Grid className="w-6 h-6 text-white" />;
   }

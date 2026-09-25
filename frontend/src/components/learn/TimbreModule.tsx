@@ -295,6 +295,129 @@ export const TimbreModule: React.FC = () => {
         </div>
       </div>
 
+      {/* NEW: Bồi Âm & Hoạ Âm (Harmonic Overtones & Partials - M0-1) */}
+      <div className="p-6 bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl shadow-sm space-y-6">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">✨</span>
+          <div>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">
+              Bồi Âm Tự Nhiên & Năng Lượng Phổ Âm (Harmonic Overtones)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Mỗi nốt nhạc trong tự nhiên không chỉ có 1 tần số đơn độc mà là cả một chuỗi bậc thang họa âm cộng hưởng
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+          {[
+            { num: 1, name: 'Hài 1: Âm Cơ Bản', ratio: '1f (Root)', interval: 'Đồng âm', desc: 'Trọng tâm cao độ của nốt nhạc' },
+            { num: 2, name: 'Hài 2: Bát Độ (Octave)', ratio: '2f', interval: '+12 nửa cung', desc: 'Tạo độ trong trẻo, sáng dịu' },
+            { num: 3, name: 'Hài 3: Quãng 5 Đúng', ratio: '3f', interval: '+19 nửa cung', desc: 'Tạo độ đanh, âm sắc kèn đồng' },
+            { num: 4, name: 'Hài 4: Bát Độ Thứ 2', ratio: '4f', interval: '+24 nửa cung', desc: 'Mở rộng dải treble lung linh' },
+            { num: 5, name: 'Hài 5: Quãng 3 Trưởng', ratio: '5f', interval: '+28 nửa cung', desc: 'Gốc rễ tự nhiên của hợp âm Trưởng' },
+          ].map(h => (
+            <div key={h.num} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 flex flex-col justify-between space-y-2">
+              <div>
+                <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400">
+                  {h.ratio} · {h.interval}
+                </span>
+                <h4 className="text-xs font-black text-slate-900 dark:text-white mt-0.5">
+                  {h.name}
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  {h.desc}
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  await auditoryEngine.resumeAudioContext();
+                  auditoryEngine.playOvertoneStimulus('C3', h.num, 10, 1.6);
+                }}
+                className="w-full py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-emerald-500/20"
+              >
+                <Play className="w-3 h-3 fill-current" />
+                <span>Nghe Thử</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* NEW: Cách Phát Âm (Articulations - M0-3) */}
+      <div className="p-6 bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl shadow-sm space-y-6">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🎻</span>
+          <div>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">
+              Cách Phát Âm Trong Câu Nhạc (Musical Articulations)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Không chỉ là envelope đơn nốt, articulation là cách nối kết các nốt nhạc để tạo nên hơi thở âm nhạc
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            {
+              type: 'legato',
+              nameVi: 'Liền Tiếng (Legato)',
+              symbol: '⌒',
+              desc: 'Các nốt nhạc gối đầu mượt mà, không ngắt quãng âm thanh giữa chừng.'
+            },
+            {
+              type: 'staccato',
+              nameVi: 'Ngắt Tiếng (Staccato)',
+              symbol: '•',
+              desc: 'Nốt bật nhả sắc nét, ngân chỉ ~35% trường độ như giọt mưa rơi.'
+            },
+            {
+              type: 'tenuto',
+              nameVi: 'Ngân Trọn Vẹn (Tenuto)',
+              symbol: '—',
+              desc: 'Ngân trọn vẹn 100% thời gian với áp lực âm thanh đều đặn, trang trọng.'
+            },
+            {
+              type: 'accent',
+              nameVi: 'Nhấn Trọng Âm (Accent)',
+              symbol: '>',
+              desc: 'Tấn công mạnh mẽ đột ngột (+35% cường độ) ngay ở đầu nốt nhạc.'
+            },
+          ].map(art => (
+            <div key={art.type} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 flex flex-col justify-between space-y-3">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-mono font-black text-purple-600 dark:text-purple-400">
+                    {art.symbol}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase text-slate-400 font-mono">
+                    {art.type}
+                  </span>
+                </div>
+                <h4 className="text-xs font-black text-slate-900 dark:text-white mt-1">
+                  {art.nameVi}
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  {art.desc}
+                </p>
+              </div>
+
+              <button
+                onClick={async () => {
+                  await auditoryEngine.resumeAudioContext();
+                  auditoryEngine.playArticulatedSequence(['C4', 'E4', 'G4', 'C5'], art.type as any);
+                }}
+                className="w-full py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-purple-500/20"
+              >
+                <Play className="w-3 h-3 fill-current" />
+                <span>Nghe Câu 4 Nốt</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* CTA */}
       <div className="p-6 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-cyan-500/10 border border-purple-500/30 rounded-3xl flex flex-wrap items-center justify-between gap-4">
         <div>

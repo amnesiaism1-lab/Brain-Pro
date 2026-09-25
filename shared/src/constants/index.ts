@@ -818,6 +818,36 @@ export const EXERCISES_METADATA: IExercise[] = [
       { level: 11, timeLimitSec: 45, targetItemCount: 10, variantCode: 'DUAL_SOURCE_SEPARATION', variantName: 'Phân Tách Song Nguồn', parametersJson: { dualSource: true, optionsCount: 6 } },
       { level: 12, timeLimitSec: 40, targetItemCount: 11, variantCode: 'SPATIAL_ACOUSTIC_RADAR', variantName: 'Radar Thính Giác Toàn Cảnh', parametersJson: { elevationEnabled: true, continuousAngles: true, optionsCount: 8 } }
     ]
+  },
+  {
+    id: 'ex-voice-track',
+    categoryId: 'cat-6',
+    categoryCode: 'AUDITORY_MEMORY',
+    categoryName: 'Trí Nhớ Âm Thanh',
+    slug: 'voice-track',
+    title: 'Theo Dõi Bè Đa Thanh',
+    subtitle: 'Phân tách dòng thính giác (Bregman Auditory Streaming), theo dõi bè đích giữa nhiều bè đối âm',
+    iconName: 'GitFork',
+    scientificBasis: 'Kích hoạt vùng vỏ não thính giác thùy thái dương và thùy đỉnh trong việc phân rã quang cảnh âm thanh (Auditory Scene Analysis) và duy trì sự chú ý chọn lọc (Selective Attention).',
+    instructions: 'Lắng nghe các bè âm thanh vang lên cùng lúc. Tập trung chú ý vào bè mục tiêu (Bè Cao, Bè Trầm hoặc Bè Giữa) theo gợi ý và xác định hướng di chuyển hoặc điểm đột biến của bè đích.',
+    rulesSummary: 'Theo dõi chính xác bè đích mà không bị các bè đệm làm xao nhãng. Cấp độ cao tăng số lượng bè lên 3-4 bè, khoảng cách cao độ thu hẹp và xuất hiện chuyển đổi mục tiêu đột ngột.',
+    maxDifficultyLevel: 12,
+    defaultDurationSec: 60,
+    isFeatured: true,
+    levelConfigs: [
+      { level: 1, timeLimitSec: 45, targetItemCount: 4, parametersJson: { voicesCount: 2, targetVoice: 'soprano', registerSplit: 'wide', optionsCount: 3 } },
+      { level: 2, timeLimitSec: 45, targetItemCount: 4, parametersJson: { voicesCount: 2, targetVoice: 'bass', registerSplit: 'wide', optionsCount: 3 } },
+      { level: 3, timeLimitSec: 50, targetItemCount: 5, parametersJson: { voicesCount: 2, targetVoice: 'random', registerSplit: 'medium', optionsCount: 3 } },
+      { level: 4, timeLimitSec: 50, targetItemCount: 5, parametersJson: { voicesCount: 2, targetVoice: 'random', taskType: 'oddball', registerSplit: 'medium', optionsCount: 4 } },
+      { level: 5, timeLimitSec: 55, targetItemCount: 6, parametersJson: { voicesCount: 2, targetVoice: 'random', registerSplit: 'close', sameTimbre: true, optionsCount: 4 } },
+      { level: 6, timeLimitSec: 55, targetItemCount: 6, variantCode: 'VOICE_ATTENTION_SWITCH', variantName: 'Chuyển Đổi Trọng Tâm Bè', parametersJson: { voicesCount: 2, attentionSwitch: true, optionsCount: 4 } },
+      { level: 7, timeLimitSec: 55, targetItemCount: 6, parametersJson: { voicesCount: 3, targetVoice: 'soprano', optionsCount: 4 } },
+      { level: 8, timeLimitSec: 60, targetItemCount: 7, parametersJson: { voicesCount: 3, targetVoice: 'alto', optionsCount: 4 } },
+      { level: 9, timeLimitSec: 55, targetItemCount: 7, variantCode: 'CONTRAPUNTAL_CROSSING', variantName: 'Giao Thoa Bè Đối Âm', parametersJson: { voicesCount: 3, voiceCrossing: true, optionsCount: 4 } },
+      { level: 10, timeLimitSec: 50, targetItemCount: 8, variantCode: 'RAPID_STREAM_ISOLATION', variantName: 'Tách Dòng Siêu Tốc', parametersJson: { voicesCount: 3, tempoBpm: 130, optionsCount: 4 } },
+      { level: 11, timeLimitSec: 45, targetItemCount: 8, variantCode: 'DYNAMIC_MASKING', variantName: 'Mặt Nạ Nhiễu Âm Động', parametersJson: { voicesCount: 3, dynamicMasking: true, optionsCount: 5 } },
+      { level: 12, timeLimitSec: 40, targetItemCount: 9, variantCode: 'POLYPHONIC_MAESTRO', variantName: 'Bậc Thầy Đa Thanh Trọn Vẹn', parametersJson: { voicesCount: 4, fullPolyphony: true, optionsCount: 5 } }
+    ]
   }
 ];
 

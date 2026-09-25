@@ -273,6 +273,144 @@ export const ChordsModule: React.FC = () => {
         </div>
       </div>
 
+      {/* NEW: Kết Đoạn Hòa Âm (Harmonic Cadences - M1-4) */}
+      <div className="p-6 bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl shadow-sm space-y-6">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🏛️</span>
+          <div>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">
+              Kết Đoạn Hòa Âm & Dấu Câu Âm Nhạc (Cadences)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Cách các hợp âm nối đuôi nhau về đích — tạo cảm giác hạ màn viên mãn, lơ lửng hay bất ngờ hụt hẫng
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            {
+              type: 'authentic',
+              nameVi: 'Kết Trọn (Authentic)',
+              formula: 'V → I',
+              feel: 'Viên mãn, trọn vẹn hạ màn',
+              desc: 'Hợp âm Át (G) giải quyết triệt để về hợp âm Chủ (C).',
+              chords: [['G3', 'B3', 'D4', 'G4'], ['C4', 'E4', 'G4', 'C5']]
+            },
+            {
+              type: 'half',
+              nameVi: 'Kết Lửng (Half Cadence)',
+              formula: 'I / IV → V',
+              feel: 'Lơ lửng chờ câu tiếp theo',
+              desc: 'Tạm dừng lại ở hợp âm Át (V), tựa dấu phẩy giữa câu nhạc.',
+              chords: [['C4', 'E4', 'G4'], ['G3', 'B3', 'D4', 'G4']]
+            },
+            {
+              type: 'deceptive',
+              nameVi: 'Kết Hụt (Deceptive)',
+              formula: 'V → vi (Thứ)',
+              feel: 'Bất ngờ, kịch tính hụt hẫng',
+              desc: 'Kỳ vọng về C Trưởng nhưng bất ngờ rơi vào La Thứ (Am).',
+              chords: [['G3', 'B3', 'D4', 'G4'], ['A3', 'C4', 'E4', 'A4']]
+            },
+            {
+              type: 'plagal',
+              nameVi: 'Kết Ngợi Khen (Plagal)',
+              formula: 'IV → I',
+              feel: 'Thanh thoát, dịu dàng "Amen"',
+              desc: 'Hợp âm Fa Trưởng (F) êm đềm trôi về Đô Trưởng (C).',
+              chords: [['F3', 'A3', 'C4', 'F4'], ['C4', 'E4', 'G4', 'C5']]
+            }
+          ].map(cad => (
+            <div key={cad.type} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 flex flex-col justify-between space-y-3">
+              <div>
+                <span className="text-[11px] font-black uppercase text-amber-600 dark:text-amber-400">
+                  {cad.formula}
+                </span>
+                <h4 className="text-xs font-black text-slate-900 dark:text-white mt-0.5">
+                  {cad.nameVi}
+                </h4>
+                <p className="text-[11px] text-amber-700/80 dark:text-amber-300/80 font-medium mt-0.5">
+                  "{cad.feel}"
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  {cad.desc}
+                </p>
+              </div>
+
+              <button
+                onClick={async () => {
+                  await auditoryEngine.resumeAudioContext();
+                  auditoryEngine.playCadence(cad.chords);
+                }}
+                className="w-full py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-amber-500/20"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Nghe Tiến Trình</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* NEW: Hòa Âm Ngầm (Implied Harmony - M1-6) */}
+      <div className="p-6 bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl shadow-sm space-y-4">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🎼</span>
+          <div>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">
+              Hòa Âm Ngầm Trong Giai Điệu Đơn Âm (Implied Harmony)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Một cây sáo hay một giọng hát solo vẫn có thể khiến người nghe cảm nhận rõ hợp âm đang đổi
+            </p>
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+          Khi một nhạc cụ độc tấu (như đàn Cello của Bach) chơi một chuỗi nốt rải arpeggio nhanh, não bộ sẽ tự động gom các nốt lại thành một khối hợp âm trong bộ nhớ làm việc thính giác (Working Memory).
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            {
+              name: 'Arpeggio C Major',
+              notes: ['C4', 'E4', 'G4', 'C5'],
+              feel: 'Trưởng sáng bừng (Do - Mi - Sol - Do)'
+            },
+            {
+              name: 'Arpeggio A Minor',
+              notes: ['A3', 'C4', 'E4', 'A4'],
+              feel: 'Thứ lắng sâu (La - Do - Mi - La)'
+            },
+            {
+              name: 'Arpeggio G7 (Dominant)',
+              notes: ['G3', 'B3', 'D4', 'F4'],
+              feel: 'Át 7 thúc giục hồi về nốt chủ'
+            }
+          ].map(arp => (
+            <button
+              key={arp.name}
+              onClick={async () => {
+                await auditoryEngine.resumeAudioContext();
+                auditoryEngine.playNoteSequence(arp.notes, 220, 0.4);
+              }}
+              className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 text-left hover:border-amber-400 transition-all active:scale-98 flex items-center justify-between"
+            >
+              <div>
+                <span className="text-xs font-black text-slate-900 dark:text-white block">
+                  {arp.name}
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {arp.feel}
+                </span>
+              </div>
+              <Play className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-2" />
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* CTA */}
       <div className="p-6 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 border border-amber-500/30 rounded-3xl flex flex-wrap items-center justify-between gap-4">
         <div>

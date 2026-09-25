@@ -892,6 +892,265 @@ class AuditoryEngine {
   }
 
   /**
+   * Play an additive overtone stimulus with RMS normalization (M0-1 Overtone Spotting)
+   * Plays 5 additive harmonics (f, 2f, 3f, 4f, 5f) and boosts one harmonic during the middle window.
+   * Total acoustic energy (RMS) is strictly preserved so the listener cannot use overall loudness as a cue.
+   */
+  public async playOvertoneStimulus(
+    baseFreqOrNote: number | string = 'C3',
+    boostHarmonicIndex: number = 2, // 1 to 5
+    boostDb: number = 9,
+    durationSec = 1.8
+  ): Promise<void> {
+    const ctx = this.initContext();
+    if (!ctx || !this.masterGain) return;
+    await this.resumeAudioContext();
+
+    const baseFreq = typeof baseFreqOrNote === 'number' ? baseFreqOrNote : getNoteFrequency(baseFreqOrNote);
+    if (!baseFreq || baseFreq <= 0) return;
+
+    const now = Math.max(ctx.currentTime, 0.04) + 0.02;
+    const boostFactor = Math.pow(10, boostDb / 20);
+
+    // Natural acoustic harmonic rolloff (1/n)
+    const baseGains = [1.0, 0.52, 0.35, 0.25, 0.18];
+    const boostedGains = baseGains.map((g, idx) => (idx + 1 === boostHarmonicIndex ? g * boostFactor : g));
+
+    // Calculate RMS for strict loudness normalization
+    const baseRms = Math.sqrt(baseGains.reduce((sum, g) => sum + g * g, 0));
+    const boostedRms = Math.sqrt(boostedGains.reduce((sum, g) => sum + g * g, 0));
+    const rmsNormalizationFactor = baseRms / boostedRms;
+    const finalBoostedGains = boostedGains.map(g => g * rmsNormalizationFactor);
+
+    const overallGainNode = ctx.createGain();
+    overallGainNode.gain.setValueAtTime(0.001, now);
+    overallGainNode.gain.linearRampToValueAtTime(0.42, now + 0.08);
+    overallGainNode.gain.setValueAtTime(0.42, now + durationSec - 0.12);
+    overallGainNode.gain.exponentialRampToValueAtTime(0.0001, now + durationSec);
+    overallGainNode.connect(this.masterGain);
+
+    // Mid-section time window for the overtone emphasis
+    const midStart = now + durationSec * 0.32;
+    const midEnd = now + durationSec * 0.72;
+
+    for (let i = 0; i < 5; i++) {
+      const harmonicNumber = i + 1;
+      const osc = ctx.createOscillator();
+      const oscGain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(baseFreq * harmonicNumber, now);
+
+      const initialGain = baseGains[i] * 0.22;
+      const midGain = finalBoostedGains[i] * 0.22;
+
+      oscGain.gain.setValueAtTime(initialGain, now);
+      oscGain.gain.linearRampToValueAtTime(midGain, midStart);
+      oscGain.gain.setValueAtTime(midGain, midEnd);
+      oscGain.gain.linearRampToValueAtTime(initialGain, now + durationSec - 0.08);
+
+      osc.connect(oscGain);
+      oscGain.connect(overallGainNode);
+
+      osc.start(now);
+      osc.stop(now + durationSec + 0.05);
+    }
+
+    await new Promise(r => setTimeout(r, Math.round(durationSec * 1000) + 120));
+  }
+
+  /**
+   * Play an articulated note with musical phrasing (Legato, Staccato, Tenuto, Accent)
+   */
+  public playArticulatedNote(
+    noteOrFreq: string | number,
+    articulation: 'legato' | 'staccato' | 'tenuto' | 'accent' = 'legato',
+    nominalDurationSec = 0.55,
+    options: IPlayNoteOptions = {}
+  ): void {
+    const ctx = this.initContext();
+    if (!ctx || !this.masterGain) return;
+
+    let effDuration = nominalDurationSec;
+    let attackTime = 0.02;
+    let decayTime = 0.12;
+    let sustainLevel = 0.6;
+    let releaseTime = 0.15;
+    let volMultiplier = 1.0;
+
+    switch (articulation) {
+      case 'staccato':
+        // Crisp, detached, 35% of nominal duration
+        effDuration = nominalDurationSec * 0.35;
+        attackTime = 0.008;
+        decayTime = 0.06;
+        sustainLevel = 0.15;
+        releaseTime = 0.04;
+        volMultiplier = 1.1;
+        break;
+      case 'legato':
+        // Smooth connected, gentle attack, long release
+        attackTime = 0.035;
+        sustainLevel = 0.75;
+        releaseTime = 0.26;
+        break;
+      case 'tenuto':
+        // Held full value, heavy steady sustain
+        attackTime = 0.015;
+        sustainLevel = 0.92;
+        releaseTime = 0.08;
+        break;
+      case 'accent':
+        // Punchy transient attack bite (+35% peak)
+        volMultiplier = 1.35;
+        attackTime = 0.006;
+        decayTime = 0.08;
+        sustainLevel = 0.45;
+        releaseTime = 0.12;
+        break;
+    }
+
+    this.playNote(noteOrFreq, effDuration, {
+      ...options,
+      volume: (options.volume ?? 0.35) * volMultiplier,
+      adsr: {
+        attack: attackTime,
+        decay: decayTime,
+        sustain: sustainLevel,
+        release: releaseTime
+      }
+    });
+  }
+
+  /**
+   * Play an articulated sequence of notes to demonstrate articulation differences
+   */
+  public async playArticulatedSequence(
+    notes: string[],
+    articulation: 'legato' | 'staccato' | 'tenuto' | 'accent',
+    noteIntervalMs = 420
+  ): Promise<void> {
+    await this.resumeAudioContext();
+    for (let i = 0; i < notes.length; i++) {
+      this.playArticulatedNote(notes[i], articulation, noteIntervalMs / 1000);
+      await new Promise(r => setTimeout(r, noteIntervalMs));
+    }
+  }
+
+  /**
+   * Play a Harmonic Cadence progression (V-I, x-V, V-vi, IV-I)
+   */
+  public async playCadence(
+    chordProgression: string[][],
+    chordDurationSec = 0.95,
+    gapMs = 140
+  ): Promise<void> {
+    await this.resumeAudioContext();
+    for (let i = 0; i < chordProgression.length; i++) {
+      const chordNotes = chordProgression[i];
+      await this.playChord(chordNotes, 'block', chordDurationSec);
+      if (i < chordProgression.length - 1) {
+        await new Promise(r => setTimeout(r, gapMs));
+      }
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  /**
+   * Play multi-voice polyphonic streams with Bregman auditory stream separation (Voice Tracking)
+   */
+  public async playPolyphonicStreams(
+    streams: Array<{
+      name: string; // 'soprano' | 'alto' | 'bass'
+      notes: Array<{ note: string; durationSec: number; rest?: boolean }>;
+      waveform?: OscillatorType;
+      pan?: number;
+      volume?: number;
+    }>,
+    soloStreamName?: string
+  ): Promise<void> {
+    const ctx = this.initContext();
+    if (!ctx || !this.masterGain) return;
+    await this.resumeAudioContext();
+
+    const streamsToPlay = soloStreamName
+      ? streams.filter(s => s.name === soloStreamName)
+      : streams;
+
+    const baseStartTime = Math.max(ctx.currentTime, 0.04) + 0.05;
+    let maxStreamDuration = 0;
+
+    streamsToPlay.forEach(stream => {
+      let voiceCurrentTime = baseStartTime;
+      const pan = stream.pan ?? (stream.name === 'soprano' ? 0.35 : stream.name === 'bass' ? -0.35 : 0.0);
+      const waveform = stream.waveform ?? (stream.name === 'soprano' ? 'triangle' : stream.name === 'bass' ? 'sawtooth' : 'sine');
+      const baseVol = stream.volume ?? 0.32;
+
+      stream.notes.forEach(item => {
+        if (!item.rest && item.note) {
+          const freq = getNoteFrequency(item.note);
+          if (freq && freq > 0) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = waveform;
+            osc.frequency.setValueAtTime(freq, voiceCurrentTime);
+
+            gain.gain.setValueAtTime(0.0001, voiceCurrentTime);
+            gain.gain.linearRampToValueAtTime(baseVol, voiceCurrentTime + 0.015);
+            gain.gain.exponentialRampToValueAtTime(Math.max(0.001, baseVol * 0.4), voiceCurrentTime + item.durationSec * 0.7);
+            gain.gain.exponentialRampToValueAtTime(0.00001, voiceCurrentTime + item.durationSec);
+
+            if (typeof ctx.createStereoPanner === 'function') {
+              const panner = ctx.createStereoPanner();
+              panner.pan.setValueAtTime(pan, voiceCurrentTime);
+              osc.connect(gain);
+              gain.connect(panner);
+              panner.connect(this.masterGain!);
+            } else {
+              osc.connect(gain);
+              gain.connect(this.masterGain!);
+            }
+
+            osc.start(voiceCurrentTime);
+            osc.stop(voiceCurrentTime + item.durationSec + 0.05);
+          }
+        }
+        voiceCurrentTime += item.durationSec;
+      });
+
+      const streamTotal = voiceCurrentTime - baseStartTime;
+      if (streamTotal > maxStreamDuration) {
+        maxStreamDuration = streamTotal;
+      }
+    });
+
+    await new Promise(r => setTimeout(r, Math.round(maxStreamDuration * 1000) + 150));
+  }
+
+  /**
+   * Play dynamic contour (crescendo / decrescendo / terraced dynamics)
+   */
+  public async playDynamicContour(
+    notes: string[],
+    contour: 'crescendo' | 'decrescendo' | 'flat',
+    nominalDurationSec = 0.45
+  ): Promise<void> {
+    await this.resumeAudioContext();
+    const count = notes.length;
+    for (let i = 0; i < count; i++) {
+      let vol = 0.35;
+      if (contour === 'crescendo') {
+        vol = 0.12 + (i / Math.max(1, count - 1)) * 0.45;
+      } else if (contour === 'decrescendo') {
+        vol = 0.55 - (i / Math.max(1, count - 1)) * 0.43;
+      }
+      this.playNote(notes[i], nominalDurationSec, { volume: vol });
+      await new Promise(r => setTimeout(r, Math.round(nominalDurationSec * 1000)));
+    }
+  }
+
+  /**
    * Sound effect for correct or incorrect answers in audio exercises
    */
   public playFeedback(isCorrect: boolean): void {

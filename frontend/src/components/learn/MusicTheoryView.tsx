@@ -7,10 +7,11 @@ import { ScalesModule } from './ScalesModule';
 import { RhythmModule } from './RhythmModule';
 import { TimbreModule } from './TimbreModule';
 import { SpatialAudioModule } from './SpatialAudioModule';
+import { PolyphonyModule } from './PolyphonyModule';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { BookOpen, CheckCircle, ChevronLeft, ChevronRight, Brain } from 'lucide-react';
 
-export type TheoryModuleId = 'notes' | 'intervals' | 'chords' | 'scales' | 'rhythm' | 'timbre' | 'spatial';
+export type TheoryModuleId = 'notes' | 'intervals' | 'chords' | 'scales' | 'rhythm' | 'timbre' | 'spatial' | 'polyphony';
 
 interface ITheoryTab {
   id: TheoryModuleId;
@@ -28,6 +29,7 @@ const THEORY_TABS: ITheoryTab[] = [
   { id: 'rhythm', title: '5. Nhịp Điệu & Phách', shortTitle: 'Nhịp Điệu', icon: '🥁', component: RhythmModule },
   { id: 'timbre', title: '6. Âm Sắc (Timbre)', shortTitle: 'Âm Sắc', icon: '🎸', component: TimbreModule },
   { id: 'spatial', title: '7. Âm Thanh 3D Không Gian', shortTitle: '3D Không Gian', icon: '🔊', component: SpatialAudioModule },
+  { id: 'polyphony', title: '8. Đa Thanh & Bè Phối', shortTitle: 'Đa Thanh & Bè', icon: '🪈', component: PolyphonyModule },
 ];
 
 export const MusicTheoryView: React.FC = () => {

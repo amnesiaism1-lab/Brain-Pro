@@ -31,7 +31,25 @@ export type ExerciseSlug =
   | 'rhythm-recall'        // Nhớ Nhịp Điệu
   | 'chord-identify'       // Nhận Diện Hợp Âm
   | 'timbre-match'         // Phân Biệt Âm Sắc
-  | 'sound-localization';  // Định Vị Âm Thanh 3D
+  | 'sound-localization'  // Định Vị Âm Thanh 3D
+  | 'voice-track';         // Theo Dõi Bè Đa Thanh (Auditory Streaming)
+
+export type ArticulationType = 'legato' | 'staccato' | 'tenuto' | 'accent';
+
+export interface IAudioEvent {
+  note?: string;
+  freq?: number;
+  timeMs: number;
+  durationMs: number;
+  velocity?: number; // 0..1
+  pan?: number;      // -1..1
+  timbre?: string;
+  articulation?: ArticulationType;
+  partialGains?: number[]; // overtone spotting
+  rest?: boolean;          // silent time slot for rest spotting
+  layer?: 'A' | 'B' | 'C'; // auditory stream layer
+  harmonyChange?: boolean; // harmonic rhythm marker
+}
 
 export type WorkoutRoutineCode =
   | 'QUICK_5M'

@@ -25,6 +25,7 @@ import { RhythmRecallGame } from './RhythmRecallGame';
 import { ChordIdentifyGame } from './ChordIdentifyGame';
 import { TimbreMatchGame } from './TimbreMatchGame';
 import { SoundLocalizationGame } from './SoundLocalizationGame';
+import { VoiceTrackGame } from './VoiceTrackGame';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { EXERCISES_METADATA } from '@brain-exercises/shared';
 import { Sparkles, Zap, Flame, ArrowRight, X } from 'lucide-react';
@@ -105,6 +106,8 @@ export const ActiveGameContainer: React.FC = () => {
         return <TimbreMatchGame />;
       case 'sound-localization':
         return <SoundLocalizationGame />;
+      case 'voice-track':
+        return <VoiceTrackGame />;
       default:
         return <SchulteTableGame />;
     }

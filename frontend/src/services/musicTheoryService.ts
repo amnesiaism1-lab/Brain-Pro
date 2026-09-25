@@ -586,3 +586,536 @@ export function generateRhythmPattern(
     bpm
   };
 }
+
+/* ==========================================================================
+   M0 & M1: Thuộc Tính & Quan Hệ Nhận Thức Âm Nhạc (KE_HOACH Section 5 & 7)
+   ========================================================================== */
+
+// 1. Bồi Âm / Hài Âm (Harmonic Overtones & Partials) - M0-1
+export interface IHarmonicOvertoneInfo {
+  harmonicNumber: number; // 1 to 5 (or up to 8)
+  nameVi: string;
+  nameEn: string;
+  ratioDescription: string;
+  intervalFromRoot: string;
+  musicalRoleVi: string;
+  tipVi: string;
+}
+
+export const HARMONIC_OVERTONES_CATALOG: Record<number, IHarmonicOvertoneInfo> = {
+  1: {
+    harmonicNumber: 1,
+    nameVi: 'Hài 1: Âm Cơ Bản (Fundamental)',
+    nameEn: '1st Harmonic (Fundamental)',
+    ratioDescription: '1f (Tần số gốc nốt nhạc)',
+    intervalFromRoot: 'Đồng âm (Root)',
+    musicalRoleVi: 'Quyết định cao độ nhận biết chính của nốt nhạc.',
+    tipVi: 'Tần số trầm nhất, chiếm trọng tâm năng lượng của âm thanh.'
+  },
+  2: {
+    harmonicNumber: 2,
+    nameVi: 'Hài 2: Bát Độ Thứ Nhất (Octave)',
+    nameEn: '2nd Harmonic (1st Octave)',
+    ratioDescription: '2f (Tần số gấp đôi 2:1)',
+    intervalFromRoot: 'Quãng 8 Đúng (8P)',
+    musicalRoleVi: 'Tạo độ sáng trong trẻo và dày dặn cho âm sắc.',
+    tipVi: 'Cao hơn âm gốc đúng 1 quãng tám, âm thanh hòa quyện tự nhiên như tiếng sáo.'
+  },
+  3: {
+    harmonicNumber: 3,
+    nameVi: 'Hài 3: Quãng 5 Đúng Kép (Twelfth / Perfect 5th)',
+    nameEn: '3rd Harmonic (Octave + 5th)',
+    ratioDescription: '3f (Tỉ lệ 3:1)',
+    intervalFromRoot: 'Quãng 8 + Quãng 5 Đúng (12P)',
+    musicalRoleVi: 'Tạo màu sắc kèn đồng (brass), âm thanh có độ đanh và sắc nét.',
+    tipVi: 'Chính là nốt bậc 5 ở quãng tám kế tiếp. Khi nhấn mạnh, bạn nghe tiếng "hú" ngọt ngào.'
+  },
+  4: {
+    harmonicNumber: 4,
+    nameVi: 'Hài 4: Bát Độ Thứ Hai (Double Octave)',
+    nameEn: '4th Harmonic (2nd Octave)',
+    ratioDescription: '4f (Tỉ lệ 4:1)',
+    intervalFromRoot: '2 Quãng 8 Đúng (15P)',
+    musicalRoleVi: 'Mở rộng dải tần cao, tăng cảm giác ngân vang pha lê.',
+    tipVi: 'Cách nốt gốc đúng 2 quãng tám (cao hơn 2 tầng âm vực).'
+  },
+  5: {
+    harmonicNumber: 5,
+    nameVi: 'Hài 5: Quãng 3 Trưởng Kép (17th / Major 3rd)',
+    nameEn: '5th Harmonic (2 Octaves + Major 3rd)',
+    ratioDescription: '5f (Tỉ lệ 5:1)',
+    intervalFromRoot: '2 Quãng 8 + Quãng 3 Trưởng (17M)',
+    musicalRoleVi: 'Nền tảng sinh học tạo ra hợp âm Trưởng tự nhiên trong tự nhiên.',
+    tipVi: 'Mang sắc thái ấm áp, tích cực của quãng 3 Trưởng, làm sáng bừng dải treble.'
+  }
+};
+
+export function generateOvertoneQuestion(
+  baseNote = 'C3',
+  allowedHarmonics: number[] = [2, 3, 4, 5],
+  boostDb = 9
+): {
+  baseNote: string;
+  baseFreq: number;
+  boostHarmonicIndex: number;
+  boostDb: number;
+  targetInfo: IHarmonicOvertoneInfo;
+  options: IHarmonicOvertoneInfo[];
+} {
+  const chosenHarmonic = allowedHarmonics[Math.floor(Math.random() * allowedHarmonics.length)] || 2;
+  const targetInfo = HARMONIC_OVERTONES_CATALOG[chosenHarmonic] || HARMONIC_OVERTONES_CATALOG[2];
+  const baseFreq = getNoteFrequency(baseNote);
+
+  const options = allowedHarmonics.map(h => HARMONIC_OVERTONES_CATALOG[h]).filter(Boolean);
+
+  return {
+    baseNote,
+    baseFreq,
+    boostHarmonicIndex: chosenHarmonic,
+    boostDb,
+    targetInfo,
+    options
+  };
+}
+
+// 2. Cách Phát Âm (Articulations) - M0-3
+export interface IArticulationInfo {
+  type: 'legato' | 'staccato' | 'tenuto' | 'accent';
+  nameVi: string;
+  nameEn: string;
+  symbol: string;
+  feelDescription: string;
+  musicalTipVi: string;
+}
+
+export const ARTICULATIONS_CATALOG: Record<string, IArticulationInfo> = {
+  'legato': {
+    type: 'legato',
+    nameVi: 'Liền Tiếng (Legato)',
+    nameEn: 'Legato',
+    symbol: '⌒',
+    feelDescription: 'Mượt mà, gắn kết, không có khoảng lặng giữa các nốt',
+    musicalTipVi: 'Các nốt nhạc gối đầu lên nhau như một dải lụa mềm mại lướt đi êm ả.'
+  },
+  'staccato': {
+    type: 'staccato',
+    nameVi: 'Ngắt Tiếng (Staccato)',
+    nameEn: 'Staccato',
+    symbol: '•',
+    feelDescription: 'Bật nảy, dứt khoát, ngắt âm sắc nét chỉ ngân ~35% trường độ',
+    musicalTipVi: 'Như những giọt nước mưa rơi lộp độp hoặc bước chân nhón gót tinh nghịch.'
+  },
+  'tenuto': {
+    type: 'tenuto',
+    nameVi: 'Ngân Trọn Vẹn (Tenuto)',
+    nameEn: 'Tenuto',
+    symbol: '—',
+    feelDescription: 'Ngân đủ đầy 100% độ dài với áp lực âm thanh đều đặn',
+    musicalTipVi: 'Mỗi nốt được kéo dài trọn vẹn, trang trọng và chắc chắn trước khi chuyển nốt.'
+  },
+  'accent': {
+    type: 'accent',
+    nameVi: 'Nhấn Trọng Âm (Accent)',
+    nameEn: 'Accent',
+    symbol: '>',
+    feelDescription: 'Tấn công mạnh mẽ ở đầu nốt nhạc (+35% cường độ bộc phát)',
+    musicalTipVi: 'Đầu nốt nhạc đập mạnh như tiếng búa gõ dứt khoát rồi lắng dịu dần.'
+  }
+};
+
+export function generateArticulationQuestion(
+  types: Array<'legato' | 'staccato' | 'tenuto' | 'accent'> = ['legato', 'staccato', 'tenuto', 'accent'],
+  notes: string[] = ['C4', 'E4', 'G4', 'C5']
+): {
+  targetType: 'legato' | 'staccato' | 'tenuto' | 'accent';
+  targetInfo: IArticulationInfo;
+  notes: string[];
+  options: IArticulationInfo[];
+} {
+  const chosenType = types[Math.floor(Math.random() * types.length)];
+  const targetInfo = ARTICULATIONS_CATALOG[chosenType];
+  const options = types.map(t => ARTICULATIONS_CATALOG[t]);
+
+  return {
+    targetType: chosenType,
+    targetInfo,
+    notes,
+    options
+  };
+}
+
+// 3. Đường Nét Giai Điệu (Melodic Contour - Parsons Code) - M1-1
+export interface IMelodicContourInfo {
+  type: 'ascend' | 'descend' | 'arch' | 'inverted-arch' | 'flat' | 'wave';
+  nameVi: string;
+  nameEn: string;
+  symbol: string;
+  shapeDescriptionVi: string;
+  parsonsPattern: Array<'U' | 'D' | 'R'>; // Up, Down, Repeat
+}
+
+export const MELODIC_CONTOURS: Record<string, IMelodicContourInfo> = {
+  'ascend': {
+    type: 'ascend',
+    nameVi: 'Đường Lên Liên Tục (Ascending)',
+    nameEn: 'Continuous Ascent',
+    symbol: '↗',
+    shapeDescriptionVi: 'Chuỗi nốt leo dần lên cao từng bước',
+    parsonsPattern: ['U', 'U', 'U']
+  },
+  'descend': {
+    type: 'descend',
+    nameVi: 'Đường Xuống Liên Tục (Descending)',
+    nameEn: 'Continuous Descent',
+    symbol: '↘',
+    shapeDescriptionVi: 'Chuỗi nốt hạ dần xuống thấp như bậc thang',
+    parsonsPattern: ['D', 'D', 'D']
+  },
+  'arch': {
+    type: 'arch',
+    nameVi: 'Hình Cầu Vồng (Arch ∧)',
+    nameEn: 'Arch Shape',
+    symbol: '∧',
+    shapeDescriptionVi: 'Giai điệu bay lên đỉnh cao rồi lượn xuống thấp',
+    parsonsPattern: ['U', 'U', 'D', 'D']
+  },
+  'inverted-arch': {
+    type: 'inverted-arch',
+    nameVi: 'Hình Thung Lũng (Valley ∨)',
+    nameEn: 'Inverted Arch',
+    symbol: '∨',
+    shapeDescriptionVi: 'Giai điệu rơi xuống đáy sâu rồi bốc lên cao',
+    parsonsPattern: ['D', 'D', 'U', 'U']
+  },
+  'flat': {
+    type: 'flat',
+    nameVi: 'Đường Ngang / Bè Tĩnh (Horizontal —)',
+    nameEn: 'Flat / Static Line',
+    symbol: '—',
+    shapeDescriptionVi: 'Các nốt lặp lại cùng một cao độ giữ nguyên',
+    parsonsPattern: ['R', 'R', 'R']
+  },
+  'wave': {
+    type: 'wave',
+    nameVi: 'Lượn Sóng Nhấp Nhô (Wave ∿)',
+    nameEn: 'Oscillating Wave',
+    symbol: '∿',
+    shapeDescriptionVi: 'Lên rồi xuống luân phiên nhịp nhàng',
+    parsonsPattern: ['U', 'D', 'U', 'D']
+  }
+};
+
+export function generateContourQuestion(
+  allowedTypes: Array<'ascend' | 'descend' | 'arch' | 'inverted-arch' | 'flat' | 'wave'> = ['ascend', 'descend', 'arch', 'wave'],
+  startNote = 'C4'
+): {
+  targetContour: IMelodicContourInfo;
+  notes: string[];
+  options: IMelodicContourInfo[];
+} {
+  const chosenType = allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
+  const targetContour = MELODIC_CONTOURS[chosenType];
+
+  // Scale degrees in C Major: C4, D4, E4, F4, G4, A4, B4, C5, D5
+  const scale = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5'];
+  let curIdx = scale.indexOf(startNote);
+  if (curIdx < 0) curIdx = 2; // E4
+
+  const notes = [scale[curIdx]];
+  targetContour.parsonsPattern.forEach(dir => {
+    if (dir === 'U') {
+      curIdx = Math.min(scale.length - 1, curIdx + (1 + Math.floor(Math.random() * 2)));
+    } else if (dir === 'D') {
+      curIdx = Math.max(0, curIdx - (1 + Math.floor(Math.random() * 2)));
+    }
+    // 'R' retains curIdx
+    notes.push(scale[curIdx]);
+  });
+
+  const options = allowedTypes.map(t => MELODIC_CONTOURS[t]);
+
+  return {
+    targetContour,
+    notes,
+    options
+  };
+}
+
+// 4. Nốt Ngoại Điệu (Chromatic Oddball in-key vs out-of-key) - M0-4
+export function generateChromaticOddballQuestion(
+  keyRoot = 'C4',
+  melodyLength = 6
+): {
+  notes: string[];
+  oddballIndex: number;
+  oddballNote: string;
+  inKeyNotes: string[];
+  explanationVi: string;
+} {
+  const diatonicScale = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+  const chromaticIntruders = ['C#4', 'D#4', 'F#4', 'G#4', 'A#4'];
+
+  const oddballIndex = 1 + Math.floor(Math.random() * (melodyLength - 2)); // Not first or last note
+  const oddballNote = chromaticIntruders[Math.floor(Math.random() * chromaticIntruders.length)];
+
+  const notes: string[] = [];
+  for (let i = 0; i < melodyLength; i++) {
+    if (i === oddballIndex) {
+      notes.push(oddballNote);
+    } else {
+      const pick = diatonicScale[Math.floor(Math.random() * diatonicScale.length)];
+      notes.push(pick);
+    }
+  }
+
+  return {
+    notes,
+    oddballIndex,
+    oddballNote,
+    inKeyNotes: diatonicScale,
+    explanationVi: `Giai điệu đang ở giọng Đô Trưởng (C Major), nốt thứ ${oddballIndex + 1} (${oddballNote}) là nốt thăng ngoại điệu lạ lẫm.`
+  };
+}
+
+// 5. Kết Đoạn Hòa Âm (Cadences: V-I, x-V, V-vi, IV-I) - M1-4
+export interface ICadenceInfo {
+  type: 'authentic' | 'half' | 'deceptive' | 'plagal';
+  nameVi: string;
+  nameEn: string;
+  romanFormula: string;
+  feelDescription: string;
+  explanationVi: string;
+  sampleChordsInC: string[][];
+}
+
+export const CADENCE_CATALOG: Record<string, ICadenceInfo> = {
+  'authentic': {
+    type: 'authentic',
+    nameVi: 'Kết Trọn (Authentic Cadence)',
+    nameEn: 'Authentic Cadence (V → I)',
+    romanFormula: 'V → I',
+    feelDescription: 'Viên mãn, hoàn tất trọn vẹn, cảm giác hạ màn an lòng',
+    explanationVi: 'Hợp âm Át (G) giải quyết triệt để về hợp âm Chủ (C), tạo sự thỏa mãn lớn nhất trong âm nhạc cổ điển và pop.',
+    sampleChordsInC: [
+      ['G3', 'B3', 'D4', 'G4'], // G (V)
+      ['C4', 'E4', 'G4', 'C5']  // C (I)
+    ]
+  },
+  'half': {
+    type: 'half',
+    nameVi: 'Kết Lửng (Half Cadence)',
+    nameEn: 'Half Cadence (I/IV → V)',
+    romanFormula: 'I / IV → V',
+    feelDescription: 'Lơ lửng, đợi chờ, dấu phẩy đặt câu hỏi chưa có lời đáp',
+    explanationVi: 'Tiến trình dừng lại ở hợp âm Át (V), tai người nghe cảm thấy như bài nhạc tạm ngưng giữa câu chờ đoạn tiếp theo.',
+    sampleChordsInC: [
+      ['C4', 'E4', 'G4'],      // C (I)
+      ['G3', 'B3', 'D4', 'G4'] // G (V)
+    ]
+  },
+  'deceptive': {
+    type: 'deceptive',
+    nameVi: 'Kết Hụt (Deceptive Cadence)',
+    nameEn: 'Deceptive Cadence (V → vi)',
+    romanFormula: 'V → vi',
+    feelDescription: 'Bất ngờ, hẫng hụt, bất an kịch tính chuyển sang Thứ',
+    explanationVi: 'Tai người kỳ vọng hợp âm V sẽ giải quyết về I Trưởng tươi sáng, nhưng bất ngờ rơi vào hợp âm Thứ vi (La Thứ), tạo nét u trầm đột ngột.',
+    sampleChordsInC: [
+      ['G3', 'B3', 'D4', 'G4'], // G (V)
+      ['A3', 'C4', 'E4', 'A4']  // Am (vi)
+    ]
+  },
+  'plagal': {
+    type: 'plagal',
+    nameVi: 'Kết Ngợi Khen (Plagal Cadence)',
+    nameEn: 'Plagal Cadence (IV → I)',
+    romanFormula: 'IV → I',
+    feelDescription: 'Thanh thoát, dịu dàng, âm hưởng giáo đường Amen',
+    explanationVi: 'Hợp âm Hạ át (F) nhẹ nhàng trôi về hợp âm Chủ (C), không có lực hút mạnh của nốt dẫn bậc 7 mà mang vẻ êm đềm linh thiêng.',
+    sampleChordsInC: [
+      ['F3', 'A3', 'C4', 'F4'], // F (IV)
+      ['C4', 'E4', 'G4', 'C5']  // C (I)
+    ]
+  }
+};
+
+export function generateCadenceQuestion(
+  allowedTypes: Array<'authentic' | 'half' | 'deceptive' | 'plagal'> = ['authentic', 'half', 'deceptive', 'plagal']
+): {
+  targetCadence: ICadenceInfo;
+  chords: string[][];
+  options: ICadenceInfo[];
+} {
+  const chosen = allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
+  const targetCadence = CADENCE_CATALOG[chosen];
+  const options = allowedTypes.map(t => CADENCE_CATALOG[t]);
+
+  return {
+    targetCadence,
+    chords: targetCadence.sampleChordsInC,
+    options
+  };
+}
+
+// 6. Hòa Âm Ngầm (Implied Harmony from broken arpeggio) - M1-6
+export function generateImpliedHarmonyQuestion(): {
+  chordType: string;
+  notes: string[];
+  typeInfo: IChordTypeInfo;
+  options: IChordTypeInfo[];
+} {
+  const types = ['Major', 'Minor', 'dom7', 'Diminished'];
+  const chosenType = types[Math.floor(Math.random() * types.length)];
+  const typeInfo = CHORD_TYPE_CATALOG[chosenType];
+
+  const root = 'C4';
+  const notes = typeInfo.formula.map(interval => Note.transpose(root, interval));
+  // Arpeggiate melody
+  const arpeggioNotes = [...notes, Note.transpose(root, '8P')];
+
+  const options = types.map(t => CHORD_TYPE_CATALOG[t]);
+
+  return {
+    chordType: chosenType,
+    notes: arpeggioNotes,
+    typeInfo,
+    options
+  };
+}
+
+// 7. Theo Dõi Bè Đa Thanh (Voice Tracking Challenge) - M2-1
+export interface IVoiceNote {
+  note: string;
+  durationSec: number;
+  rest?: boolean;
+}
+
+export interface IVoiceStreamData {
+  name: 'soprano' | 'alto' | 'bass';
+  displayNameVi: string;
+  notes: IVoiceNote[];
+  waveform: OscillatorType;
+  pan: number;
+  volume: number;
+  colorHex: string;
+}
+
+export interface IVoiceTrackQuestion {
+  targetVoice: 'soprano' | 'alto' | 'bass';
+  targetVoiceNameVi: string;
+  voices: IVoiceStreamData[];
+  taskType: 'direction' | 'oddball' | 'timbre';
+  questionTextVi: string;
+  correctAnswerId: string;
+  options: Array<{ id: string; labelVi: string; icon?: string }>;
+  explanationVi: string;
+}
+
+export function generateVoiceTrackingChallenge(
+  voicesCount: 2 | 3 = 2,
+  targetVoiceInput?: 'soprano' | 'alto' | 'bass',
+  taskType: 'direction' | 'oddball' | 'timbre' = 'direction'
+): IVoiceTrackQuestion {
+  // Soprano (high: C5 to G5, Pan right +0.35)
+  // Alto (mid: G4 to C5, Center Pan 0.0)
+  // Bass (low: C3 to G3, Pan left -0.35)
+  const voiceRoles: Array<'soprano' | 'alto' | 'bass'> = voicesCount === 3
+    ? ['soprano', 'alto', 'bass']
+    : ['soprano', 'bass'];
+
+  const targetVoice = targetVoiceInput || voiceRoles[Math.floor(Math.random() * voiceRoles.length)];
+
+  // Choose direction of target voice: 'up' | 'down' | 'flat'
+  const directions: Array<'up' | 'down' | 'flat'> = ['up', 'down', 'flat'];
+  const targetDirection = directions[Math.floor(Math.random() * directions.length)];
+
+  // Build notes
+  let sopranoNotes: string[] = [];
+  if (targetVoice === 'soprano') {
+    if (targetDirection === 'up') sopranoNotes = ['C5', 'D5', 'E5', 'G5'];
+    else if (targetDirection === 'down') sopranoNotes = ['G5', 'E5', 'D5', 'C5'];
+    else sopranoNotes = ['E5', 'E5', 'E5', 'E5'];
+  } else {
+    sopranoNotes = ['E5', 'G5', 'F5', 'E5']; // Counter-melody
+  }
+
+  let bassNotes: string[] = [];
+  if (targetVoice === 'bass') {
+    if (targetDirection === 'up') bassNotes = ['C3', 'E3', 'G3', 'C4'];
+    else if (targetDirection === 'down') bassNotes = ['C4', 'G3', 'E3', 'C3'];
+    else bassNotes = ['C3', 'C3', 'C3', 'C3'];
+  } else {
+    bassNotes = ['C3', 'G2', 'A2', 'C3']; // Counter-bass
+  }
+
+  let altoNotes: string[] = [];
+  if (voicesCount === 3) {
+    if (targetVoice === 'alto') {
+      if (targetDirection === 'up') altoNotes = ['G4', 'A4', 'B4', 'C5'];
+      else if (targetDirection === 'down') altoNotes = ['C5', 'B4', 'A4', 'G4'];
+      else altoNotes = ['G4', 'G4', 'G4', 'G4'];
+    } else {
+      altoNotes = ['G4', 'F4', 'G4', 'A4'];
+    }
+  }
+
+  const stepDuration = 0.55;
+
+  const voices: IVoiceStreamData[] = [
+    {
+      name: 'soprano',
+      displayNameVi: 'Bè Cao (Soprano)',
+      notes: sopranoNotes.map(n => ({ note: n, durationSec: stepDuration })),
+      waveform: 'triangle',
+      pan: 0.35,
+      volume: 0.32,
+      colorHex: '#38BDF8' // Sky blue
+    },
+    {
+      name: 'bass',
+      displayNameVi: 'Bè Trầm (Bass)',
+      notes: bassNotes.map(n => ({ note: n, durationSec: stepDuration })),
+      waveform: 'sawtooth',
+      pan: -0.35,
+      volume: 0.28,
+      colorHex: '#F59E0B' // Amber
+    }
+  ];
+
+  if (voicesCount === 3) {
+    voices.splice(1, 0, {
+      name: 'alto',
+      displayNameVi: 'Bè Giữa (Alto)',
+      notes: altoNotes.map(n => ({ note: n, durationSec: stepDuration })),
+      waveform: 'sine',
+      pan: 0.0,
+      volume: 0.34,
+      colorHex: '#A855F7' // Purple
+    });
+  }
+
+  const targetVoiceNameVi = targetVoice === 'soprano' ? 'Bè Cao (Soprano)' : targetVoice === 'bass' ? 'Bè Trầm (Bass)' : 'Bè Giữa (Alto)';
+
+  let correctAnswerId = targetDirection;
+  let options = [
+    { id: 'up', labelVi: 'Đi Lên Cao (Ascending)', icon: '↗' },
+    { id: 'down', labelVi: 'Đi Xuống Thấp (Descending)', icon: '↘' },
+    { id: 'flat', labelVi: 'Đứng Yên / Giữ Nguyên (Static)', icon: '—' }
+  ];
+
+  let questionTextVi = `Lắng nghe đa bè: ${targetVoiceNameVi} di chuyển theo hướng nào?`;
+  let explanationVi = `${targetVoiceNameVi} di chuyển ${
+    targetDirection === 'up' ? 'leo dần lên cao' : targetDirection === 'down' ? 'hạ dần xuống thấp' : 'ngân giữ cùng cao độ'
+  } giữa các bè đệm còn lại.`;
+
+  return {
+    targetVoice,
+    targetVoiceNameVi,
+    voices,
+    taskType,
+    questionTextVi,
+    correctAnswerId,
+    options,
+    explanationVi
+  };
+}

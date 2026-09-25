@@ -759,7 +759,7 @@ export const ExerciseDetailModal: React.FC = () => {
           </div>
 
           {/* Theory Learning Shortcut for Auditory Exercises */}
-          {['pitch-recall', 'interval-identify', 'chord-identify', 'rhythm-recall', 'timbre-match', 'sound-localization'].includes(exercise.slug) && (
+          {['pitch-recall', 'interval-identify', 'chord-identify', 'rhythm-recall', 'timbre-match', 'sound-localization', 'voice-track'].includes(exercise.slug) && (
             <button
               onClick={() => {
                 playSound('click');

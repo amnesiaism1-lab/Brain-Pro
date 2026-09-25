@@ -221,6 +221,135 @@ export const NotesAndPitchModule: React.FC = () => {
         </div>
       </div>
 
+      {/* NEW: Đường Nét Giai Điệu (Melodic Contour - Parsons Code - M1-1) */}
+      <div className="p-6 bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl shadow-sm space-y-6">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">📈</span>
+          <div>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">
+              Đường Nét Giai Điệu & Mã Parsons (Melodic Contour)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Trước khi nhớ chính xác nốt cụ thể, vỏ não thính giác nhận dạng hình dáng chuyển động: Lên (Up), Xuống (Down) hay Đứng Yên (Repeat)
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            {
+              name: 'Đường Leo Lên (Ascent)',
+              symbol: '↗',
+              code: 'U - U - U',
+              desc: 'Giai điệu bước đều lên cao',
+              notes: ['C4', 'E4', 'G4', 'C5']
+            },
+            {
+              name: 'Đường Hạ Xuống (Descent)',
+              symbol: '↘',
+              code: 'D - D - D',
+              desc: 'Giai điệu hạ dần xuống thấp',
+              notes: ['C5', 'G4', 'E4', 'C4']
+            },
+            {
+              name: 'Hình Cầu Vồng (Arch ∧)',
+              symbol: '∧',
+              code: 'U - U - D - D',
+              desc: 'Lên đỉnh cao rồi lượn xuống',
+              notes: ['C4', 'G4', 'C5', 'G4', 'C4']
+            },
+            {
+              name: 'Lượn Sóng (Wave ∿)',
+              symbol: '∿',
+              code: 'U - D - U - D',
+              desc: 'Lên xuống nhấp nhô luân phiên',
+              notes: ['C4', 'G4', 'E4', 'A4', 'F4']
+            }
+          ].map(c => (
+            <div key={c.name} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 flex flex-col justify-between space-y-3">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-black text-cyan-600 dark:text-cyan-400">{c.symbol}</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-400">{c.code}</span>
+                </div>
+                <h4 className="text-xs font-black text-slate-900 dark:text-white mt-1">{c.name}</h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{c.desc}</p>
+              </div>
+
+              <button
+                onClick={async () => {
+                  await auditoryEngine.resumeAudioContext();
+                  auditoryEngine.playNoteSequence(c.notes, 280, 0.4);
+                }}
+                className="w-full py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-cyan-500/20"
+              >
+                <span>▶ Nghe Dáng Nét</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* NEW: Nốt Ngoại Điệu (Chromatic Oddball - M0-4) */}
+      <div className="p-6 bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl shadow-sm space-y-4">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">⚡</span>
+          <div>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">
+              Phát Hiện Nốt Ngoại Điệu "Sai Nhà" (Chromatic Oddball)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Rèn luyện phản xạ ức chế nhận thức (Inhibition Control) khi nghe một nốt thăng/giáng lạc loài xen vào giai điệu
+            </p>
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+          Khi một câu nhạc đang diễn ra êm ả trong thang âm tự nhiên Đô Trưởng (C Major), nếu xuất hiện 1 nốt chromatic bất thường (như F# hoặc G#), 
+          vỏ não sẽ phát ra điện thế không khớp MMN (Mismatch Negativity) tức thì.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button
+            onClick={async () => {
+              await auditoryEngine.resumeAudioContext();
+              // In-key melody: C - D - E - G - A - C
+              auditoryEngine.playNoteSequence(['C4', 'D4', 'E4', 'G4', 'A4', 'C5'], 280, 0.4);
+            }}
+            className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-left hover:bg-emerald-100/50 transition-all active:scale-98 flex items-center justify-between"
+          >
+            <div>
+              <span className="text-xs font-black text-emerald-800 dark:text-emerald-300 block">
+                1. Giai Điệu Thuần Trong Giọng (In-Key)
+              </span>
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                C4 - D4 - E4 - G4 - A4 - C5 (Hoàn toàn thuận tai)
+              </span>
+            </div>
+            <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">▶</span>
+          </button>
+
+          <button
+            onClick={async () => {
+              await auditoryEngine.resumeAudioContext();
+              // Melody with F# chromatic intruder at position 4
+              auditoryEngine.playNoteSequence(['C4', 'D4', 'E4', 'F#4', 'A4', 'C5'], 280, 0.4);
+            }}
+            className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-left hover:bg-rose-100/50 transition-all active:scale-98 flex items-center justify-between"
+          >
+            <div>
+              <span className="text-xs font-black text-rose-800 dark:text-rose-300 block">
+                2. Giai Điệu Bị Xâm Nhập (Chromatic Oddball)
+              </span>
+              <span className="text-[11px] text-rose-600 dark:text-rose-400">
+                C4 - D4 - E4 - <strong className="underline">F#4 (Lạ!)</strong> - A4 - C5
+              </span>
+            </div>
+            <span className="text-sm font-bold text-rose-600 dark:text-rose-400">▶</span>
+          </button>
+        </div>
+      </div>
+
       {/* CTA to Practice */}
       <div className="p-6 bg-gradient-to-r from-cyan-500/10 via-brand-500/10 to-purple-500/10 border border-brand-500/30 rounded-3xl flex flex-wrap items-center justify-between gap-4">
         <div>

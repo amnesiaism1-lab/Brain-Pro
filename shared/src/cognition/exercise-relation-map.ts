@@ -236,6 +236,18 @@ export const EXERCISE_RELATION_MAP: Record<ExerciseSlug, IExerciseRelationMappin
       4: ['TARGET_POSITION', 'SPATIAL_TRANSFORM'],
       9: ['TARGET_POSITION', 'TEMPORAL_PREDICT']
     }
+  },
+  'voice-track': {
+    slug: 'voice-track',
+    primaryRelation: 'TARGET_DISTRACTOR',
+    secondaryRelations: ['INHIBITION', 'FOCUS_FIELD', 'SPATIAL_TRANSFORM'],
+    levelAffinity: {
+      1: ['TARGET_DISTRACTOR'],
+      3: ['TARGET_DISTRACTOR', 'FOCUS_FIELD'],
+      6: ['TARGET_DISTRACTOR', 'SPATIAL_TRANSFORM'],
+      9: ['TARGET_DISTRACTOR', 'INHIBITION'],
+      11: ['TARGET_DISTRACTOR', 'FOCUS_FIELD', 'INHIBITION']
+    }
   }
 };
 
