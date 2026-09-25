@@ -6,6 +6,8 @@ exports.RDE_SAMPLE_CHALLENGES = [
     {
         level: 1,
         titleVi: 'Cấp 1: Phẫu Thuật Xúc Tu - Khoảng Cách & Hiệu Ứng',
+        objectiveVi: 'Sử dụng nhát cắt phẫu thuật để triệt hạ Tiền Đồn Địch (G4).',
+        hintVi: 'Vuốt chuột cắt ngang dây ở vị trí SÁT ĐỒN ĐỊCH (>65% chiều dài) để tạo xung phản vệ nổ tung, trừ -35% HP địch!',
         mode: 'SURGICAL_CUT',
         timeLimitSec: 45,
         requiredScore: 80,
@@ -64,9 +66,9 @@ exports.RDE_SAMPLE_CHALLENGES = [
             }
         ],
         predictionPrompt: {
-            questionVi: 'Nếu bạn thực hiện vết cắt sát nút B (ratio > 0.7), điều gì sẽ xảy ra cho hệ thống?',
+            questionVi: '💡 [Quy luật Xúc tu]: Nếu bạn vuốt cắt dây ở vị trí SÁT ĐỒN ĐỊCH B (cắt ngọn > 65% chiều dài), điều gì sẽ xảy ra?',
             options: [
-                { id: 'opt-1', labelVi: 'Sốc phản vệ dội về gây sát thương mạnh lên B (-35% HP)' },
+                { id: 'opt-1', labelVi: 'Sốc phản vệ nén dội về gây sát thương bộc phá mạnh lên B (-35% HP)' },
                 { id: 'opt-2', labelVi: 'Toàn bộ năng lượng chảy ngược về hồi phục A' },
                 { id: 'opt-3', labelVi: 'Nút A và B đều bị phá hủy hoàn toàn' }
             ],
@@ -77,6 +79,8 @@ exports.RDE_SAMPLE_CHALLENGES = [
     {
         level: 2,
         titleVi: 'Cấp 2: Rào Cản Không Gian - Tường Năng Lượng',
+        objectiveVi: 'Bắc cầu qua Nút Trung Chuyển (A4) để luồn qua Tường Năng Lượng và hạ Pháo Đài Địch.',
+        hintVi: 'Tường đỏ chặn tia nối thẳng. Kéo từ Cứ Điểm Gốc (E4) tới Nút Trung Chuyển (A4), sau đó nối tiếp sang Pháo Đài Địch (B4)!',
         mode: 'SURGICAL_CUT',
         timeLimitSec: 45,
         requiredScore: 85,
@@ -115,9 +119,9 @@ exports.RDE_SAMPLE_CHALLENGES = [
         ],
         relations: [],
         predictionPrompt: {
-            questionVi: 'Tường năng lượng nằm giữa P1 và Địch. Làm sao để tấn công Pháo Đài Địch?',
+            questionVi: 'Tường năng lượng màu đỏ nằm giữa P1 và Địch. Làm sao để tấn công Pháo Đài Địch?',
             options: [
-                { id: 'opt-w1', labelVi: 'Nối qua Nút Trung Chuyển ở phía dưới tường' },
+                { id: 'opt-w1', labelVi: 'Nối qua Nút Trung Chuyển (A4) ở phía dưới tường' },
                 { id: 'opt-w2', labelVi: 'Cắt trực tiếp bức tường bằng cử chỉ vuốt ngang' },
                 { id: 'opt-w3', labelVi: 'Đứng yên chờ bức tường tự phân rã' }
             ],
@@ -128,6 +132,8 @@ exports.RDE_SAMPLE_CHALLENGES = [
     {
         level: 3,
         titleVi: 'Cấp 3: Đòn Bẩy Nút Lõi - Centrality Dominance',
+        objectiveVi: 'Chiếm lĩnh NÚT LÕI (CORE C3) để đồng hóa tức thì toàn bộ 3 Vệ Tinh đối phương.',
+        hintVi: 'Đòn bẩy Nút Lõi! Kéo xúc tu tấn công dồn dập vào NÚT LÕI. Khi Nút Lõi sập, cả mạng lưới vệ tinh con sẽ lập tức đầu hàng!',
         mode: 'CORE_DOMINANCE',
         timeLimitSec: 50,
         requiredScore: 90,
@@ -216,6 +222,8 @@ exports.RDE_SAMPLE_CHALLENGES = [
     {
         level: 4,
         titleVi: 'Cấp 4: Dự Đoán Dây Chuyền - Cascade Prediction',
+        objectiveVi: 'Kích hoạt chuỗi xung lực domino dây chuyền từ Ngòi Nổ A qua Rơ-le B tới Cứ Điểm C.',
+        hintVi: 'Kéo kết nối từ Ngòi Nổ A sang Truyền Dẫn B, năng lượng khuếch đại sẽ dồn tiếp sang công phá cứ điểm C!',
         mode: 'CASCADE_PREDICT',
         timeLimitSec: 50,
         requiredScore: 90,
@@ -279,6 +287,8 @@ exports.RDE_SAMPLE_CHALLENGES = [
     {
         level: 5,
         titleVi: 'Cấp 5: Không Gian Động - Dynamic World Shift',
+        objectiveVi: 'Canh thời điểm vàng khi vách chắn năng lượng di động mở ra để kết nối hạ gục 2 Cứ Điểm Địch.',
+        hintVi: 'Quan sát khe hở của tường chắn di động, kéo dây luồn qua khe hở phía trên hoặc dưới!',
         mode: 'DYNAMIC_WORLD',
         timeLimitSec: 55,
         requiredScore: 90,
@@ -330,6 +340,8 @@ exports.RDE_SAMPLE_CHALLENGES = [
     {
         level: 6,
         titleVi: 'Cấp 6: Siêu Phẩm - Sốc Hồi Máu Toàn Mạng (Surgical Heal Burst)',
+        objectiveVi: 'Cứu nguy cho Tâm Hồi Phục (HP 20/80) bằng tuyệt kỹ cắt sát cuống gốc nguồn.',
+        hintVi: 'Vuốt cắt cực sát Tâm Hồi Phục (<35% chiều dài) để thu hồi năng lượng dồn ngược về hồi phục +30% HP!',
         mode: 'SURGICAL_CUT',
         timeLimitSec: 55,
         requiredScore: 95,
@@ -366,8 +378,8 @@ exports.RDE_SAMPLE_CHALLENGES = [
         predictionPrompt: {
             questionVi: 'Tâm Hồi Phục đang nguy kịch (HP 20/80). Làm thế nào để kích hoạt sốc hồi máu tối đa?',
             options: [
-                { id: 'opt-sup-1', labelVi: 'Cắt cực sát gốc nguồn (ratio < 0.25) để giải phóng sóng năng lượng hồi phục' },
-                { id: 'opt-sup-2', labelVi: 'Cắt sát quái thú để gây thêm sát thương' },
+                { id: 'opt-sup-1', labelVi: 'Cắt cực sát gốc nguồn quân ta (< 35% chiều dài) để giải phóng sóng năng lượng hồi phục' },
+                { id: 'opt-sup-2', labelVi: 'Cắt sát quái thú đối phương' },
                 { id: 'opt-sup-3', labelVi: 'Không cắt, duy trì dòng năng lượng' }
             ],
             correctOptionId: 'opt-sup-1',
@@ -377,6 +389,8 @@ exports.RDE_SAMPLE_CHALLENGES = [
     {
         level: 7,
         titleVi: 'Cấp 7: Đột Phá Lõi Kép - Song Trùng Core Dominance',
+        objectiveVi: 'Bẻ gãy gọng kìm 2 Lõi Địch bằng cách tập trung hỏa lực hạ gục Lõi Alpha (A3) trước.',
+        hintVi: 'Đừng chia nhỏ lực lượng! Hãy tập trung toàn bộ kết nối đánh sập 1 Lõi trước để giảm 50% áp lực đối phương.',
         mode: 'CORE_DOMINANCE',
         timeLimitSec: 55,
         requiredScore: 95,
@@ -425,6 +439,8 @@ exports.RDE_SAMPLE_CHALLENGES = [
     {
         level: 8,
         titleVi: 'Cấp 8: Mạng Hòa Âm Thính Giác - Sound Network Harmonic Resonance',
+        objectiveVi: 'Thiết lập Mạng Hòa Âm Đô Trưởng (C Major: C4 - E4 - G4) để khuếch đại sức mạnh toàn mạng.',
+        hintVi: 'Nối C4 với E4 (Quãng 3) và G4 (Quãng 5) để tạo hợp âm thuận hoàn hảo, triệt tiêu Nghịch Âm F#4!',
         mode: 'SOUND_NETWORK',
         timeLimitSec: 60,
         requiredScore: 100,
@@ -482,6 +498,8 @@ exports.RDE_SAMPLE_CHALLENGES = [
     {
         level: 9,
         titleVi: 'Cấp 9: Đột Biến Quy Tắc Xúc Tu - Rule Mutation Shock',
+        objectiveVi: 'Thích ứng với Đột Biến Quy Tắc: Luật vừa bị đảo ngược giữa gốc và ngọn!',
+        hintVi: 'Chú ý quy tắc đảo chiều: Bây giờ cắt sát nguồn gây sát thương, cắt sát đích hồi máu!',
         mode: 'SURGICAL_CUT',
         timeLimitSec: 55,
         requiredScore: 100,
@@ -516,10 +534,10 @@ exports.RDE_SAMPLE_CHALLENGES = [
             }
         ],
         predictionPrompt: {
-            questionVi: 'Quy tắc vừa đột biến: Cắt gần nguồn bây giờ gây sát thương, cắt gần đích hồi phục. Bạn nên cắt ở đâu để triệt hạ mục tiêu?',
+            questionVi: 'Quy tắc vừa đột biến đảo ngược: Cắt gần nguồn gây sát thương, cắt gần đích hồi phục. Bạn nên cắt ở đâu để triệt hạ mục tiêu?',
             options: [
-                { id: 'opt-m9-1', labelVi: 'Cắt sát nguồn (ratio < 0.35) theo quy tắc mới đảo ngược' },
-                { id: 'opt-m9-2', labelVi: 'Cắt sát đích (ratio > 0.65) theo thói quen cũ' },
+                { id: 'opt-m9-1', labelVi: 'Cắt sát nguồn (< 35% chiều dài) theo quy tắc mới đảo ngược' },
+                { id: 'opt-m9-2', labelVi: 'Cắt sát đích (> 65% chiều dài) theo thói quen cũ' },
                 { id: 'opt-m9-3', labelVi: 'Cắt chính giữa cân bằng' }
             ],
             correctOptionId: 'opt-m9-1',
@@ -529,6 +547,8 @@ exports.RDE_SAMPLE_CHALLENGES = [
     {
         level: 10,
         titleVi: 'Cấp 10: Phản Ứng Dây Chuyền Tam Cấp - Multi-Stage Domino',
+        objectiveVi: 'Kiểm soát Phản Ứng Dây Chuyền Tam Cấp qua 2 trạm Rơ-le.',
+        hintVi: 'Duy trì chuỗi truyền dẫn liên tục Nguồn ⟶ Rơ-le 1 ⟶ Rơ-le 2 ⟶ Pháo Đài Đích.',
         mode: 'CASCADE_PREDICT',
         timeLimitSec: 50,
         requiredScore: 100,
@@ -608,6 +628,8 @@ exports.RDE_SAMPLE_CHALLENGES = [
     {
         level: 11,
         titleVi: 'Cấp 11: Mê Cung Xoáy Không Gian - Dynamic Vortex Maze',
+        objectiveVi: 'Dẫn truyền năng lượng vượt qua Mê Cung Xoáy Ziczac.',
+        hintVi: 'Nối vòng ziczac: Từ Căn Cứ P luồn qua Trạm Tiếp Vận ở giữa để xuyên tới Trụ Sở Đầu Não.',
         mode: 'DYNAMIC_WORLD',
         timeLimitSec: 45,
         requiredScore: 105,
@@ -660,6 +682,8 @@ exports.RDE_SAMPLE_CHALLENGES = [
     {
         level: 12,
         titleVi: 'Cấp 12: Đỉnh Cao - Đại Chiến Synapse Toàn Diện (Grand Synapse War)',
+        objectiveVi: 'Đại Chiến Synapse Toàn Diện: Kết hợp Đòn Bẩy Nút Lõi và Mạng Hòa Âm để đánh bại Ma Vương Synapse.',
+        hintVi: 'Chiếm Điểm Tựa Hòa Âm E4 và Bộ Khuếch Đại Bb4 để buff toàn mạng, sau đó tổng lực đồng hóa Ma Vương C5!',
         mode: 'SOUND_NETWORK',
         timeLimitSec: 40,
         requiredScore: 110,

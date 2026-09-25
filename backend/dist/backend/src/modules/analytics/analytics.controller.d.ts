@@ -19,7 +19,7 @@ export declare class AnalyticsController {
                 nameEn: string;
                 iconName: string;
                 masteryScore: number;
-                tier: 1 | 2 | 3 | 4;
+                tier: 1 | 3 | 2 | 4;
                 exposureCount: number;
                 stability: number;
                 transferScore: number;

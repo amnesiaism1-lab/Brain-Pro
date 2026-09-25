@@ -19,6 +19,7 @@ pnpm-debug.log*
 # IDE & OS files
 .DS_Store
 Thumbs.db
+Downloads/
 .vscode/
 .idea/
 *.swp

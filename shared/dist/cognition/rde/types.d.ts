@@ -111,6 +111,8 @@ export interface IRdeTrialEvidence {
 export interface IRdeChallengeLevel {
     level: number;
     titleVi: string;
+    objectiveVi?: string;
+    hintVi?: string;
     mode: 'SURGICAL_CUT' | 'CORE_DOMINANCE' | 'CASCADE_PREDICT' | 'DYNAMIC_WORLD' | 'SOUND_NETWORK';
     entities: IRdeEntity[];
     relations: IRdeRelation[];
