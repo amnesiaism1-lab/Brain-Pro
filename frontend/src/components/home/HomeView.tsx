@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Bell, Clock, Star, Play, Flame, Trophy } from 'lucide-react';
+import { BookOpen, Bell, Clock, Star, Play, Flame, Trophy, Network, Sparkles, ArrowRight } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { WORKOUT_ROUTINES, IWorkoutRoutine } from '@brain-exercises/shared';
 
@@ -34,6 +34,43 @@ export const HomeView: React.FC = () => {
             <span className="text-base sm:text-xl font-black mt-1">{streak} ngày</span>
             <span className="text-[11px] sm:text-xs text-brand-100 font-semibold">Chuỗi ngày</span>
           </div>
+        </div>
+      </div>
+
+      {/* Featured Flagship: Mạng Lưới Quan Hệ Động Học */}
+      <div 
+        onClick={() => {
+          playSound('click');
+          useAppStore.getState().setActiveGameSlug('relational-network');
+        }}
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-2 border-cyan-500/40 p-6 sm:p-7 shadow-2xl shadow-cyan-500/10 cursor-pointer group hover:border-cyan-400 transition-all duration-300"
+      >
+        <div className="absolute top-0 right-0 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20 group-hover:bg-cyan-500/20 transition-all" />
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+          <div className="flex items-start sm:items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.3)] shrink-0 group-hover:scale-105 transition-transform">
+              <Network className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-cyan-400" />
+                  Đột Phá Mới • Relational Dynamics
+                </span>
+                <span className="text-[10px] font-bold text-slate-400">12 Cấp + 10 Cấp Vô Tận</span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-white group-hover:text-cyan-200 transition-colors">
+                Mạng Lưới Quan Hệ Động Học
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
+                Rèn luyện khả năng mô phỏng trong tâm trí, phẫu thuật xúc tu, chiếm lĩnh đòn bẩy nút lõi và dự đoán phản ứng dây chuyền nơ-ron.
+              </p>
+            </div>
+          </div>
+          <button className="self-start sm:self-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-sm shadow-lg shadow-cyan-500/25 flex items-center gap-2 shrink-0 group-hover:translate-x-1 transition-all">
+            <span>Trải nghiệm ngay</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 

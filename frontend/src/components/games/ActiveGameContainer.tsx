@@ -26,6 +26,7 @@ import { ChordIdentifyGame } from './ChordIdentifyGame';
 import { TimbreMatchGame } from './TimbreMatchGame';
 import { SoundLocalizationGame } from './SoundLocalizationGame';
 import { VoiceTrackGame } from './VoiceTrackGame';
+import { RelationalNetworkGame } from './RelationalNetworkGame';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { EXERCISES_METADATA } from '@brain-exercises/shared';
 import { Sparkles, Zap, Flame, ArrowRight, X } from 'lucide-react';
@@ -108,6 +109,8 @@ export const ActiveGameContainer: React.FC = () => {
         return <SoundLocalizationGame />;
       case 'voice-track':
         return <VoiceTrackGame />;
+      case 'relational-network':
+        return <RelationalNetworkGame />;
       default:
         return <SchulteTableGame />;
     }

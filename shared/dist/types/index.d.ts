@@ -1,5 +1,5 @@
 export type CognitiveCategoryCode = 'SPEED_READING' | 'PERIPHERAL_VISION' | 'MEMORY' | 'ATTENTION' | 'REACTION' | 'AUDITORY_MEMORY';
-export type ExerciseSlug = 'anagram' | 'schulte-table' | 'find-letter' | 'find-number' | 'even-odd' | 'digit-span' | 'rsvp-speed-reader' | 'word-search' | 'twin-words' | 'peripheral-vision' | 'green-dot' | 'word-chunking' | 'reading-assessment' | 'reading-pacer' | 'text-scanning' | 'card-flip' | 'stroop-clash' | 'spatial-memory' | 'saccade-tracker' | 'pitch-recall' | 'interval-identify' | 'rhythm-recall' | 'chord-identify' | 'timbre-match' | 'sound-localization' | 'voice-track';
+export type ExerciseSlug = 'anagram' | 'schulte-table' | 'find-letter' | 'find-number' | 'even-odd' | 'digit-span' | 'rsvp-speed-reader' | 'word-search' | 'twin-words' | 'peripheral-vision' | 'green-dot' | 'word-chunking' | 'reading-assessment' | 'reading-pacer' | 'text-scanning' | 'card-flip' | 'stroop-clash' | 'spatial-memory' | 'saccade-tracker' | 'pitch-recall' | 'interval-identify' | 'rhythm-recall' | 'chord-identify' | 'timbre-match' | 'sound-localization' | 'voice-track' | 'relational-network';
 export type ArticulationType = 'legato' | 'staccato' | 'tenuto' | 'accent';
 export interface IAudioEvent {
     note?: string;

@@ -242,6 +242,18 @@ exports.EXERCISE_RELATION_MAP = {
             9: ['TARGET_DISTRACTOR', 'INHIBITION'],
             11: ['TARGET_DISTRACTOR', 'FOCUS_FIELD', 'INHIBITION']
         }
+    },
+    'relational-network': {
+        slug: 'relational-network',
+        primaryRelation: 'RULE_ACTION',
+        secondaryRelations: ['PART_WHOLE', 'SPATIAL_TRANSFORM', 'TEMPORAL_PREDICT', 'INHIBITION'],
+        levelAffinity: {
+            1: ['RULE_ACTION', 'SPATIAL_TRANSFORM'],
+            2: ['SPATIAL_TRANSFORM', 'TARGET_DISTRACTOR'],
+            3: ['PART_WHOLE', 'RULE_ACTION'],
+            4: ['TEMPORAL_PREDICT', 'RULE_ACTION'],
+            5: ['PART_WHOLE', 'INHIBITION', 'TEMPORAL_PREDICT']
+        }
     }
 };
 function getRelationsForExercise(slug, level) {

@@ -847,6 +847,36 @@ exports.EXERCISES_METADATA = [
             { level: 11, timeLimitSec: 45, targetItemCount: 8, variantCode: 'DYNAMIC_MASKING', variantName: 'Mặt Nạ Nhiễu Âm Động', parametersJson: { voicesCount: 3, dynamicMasking: true, optionsCount: 5 } },
             { level: 12, timeLimitSec: 40, targetItemCount: 9, variantCode: 'POLYPHONIC_MAESTRO', variantName: 'Bậc Thầy Đa Thanh Trọn Vẹn', parametersJson: { voicesCount: 4, fullPolyphony: true, optionsCount: 5 } }
         ]
+    },
+    {
+        id: 'ex-relational-network',
+        categoryId: 'cat-5',
+        categoryCode: 'REACTION',
+        categoryName: 'Phản Xạ Nhận Thức',
+        slug: 'relational-network',
+        title: 'Mạng Lưới Quan Hệ Động Học',
+        subtitle: 'Phẫu thuật xúc tu, đòn bẩy nút lõi và dự đoán phản ứng dây chuyền',
+        iconName: 'Network',
+        scientificBasis: 'Ứng dụng mô hình mã hóa dự đoán (Predictive Coding) và động lực học mạng nơ-ron để rèn luyện mô phỏng trạng thái tâm trí (Mental Simulation), can thiệp nhân quả và dự đoán chuỗi chuyển trạng thái.',
+        instructions: 'Quan sát hệ thống các nút và liên kết. Đưa ra dự đoán kết quả trước khi hành động, sau đó kéo nối xúc tu hoặc vuốt cắt các liên kết tại vị trí chiến lược để chiếm lĩnh cứ điểm.',
+        rulesSummary: 'Cắt gần nguồn (ratio < 0.35) để hồi máu mạng nhà; cắt gần đích (ratio > 0.65) để gây sốc sát thương đối phương. Chiếm Nút Lõi (Core) để đồng hóa toàn bộ các nút con phụ thuộc.',
+        maxDifficultyLevel: 12,
+        defaultDurationSec: 60,
+        isFeatured: true,
+        levelConfigs: [
+            { level: 1, timeLimitSec: 45, targetItemCount: 2, parametersJson: { mode: 'SURGICAL_CUT', nodeCount: 2 } },
+            { level: 2, timeLimitSec: 45, targetItemCount: 3, parametersJson: { mode: 'SURGICAL_CUT', nodeCount: 3, obstacles: 1 } },
+            { level: 3, timeLimitSec: 50, targetItemCount: 4, parametersJson: { mode: 'CORE_DOMINANCE', nodeCount: 5, hasCore: true } },
+            { level: 4, timeLimitSec: 50, targetItemCount: 4, parametersJson: { mode: 'CASCADE_PREDICT', nodeCount: 5, cascadeSteps: 2 } },
+            { level: 5, timeLimitSec: 55, targetItemCount: 5, parametersJson: { mode: 'DYNAMIC_WORLD', nodeCount: 6, movingWalls: 1 } },
+            { level: 6, timeLimitSec: 55, targetItemCount: 5, variantCode: 'REL_SURGICAL_HEAL_BURST', variantName: 'Sốc Hồi Máu Toàn Mạng', parametersJson: { nodeCount: 6, healMultiplier: 2.0 } },
+            { level: 7, timeLimitSec: 55, targetItemCount: 6, parametersJson: { mode: 'CORE_DOMINANCE', nodeCount: 7, hasCore: true, defenders: 2 } },
+            { level: 8, timeLimitSec: 60, targetItemCount: 6, parametersJson: { mode: 'CASCADE_PREDICT', nodeCount: 7, cascadeSteps: 3 } },
+            { level: 9, timeLimitSec: 55, targetItemCount: 7, variantCode: 'REL_RULE_MUTATION', variantName: 'Đột Biến Quy Tắc Xúc Tu', parametersJson: { nodeCount: 7, ruleMutation: true } },
+            { level: 10, timeLimitSec: 50, targetItemCount: 7, variantCode: 'REL_MULTI_CASCADE', variantName: 'Phản Ứng Dây Chuyền Tam Cấp', parametersJson: { nodeCount: 8, cascadeSteps: 4 } },
+            { level: 11, timeLimitSec: 45, targetItemCount: 8, variantCode: 'REL_DYNAMIC_VORTEX', variantName: 'Xoáy Không Gian Chắn Đường', parametersJson: { nodeCount: 8, vortexWalls: 2 } },
+            { level: 12, timeLimitSec: 40, targetItemCount: 8, variantCode: 'REL_GRAND_SYNAPSE_WAR', variantName: 'Đại Chiến Synapse Toàn Diện', parametersJson: { nodeCount: 9, hasCore: true, fullDynamics: true } }
+        ]
     }
 ];
 // Automatically enrich EXERCISES_METADATA with 10 Infinity Levels (13 to 22: ∞-I to ∞-X)

@@ -3,8 +3,10 @@ import {
   COGNITIVE_RELATIONS, 
   RelationId, 
   IRelationEvent,
-  ALL_RELATION_IDS 
+  ALL_RELATION_IDS,
+  ExerciseSlug
 } from '@brain-exercises/shared';
+import { useAppStore } from '../../store/useAppStore';
 import { 
   Brain, 
   CheckCircle2, 
@@ -13,7 +15,8 @@ import {
   ArrowRight, 
   X,
   Sparkles,
-  Zap
+  Zap,
+  Compass
 } from 'lucide-react';
 
 interface DebriefProps {
@@ -22,6 +25,7 @@ interface DebriefProps {
 }
 
 export const RelationDebriefModal: React.FC<DebriefProps> = ({ events, onClose }) => {
+  const { setActiveGameSlug, playSound } = useAppStore();
   if (!events || events.length === 0) return null;
 
   // Group events by relationId
@@ -133,6 +137,37 @@ export const RelationDebriefModal: React.FC<DebriefProps> = ({ events, onClose }
             </div>
           ))}
         </div>
+
+        {/* Lộ Trình Cầu Nối Chuyển Giao (Cross-Domain Transfer Bridge) */}
+        {relationSummary.length > 0 && (
+          <div className="p-4 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 space-y-2.5 text-left">
+            <div className="flex items-center gap-2">
+              <Compass className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                Cầu Nối Chuyển Giao Năng Lực (Transfer Bridge)
+              </h4>
+            </div>
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+              Để năng lực nhận thức được ghim sâu vào não, hãy luyện tập cùng một quan hệ này trên các bối cảnh khác nhau (Hình ảnh &bull; Không gian &bull; Ngôn ngữ &bull; Âm thanh).
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {Array.from(new Set(relationSummary.flatMap(r => (COGNITIVE_RELATIONS[r.id]?.representativeGames || [])))).slice(0, 4).map(slug => (
+                <button
+                  key={slug}
+                  onClick={() => {
+                    playSound('click');
+                    onClose();
+                    setActiveGameSlug(slug as ExerciseSlug);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 border border-indigo-200 dark:border-indigo-800 text-xs font-bold text-slate-700 dark:text-slate-200 transition-all flex items-center gap-1 shadow-sm"
+                >
+                  <span className="capitalize">{slug.replace(/-/g, ' ')}</span>
+                  <ArrowRight className="w-3 h-3 opacity-60" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Action Button */}
         <div className="pt-2">

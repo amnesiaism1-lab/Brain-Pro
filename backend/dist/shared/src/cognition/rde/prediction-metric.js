@@ -1,0 +1,44 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.evaluatePrediction = evaluatePrediction;
+exports.calculateCrossDomainTransfer = calculateCrossDomainTransfer;
+function evaluatePrediction(query, answer, _resultingState) {
+    const isCorrect = answer.selectedOptionId === query.correctOptionId;
+    const conf = Math.max(0.2, Math.min(1.0, answer.confidence));
+    const predictionError = isCorrect
+        ? (1.0 - conf) * 0.4
+        : 0.5 + conf * 0.5;
+    const actualOutcome = isCorrect ? 1.0 : 0.0;
+    const brierCalibrationScore = Math.pow(conf - actualOutcome, 2);
+    let feedbackVi = '';
+    if (isCorrect && conf >= 0.8) {
+        feedbackVi = 'Mô phỏng tư duy xuất sắc! Dự đoán chính xác với độ tự tin vững vàng.';
+    }
+    else if (isCorrect && conf < 0.8) {
+        feedbackVi = 'Dự đoán đúng, nhưng cần tự tin hơn vào mô hình nhận thức của mình.';
+    }
+    else if (!isCorrect && conf >= 0.8) {
+        feedbackVi = 'Cảnh báo tự tin quá mức (Overconfidence): Hệ thống diễn tiến khác với mô hình bạn nhẩm tính.';
+    }
+    else {
+        feedbackVi = 'Chưa dự đoán đúng: Hãy quan sát kỹ vị trí và thuộc tính của các mắt xích liên kết.';
+    }
+    return {
+        isCorrect,
+        predictionError: Math.round(predictionError * 100) / 100,
+        brierCalibrationScore: Math.round(brierCalibrationScore * 1000) / 1000,
+        feedbackVi
+    };
+}
+function calculateCrossDomainTransfer(sourceAccuracy, targetAccuracy, sourceLatencyMs, targetLatencyMs) {
+    if (sourceAccuracy <= 0)
+        return { transferRatio: 0, isBridgeSuccessful: false };
+    const accRatio = Math.min(1.2, targetAccuracy / sourceAccuracy);
+    const speedBonus = targetLatencyMs <= sourceLatencyMs * 1.15 ? 1.0 : 0.85;
+    const transferRatio = Math.min(1.0, Math.round(accRatio * speedBonus * 100) / 100);
+    return {
+        transferRatio,
+        isBridgeSuccessful: transferRatio >= 0.75
+    };
+}
+//# sourceMappingURL=prediction-metric.js.map

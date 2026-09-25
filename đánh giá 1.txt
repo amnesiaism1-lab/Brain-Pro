@@ -1,41 +1,1889 @@
-Có 4 miền thuộc tính gần như chưa được chạm tới. Đi từng miền một, kèm ý tưởng bài tập cụ thể:
+phân tích toàn bộ game play các thực thể từ ảnh và phân tích xem làm sao lấy ý tưởng từ cái này phát triển nó với dự án brain pro của tôi để đầy đủ để phát triển não bộ cho tôi đầy đủ ý tưởng về xác định đầy đủ các thực thể sẽ như thế nào quan hệ như nào để luyện cho não thích nghi ghim vào não đầy đủ
 
-1. Cao độ — còn thiếu điệu thức, chuyển điệu, bồi âm
-Nhận diện màu sắc điệu thức (Mode color): không hỏi tên quãng, mà hỏi "đoạn này nghe Trưởng, Thứ, hay Dorian/Phrygian?" — huấn luyện cảm nhận toàn cục thay vì từng cặp nốt. Quan hệ: CONTEXT_MEANING ở cấp độ thang âm chứ không phải cấp độ nốt.
-Phát hiện chuyển điệu (Modulation detection): phát một đoạn nhạc, tại một điểm nào đó điệu tính đổi — người chơi bấm ngay khi "cảm thấy sai" so với âm chủ cũ. Đây thực chất là phiên bản âm thanh của even-odd/stroop-clash: vi phạm kỳ vọng → phản xạ ức chế. Quan hệ: TEMPORAL_PREDICT + INHIBITION.
-Bắt bồi âm (Overtone spotting) — ý này đặc biệt vì nó đã nằm sẵn trong code của bạn: auditoryEngine.ts mô phỏng Additive Synthesis với hài âm bậc 2, bậc 3 tách biệt. Chỉ cần expose từng hài âm riêng lẻ thành một nốt có thể bật/tắt, bạn có ngay bài tập "nghe một nốt phức hợp, xác định hài âm nào vừa được nhấn mạnh" — đúng cách các nhạc công dàn dây luyện tai với overtone series thật. Quan hệ: PART_WHOLE (hài âm là bộ phận của âm sắc).
-2. Thời gian — còn thiếu phách, tempo, đảo phách, nhịp hòa âm
-Cảm nhận phách/nhịp (Meter feel): phát một đoạn trống, người chơi gõ lại phách mạnh (không phải toàn bộ rhythm) để xác định 3/4 hay 4/4 hay 6/8 — khác rhythm-recall ở chỗ đây là cảm nhận cấu trúc nhịp, không phải ghi nhớ chuỗi.
-So sánh/nhận diện tempo: "đoạn nào nhanh hơn", hoặc phát hiện accelerando/ritardando (tempo đang tăng/giảm dần) — một dạng JND staircase áp cho BPM thay vì tần số.
-Nhịp hòa âm (Harmonic rhythm): một ý nâng cao — quan hệ chéo giữa hai thực thể (hợp âm đổi bao lâu một lần so với giai điệu). Đây là ví dụ đẹp cho việc "chơi đùa quan hệ" mà tôi nói ở dưới.
-3. Âm sắc & cường độ — còn thiếu động lực và phối khí
-Đường cong cường độ (Dynamic contour): nhận diện crescendo/decrescendo, hoặc vị trí accent trong một chuỗi nốt đều — thuộc tính "loudness" gần như chưa được bài nào chạm tới dù auditoryEngine.ts đã có velocity sensitivity sẵn.
-Nghe phối khí (Orchestration spotting): phát một hợp âm với mỗi nốt do một âm sắc khác nhau đảm nhiệm (nốt gốc = piano, nốt ba = sine, nốt năm = sawtooth), hỏi "nốt gốc do âm sắc nào chơi" — kết hợp trực tiếp chord-identify + timbre-match, một quan hệ liên-thực-thể (Timbre INTERACTS-WITH Chord) hoàn toàn mới.
-4. Kết cấu & hình thức — miền trống hoàn toàn, đáng đầu tư nhất
+Đúng — bộ ảnh này rất đáng để lấy làm một “mẫu kiến trúc nhận thức” cho Brain Pro, nhưng không nên bê nguyên game vào. Điểm giá trị nhất của Cell Expansion Wars không nằm ở tế bào, mà nằm ở việc nó biến một mạng lưới thực thể + quan hệ + trạng thái + hành động + hậu quả thành một bài toán mà não phải liên tục cập nhật.
 
-Đây là miền có tiềm năng sáng tạo cao nhất vì nó nối thẳng vào hệ thống chú ý thị giác bạn đã xây (find-letter, peripheral-vision, green-dot) nhưng chuyển sang giác quan thính giác:
+Và điều này khớp cực mạnh với hướng Brain Pro hiện tại của bạn: dự án đã có 25 bài tập, telemetry theo từng trial, DDA và 12 quan hệ nhận thức như ORDER_SEQUENCE, RULE_ACTION, INHIBITION, PART_WHOLE, SPATIAL_TRANSFORM, TEMPORAL_PREDICT...
 
-Theo dõi bè (Voice tracking / "Stroop thính giác"): phát 2-3 giai điệu cùng lúc (như 2-3 bè hát), chỉ định "chỉ nghe bè trầm" — người chơi phải nhớ lại đúng bè được chỉ định trong khi 1-2 bè kia là nhiễu chủ động. Đây chính xác là TARGET_DISTRACTOR + INHIBITION + FOCUS_FIELD — ba quan hệ bạn đã dùng cho các bài thị giác, giờ áp sang thính giác. Đây là bài tập tôi nghĩ đáng làm nhất vì nó vừa mới, vừa tận dụng đúng triết lý kiến trúc bạn đã có.
-Nhận diện cadence: phân biệt kết thúc "trọn vẹn" (Authentic), "lửng" (Half), hay "hụt hẫng" (Deceptive) — mở rộng tự nhiên từ ý "Tiến trình hòa âm chức năng" tôi đề xuất ở lượt trước.
-Xếp hạng độ căng (Consonance–dissonance ranking): cho 3 quãng/hợp âm, sắp xếp từ êm tai nhất đến chói tai nhất — một thuộc tính liên tục (continuum), không phải nhãn rời rạc, rất hợp để luyện trực giác hòa âm nhanh.
-Cấu trúc câu nhạc (Phrase symmetry): nghe 2 câu nhạc, xác định câu sau là "hỏi-đáp" cân đối hay lệch — PART_WHOLE ở cấp phrase thay vì cấp nốt.
-Công thức "chơi đùa" để tự sinh thêm ý tưởng
+1. Trước hết: bản chất của game này là gì?
 
-Vì bạn hỏi cách chơi đùa với thuộc tính/quan hệ — đây là công thức 3 bước bạn có thể lặp lại vô hạn:
+Nhìn bề ngoài:
 
-Chọn 2 thực thể + 1 kiểu quan hệ → ra bài tập mới.
+🟢 tế bào xanh → nối → đánh tế bào đỏ → cắt xúc tu → chiếm bàn chơi.
 
-Thực thể A	Quan hệ	Thực thể B	→ Bài tập sinh ra
-Nốt	HAS-A (thuộc tính)	Cường độ	Đường cong cường độ (mục 3)
-Hợp âm	INTERACTS-WITH	Âm sắc	Nghe phối khí (mục 3)
-Giai điệu	INTERACTS-WITH (nhiễu)	Giai điệu khác	Theo dõi bè (mục 4)
-Hợp âm	TEMPORAL_PREDICT	Hợp âm tiếp theo	Cadence / tiến trình chức năng
-Nhịp hòa âm	USES	Nhịp giai điệu	Nhịp hòa âm (mục 2)
-Bậc thang âm	CONTEXT_MEANING	Điệu thức	Mode color, chuyển điệu
+Nhưng nhìn dưới góc độ nhận thức:
 
-Cứ đổi thực thể ở hai cột đầu/cuối, giữ nguyên 4 kiểu quan hệ bạn đã dùng cho thị giác (PART_WHOLE, TARGET_DISTRACTOR, TEMPORAL_PREDICT, CONTEXT_MEANING) — gần như luôn ra một ý tưởng bài tập hợp lý, vì bản thân âm nhạc là một hệ thống toàn quan hệ tương đối.
+Não quan sát một hệ thống đang có trạng thái → nhận ra các quan hệ → dự đoán nếu hành động X thì trạng thái Y xảy ra → hành động → quan sát trạng thái mới → cập nhật mô hình.
 
-Hai ý tưởng "hời" nhất về mặt kỹ thuật (tận dụng đúng cái bạn đã xây, gần như không cần hạ tầng mới):
+Đây mới là thứ cực kỳ đáng lấy cho Brain Pro.
 
-Overtone spotting — chỉ cần expose thêm 1 tham số trong auditoryEngine.ts đã có sẵn hài âm.
-Voice tracking / Stroop thính giác — tái dùng nguyên vẹn logic TARGET_DISTRACTOR/INHIBITION đã chạy tốt ở nhóm ATTENTION, chỉ đổi input từ thị giác sang audio buffer.
+Có thể biểu diễn:
+
+             QUAN SÁT
+                ↓
+        ┌────────────────┐
+        │  STATE hiện tại│
+        └───────┬────────┘
+                ↓
+       nhận diện QUAN HỆ
+                ↓
+       dự đoán hậu quả
+                ↓
+          CHỌN HÀNH ĐỘNG
+                ↓
+        STATE thay đổi
+                ↓
+          FEEDBACK
+                ↓
+       cập nhật mô hình não
+                ↺
+
+Đây chính là Dynamics State → State mà bạn đang theo đuổi.
+
+2. Tách toàn bộ game thành các thực thể
+
+Ta không nên bắt đầu bằng "Cell".
+
+Hãy bắt đầu bằng Entity Model.
+
+2.1. GameBoard
+
+Không gian chứa toàn bộ hệ thống.
+
+GameBoard
+├── dimensions
+├── cells
+├── connections
+├── obstacles
+├── items
+├── objective
+├── turn/time
+└── environment rules
+
+State:
+
+BoardState
+- width
+- height
+- visibleArea
+- time
+- phase
+- activePlayer
+- remainingResources
+3. Cell — thực thể trung tâm
+
+Một Cell không chỉ có HP.
+
+Nó là:
+
+Cell
+├── identity
+├── faction
+├── position
+├── health
+├── role
+├── connections
+├── abilities
+├── statusEffects
+├── movementState
+└── controlState
+
+Ví dụ:
+
+Cell A
+
+identity = A
+faction = PLAYER
+position = (100, 300)
+health = 32
+role = NORMAL
+connections = [A-B, A-C]
+status = NORMAL
+
+Một Cell vì thế có State.
+
+4. Nhưng cái quan trọng hơn Cell là CONNECTION
+
+Đây là điểm tôi nghĩ Brain Pro nên học rất nhiều từ game này.
+
+Game thực chất không phải:
+
+Cell vs Cell
+
+mà là:
+
+Cell
+  ↕
+Connection
+  ↕
+Cell
+
+Ví dụ:
+
+A ───────── B
+
+Có một relation entity nằm giữa A và B.
+
+Trong Brain Pro:
+
+Connection {
+    sourceCell
+    targetCell
+    length
+    direction
+    healthTransfer
+    attackPower
+    status
+    cuttable
+    createdAt
+}
+
+Tức là:
+
+Quan hệ không chỉ là một đường nối vô hình. Quan hệ bản thân nó cũng có State.
+
+Đây là một bước rất quan trọng.
+
+5. Vì vậy ta có 3 tầng
+
+Đây chính là cách tôi sẽ thiết kế Brain Pro.
+
+Tầng 1 — Entity
+Cell
+Player
+Enemy
+Wall
+Item
+Core
+Board
+Tầng 2 — Relation
+CONNECT
+ATTACK
+HEAL
+CONTROL
+BLOCK
+CUT
+SUPPORT
+TRANSFORM
+TARGET
+CONTAIN
+DEPEND
+Tầng 3 — Dynamics
+Cell A attacks B
+        ↓
+B.HP -= damage
+        ↓
+B.state = damaged
+        ↓
+connection may break
+        ↓
+network changes
+        ↓
+other cells lose/gain effects
+
+Đây mới chính là hệ thống nhận thức.
+
+6. Phân tích từng cơ chế trong ảnh
+6.1. Kết nối xúc tu
+
+Ảnh 1:
+
+Chạm và kéo để kết nối.
+
+Quan hệ:
+
+A ── CONNECT ── B
+
+Não phải xử lý:
+
+TARGET_POSITION
++
+SPATIAL_TRANSFORM
++
+ACTION
+
+Nhưng còn nhiều hơn.
+
+Não phải hiểu:
+
+"Nếu tôi nối A với B thì một quan hệ mới được tạo ra."
+
+Đây là:
+
+ENTITY → RELATION
+7. Chạm & chạm
+
+Ảnh 2 cho phép kết nối bằng:
+
+Chạm & Chạm.
+
+Tức là:
+
+Select A
+   ↓
+Select B
+   ↓
+CREATE(A,B)
+
+Đây là một dạng quan hệ lựa chọn hai bước.
+
+Brain Pro có thể tận dụng cực tốt:
+
+chọn Entity A
+→ chọn Entity B
+→ xác định loại quan hệ
+→ tạo relation
+
+Ví dụ:
+
+"A lớn hơn B"
+
+"A nằm bên trái B"
+
+"A phụ thuộc B"
+
+"A là nguyên nhân của B"
+
+8. Cắt xúc tu gần
+
+Ảnh cho thấy:
+
+Cắt gần điểm kết nối → tấn công nhiều tế bào hơn.
+
+Đây là một cơ chế cực hay.
+
+Bởi vì:
+
+Distance(cutPoint, connectionPoint)
+
+ảnh hưởng đến kết quả.
+
+Tức:
+
+ACTION
+   +
+POSITION
+   ↓
+OUTCOME
+
+Không phải chỉ:
+
+cut = true
+
+mà:
+
+cut(distance = d)
+
+→ hậu quả thay đổi.
+
+Brain Pro có thể biến thành:
+
+Relationship Intervention
+
+Ví dụ:
+
+A ───────── B
+
+Người chơi chọn vị trí can thiệp.
+
+Gần A:
+
+effect_A = high
+effect_B = low
+
+Gần B:
+
+effect_A = low
+effect_B = high
+
+Sau đó chuyển sang những domain khác:
+
+Cause ───────── Effect
+
+Người chơi phải chọn:
+
+Can thiệp vào đâu để ảnh hưởng mạnh nhất đến hệ thống?
+
+Đây là một bài tập causal reasoning.
+
+9. Cắt xa
+
+Ảnh:
+
+Cắt xa điểm kết nối → có thể chữa lành nhiều tế bào hơn.
+
+Đây là một biến thể cực tốt để luyện:
+
+Spatial relation → outcome relation
+distance
+   ↓
+number of affected nodes
+   ↓
+healing amount
+
+Có thể tạo thành:
+
+POSITION
+   ↓
+RELATION PROPERTY
+   ↓
+SYSTEM EFFECT
+
+Đây là một trong những mechanics tôi sẽ giữ nguyên ý tưởng cho Brain Pro.
+
+10. Tường
+
+Ảnh:
+
+Không thể kết nối qua tường.
+
+Đây là:
+
+A ──X── B
+      WALL
+
+Tức:
+
+OBSTACLE
+   ↓
+CONSTRAINT
+   ↓
+RELATION FORBIDDEN
+
+Điều này liên kết rất đẹp với cách bạn đang suy nghĩ về:
+
+Rule → Condition → Allowed / Forbidden
+
+Ví dụ:
+
+IF obstacle_between(A,B)
+THEN CONNECT(A,B) = FORBIDDEN
+
+Đây chính là ràng buộc.
+
+11. Không thể cắt
+
+Một ảnh khác:
+
+Nếu cắt tại điểm kết nối thì tất cả tế bào sẽ được sử dụng để chữa lành.
+
+Ở đây action giống nhau:
+
+CUT
+
+nhưng:
+
+cut_position
+
+khác → outcome khác.
+
+Đây là:
+
+Context-sensitive action
+
+Cùng một hành động:
+
+CUT
+
+nhưng:
+
+context A → outcome A
+context B → outcome B
+
+Đây là một cơ chế cực kỳ đáng đưa vào Brain Pro.
+
+12. Tế bào phòng thủ
+
+Ảnh:
+
+Các tế bào được khôi phục ngay cả khi xúc tu kết nối với tế bào phòng thủ bị cắt.
+
+Ta có:
+
+DefenseCell
+       ↓
+   SUPPORT
+   /   |   \
+ Cell Cell Cell
+
+Một Entity tạo ảnh hưởng lên nhiều Entity khác thông qua quan hệ.
+
+Đây là:
+
+ONE → MANY
+
+Rất quan trọng cho tư duy hệ thống.
+
+13. Tế bào tấn công
+
+Ảnh:
+
+2x tấn công khi tấn công kẻ thù.
+
+Ta có:
+
+Cell.role = ATTACKER
+
+sau đó:
+
+ATTACK
+   ↓
+damage × 2
+
+Tức:
+
+Entity State
+      ↓
+modifies
+      ↓
+Relation Effect
+
+Đây là một khái niệm cực quan trọng:
+
+State của Entity có thể thay đổi Dynamics của Relation.
+
+14. Tế bào chữa trị
+
+Ảnh:
+
+Ally 18
+   ↓ +2
+Healer 23
+   ↓ -1
+Enemy 23
+
+Và:
+
+2x chữa trị khi chữa trị đồng minh.
+
+Ta có:
+
+HEALER
+   ↓
+HEAL
+   ↓
+ALLY
+
+Trong khi:
+
+ATTACKER
+   ↓
+ATTACK
+   ↓
+ENEMY
+
+Hai relation có cùng cấu trúc:
+
+SOURCE → ACTION → TARGET
+
+nhưng semantics khác nhau.
+
+15. Biến đổi tế bào
+
+Ảnh:
+
+Biến tế bào kẻ thù thành tế bào đồng minh.
+
+Đây là mechanics rất mạnh cho Brain Pro:
+
+Enemy
+  ↓
+TRANSFORM
+  ↓
+Ally
+
+Ở đây Identity không nhất thiết đổi, nhưng:
+
+Faction
+State
+Relations
+
+đổi.
+
+Tức:
+
+STATE TRANSITION
+
+Ví dụ:
+
+Enemy
+→ Neutral
+→ Ally
+
+Đây là bài tập rất tốt để luyện:
+
+Nhận ra cùng một thực thể nhưng trạng thái đã thay đổi.
+
+16. Đóng băng
+Enemy
+   ↓
+FREEZE
+   ↓
+Movement = disabled
+
+Đây là:
+
+StatusEffect
+
+Nó không tiêu diệt Entity.
+
+Nó thay đổi khả năng hành động của Entity.
+
+Đây là distinction rất quan trọng:
+
+ENTITY EXISTENCE
+≠
+ENTITY CAPABILITY
+
+Brain Pro nên có cả loại bài này.
+
+17. Ô lõi
+
+Ảnh:
+
+Nếu điều khiển Ô lõi, bạn cũng điều khiển các ô còn lại.
+
+Đây là một mechanics cực kỳ hay.
+
+Ví dụ:
+
+       B
+       |
+A ─── CORE ─── C
+       |
+       D
+
+CORE là:
+
+central node
+
+Nếu CORE bị chiếm:
+
+control(CORE)
+       ↓
+control(network)
+
+Đây là:
+
+Network Centrality
+
+Não phải phát hiện:
+
+"Không phải mọi Node đều quan trọng như nhau."
+
+Một node có thể có:
+
+high degree
+high influence
+high dependency
+
+Đây là một năng lực tư duy hệ thống rất đáng luyện.
+
+18. Xúc tu thưởng
+
+Nhận +1 xúc tu.
+
+Tức:
+
+RESOURCE
+   ↓
+CAPACITY
+
+Ví dụ:
+
+tentacleCapacity = 3
+
+nhận item:
+
+tentacleCapacity = 4
+
+Đây không phải chỉ là điểm.
+
+Nó thay đổi khả năng tạo quan hệ trong tương lai.
+
+Rất quan trọng.
+
+19. Đá quý / item
+
+Item trong game không đơn thuần là:
+
++score
+
+mà là:
+
+ITEM
+ ↓
+MODIFIER
+ ↓
+ENTITY STATE
+ ↓
+RELATION DYNAMICS
+
+Đây chính là kiến trúc mà Brain Pro nên sử dụng.
+
+20. Zoom / Pan
+
+Hai ảnh cuối:
+
+Di chuyển màn hình.
+
+Phóng to / thu nhỏ.
+
+Đây tưởng như chỉ là UI nhưng thực ra có thể dùng để luyện:
+
+SPATIAL REPRESENTATION
+
+Não phải duy trì:
+
+world coordinate
+        ↕
+screen coordinate
+
+Đặc biệt nếu bạn đưa vào Brain Pro:
+
+zoom
+rotate
+pan
+perspective
+
+thì nó trở thành:
+
+Spatial Transformation Training
+
+đúng với SPATIAL_TRANSFORM mà Brain Pro hiện tại đã có.
+
+21. Bây giờ ta trừu tượng hóa toàn bộ game
+
+Không còn:
+
+tế bào xanh, tế bào đỏ.
+
+Mà thành:
+
+                    SYSTEM
+                      │
+        ┌─────────────┼─────────────┐
+        ↓             ↓             ↓
+     ENTITY        RELATION      ENVIRONMENT
+        │             │             │
+        ↓             ↓             ↓
+      STATE         STATE        CONSTRAINT
+        │             │             │
+        └─────────────┼─────────────┘
+                      ↓
+                  ACTION
+                      ↓
+                  TRANSITION
+                      ↓
+                NEW STATE
+
+Đây chính là engine nhận thức.
+
+22. Và đây là thứ Brain Pro nên lấy
+
+Tôi sẽ không tạo:
+
+Cell Expansion Wars clone.
+
+Tôi sẽ tạo một subsystem:
+
+🧠 Relational Dynamics Engine
+
+Nó là engine chung cho hàng loạt game.
+
+23. Entity model của Brain Pro
+
+Tôi đề xuất một ontology thống nhất:
+
+Entity
+│
+├── Object
+│   ├── Person
+│   ├── Animal
+│   ├── Tool
+│   ├── Number
+│   ├── Word
+│   ├── Shape
+│   ├── Sound
+│   ├── Location
+│   └── Concept
+│
+├── State
+│   ├── Position
+│   ├── Size
+│   ├── Value
+│   ├── Color
+│   ├── Health
+│   ├── Status
+│   ├── Capacity
+│   └── Role
+│
+├── Relation
+│   ├── Spatial
+│   ├── Temporal
+│   ├── Causal
+│   ├── Logical
+│   ├── Comparative
+│   ├── Hierarchical
+│   ├── Dependency
+│   ├── Sequence
+│   └── Semantic
+│
+└── Environment
+    ├── Boundary
+    ├── Obstacle
+    ├── Rule
+    ├── Resource
+    └── Distractor
+24. Quan hệ cần luyện
+
+Đây mới là phần quan trọng nhất.
+
+Tôi sẽ mở rộng 12 relation hiện tại của Brain Pro thành một ontology quan hệ lớn, nhưng vẫn map về 12 cognitive relations hiện tại.
+
+Nhóm A — Spatial
+LEFT_OF
+RIGHT_OF
+ABOVE
+BELOW
+NEAR
+FAR
+INSIDE
+OUTSIDE
+TOUCHING
+OVERLAPPING
+CONNECTED
+SEPARATED
+Nhóm B — Temporal
+BEFORE
+AFTER
+DURING
+SIMULTANEOUS
+REPEAT
+DELAY
+ACCELERATE
+SLOW
+Nhóm C — Comparative
+GREATER
+LESS
+EQUAL
+SIMILAR
+DIFFERENT
+STRONGER
+WEAKER
+FASTER
+SLOWER
+Nhóm D — Causal
+CAUSE
+EFFECT
+ENABLE
+PREVENT
+TRIGGER
+AMPLIFY
+REDUCE
+TRANSFORM
+Nhóm E — Structural
+PART_OF
+WHOLE_OF
+CONTAINS
+DEPENDS_ON
+SUPPORTS
+CONTROLS
+CENTRAL_TO
+PERIPHERAL_TO
+Nhóm F — Logical
+IF
+THEN
+ELSE
+AND
+OR
+NOT
+XOR
+EXCEPTION
+Nhóm G — Action
+SELECT
+MOVE
+CONNECT
+DISCONNECT
+ATTACK
+DEFEND
+HEAL
+TRANSFORM
+FREEZE
+SPLIT
+MERGE
+25. Nhưng đừng dừng ở relation
+
+Đây là điểm tôi muốn nâng Brain Pro lên một tầng.
+
+Mỗi Relation phải có property.
+
+Ví dụ:
+
+A ── CONNECT ── B
+
+không đủ.
+
+Phải là:
+
+CONNECT
+├── distance = 120
+├── direction = 45°
+├── strength = 0.8
+├── duration = 4s
+├── capacity = 2
+└── status = ACTIVE
+
+Tức:
+
+Relation cũng có State.
+
+Đây là một bước rất mạnh về mặt mô hình hóa.
+
+26. Và Action cũng có State
+
+Ví dụ:
+
+CUT
+├── position
+├── direction
+├── force
+├── timing
+└── target
+
+Do đó:
+
+Outcome =
+f(
+    EntityState,
+    RelationState,
+    ActionState,
+    EnvironmentState
+)
+
+Đây có thể trở thành công thức lõi của Brain Pro.
+
+27. Ví dụ một trial
+
+Giả sử:
+
+A = green cell
+HP = 50
+
+B = red cell
+HP = 30
+
+A ─────── B
+
+Người chơi cắt dây.
+
+Input:
+
+{
+  "action": "CUT",
+  "relation": "A-B",
+  "position": 0.2
+}
+
+Engine:
+
+position = 0.2
+        ↓
+near A
+        ↓
+A receives effect
+B receives effect
+        ↓
+update state
+
+Telemetry không chỉ lưu:
+
+correct = true
+
+mà:
+
+{
+  "relationType": "DISTANCE_TO_RELATION_POINT",
+  "action": "CUT",
+  "prediction": "A_HIGH_EFFECT",
+  "actual": "A_HIGH_EFFECT",
+  "reactionTime": 842,
+  "distanceError": 0.04,
+  "confidence": 0.71
+}
+
+Đây mới là telemetry đáng giá.
+
+28. Brain Pro phải luyện Prediction chứ không chỉ Reaction
+
+Đây là thay đổi lớn tôi đề xuất.
+
+Game hiện tại chủ yếu:
+
+SEE
+→ ACT
+→ SCORE
+
+Brain Pro nên:
+
+SEE
+→ BUILD RELATIONAL MODEL
+→ PREDICT
+→ ACT
+→ OBSERVE
+→ COMPARE PREDICTION VS RESULT
+→ UPDATE MODEL
+
+Ví dụ trước khi cắt:
+
+"Nếu cắt ở đây, tế bào nào sẽ bị ảnh hưởng?"
+
+Người chơi chưa được hành động ngay.
+
+Phải chọn:
+
+A
+B
+C
+
+và mức độ:
+
+HIGH
+MEDIUM
+LOW
+
+Sau đó mới cắt.
+
+Đây là cách biến game thành mental simulation.
+
+29. Tôi sẽ tạo 6 lớp difficulty
+Level 1 — Direct Relation
+A → B
+
+Ví dụ:
+
+A bên trái B.
+
+Level 2 — Multi-relation
+A → B
+B → C
+
+Câu hỏi:
+
+A có quan hệ gì với C?
+
+Level 3 — Hidden relation
+A → B → C
+
+Không hiển thị trực tiếp A-C.
+
+Não phải suy luận.
+
+Level 4 — Dynamic relation
+State₀
+ ↓
+Action
+ ↓
+State₁
+
+Người chơi dự đoán State₁.
+
+Level 5 — Cascading dynamics
+A
+ ↓
+B
+ ↓
+C
+ ↓
+D
+
+Một action tại A ảnh hưởng D.
+
+Level 6 — Conflicting relations
+A ─ SUPPORT → B
+A ─ BLOCK → C
+B ─ ATTACK → C
+
+Người chơi phải xác định:
+
+relation nào thắng?
+
+Đây là cấp độ rất cao.
+
+30. Một game Brain Pro lấy trực tiếp cảm hứng từ Cell Wars
+
+Tôi sẽ đặt tên tạm:
+
+Relational Network
+
+Màn hình:
+
+        A
+       / \
+      /   \
+     B     C
+     |     |
+     D ─── E
+
+Mỗi Node có:
+
+value
+state
+role
+
+Mỗi Edge có:
+
+relation
+strength
+distance
+direction
+status
+31. Mode 1 — Connect
+
+Nhiệm vụ:
+
+Nối A với C.
+
+Luyện:
+
+TARGET_POSITION
+SPATIAL_TRANSFORM
+32. Mode 2 — Predict
+
+Hiện:
+
+A ─── B ─── C
+
+Thông báo:
+
+Nếu B bị loại bỏ, điều gì xảy ra?
+
+Các lựa chọn:
+
+A vẫn kết nối C
+A mất kết nối C
+C biến mất
+Không thay đổi
+
+Luyện:
+
+PART_WHOLE
+DEPENDENCY
+CAUSAL
+33. Mode 3 — Cut
+
+Giống Cell Wars nhưng abstract.
+
+A ───────── B
+
+Có 3 điểm cắt.
+
+Người chơi phải chọn:
+
+Điểm nào tạo outcome X?
+
+Luyện:
+
+SPATIAL_RELATION
+CAUSAL_RELATION
+DISTANCE
+34. Mode 4 — Repair
+A ─── B ─── C
+
+Bị hỏng.
+
+Người chơi phải tìm:
+
+Node nào sửa được nhiều thành phần nhất?
+
+Đây chính là:
+
+NETWORK CENTRALITY
+DEPENDENCY
+PART-WHOLE
+35. Mode 5 — Transform
+Enemy → Ally
+
+Nhưng sau khi biến đổi:
+
+A → B
+B → C
+
+các relation cũng thay đổi.
+
+Người chơi phải dự đoán:
+
+Network mới sẽ như thế nào?
+
+Đây là:
+
+STATE TRANSITION
+36. Mode 6 — Rule
+
+Ví dụ:
+
+IF
+    A is red
+AND
+    B is connected
+THEN
+    C becomes frozen
+
+Sau đó thay đổi một State.
+
+Người chơi phải dự đoán.
+
+Đây chính là:
+
+RULE
++
+STATE
+→
+DYNAMICS
+37. Mode 7 — Core
+
+Cho network:
+
+      B
+      |
+A ─── C ─── D
+      |
+      E
+
+C hỏi:
+
+Nếu C mất thì mạng thay đổi thế nào?
+
+Không cần tính toán số học.
+
+Chỉ cần hiểu:
+
+CENTRALITY
+DEPENDENCY
+38. Mode 8 — Multi-step
+
+Ví dụ:
+
+Action 1:
+A attacks B
+
+Action 2:
+B becomes damaged
+
+Action 3:
+B loses connection C
+
+Action 4:
+C becomes isolated
+
+Người chơi phải dự đoán 4 state transition.
+
+Đây là:
+
+Mental simulation
+39. Mode 9 — Memory Network
+
+Cho người chơi nhìn:
+
+A ─ B
+B ─ C
+A ─ D
+D ─ E
+
+3 giây.
+
+Sau đó xoá network.
+
+Hỏi:
+
+Quan hệ giữa A và E là gì?
+
+Luyện:
+
+working memory
+relational memory
+graph memory
+40. Mode 10 — Dynamic World
+
+Đây mới là Infinity Tier.
+
+Network tự thay đổi:
+
+A ─ B
+    ↓
+B moves
+    ↓
+B ─ C
+    ↓
+C transforms
+    ↓
+C ─ D
+
+Người chơi phải liên tục cập nhật:
+
+WORLD MODEL
+
+Đây có thể là một trong những bài khó nhất Brain Pro.
+
+41. Liên kết với 12 relation hiện tại của Brain Pro
+
+Đây là mapping tôi đề xuất:
+
+Cell-Wars mechanic	Brain Pro relation
+Nối tế bào	IDENTITY_MATCH, TARGET_POSITION
+Cắt	RULE_ACTION, SPATIAL_TRANSFORM
+Cắt gần/xa	SIMILARITY_DIFF, TARGET_POSITION
+Tường	TARGET_DISTRACTOR, RULE_ACTION
+Tế bào lõi	PART_WHOLE
+Phòng thủ	DEPENDENCY, PART_WHOLE
+Tấn công	RULE_ACTION
+Chữa trị	RULE_ACTION
+Biến đổi	IDENTITY_MATCH, CONTEXT_MEANING
+Đóng băng	RULE_ACTION, TEMPORAL_PREDICT
+Xúc tu thưởng	RULE_ACTION
+Zoom/Pan	SPATIAL_TRANSFORM
+Nhiều xúc tu	ORDER_SEQUENCE, TARGET_POSITION
+Chuỗi ảnh hưởng	TEMPORAL_PREDICT
+Nhiều mục tiêu	FOCUS_FIELD, TARGET_DISTRACTOR
+
+Các quan hệ này nối trực tiếp với kiến trúc 12-node Brain Map hiện tại của Brain Pro.
+
+42. Nhưng tôi muốn thêm một tầng: Cognitive Relation Graph
+
+Hiện Brain Pro có:
+
+12 Relations
+
+Tôi sẽ biến nó thành:
+
+                TEMPORAL
+                /      \
+               /        \
+       SEQUENCE          PREDICT
+          |                 |
+          |                 |
+SPATIAL ─────── CAUSAL ───── RULE
+   |              |            |
+   |              |            |
+POSITION       TRANSFORM    INHIBITION
+   |
+TARGET
+
+Các bài tập không còn thuộc một relation duy nhất.
+
+Ví dụ Cell Wars:
+
+CUT
+│
+├── POSITION
+├── DISTANCE
+├── RULE
+├── CAUSE
+├── PREDICTION
+└── STATE TRANSITION
+
+Một trial có thể tạo evidence cho 6 quan hệ cùng lúc.
+
+Đây mới thực sự tạo thành mạng.
+
+43. Đừng chấm "game score" làm trung tâm
+
+Đây là điểm tôi muốn sửa mạnh trong Brain Pro.
+
+Hiện kiến trúc của bạn đã có relation_evidence, user_relation_mastery, EMA và DDA.
+
+Hãy mở rộng evidence:
+
+Trial
+│
+├── stimulus
+├── entities
+├── relations
+├── initialState
+├── action
+├── predictedState
+├── actualState
+├── reactionTime
+├── error
+├── confidence
+├── attention
+└── transfer
+44. Đặc biệt: Prediction Error
+
+Đây là biến tôi muốn Brain Pro theo dõi.
+
+Predicted State
+        ↓
+Actual State
+        ↓
+difference
+        ↓
+Prediction Error
+
+Ví dụ:
+
+Người chơi dự đoán:
+
+B HP = 10
+
+thực tế:
+
+B HP = 4
+
+→ prediction error.
+
+Nếu lặp đi lặp lại:
+
+prediction error ↓
+
+thì có bằng chứng người chơi đang xây dựng mô hình tốt hơn.
+
+Đây có giá trị nhận thức hơn việc đơn thuần tăng XP.
+
+45. Và có một chỉ số còn quan trọng hơn Accuracy
+Transfer
+
+Ví dụ người chơi rất giỏi:
+
+Cell Wars
+
+nhưng sang:
+
+Network
+
+lại kém.
+
+Điều đó có thể cho thấy người chơi học surface pattern chứ chưa chắc đã nắm relation abstraction.
+
+Ngược lại:
+
+Cell game
+↓
+network game
+↓
+logic puzzle
+↓
+reading
+
+nếu relation được nhận ra trong các domain khác nhau thì đó mới là evidence tốt hơn về transfer.
+
+Brain Pro hiện đã có ý tưởng TransferScore; nên biến nó thành thành phần trung tâm thay vì chỉ là chỉ số phụ.
+
+46. Đây là kiến trúc tôi đề xuất cho Brain Pro v2
+                    BRAIN PRO
+                       │
+          ┌────────────┴────────────┐
+          ↓                         ↓
+       CONTENT                   ENGINE
+          │                         │
+   ┌──────┼──────┐          ┌───────┼────────┐
+   ↓      ↓      ↓          ↓       ↓        ↓
+Visual  Audio  Semantic   Entity  Relation  State
+                              │       │        │
+                              └───────┼────────┘
+                                      ↓
+                                  Dynamics
+                                      ↓
+                                   Action
+                                      ↓
+                                  Outcome
+                                      ↓
+                                  Evidence
+                                      ↓
+                              Cognitive Graph
+                                      ↓
+                                     DDA
+                                      ↓
+                             Next Challenge
+47. Và đây là vòng lặp luyện não
+
+Không nên là:
+
+Game → Score → XP
+
+Mà:
+
+Stimulus
+   ↓
+Observe
+   ↓
+Identify entities
+   ↓
+Identify relations
+   ↓
+Construct state
+   ↓
+Predict transition
+   ↓
+Act
+   ↓
+Observe outcome
+   ↓
+Compare prediction ↔ reality
+   ↓
+Correct model
+   ↓
+Repeat with variation
+   ↓
+Transfer to another domain
+
+Đây mới là loop tôi nghĩ Brain Pro nên xây.
+
+48. "Ghim vào não" nên hiểu thế nào?
+
+Không nên hiểu là:
+
+chơi 1000 lần → não tự ghi nhớ quan hệ.
+
+Mà nên thiết kế để một relation xuất hiện trong nhiều bối cảnh khác nhau.
+
+Ví dụ:
+
+DEPENDENCY
+
+Ngày 1:
+
+Cell A depends on B
+
+Ngày 2:
+
+Task A depends on Task B
+
+Ngày 3:
+
+Code module A depends on B
+
+Ngày 4:
+
+Sentence A depends on context B
+
+Ngày 5:
+
+Cause A depends on condition B
+
+Lúc đó:
+
+surface changes
+       ↓
+relation remains
+       ↓
+abstraction strengthens
+
+Đây là thứ tôi sẽ ưu tiên hơn việc tăng độ khó vô hạn.
+
+49. Vì vậy một Relation nên có "Family"
+
+Ví dụ:
+
+DEPENDENCY
+│
+├── spatial dependency
+├── temporal dependency
+├── causal dependency
+├── logical dependency
+├── structural dependency
+└── resource dependency
+
+Tương tự:
+
+TRANSFORM
+│
+├── object transform
+├── state transform
+├── identity transform
+├── spatial transform
+├── semantic transform
+└── rule transform
+
+Đây sẽ là mạng khái niệm thật sự.
+
+50. Difficulty không chỉ tăng bằng tốc độ
+
+Đây là lỗi phổ biến của brain-training game.
+
+Không nên:
+
+Level 1 = 10s
+Level 2 = 8s
+Level 3 = 6s
+...
+
+mãi.
+
+Brain Pro nên có ít nhất 10 chiều difficulty:
+
+1. number of entities
+2. number of relations
+3. relation ambiguity
+4. state complexity
+5. temporal delay
+6. distractors
+7. hidden information
+8. prediction depth
+9. rule switching
+10. transfer distance
+
+Ví dụ:
+
+Level 1
+A → B
+
+Level 5
+A → B → C
+
+Level 10
+A → B → C → D
++ distractors
+
+Level 15
+dynamic network
+
+Level 20
+hidden relation
+
+∞
+dynamic + hidden + conflicting rules
+51. Tôi đặc biệt đề xuất "Relation Mutation"
+
+Ví dụ hôm nay:
+
+A → B = SUPPORT
+
+Lần sau:
+
+A → B = ATTACK
+
+Lần nữa:
+
+A → B = DEPEND
+
+Visual có thể gần giống nhau.
+
+Não phải bỏ:
+
+"hình dạng này = đáp án này"
+
+và chuyển sang:
+
+"quan hệ hiện tại là gì?"
+
+Đây là cách chống rote learning / memorization of surface features.
+
+52. Và "Rule Mutation"
+
+Ví dụ:
+
+Trial 1
+RED → ATTACK
+GREEN → HEAL
+Trial 2
+RED → HEAL
+GREEN → ATTACK
+Trial 3
+RED → FREEZE
+
+Não phải liên tục cập nhật:
+
+RULE STATE
+
+Đây kết nối trực tiếp với RULE_ACTION + INHIBITION trong kiến trúc hiện tại.
+
+53. Một bước còn cao hơn: Rule về Relation
+
+Thay vì:
+
+A attacks B
+
+hãy có:
+
+IF A is connected to B
+AND B is protected
+THEN attack is ineffective
+
+Tức:
+
+Relation
+   ↓
+modifies
+   ↓
+another Relation
+
+Đây là meta-relation.
+
+Ví dụ:
+
+PROTECTED_BY
+     ↓
+modifies
+     ↓
+ATTACK
+
+Đây là tầng tư duy rất mạnh.
+
+54. Cuối cùng Brain Pro sẽ có 4 loại "não"
+
+Tôi sẽ tổ chức thành:
+
+🧩 1. Object Brain
+
+Nhận biết:
+
+Đây là cái gì?
+
+identity
+feature
+category
+🔗 2. Relation Brain
+
+Nhận biết:
+
+Nó liên quan với cái gì?
+
+spatial
+temporal
+causal
+logical
+structural
+🌊 3. Dynamics Brain
+
+Nhận biết:
+
+Nếu thay đổi A thì hệ thống sẽ thế nào?
+
+STATE₀
+→ ACTION
+→ STATE₁
+🧠 4. Model Brain
+
+Nhận biết:
+
+Quy luật chung nằm phía sau nhiều tình huống là gì?
+
+Cell
+Task
+Person
+Code
+Sound
+Number
+Sentence
+
+       ↓
+
+same abstract relation
+
+Tầng 4 mới là nơi Brain Pro thực sự khác một app game luyện phản xạ.
+
+55. Nếu đưa Cell Expansion Wars vào roadmap Brain Pro
+
+Tôi sẽ làm theo thứ tự:
+
+Phase A — Relational Engine
+Entity
+Relation
+RelationState
+EntityState
+Action
+Rule
+Constraint
+Transition
+Phase B — Network Game
+Connect
+Cut
+Attack
+Heal
+Transform
+Freeze
+Protect
+Core
+Phase C — Prediction
+Predict next state
+Predict affected nodes
+Predict cascade
+Phase D — Memory
+Hide network
+Recall nodes
+Recall relations
+Recall state
+Phase E — Transfer
+
+Cùng một relation:
+
+Cell
+↓
+Graph
+↓
+Number
+↓
+Word
+↓
+Sound
+↓
+Reading
+Phase F — Adaptive Brain
+
+DDA không chỉ hỏi:
+
+"Bạn làm đúng bao nhiêu?"
+
+mà:
+
+"Quan hệ nào đang yếu?"
+
+"Bạn sai ở Entity, Relation hay Dynamics?"
+
+"Bạn hiểu quan hệ nhưng phản ứng chậm?"
+
+"Bạn phản ứng nhanh nhưng prediction kém?"
+
+"Bạn làm được trong game nhưng không transfer sang domain khác?"
+
+Đây mới là cá nhân hóa thật sự.
+
+56. Một schema rất quan trọng cho Brain Pro
+
+Tôi sẽ định nghĩa mỗi challenge như:
+
+interface CognitiveChallenge {
+
+  entities: Entity[];
+
+  relations: Relation[];
+
+  initialState: State;
+
+  rules: Rule[];
+
+  constraints: Constraint[];
+
+  availableActions: Action[];
+
+  expectedTransition: Transition;
+
+  targetRelations: RelationId[];
+
+  distractorRelations: Relation[];
+
+  difficulty: DifficultyVector;
+
+  transferDomain: Domain;
+}
+
+Và mỗi trial:
+
+interface TrialEvidence {
+
+  observedEntities: EntityObservation[];
+
+  inferredRelations: RelationInference[];
+
+  predictedState: State;
+
+  action: Action;
+
+  actualState: State;
+
+  predictionError: number;
+
+  reactionTime: number;
+
+  accuracy: number;
+
+  confidence: number;
+
+  targetRelations: RelationId[];
+
+  transferContext: string;
+}
+
+Đây là phần tôi nghĩ nên bổ sung vào kiến trúc hiện tại của Brain Pro, thay vì chỉ tạo thêm một game mới.
+
+57. Và quan trọng nhất: 3 lăng kính bạn đã chọn
+
+Nếu dùng đúng framework bạn đã xây dựng trước đây:
+
+Lăng kính 1 — STATE
+
+Hỏi:
+
+Entity đang ở trạng thái nào?
+
+HP = 30
+position = X
+status = frozen
+faction = enemy
+Lăng kính 2 — RELATION
+
+Hỏi:
+
+Entity này đang liên hệ với Entity nào?
+
+A CONNECT B
+B SUPPORT C
+C DEPEND D
+Lăng kính 3 — DYNAMICS
+
+Hỏi:
+
+Nếu State/Relation thay đổi thì hệ thống chuyển thành gì?
+
+CUT(A-B)
+      ↓
+B loses support
+      ↓
+B becomes damaged
+      ↓
+B disconnects C
+      ↓
+C becomes isolated
+
+Và Cell Expansion Wars thực chất là một game Dynamics State-State rất rõ ràng.
+
+58. Công thức tổng quát tôi đề xuất cho Brain Pro
+
+Có thể xem mỗi bài tập là:
+
+             ENVIRONMENT
+                  │
+                  ↓
+        ┌──────────────────┐
+        │   CURRENT STATE   │
+        └────────┬─────────┘
+                 ↓
+            PERCEPTION
+                 ↓
+         ENTITY RECOGNITION
+                 ↓
+        RELATION INFERENCE
+                 ↓
+          STATE MODEL
+                 ↓
+          PREDICTION
+                 ↓
+             ACTION
+                 ↓
+          TRANSITION
+                 ↓
+          NEW STATE
+             /     \
+            /       \
+       EXPECTED     ACTUAL
+            \       /
+             \     /
+          PREDICTION ERROR
+                 ↓
+             LEARNING
+                 ↓
+          RELATION MASTERY
+                 ↓
+          TRANSFER TEST
+                 ↓
+             DDA NEXT
+
+Đây là kiến trúc mà tôi nghĩ bạn nên lấy từ game này.
+
+Không phải "thêm một game tế bào".
+
+Mà là biến Brain Pro thành một hệ thống trong đó mọi game đều là những “thế giới khác nhau” nhưng dùng chung một ngôn ngữ sâu bên dưới: Entity → Relation → State → Rule → Action → Transition → Prediction → Feedback.
+
+Nếu làm được như vậy, 25 game hiện tại của Brain Pro sẽ không còn là 25 trò chơi độc lập nữa; chúng trở thành 25 môi trường khác nhau để ép não phát hiện cùng một mạng lưới quan hệ, rồi dần chuyển từ nhận biết → ghi nhớ → dự đoán → thích nghi → khái quát hóa. Kiến trúc hiện tại của dự án đã có nền khá gần với hướng này qua 12 cognitive relations, evidence theo trial, Brain Graph, mastery và DDA.
+
+Một lưu ý khoa học: thiết kế như trên có thể tạo ra các bài luyện về chú ý, trí nhớ làm việc, suy luận quan hệ và dự đoán trạng thái; không nên mặc định rằng điểm game tăng đồng nghĩa với việc mọi năng lực nhận thức ngoài game cũng tăng. Vì vậy transfer phải được đo riêng, thay vì suy ra từ game score.

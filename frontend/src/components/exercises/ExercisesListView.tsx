@@ -234,6 +234,16 @@ function renderExerciseIcon(slug: string) {
           <span className="text-[7px] font-black text-violet-300 tracking-wider">STREAM</span>
         </div>
       );
+    case 'relational-network':
+      return (
+        <div className="relative flex items-center justify-center text-white w-full h-full">
+          <div className="w-8 h-8 rounded-full border border-cyan-400/60 flex items-center justify-center shadow-[0_0_12px_rgba(6,182,212,0.6)]">
+            <div className="w-3 h-3 rounded-full bg-cyan-400 animate-ping" />
+          </div>
+          <div className="absolute top-1 right-2 w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_6px_#f43f5e]" />
+          <div className="absolute bottom-1 left-2 w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_6px_#f59e0b]" />
+        </div>
+      );
     default:
       return <Grid className="w-6 h-6 text-white" />;
   }

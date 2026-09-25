@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { Trophy, Award, Clock, ArrowRight, RotateCcw, Brain } from 'lucide-react';
+import { Trophy, Award, Clock, ArrowRight, RotateCcw, Brain, Lightbulb, Sparkles } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 
-import { IRawMetricsJson } from '@brain-exercises/shared';
+import { IRawMetricsJson, COGNITIVE_RELATIONS, EXERCISE_RELATION_MAP } from '@brain-exercises/shared';
 
 interface GameResultProps {
   score: number;
@@ -136,6 +136,63 @@ export const GameResultModal: React.FC<GameResultProps> = ({
             <p className="text-lg font-extrabold text-slate-800 dark:text-white mt-0.5">{timeSpentSec}s</p>
           </div>
         </div>
+
+        {/* Hướng Đến Phát Triển Nhận Thức (Cognitive Growth & Insights) */}
+        {(() => {
+          const events = rawMetricsJson?.relationEvents || [];
+          const predEvent = events.find(e => e.extra && typeof e.extra === 'object' && 'predictionError' in e.extra);
+          const primaryRelId = activeGameSlug ? EXERCISE_RELATION_MAP[activeGameSlug]?.primaryRelation : null;
+          const primaryDef = primaryRelId ? COGNITIVE_RELATIONS[primaryRelId] : null;
+
+          return (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-50/90 via-blue-50/60 to-cyan-50/90 dark:from-slate-800 dark:via-indigo-950/40 dark:to-slate-800 border border-indigo-200/80 dark:border-indigo-800/60 text-left space-y-2.5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-black text-indigo-700 dark:text-indigo-300">
+                  <Brain className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  Chỉ Dẫn Phát Triển Nhận Thức
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700 flex items-center gap-1">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  Tái Lập Synapse
+                </span>
+              </div>
+
+              {primaryDef && (
+                <div className="text-xs text-slate-700 dark:text-slate-300">
+                  <span className="font-semibold text-slate-500 dark:text-slate-400">Trọng tâm rèn luyện: </span>
+                  <strong className="text-indigo-600 dark:text-indigo-400">{primaryDef.nameVi}</strong>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">{primaryDef.descriptionVi}</p>
+                </div>
+              )}
+
+              {predEvent && predEvent.extra && (
+                <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-indigo-100 dark:border-indigo-900/60 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-medium">Độ khớp mô phỏng:</span>
+                    <p className="font-black text-slate-800 dark:text-white">
+                      {Math.max(0, Math.round((1 - (Number(predEvent.extra.predictionError) || 0)) * 100))}% chính xác
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-500 font-medium">Tự tin hiệu chuẩn:</span>
+                    <p className="font-black text-cyan-600 dark:text-cyan-400">
+                      {Math.round((Number(predEvent.extra.confidence) || 0.8) * 100)}%
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-start gap-2 pt-1 text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed border-t border-indigo-100 dark:border-indigo-900/50">
+                <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <span>
+                  {accuracyRate >= 85
+                    ? 'Bạn đang nắm rất vững quy luật tương tác. Hãy duy trì sự tập trung để nâng cao độ ổn định và sẵn sàng cho các biến thể đảo quy tắc.'
+                    : 'Gợi ý phát triển: Dành 2 giây quan sát tổng thể trước khi thao tác. Trực giác não bộ cần dữ kiện sai số dự đoán để tự hiệu chỉnh chính xác hơn.'}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
 
         {activeSynergy && (
           <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-400/10 to-orange-500/10 border border-amber-400/40 text-left">

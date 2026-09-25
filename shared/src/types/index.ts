@@ -32,7 +32,8 @@ export type ExerciseSlug =
   | 'chord-identify'       // Nhận Diện Hợp Âm
   | 'timbre-match'         // Phân Biệt Âm Sắc
   | 'sound-localization'  // Định Vị Âm Thanh 3D
-  | 'voice-track';         // Theo Dõi Bè Đa Thanh (Auditory Streaming)
+  | 'voice-track'          // Theo Dõi Bè Đa Thanh (Auditory Streaming)
+  | 'relational-network';  // Mạng Lưới Quan Hệ Động Học (Relational Dynamics)
 
 export type ArticulationType = 'legato' | 'staccato' | 'tenuto' | 'accent';
 

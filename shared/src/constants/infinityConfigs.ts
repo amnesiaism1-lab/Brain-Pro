@@ -2752,5 +2752,109 @@ export const INFINITY_LEVEL_CONFIGS: Record<ExerciseSlug, IExerciseLevelConfig[]
       infinityMetadata: { tier: 10, romanNumeral: '∞-X', pattern: 'infinite' },
       parametersJson: { infinityMode: true, voicesCount: 4, masterPolyphony: true }
     }
+  ],
+  // 27. Mạng Lưới Quan Hệ Động Học (relational-network)
+  'relational-network': [
+    {
+      level: 13,
+      timeLimitSec: 45,
+      targetItemCount: 6,
+      variantCode: 'INF_REL_DYNAMIC_TOPOLOGY',
+      variantName: '∞-I: Topo Động Học Biến Dạng',
+      infinityTier: 1,
+      infinityMetadata: { tier: 1, romanNumeral: '∞-I', pattern: 'cascade' },
+      parametersJson: { infinityMode: true, nodeCount: 6, movingObstacles: 1 }
+    },
+    {
+      level: 14,
+      timeLimitSec: 42,
+      targetItemCount: 6,
+      variantCode: 'INF_REL_DUAL_CORE',
+      variantName: '∞-II: Song Tâm Ngang Hàng (Dual Core Clash)',
+      infinityTier: 2,
+      infinityMetadata: { tier: 2, romanNumeral: '∞-II', pattern: 'mirror' },
+      parametersJson: { infinityMode: true, nodeCount: 7, dualCore: true }
+    },
+    {
+      level: 15,
+      timeLimitSec: 40,
+      targetItemCount: 7,
+      variantCode: 'INF_REL_PULSE_CASCADE',
+      variantName: '∞-III: Xung Lan Truyền Dây Chuyền',
+      infinityTier: 3,
+      infinityMetadata: { tier: 3, romanNumeral: '∞-III', pattern: 'cascade' },
+      parametersJson: { infinityMode: true, nodeCount: 8, cascadeDelayMs: 400 }
+    },
+    {
+      level: 16,
+      timeLimitSec: 38,
+      targetItemCount: 7,
+      variantCode: 'INF_REL_FIBONACCI_WEIGHT',
+      variantName: '∞-IV: Trọng Lực Quan Hệ Fibonacci',
+      infinityTier: 4,
+      infinityMetadata: { tier: 4, romanNumeral: '∞-IV', pattern: 'fibonacci' },
+      parametersJson: { infinityMode: true, nodeCount: 8, fibonacciCapacities: true }
+    },
+    {
+      level: 17,
+      timeLimitSec: 35,
+      targetItemCount: 8,
+      variantCode: 'INF_REL_CHAOS_INTERFERENCE',
+      variantName: '∞-V: Nhiễu Loạn Hỗn Mang & Xung Đột',
+      infinityTier: 5,
+      infinityMetadata: { tier: 5, romanNumeral: '∞-V', pattern: 'chaos' },
+      parametersJson: { infinityMode: true, nodeCount: 9, ghostDistractors: 2 }
+    },
+    {
+      level: 18,
+      timeLimitSec: 35,
+      targetItemCount: 8,
+      variantCode: 'INF_REL_PENDULUM_BARRIER',
+      variantName: '∞-VI: Rào Chắn Con Lắc Tuần Hoàn',
+      infinityTier: 6,
+      infinityMetadata: { tier: 6, romanNumeral: '∞-VI', pattern: 'pendulum' },
+      parametersJson: { infinityMode: true, nodeCount: 9, pendulumWalls: 2 }
+    },
+    {
+      level: 19,
+      timeLimitSec: 32,
+      targetItemCount: 9,
+      variantCode: 'INF_REL_REVERSE_POLARITY',
+      variantName: '∞-VII: Đảo Cực Phản Ứng Tức Thời',
+      infinityTier: 7,
+      infinityMetadata: { tier: 7, romanNumeral: '∞-VII', pattern: 'mirror' },
+      parametersJson: { infinityMode: true, nodeCount: 10, ruleSwitchActive: true }
+    },
+    {
+      level: 20,
+      timeLimitSec: 30,
+      targetItemCount: 10,
+      variantCode: 'INF_REL_SURGICAL_NANO_CUT',
+      variantName: '∞-VIII: Vi Phẫu Xúc Tu Độ Chính Xác Cao',
+      infinityTier: 8,
+      infinityMetadata: { tier: 8, romanNumeral: '∞-VIII', pattern: 'infinite' },
+      parametersJson: { infinityMode: true, nodeCount: 10, precisionRatioTolerance: 0.05 }
+    },
+    {
+      level: 21,
+      timeLimitSec: 28,
+      targetItemCount: 10,
+      variantCode: 'INF_REL_HIDDEN_GRAPH_INFERENCE',
+      variantName: '∞-IX: Nội Suy Mạng Lưới Che Khuất',
+      infinityTier: 9,
+      infinityMetadata: { tier: 9, romanNumeral: '∞-IX', pattern: 'infinite' },
+      parametersJson: { infinityMode: true, nodeCount: 11, hiddenEdgesRatio: 0.4 }
+    },
+    {
+      level: 22,
+      timeLimitSec: 25,
+      targetItemCount: 12,
+      variantCode: 'INF_REL_ZENITH_COGNITIVE_SYNAPSE',
+      variantName: '∞-X: Tuyệt Đỉnh Ma Trận Đồng Hóa Nơ-ron',
+      infinityTier: 10,
+      infinityMetadata: { tier: 10, romanNumeral: '∞-X', pattern: 'infinite' },
+      parametersJson: { infinityMode: true, nodeCount: 12, hyperNetwork: true }
+    }
   ]
 };
+

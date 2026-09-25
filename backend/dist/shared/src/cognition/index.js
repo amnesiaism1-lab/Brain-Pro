@@ -20,4 +20,5 @@ __exportStar(require("./evidence"), exports);
 __exportStar(require("./mastery"), exports);
 __exportStar(require("./dda-policy"), exports);
 __exportStar(require("./workouts-relation"), exports);
+__exportStar(require("./rde"), exports);
 //# sourceMappingURL=index.js.map
