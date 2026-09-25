@@ -86,6 +86,15 @@ interface AppState {
   darkMode: boolean;
   setDarkMode: (enabled: boolean) => void;
 
+  // Ear Training & Auditory Cognitive Settings
+  enableTonicAnchor: boolean;
+  setEnableTonicAnchor: (enabled: boolean) => void;
+  enableAmbientDrone: boolean;
+  setEnableAmbientDrone: (enabled: boolean) => void;
+  earConfusionMatrix: Record<string, number>;
+  recordEarConfusion: (pairKey: string) => void;
+  resetEarConfusion: () => void;
+
   // Reminders
   reminders: IUserReminder[];
   addReminder: (reminder: IUserReminder) => void;
@@ -206,6 +215,14 @@ export const useAppStore = create<AppState>((set, get) => {
   const savedLevel = Math.floor(Math.sqrt(savedXp / 100)) + 1;
   const savedSound = localStorage.getItem('be_sound') !== 'false';
   const savedDark = localStorage.getItem('be_dark') === 'true';
+  const savedTonicAnchor = localStorage.getItem('be_tonic_anchor') !== 'false';
+  const savedAmbientDrone = localStorage.getItem('be_ambient_drone') === 'true';
+
+  let initialEarConfusion: Record<string, number> = {};
+  try {
+    const raw = localStorage.getItem('be_ear_confusion');
+    if (raw) initialEarConfusion = JSON.parse(raw);
+  } catch {}
 
   let initialMasteries: Record<string, IUserExerciseMastery> = {};
   try {
@@ -535,6 +552,35 @@ export const useAppStore = create<AppState>((set, get) => {
         document.documentElement.classList.remove('dark');
       }
       set({ darkMode: enabled });
+    },
+
+    // Ear Training & Auditory Cognitive Settings
+    enableTonicAnchor: savedTonicAnchor,
+    setEnableTonicAnchor: (enabled) => {
+      localStorage.setItem('be_tonic_anchor', String(enabled));
+      set({ enableTonicAnchor: enabled });
+    },
+    enableAmbientDrone: savedAmbientDrone,
+    setEnableAmbientDrone: (enabled) => {
+      localStorage.setItem('be_ambient_drone', String(enabled));
+      set({ enableAmbientDrone: enabled });
+    },
+    earConfusionMatrix: initialEarConfusion,
+    recordEarConfusion: (pairKey: string) => {
+      set(state => {
+        const updated = {
+          ...state.earConfusionMatrix,
+          [pairKey]: (state.earConfusionMatrix[pairKey] || 0) + 1
+        };
+        try {
+          localStorage.setItem('be_ear_confusion', JSON.stringify(updated));
+        } catch {}
+        return { earConfusionMatrix: updated };
+      });
+    },
+    resetEarConfusion: () => {
+      localStorage.removeItem('be_ear_confusion');
+      set({ earConfusionMatrix: {} });
     },
 
     reminders: [

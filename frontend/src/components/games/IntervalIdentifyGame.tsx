@@ -9,20 +9,35 @@ import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
 import { EarTrainingLearningCard } from '../ui/EarTrainingLearningCard';
-import { Sliders, Volume2, RotateCcw, CheckCircle2, XCircle, Play, Headphones, GraduationCap, Zap } from 'lucide-react';
+import { Sliders, Volume2, RotateCcw, CheckCircle2, XCircle, Play, Headphones, GraduationCap, Zap, Anchor, Radio, Sparkles } from 'lucide-react';
 
 export const IntervalIdentifyGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
+  const { 
+    currentLevel, 
+    getExerciseLevel, 
+    setActiveGameSlug,
+    enableTonicAnchor,
+    setEnableTonicAnchor,
+    enableAmbientDrone,
+    setEnableAmbientDrone,
+    earConfusionMatrix,
+    recordEarConfusion
+  } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
 
   const effectiveLevel = getExerciseLevel('interval-identify') || currentLevel || 1;
   const isInfinity = effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
-  // Stable pool based on level
+  // Neuroscience-based structured progression:
+  // Level 1-2: Large contrast intervals (Unison, Major 3rd, Perfect 5th, Octave)
+  // Level 3-4: Major Diatonic scale steps (2M, 3M, 4P, 5P, 6M, 8P)
+  // Level 5-6: Diatonic + Minor intervals (2m, 3m, 6m, 7m, 7M)
+  // Level 7+: Full Chromatic + Tritone (4A) and Harmonic simultaneous mode
   const intervalPool = useMemo(() => {
     if (effectiveLevel <= 2) return ['1P', '3M', '5P', '8P'];
-    if (effectiveLevel <= 4) return ['2M', '3m', '3M', '4P', '5P', '6M', '8P'];
+    if (effectiveLevel <= 4) return ['2M', '3M', '4P', '5P', '6M', '8P'];
+    if (effectiveLevel <= 6) return ['2m', '2M', '3m', '3M', '4P', '5P', '6m', '6M', '7m', '7M', '8P'];
     return ['2m', '2M', '3m', '3M', '4P', '4A', '5P', '6m', '6M', '7m', '7M', '8P'];
   }, [effectiveLevel]);
 
@@ -73,6 +88,18 @@ export const IntervalIdentifyGame: React.FC = () => {
     setPlayingPreviewCode(null);
   }, [intervalPool, playbackMode, optionsCount]);
 
+  // Ambient Drone management effect
+  useEffect(() => {
+    if (hasStartedAudio && enableAmbientDrone && question?.rootNote) {
+      auditoryEngine.startDrone(question.rootNote, 0.07);
+    } else {
+      auditoryEngine.stopDrone();
+    }
+    return () => {
+      auditoryEngine.stopDrone();
+    };
+  }, [hasStartedAudio, enableAmbientDrone, question?.rootNote]);
+
   // Init on level change
   useEffect(() => {
     resetSession();
@@ -103,10 +130,17 @@ export const IntervalIdentifyGame: React.FC = () => {
       isPlayingRef.current = true;
       setIsPlaying(true);
       setHasStartedAudio(true);
+      const isFirstPlayOfRound = playedRoundRef.current !== round;
       playedRoundRef.current = round;
       setHasPlayedCurrentRound(true);
 
       await auditoryEngine.resumeAudioContext();
+
+      // Pre-roll Tonic Anchor if enabled on first play of round
+      if (enableTonicAnchor && isFirstPlayOfRound) {
+        await auditoryEngine.playTonicAnchor(qToPlay.rootNote, 'single', 0.6);
+        await new Promise(r => setTimeout(r, 260));
+      }
 
       const duration = isHyperSpeed ? 0.28 : 0.6;
       const gap = isHyperSpeed ? 180 : 420;
@@ -125,7 +159,21 @@ export const IntervalIdentifyGame: React.FC = () => {
       setIsPlaying(false);
       trialStartTimeRef.current = Date.now();
     }
-  }, [question, isHyperSpeed, round]);
+  }, [question, isHyperSpeed, round, enableTonicAnchor]);
+
+  // Manually re-hear tonic anchor root
+  const handlePlayAnchor = async () => {
+    if (isPlayingRef.current || !question) return;
+    try {
+      setIsPlaying(true);
+      await auditoryEngine.resumeAudioContext();
+      await auditoryEngine.playTonicAnchor(question.rootNote, 'chord', 0.85);
+    } catch (err) {
+      console.warn('Play anchor error:', err);
+    } finally {
+      setIsPlaying(false);
+    }
+  };
 
   // Preview an option's interval starting on question's rootNote
   const handlePreviewOption = async (e: React.MouseEvent, opt: IIntervalInfo) => {
@@ -216,6 +264,10 @@ export const IntervalIdentifyGame: React.FC = () => {
     if (isCorrect) {
       setCorrectCount(prev => prev + 1);
       setScore(prev => prev + 200);
+    } else {
+      // Record confusion pair for targeted pedagogical drilling
+      const confusionPairKey = [question.intervalCode, opt.code].sort().join(':');
+      recordEarConfusion(confusionPairKey);
     }
 
     emitTrialEvent({
@@ -224,7 +276,13 @@ export const IntervalIdentifyGame: React.FC = () => {
       relationId: 'SIMILARITY_DIFF',
       entities: {
         target: `${question.rootNote}-${question.targetNote}`,
-        response: opt.code
+        response: opt.code,
+        targetCode: question.intervalCode,
+        userChoiceCode: opt.code,
+        targetSemitones: question.intervalInfo.semitones,
+        userChoiceSemitones: opt.semitones,
+        semitoneDelta: Math.abs(question.intervalInfo.semitones - opt.semitones),
+        confusionPair: !isCorrect ? [question.intervalCode, opt.code].sort().join(':') : undefined
       },
       stateBefore: 'idle',
       stateAfter: 'answered',
@@ -239,6 +297,18 @@ export const IntervalIdentifyGame: React.FC = () => {
       }, 1500);
     }
   };
+
+  // Find most frequent confusion pair to display pedagogical alert
+  const frequentConfusionPair = useMemo(() => {
+    const entries = Object.entries(earConfusionMatrix);
+    if (entries.length === 0) return null;
+    const sorted = entries.sort((a, b) => b[1] - a[1]);
+    if (sorted[0] && sorted[0][1] >= 2) {
+      const pair = sorted[0][0].split(':');
+      return { pair, count: sorted[0][1] };
+    }
+    return null;
+  }, [earConfusionMatrix]);
 
   return (
     <div className="relative w-full max-w-4xl mx-auto my-2 p-5 sm:p-7 bg-[#FAF6F0] dark:bg-slate-900 border border-[#DCD3C3] dark:border-slate-800 rounded-3xl shadow-xl flex flex-col justify-between min-h-[580px] transition-all">
@@ -265,7 +335,7 @@ export const IntervalIdentifyGame: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs font-mono">
           <button
             type="button"
             onClick={() => setIsLearnMode(!isLearnMode)}
@@ -279,6 +349,35 @@ export const IntervalIdentifyGame: React.FC = () => {
             {isLearnMode ? <GraduationCap className="w-4 h-4 text-amber-500" /> : <Zap className="w-4 h-4" />}
             <span className="hidden sm:inline">{isLearnMode ? 'Chế độ Luyện Tai' : 'Thử Thách Nhanh'}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setEnableTonicAnchor(!enableTonicAnchor)}
+            className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+              enableTonicAnchor
+                ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-700 dark:text-indigo-300'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
+            }`}
+            title="Bật/Tắt Neo Âm Chủ (Tonic Anchor) - phát âm chuẩn trước mỗi câu giúp định vị cao độ tương đối"
+          >
+            <Anchor className={`w-3.5 h-3.5 ${enableTonicAnchor ? 'text-indigo-500' : ''}`} />
+            <span className="hidden sm:inline">Neo Âm Chủ</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setEnableAmbientDrone(!enableAmbientDrone)}
+            className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+              enableAmbientDrone
+                ? 'bg-teal-500/15 border-teal-500/40 text-teal-700 dark:text-teal-300'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
+            }`}
+            title="Bật/Tắt Âm Nền Drone (Ambient Drone) - duy trì âm chủ nền liên tục giúp nhận diện quãng theo Functional Ear Training"
+          >
+            <Radio className={`w-3.5 h-3.5 ${enableAmbientDrone ? 'text-teal-500 animate-pulse' : ''}`} />
+            <span className="hidden sm:inline">Nền Drone</span>
+          </button>
+
           <MidiStatusIndicator compact={true} />
           <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
             Câu: <span className="font-black text-cyan-600 dark:text-cyan-400">{round}/{maxRounds}</span>
@@ -304,28 +403,43 @@ export const IntervalIdentifyGame: React.FC = () => {
               <span>BẮT ĐẦU NGHE QUÃNG (BẤM ĐỂ PHÁT)</span>
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={() => playCurrentInterval()}
-              disabled={isPlaying}
-              className={`px-7 py-3 rounded-full font-black text-sm sm:text-base flex items-center gap-2.5 transition-all shadow-md active:scale-95 ${
-                isPlaying
-                  ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-2 border-cyan-500 animate-pulse'
-                  : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 border-2 border-cyan-400 shadow-cyan-500/30 hover:scale-105 cursor-pointer'
-              }`}
-            >
-              {isPlaying ? (
-                <>
-                  <Volume2 className="w-5 h-5 animate-spin" />
-                  <span>Đang phát quãng...</span>
-                </>
-              ) : (
-                <>
-                  <RotateCcw className="w-5 h-5" />
-                  <span>Nghe lại quãng</span>
-                </>
+            <>
+              <button
+                type="button"
+                onClick={() => playCurrentInterval()}
+                disabled={isPlaying}
+                className={`px-7 py-3 rounded-full font-black text-sm sm:text-base flex items-center gap-2.5 transition-all shadow-md active:scale-95 ${
+                  isPlaying
+                    ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-2 border-cyan-500 animate-pulse'
+                    : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 border-2 border-cyan-400 shadow-cyan-500/30 hover:scale-105 cursor-pointer'
+                }`}
+              >
+                {isPlaying ? (
+                  <>
+                    <Volume2 className="w-5 h-5 animate-spin" />
+                    <span>Đang phát quãng...</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-5 h-5" />
+                    <span>Nghe lại quãng</span>
+                  </>
+                )}
+              </button>
+
+              {question && (
+                <button
+                  type="button"
+                  onClick={handlePlayAnchor}
+                  disabled={isPlaying}
+                  className="px-4 py-2.5 rounded-full font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-all shadow-sm bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 cursor-pointer active:scale-95"
+                  title="Nghe lại âm chủ (Root note / Tonic) của câu hỏi hiện tại"
+                >
+                  <Anchor className="w-4 h-4 text-indigo-500" />
+                  <span>Âm chủ: <strong>{question.rootNote}</strong></span>
+                </button>
               )}
-            </button>
+            </>
           )}
 
           <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
@@ -338,6 +452,18 @@ export const IntervalIdentifyGame: React.FC = () => {
       {!hasStartedAudio && (
         <div className="p-3.5 my-2 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-center text-xs text-cyan-800 dark:text-cyan-300 font-bold animate-pulse">
           🎧 Hãy bấm nút "BẮT ĐẦU NGHE QUÃNG" ở trên để nghe 2 nốt nhạc và chọn câu trả lời!
+        </div>
+      )}
+
+      {/* Frequent Confusion Alert Banner */}
+      {frequentConfusionPair && (
+        <div className="max-w-2xl mx-auto w-full my-2 px-3.5 py-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+            <span>
+              <strong>Phát hiện nhầm lẫn thính giác:</strong> Bạn đang hay nhầm giữa <strong>{frequentConfusionPair.pair[0]}</strong> và <strong>{frequentConfusionPair.pair[1]}</strong> ({frequentConfusionPair.count} lần). Hãy chú ý độ rộng nửa cung!
+            </span>
+          </div>
         </div>
       )}
 
@@ -411,9 +537,16 @@ export const IntervalIdentifyGame: React.FC = () => {
           isCorrect={selectedOption?.code === question.intervalCode}
           rootNote={question.rootNote}
           targetNotes={[question.targetNote]}
+          userNotes={selectedOption && question ? [
+            question.playbackDirection === 'descending'
+              ? transposeNote(question.rootNote, '-' + selectedOption.code)
+              : transposeNote(question.rootNote, selectedOption.code)
+          ] : []}
           correctName={question.intervalInfo.nameVi}
           correctCode={question.intervalInfo.code}
           correctDescription={`${question.intervalInfo.semitones} nửa cung • ${question.intervalInfo.ratioDescription}`}
+          correctSemitones={question.intervalInfo.semitones}
+          userChoiceSemitones={selectedOption?.semitones}
           mnemonicSong={question.intervalInfo.mnemonicSongVi}
           pedagogicalTip={question.intervalInfo.tipVi}
           userChoiceName={selectedOption?.nameVi}

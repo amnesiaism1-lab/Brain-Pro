@@ -25,6 +25,7 @@ import { RhythmRecallGame } from './RhythmRecallGame';
 import { ChordIdentifyGame } from './ChordIdentifyGame';
 import { TimbreMatchGame } from './TimbreMatchGame';
 import { SoundLocalizationGame } from './SoundLocalizationGame';
+import { auditoryEngine } from '../../services/auditoryEngine';
 import { EXERCISES_METADATA } from '@brain-exercises/shared';
 import { Sparkles, Zap, Flame, ArrowRight, X } from 'lucide-react';
 
@@ -37,6 +38,13 @@ export const ActiveGameContainer: React.FC = () => {
     suggestedSynergy, 
     dismissSynergy 
   } = useAppStore();
+
+  // Ensure any ambient drone or lingering sound stops when switching games or closing
+  React.useEffect(() => {
+    return () => {
+      auditoryEngine.stopDrone();
+    };
+  }, [activeGameSlug]);
 
   if (!activeGameSlug) return null;
 

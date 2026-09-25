@@ -8,6 +8,8 @@ export interface IADSREnvelope {
   release: number;  // seconds (e.g. 0.3)
 }
 
+export type TimbrePreset = 'acoustic-piano' | 'electric-piano' | 'pure-sine' | 'warm-saw' | 'woodwind';
+
 export interface IPlayNoteOptions {
   volume?: number;
   pan?: number;               // -1.0 (left) to 1.0 (right)
@@ -17,6 +19,7 @@ export interface IPlayNoteOptions {
   filterCutoff?: number;      // Hz
   filterType?: BiquadFilterType;
   filterQ?: number;
+  timbrePreset?: TimbrePreset;
 }
 
 interface IActiveVoice {
@@ -33,6 +36,10 @@ class AuditoryEngine {
   private noiseBuffer: AudioBuffer | null = null;
   private isUnlocked = false;
   private activeVoices: Map<string, IActiveVoice> = new Map();
+  private droneOscs: OscillatorNode[] = [];
+  private droneGain: GainNode | null = null;
+  private isDroneRunning = false;
+  private currentDroneNote = 'C3';
 
   public initContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -475,6 +482,205 @@ class AuditoryEngine {
         await new Promise(r => setTimeout(r, arpeggioDelayMs));
       }
       await new Promise(r => setTimeout(r, Math.round(durationSec * 1000) + 150));
+    }
+  }
+
+  /**
+   * Play a Tonic Anchor (neo âm chủ) to firmly establish tonal center in auditory cortex
+   * @param tonicNote Root note name (default 'C4')
+   * @param mode 'chord' (Tonic Triad) | 'single' (Root + Octave tuning fork) | 'cadence' (V -> I resolution)
+   */
+  public async playTonicAnchor(
+    tonicNote = 'C4',
+    mode: 'chord' | 'single' | 'cadence' = 'chord',
+    durationSec = 1.0
+  ): Promise<void> {
+    await this.resumeAudioContext();
+    const cleanNote = tonicNote.toUpperCase();
+    const oct = parseInt(cleanNote.slice(-1), 10) || 4;
+    const letter = cleanNote.slice(0, -1);
+
+    if (mode === 'single') {
+      // Deep tuning-fork anchor: Root + Low Octave
+      const lowOctave = `${letter}${Math.max(2, oct - 1)}`;
+      this.playNote(lowOctave, durationSec * 1.1, { volume: 0.32, waveform: 'triangle' });
+      this.playNote(tonicNote, durationSec, { volume: 0.38, waveform: 'sine' });
+      await new Promise(r => setTimeout(r, Math.round(durationSec * 1000) + 100));
+    } else if (mode === 'cadence') {
+      // V -> I Classical cadence to lock tonal expectation
+      // Determine approximate Dominant (V)
+      const domRoot = letter === 'C' ? 'G' : letter === 'F' ? 'C' : letter === 'G' ? 'D' : 'G';
+      const domNotes = [`${domRoot}${oct - 1}`, `${domRoot}#` ? `${domRoot}${oct}` : `${domRoot}${oct}`];
+      await this.playChord([`${domRoot}${oct - 1}`, `${letter}${oct}`], 'block', 0.42);
+      await new Promise(r => setTimeout(r, 80));
+      // Resolve to Tonic triad
+      await this.playChord([tonicNote, `${letter}${oct}`], 'arpeggio', durationSec, 40);
+    } else {
+      // Tonic Triad (or open fifth for universal diatonic stability)
+      const baseFreq = getNoteFrequency(tonicNote);
+      if (baseFreq > 0) {
+        // Root + 5th (e.g. C4 + G4) + Octave (C5)
+        const fifthFreq = baseFreq * 1.4983; // equal tempered fifth
+        const octFreq = baseFreq * 2.0;
+
+        this.playNote(baseFreq, durationSec * 1.1, { volume: 0.35, waveform: 'triangle' });
+        setTimeout(() => {
+          this.playNote(fifthFreq, durationSec * 0.95, { volume: 0.28, waveform: 'sine' });
+        }, 35);
+        setTimeout(() => {
+          this.playNote(octFreq, durationSec * 0.85, { volume: 0.22, waveform: 'triangle' });
+        }, 70);
+
+        await new Promise(r => setTimeout(r, Math.round(durationSec * 1000) + 120));
+      }
+    }
+  }
+
+  /**
+   * Start a continuous ambient background drone to anchor relative pitch perception
+   * @param tonicNote Anchor root note (default 'C3')
+   * @param volume Subtle ambient gain (default 0.08)
+   */
+  public startDrone(tonicNote = 'C3', volume = 0.08): void {
+    const ctx = this.initContext();
+    if (!ctx || !this.masterGain) return;
+
+    // If drone is already running for same note, leave it
+    if (this.isDroneRunning && this.currentDroneNote === tonicNote) return;
+    this.stopDrone(0.2);
+
+    const baseFreq = getNoteFrequency(tonicNote) || 130.81; // C3
+    const fifthFreq = baseFreq * 1.4983; // G3
+    const now = ctx.currentTime;
+
+    try {
+      const droneGain = ctx.createGain();
+      droneGain.gain.setValueAtTime(0.0001, now);
+      droneGain.gain.linearRampToValueAtTime(volume, now + 0.8);
+
+      // Lowpass filter for smooth, warm ambient pad
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(360, now);
+      filter.Q.setValueAtTime(1.0, now);
+
+      filter.connect(droneGain);
+      droneGain.connect(this.masterGain);
+
+      // Fundamental oscillator (Root)
+      const osc1 = ctx.createOscillator();
+      osc1.type = 'triangle';
+      osc1.frequency.setValueAtTime(baseFreq, now);
+      osc1.connect(filter);
+      osc1.start(now);
+
+      // 5th interval harmonic drone oscillator
+      const osc2 = ctx.createOscillator();
+      const osc2Gain = ctx.createGain();
+      osc2Gain.gain.setValueAtTime(0.5, now);
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(fifthFreq, now);
+      osc2.connect(osc2Gain);
+      osc2Gain.connect(filter);
+      osc2.start(now);
+
+      this.droneOscs = [osc1, osc2];
+      this.droneGain = droneGain;
+      this.isDroneRunning = true;
+      this.currentDroneNote = tonicNote;
+    } catch (e) {
+      console.warn('startDrone error:', e);
+    }
+  }
+
+  /**
+   * Stop continuous ambient drone with smooth fade out
+   */
+  public stopDrone(fadeSec = 0.4): void {
+    if (!this.isDroneRunning || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    try {
+      if (this.droneGain) {
+        this.droneGain.gain.cancelScheduledValues(now);
+        this.droneGain.gain.setValueAtTime(this.droneGain.gain.value, now);
+        this.droneGain.gain.linearRampToValueAtTime(0.0001, now + fadeSec);
+      }
+      const oscsToStop = [...this.droneOscs];
+      setTimeout(() => {
+        oscsToStop.forEach(osc => {
+          try {
+            osc.stop();
+            osc.disconnect();
+          } catch {}
+        });
+      }, Math.round((fadeSec + 0.05) * 1000));
+    } catch (e) {
+      console.warn('stopDrone error:', e);
+    } finally {
+      this.droneOscs = [];
+      this.droneGain = null;
+      this.isDroneRunning = false;
+    }
+  }
+
+  /**
+   * Check if ambient drone is currently sounding
+   */
+  public isDroneActive(): boolean {
+    return this.isDroneRunning;
+  }
+
+  /**
+   * Play a note with explicit Timbre Preset for forced variability learning
+   */
+  public playPresetNote(
+    noteOrFreq: string | number,
+    durationSec = 0.5,
+    preset: TimbrePreset = 'acoustic-piano',
+    options: IPlayNoteOptions = {}
+  ): void {
+    switch (preset) {
+      case 'pure-sine':
+        this.playNote(noteOrFreq, durationSec, {
+          ...options,
+          waveform: 'sine',
+          volume: options.volume ?? 0.42,
+          adsr: { attack: 0.03, decay: 0.1, sustain: 0.7, release: durationSec * 0.3 }
+        });
+        break;
+      case 'electric-piano':
+        this.playNote(noteOrFreq, durationSec, {
+          ...options,
+          waveform: 'sine',
+          filterCutoff: 3400,
+          filterType: 'lowpass',
+          volume: options.volume ?? 0.36,
+          adsr: { attack: 0.012, decay: 0.22, sustain: 0.45, release: durationSec * 0.4 }
+        });
+        break;
+      case 'warm-saw':
+        this.playNote(noteOrFreq, durationSec, {
+          ...options,
+          waveform: 'sawtooth',
+          filterCutoff: 1600,
+          filterQ: 1.2,
+          volume: options.volume ?? 0.28,
+          adsr: { attack: 0.025, decay: 0.2, sustain: 0.5, release: durationSec * 0.35 }
+        });
+        break;
+      case 'woodwind':
+        this.playNote(noteOrFreq, durationSec, {
+          ...options,
+          waveform: 'triangle',
+          filterCutoff: 2200,
+          volume: options.volume ?? 0.38,
+          adsr: { attack: 0.05, decay: 0.15, sustain: 0.75, release: durationSec * 0.25 }
+        });
+        break;
+      case 'acoustic-piano':
+      default:
+        this.playNote(noteOrFreq, durationSec, options);
+        break;
     }
   }
 

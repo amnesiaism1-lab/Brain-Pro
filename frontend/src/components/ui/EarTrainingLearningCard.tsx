@@ -30,10 +30,13 @@ export interface IEarTrainingLearningCardProps {
   // Target question details
   questionTitle?: string;
   rootNote: string;
-  targetNotes: string[]; // Keys to highlight on piano
+  targetNotes: string[]; // Keys to highlight on piano (correct target)
+  userNotes?: string[];  // Keys chosen by user (highlighted in red/rose if wrong)
   correctName: string;
   correctCode: string;
   correctDescription?: string;
+  correctSemitones?: number;
+  userChoiceSemitones?: number;
   mnemonicSong?: string;
   pedagogicalTip?: string;
   
@@ -68,9 +71,12 @@ export const EarTrainingLearningCard: React.FC<IEarTrainingLearningCardProps> = 
   questionTitle,
   rootNote,
   targetNotes,
+  userNotes = [],
   correctName,
   correctCode,
   correctDescription,
+  correctSemitones,
+  userChoiceSemitones,
   mnemonicSong,
   pedagogicalTip,
   userChoiceName,
@@ -127,6 +133,33 @@ export const EarTrainingLearningCard: React.FC<IEarTrainingLearningCardProps> = 
     };
   }, [isAnswered, isAutoAdvancePaused, onNextRound]);
 
+  // Auto-play A/B temporal comparison when user makes an incorrect choice
+  useEffect(() => {
+    if (!isAnswered || isAnswerTrulyCorrect || !onPlayUserChoice) return;
+
+    let isCancelled = false;
+    const timer = setTimeout(async () => {
+      if (isCancelled) return;
+      try {
+        setActiveAudioTag('correct');
+        onPlayCorrectSample();
+        await new Promise(r => setTimeout(r, 1100));
+        if (isCancelled) return;
+        setActiveAudioTag('user');
+        onPlayUserChoice();
+        await new Promise(r => setTimeout(r, 1000));
+        if (!isCancelled) setActiveAudioTag(null);
+      } catch (err) {
+        console.warn('Auto A/B playback error:', err);
+      }
+    }, 450);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isAnswered, isAnswerTrulyCorrect, onPlayCorrectSample, onPlayUserChoice]);
+
   const handlePlayAudio = (tag: 'question' | 'user' | 'correct') => {
     setActiveAudioTag(tag);
     if (tag === 'question') onPlayQuestion();
@@ -143,15 +176,15 @@ export const EarTrainingLearningCard: React.FC<IEarTrainingLearningCardProps> = 
     navigateToTheory(theoryModuleId);
   };
 
-  // Determine piano octave range based on notes
+  // Determine piano octave range based on notes (including user choice notes)
   const octaveRange: [number, number] = React.useMemo(() => {
-    const allNotes = [rootNote, ...targetNotes].filter(Boolean);
+    const allNotes = [rootNote, ...targetNotes, ...userNotes].filter(Boolean);
     const octaves = allNotes.map(n => parseInt(n.slice(-1), 10)).filter(n => !isNaN(n));
     if (octaves.length === 0) return [4, 5];
     const min = Math.min(...octaves);
     const max = Math.max(...octaves);
     return [Math.max(3, min), Math.max(min + 1, Math.min(6, max))];
-  }, [rootNote, targetNotes]);
+  }, [rootNote, targetNotes, userNotes]);
 
   // Merge piano active notes
   const pianoNotes = React.useMemo(() => {
@@ -361,12 +394,30 @@ export const EarTrainingLearningCard: React.FC<IEarTrainingLearningCardProps> = 
             </div>
           </div>
 
+          {/* Semitone Distance Analysis Banner (When incorrect) */}
+          {!isAnswerTrulyCorrect && correctSemitones !== undefined && userChoiceSemitones !== undefined && (
+            <div className="p-3 px-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex flex-wrap items-center justify-between gap-2.5 text-xs animate-in fade-in">
+              <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300 font-medium">
+                <span className="w-5 h-5 rounded-lg bg-rose-500/20 text-rose-700 dark:text-rose-300 font-black flex items-center justify-center text-[10px]">Δ</span>
+                <span>
+                  Khoảng cách đúng: <strong className="font-bold text-emerald-600 dark:text-emerald-400">{correctSemitones} bán cung</strong> • Bạn chọn: <strong className="font-bold text-rose-600 dark:text-rose-400">{userChoiceSemitones} bán cung</strong>
+                </span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-lg bg-rose-500/20 text-rose-700 dark:text-rose-300 font-black font-mono text-[11px]">
+                {Math.abs(correctSemitones - userChoiceSemitones) === 0 ? 'Cùng số bán âm' : `Lệch ${Math.abs(correctSemitones - userChoiceSemitones)} nửa cung`}
+              </span>
+            </div>
+          )}
+
           {/* Visual Piano Pattern Insight */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs font-bold">
               <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <Music className="w-3.5 h-3.5 text-amber-500" />
-                Khuôn Hình Nốt Trên Đàn Piano: <span className="font-mono text-cyan-600 dark:text-cyan-400 font-black">{pianoNotes.join(' - ')}</span>
+                Khuôn Hình Nốt Trên Đàn: <span className="font-mono text-emerald-600 dark:text-emerald-400 font-black">{pianoNotes.join(' - ')} (Đúng)</span>
+                {userNotes.length > 0 && !isAnswerTrulyCorrect && (
+                  <span className="font-mono text-rose-500 font-bold ml-1.5">• {userNotes.join(' - ')} (Bạn chọn)</span>
+                )}
               </span>
               {correctDescription && (
                 <span className="text-[11px] font-mono font-bold text-amber-600 dark:text-amber-400">
@@ -379,6 +430,7 @@ export const EarTrainingLearningCard: React.FC<IEarTrainingLearningCardProps> = 
               <PianoKeyboard
                 octaveRange={octaveRange}
                 selectedNotes={pianoNotes}
+                wrongNotes={!isAnswerTrulyCorrect ? userNotes : []}
                 disabled={true}
                 showLabels={true}
                 autoPlayAudio={false}

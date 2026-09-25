@@ -9,10 +9,17 @@ import { PianoKeyboard } from '../ui/PianoKeyboard';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
-import { Volume2, RotateCcw, Play, Music, Sparkles, GraduationCap, Zap, CheckCircle2, XCircle, ArrowRight, BookOpen } from 'lucide-react';
+import { Volume2, RotateCcw, Play, Music, Sparkles, GraduationCap, Zap, CheckCircle2, XCircle, ArrowRight, BookOpen, Anchor } from 'lucide-react';
 
 export const PitchRecallGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory } = useAppStore();
+  const { 
+    currentLevel, 
+    getExerciseLevel, 
+    setActiveGameSlug, 
+    navigateToTheory,
+    enableTonicAnchor,
+    setEnableTonicAnchor
+  } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
 
   const effectiveLevel = getExerciseLevel('pitch-recall') || currentLevel || 1;
@@ -107,9 +114,17 @@ export const PitchRecallGame: React.FC = () => {
       setIsPlayingAudio(true);
       setHasStartedAudio(true);
       setPhase('listen');
+      const isFirstPlay = playedRoundRef.current !== round;
       playedRoundRef.current = round;
 
       await auditoryEngine.resumeAudioContext();
+
+      // Pre-roll Tonic Anchor if enabled on first play of round
+      if (enableTonicAnchor && isFirstPlay) {
+        const anchorNote = seqToPlay[0] || 'C4';
+        await auditoryEngine.playTonicAnchor(anchorNote, 'single', 0.65);
+        await new Promise(r => setTimeout(r, 280));
+      }
 
       for (let i = 0; i < seqToPlay.length; i++) {
         const note = seqToPlay[i];
@@ -142,7 +157,20 @@ export const PitchRecallGame: React.FC = () => {
       setPhase('recall');
       trialStartTimeRef.current = Date.now();
     }
-  }, [targetSequence, showVisualHints, noteSpeedMs, isFibonacciTempo, isMicrotonal, round]);
+  }, [targetSequence, showVisualHints, noteSpeedMs, isFibonacciTempo, isMicrotonal, round, enableTonicAnchor]);
+
+  const handlePlayAnchor = async () => {
+    if (isPlayingRef.current || targetSequence.length === 0) return;
+    try {
+      setIsPlayingAudio(true);
+      await auditoryEngine.resumeAudioContext();
+      await auditoryEngine.playTonicAnchor(targetSequence[0] || 'C4', 'single', 0.8);
+    } catch (err) {
+      console.warn('Play anchor error:', err);
+    } finally {
+      setIsPlayingAudio(false);
+    }
+  };
 
   // Auto play sequence once when round starts IF user has already started audio
   useEffect(() => {
@@ -324,7 +352,7 @@ export const PitchRecallGame: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs font-mono">
           <button
             type="button"
             onClick={() => setIsLearnMode(!isLearnMode)}
@@ -347,6 +375,21 @@ export const PitchRecallGame: React.FC = () => {
               </>
             )}
           </button>
+
+          <button
+            type="button"
+            onClick={() => setEnableTonicAnchor(!enableTonicAnchor)}
+            className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+              enableTonicAnchor
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+            }`}
+            title="Bật/Tắt Neo Âm Chủ (Tonic Anchor) - phát âm chuẩn nốt đầu tiên giúp định hình cao độ tương đối"
+          >
+            <Anchor className={`w-3.5 h-3.5 ${enableTonicAnchor ? 'text-amber-500' : ''}`} />
+            <span className="hidden sm:inline">Neo Âm Chủ</span>
+          </button>
+
           <MidiStatusIndicator compact={true} />
           <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
             Hiệp: <span className="font-black text-amber-600 dark:text-amber-400">{round}/{maxRounds}</span>
@@ -389,13 +432,28 @@ export const PitchRecallGame: React.FC = () => {
           )}
 
           {hasStartedAudio && phase === 'recall' && (
-            <button
-              onClick={handleReplay}
-              disabled={isPlayingAudio}
-              className="px-4 py-2 rounded-full bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 border border-slate-300 dark:border-slate-700 shadow-sm transition-all cursor-pointer"
-            >
-              <RotateCcw className="w-4 h-4" /> Nghe lại
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleReplay}
+                disabled={isPlayingAudio}
+                className="px-4 py-2 rounded-full bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 border border-slate-300 dark:border-slate-700 shadow-sm transition-all cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4" /> Nghe lại chuỗi
+              </button>
+              {targetSequence[0] && (
+                <button
+                  type="button"
+                  onClick={handlePlayAnchor}
+                  disabled={isPlayingAudio}
+                  className="px-3.5 py-2 rounded-full bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-xs sm:text-sm font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5 border border-amber-300 dark:border-amber-700 shadow-sm transition-all cursor-pointer"
+                  title="Nghe lại nốt âm chủ đầu tiên để căn chuẩn thính giác"
+                >
+                  <Anchor className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Âm chủ: <strong>{targetSequence[0]}</strong></span>
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -433,6 +491,10 @@ export const PitchRecallGame: React.FC = () => {
           octaveRange={octaveRange}
           activeNotes={activeNotes}
           selectedNotes={userSequence}
+          wrongNotes={phase === 'feedback' && lastFeedback && !lastFeedback.isCorrect 
+            ? recordedUserSequence.filter((n, idx) => n !== lastFeedback.expected[idx]) 
+            : []
+          }
           disabled={isPlayingAudio || (phase === 'feedback' && isLearnMode)}
           onKeyClick={handleKeyClick}
           showLabels={showVisualHints || effectiveLevel <= 4}

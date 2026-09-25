@@ -9,10 +9,10 @@ import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
 import { EarTrainingLearningCard } from '../ui/EarTrainingLearningCard';
-import { Music, Volume2, RotateCcw, CheckCircle2, XCircle, Play, GraduationCap, Zap } from 'lucide-react';
+import { Music, Volume2, RotateCcw, CheckCircle2, XCircle, Play, GraduationCap, Zap, Anchor } from 'lucide-react';
 
 export const ChordIdentifyGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, enableTonicAnchor, setEnableTonicAnchor } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
 
   const effectiveLevel = getExerciseLevel('chord-identify') || currentLevel || 1;
@@ -103,10 +103,17 @@ export const ChordIdentifyGame: React.FC = () => {
       isPlayingRef.current = true;
       setIsPlaying(true);
       setHasStartedAudio(true);
+      const isFirstPlayOfRound = playedRoundRef.current !== round;
       playedRoundRef.current = round;
       setHasPlayedCurrentRound(true);
 
       await auditoryEngine.resumeAudioContext();
+
+      // Pre-roll Tonic Anchor if enabled on first play of round
+      if (enableTonicAnchor && isFirstPlayOfRound) {
+        await auditoryEngine.playTonicAnchor(qToPlay.rootNote, 'single', 0.6);
+        await new Promise(r => setTimeout(r, 260));
+      }
 
       await auditoryEngine.playChord(
         qToPlay.notes,
@@ -121,7 +128,20 @@ export const ChordIdentifyGame: React.FC = () => {
       setIsPlaying(false);
       trialStartTimeRef.current = Date.now();
     }
-  }, [question, playbackMode, round]);
+  }, [question, playbackMode, round, enableTonicAnchor]);
+
+  const handlePlayAnchor = async () => {
+    if (isPlayingRef.current || !question) return;
+    try {
+      setIsPlaying(true);
+      await auditoryEngine.resumeAudioContext();
+      await auditoryEngine.playTonicAnchor(question.rootNote, 'chord', 0.85);
+    } catch (err) {
+      console.warn('Play anchor error:', err);
+    } finally {
+      setIsPlaying(false);
+    }
+  };
 
   // Preview an option chord starting on question's rootNote
   const handlePreviewOption = async (e: React.MouseEvent, opt: IChordTypeInfo) => {
@@ -265,6 +285,21 @@ export const ChordIdentifyGame: React.FC = () => {
             {isLearnMode ? <GraduationCap className="w-4 h-4 text-amber-500" /> : <Zap className="w-4 h-4" />}
             <span className="hidden sm:inline">{isLearnMode ? 'Chế độ Luyện Tai' : 'Thử Thách Nhanh'}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setEnableTonicAnchor(!enableTonicAnchor)}
+            className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+              enableTonicAnchor
+                ? 'bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+            }`}
+            title="Bật/Tắt Neo Âm Chủ (Tonic Anchor) - phát âm chuẩn nốt gốc trước mỗi câu"
+          >
+            <Anchor className={`w-3.5 h-3.5 ${enableTonicAnchor ? 'text-purple-500' : ''}`} />
+            <span className="hidden sm:inline">Neo Âm Chủ</span>
+          </button>
+
           <MidiStatusIndicator compact={true} />
           <div className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold shadow-sm">
             Câu: <span className="font-black text-purple-600 dark:text-purple-400">{round}/{maxRounds}</span>
@@ -290,28 +325,43 @@ export const ChordIdentifyGame: React.FC = () => {
               <span>BẮT ĐẦU NGHE HỢP ÂM (BẤM ĐỂ PHÁT)</span>
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={() => playCurrentChord()}
-              disabled={isPlaying}
-              className={`px-7 py-3 rounded-full font-black text-sm sm:text-base flex items-center gap-2.5 transition-all shadow-md active:scale-95 ${
-                isPlaying
-                  ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-2 border-purple-500 animate-pulse'
-                  : 'bg-purple-600 hover:bg-purple-500 text-white border-2 border-purple-400 shadow-purple-600/30 hover:scale-105 cursor-pointer'
-              }`}
-            >
-              {isPlaying ? (
-                <>
-                  <Volume2 className="w-5 h-5 animate-spin" />
-                  <span>Đang vang hợp âm...</span>
-                </>
-              ) : (
-                <>
-                  <RotateCcw className="w-5 h-5" />
-                  <span>Nghe lại hợp âm</span>
-                </>
+            <>
+              <button
+                type="button"
+                onClick={() => playCurrentChord()}
+                disabled={isPlaying}
+                className={`px-7 py-3 rounded-full font-black text-sm sm:text-base flex items-center gap-2.5 transition-all shadow-md active:scale-95 ${
+                  isPlaying
+                    ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-2 border-purple-500 animate-pulse'
+                    : 'bg-purple-600 hover:bg-purple-500 text-white border-2 border-purple-400 shadow-purple-600/30 hover:scale-105 cursor-pointer'
+                }`}
+              >
+                {isPlaying ? (
+                  <>
+                    <Volume2 className="w-5 h-5 animate-spin" />
+                    <span>Đang vang hợp âm...</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-5 h-5" />
+                    <span>Nghe lại hợp âm</span>
+                  </>
+                )}
+              </button>
+
+              {question && (
+                <button
+                  type="button"
+                  onClick={handlePlayAnchor}
+                  disabled={isPlaying}
+                  className="px-4 py-2.5 rounded-full font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-all shadow-sm bg-purple-50 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 cursor-pointer active:scale-95"
+                  title="Nghe lại âm chủ (Root note) của hợp âm"
+                >
+                  <Anchor className="w-4 h-4 text-purple-500" />
+                  <span>Âm chủ: <strong>{question.rootNote}</strong></span>
+                </button>
               )}
-            </button>
+            </>
           )}
 
           <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
@@ -408,6 +458,7 @@ export const ChordIdentifyGame: React.FC = () => {
           isCorrect={selectedOption?.type === question.chordType}
           rootNote={question.rootNote}
           targetNotes={question.notes}
+          userNotes={selectedOption && question ? selectedOption.formula.map(interval => transposeNote(question.rootNote, interval)) : []}
           correctName={question.typeInfo.nameVi}
           correctCode={question.typeInfo.type}
           correctDescription={`Công thức: [${question.typeInfo.formula.join(', ')}] • ${question.typeInfo.feelDescription}`}

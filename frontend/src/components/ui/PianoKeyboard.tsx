@@ -5,7 +5,8 @@ import { auditoryEngine } from '../../services/auditoryEngine';
 
 export interface IPianoKeyboardProps {
   activeNotes?: string[];          // Notes currently glowing/sounding
-  selectedNotes?: string[];        // Notes selected by user
+  selectedNotes?: string[];        // Notes selected by user (or correct target notes)
+  wrongNotes?: string[];           // Notes selected wrongly (rendered in rose/red for immediate visual contrast)
   disabled?: boolean;
   showLabels?: boolean;
   octaveRange?: [number, number];  // e.g. [4, 4] for 1 octave, [4, 5] for 2 octaves
@@ -19,6 +20,7 @@ export interface IPianoKeyboardProps {
 export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
   activeNotes = [],
   selectedNotes = [],
+  wrongNotes = [],
   disabled = false,
   showLabels = true,
   octaveRange = [4, 4],
@@ -69,6 +71,7 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
         {whiteKeys.map((key) => {
           const isActive = mergedActiveNotes.includes(key.note);
           const isSelected = selectedNotes.includes(key.note);
+          const isWrong = wrongNotes.includes(key.note);
 
           return (
             <button
@@ -79,14 +82,16 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
               className={`relative w-10 sm:w-12 h-36 sm:h-44 rounded-b-lg border-r border-b border-l border-slate-300 transition-all duration-75 flex flex-col justify-end items-center pb-2.5 shadow-md active:scale-[0.98] ${
                 isActive
                   ? 'bg-amber-400 border-amber-500 shadow-lg shadow-amber-400/50 scale-[0.99] z-10'
+                  : isWrong
+                  ? 'bg-rose-500 border-rose-600 shadow-md shadow-rose-500/50 text-white z-10'
                   : isSelected
-                  ? 'bg-emerald-400 border-emerald-500 shadow-md shadow-emerald-400/40'
+                  ? 'bg-emerald-400 border-emerald-500 shadow-md shadow-emerald-400/40 text-slate-950 font-black'
                   : 'bg-gradient-to-b from-slate-100 to-white hover:from-slate-200 hover:to-slate-100'
               } ${disabled ? 'cursor-not-allowed opacity-90' : 'cursor-pointer'}`}
             >
               {showLabels && (
                 <span className={`text-[11px] font-bold tracking-tight select-none ${
-                  isActive || isSelected ? 'text-slate-950 font-black' : 'text-slate-600'
+                  isWrong ? 'text-white font-black' : (isActive || isSelected ? 'text-slate-950 font-black' : 'text-slate-600')
                 }`}>
                   {key.note}
                 </span>
@@ -106,6 +111,7 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
             const blackNoteName = `${noteLetter}#${oct}`;
             const isBlackActive = mergedActiveNotes.includes(blackNoteName);
             const isBlackSelected = selectedNotes.includes(blackNoteName);
+            const isBlackWrong = wrongNotes.includes(blackNoteName);
 
             if (!hasBlack) {
               return <div key={`spacer-${index}`} className="w-10 sm:w-12 pointer-events-none" />;
@@ -121,14 +127,16 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
                   className={`pointer-events-auto absolute top-0 right-0 w-6 sm:w-7 h-24 sm:h-28 rounded-b-md z-20 transition-all duration-75 flex flex-col justify-end items-center pb-2 shadow-lg border-b-2 active:scale-[0.96] ${
                     isBlackActive
                       ? 'bg-amber-400 border-amber-500 shadow-amber-400/60'
+                      : isBlackWrong
+                      ? 'bg-rose-600 border-rose-700 shadow-rose-600/60 text-white'
                       : isBlackSelected
-                      ? 'bg-emerald-400 border-emerald-500 shadow-emerald-400/50'
+                      ? 'bg-emerald-400 border-emerald-500 shadow-emerald-400/50 text-slate-950 font-black'
                       : 'bg-gradient-to-b from-slate-950 via-slate-900 to-slate-800 border-slate-700 hover:from-slate-800 hover:to-slate-700'
                   } ${disabled ? 'cursor-not-allowed opacity-90' : 'cursor-pointer'}`}
                 >
                   {showLabels && (
                     <span className={`text-[9px] font-bold select-none ${
-                      isBlackActive || isBlackSelected ? 'text-slate-950 font-black' : 'text-slate-300'
+                      isBlackWrong ? 'text-white font-black' : (isBlackActive || isBlackSelected ? 'text-slate-950 font-black' : 'text-slate-300')
                     }`}>
                       {blackNoteName.replace(/\d/, '')}
                     </span>
