@@ -805,9 +805,32 @@ export const MELODIC_CONTOURS: Record<string, IMelodicContourInfo> = {
   }
 };
 
+const DIATONIC_EXTENDED_SCALE = [
+  'G3', 'A3', 'B3', 
+  'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 
+  'C5', 'D5', 'E5', 'F5', 'G5', 'A5'
+];
+
+export function getContourSampleNotes(type: string): string[] {
+  switch (type) {
+    case 'ascend':
+      return ['C4', 'E4', 'G4', 'C5'];
+    case 'descend':
+      return ['C5', 'A4', 'F4', 'C4'];
+    case 'arch':
+      return ['C4', 'F4', 'A4', 'F4', 'D4'];
+    case 'inverted-arch':
+      return ['A4', 'E4', 'C4', 'E4', 'B4'];
+    case 'flat':
+      return ['G4', 'G4', 'G4', 'G4'];
+    case 'wave':
+    default:
+      return ['E4', 'A4', 'D4', 'G4', 'E4'];
+  }
+}
+
 export function generateContourQuestion(
-  allowedTypes: Array<'ascend' | 'descend' | 'arch' | 'inverted-arch' | 'flat' | 'wave'> = ['ascend', 'descend', 'arch', 'wave'],
-  startNote = 'C4'
+  allowedTypes: Array<'ascend' | 'descend' | 'arch' | 'inverted-arch' | 'flat' | 'wave'> = ['ascend', 'descend', 'arch', 'wave']
 ): {
   targetContour: IMelodicContourInfo;
   notes: string[];
@@ -815,18 +838,34 @@ export function generateContourQuestion(
 } {
   const chosenType = allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
   const targetContour = MELODIC_CONTOURS[chosenType];
+  const scale = DIATONIC_EXTENDED_SCALE;
 
-  // Scale degrees in C Major: C4, D4, E4, F4, G4, A4, B4, C5, D5
-  const scale = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5'];
-  let curIdx = scale.indexOf(startNote);
-  if (curIdx < 0) curIdx = 2; // E4
+  let curIdx = 7; // Default G4
+  if (chosenType === 'ascend') {
+    // Start low (C4 or D4) so it can strictly ascend
+    curIdx = 3 + Math.floor(Math.random() * 2);
+  } else if (chosenType === 'descend') {
+    // Start high (C5 or D5) so it can strictly descend
+    curIdx = 10 + Math.floor(Math.random() * 2);
+  } else if (chosenType === 'arch') {
+    // Start mid-low (D4) so it can ascend then descend
+    curIdx = 4;
+  } else if (chosenType === 'inverted-arch') {
+    // Start mid-high (B4) so it can descend then ascend
+    curIdx = 9;
+  } else if (chosenType === 'wave') {
+    // Start mid (F4) so it can oscillate
+    curIdx = 6;
+  }
 
   const notes = [scale[curIdx]];
   targetContour.parsonsPattern.forEach(dir => {
     if (dir === 'U') {
-      curIdx = Math.min(scale.length - 1, curIdx + (1 + Math.floor(Math.random() * 2)));
+      const step = 1 + Math.floor(Math.random() * 2);
+      curIdx = Math.min(scale.length - 1, curIdx + step);
     } else if (dir === 'D') {
-      curIdx = Math.max(0, curIdx - (1 + Math.floor(Math.random() * 2)));
+      const step = 1 + Math.floor(Math.random() * 2);
+      curIdx = Math.max(0, curIdx - step);
     }
     // 'R' retains curIdx
     notes.push(scale[curIdx]);
@@ -839,6 +878,38 @@ export function generateContourQuestion(
     notes,
     options
   };
+}
+
+/**
+ * Generate sequence for Level 11 (Octave Leap): features distinct octave jumps
+ * challenging pitch chroma vs pitch height perception.
+ */
+export function generateOctaveLeapSequence(length = 6): string[] {
+  const pitchClasses = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  const notes: string[] = [];
+  let lastPitch = 'C';
+
+  for (let i = 0; i < length; i++) {
+    if (i > 0 && (i % 2 === 1 || Math.random() < 0.55)) {
+      // Direct octave leap on the previous pitch class!
+      const prevNote = notes[i - 1];
+      const p = prevNote.slice(0, -1);
+      const prevOctave = parseInt(prevNote.slice(-1), 10);
+      const newOctave = prevOctave === 4 ? (Math.random() < 0.5 ? 5 : 3) : 4;
+      notes.push(`${p}${newOctave}`);
+      lastPitch = p;
+    } else {
+      let p = pitchClasses[Math.floor(Math.random() * pitchClasses.length)];
+      while (p === lastPitch) {
+        p = pitchClasses[Math.floor(Math.random() * pitchClasses.length)];
+      }
+      const oct = Math.random() < 0.6 ? 4 : (Math.random() < 0.5 ? 3 : 5);
+      notes.push(`${p}${oct}`);
+      lastPitch = p;
+    }
+  }
+
+  return notes;
 }
 
 // 4. Nốt Ngoại Điệu (Chromatic Oddball in-key vs out-of-key) - M0-4

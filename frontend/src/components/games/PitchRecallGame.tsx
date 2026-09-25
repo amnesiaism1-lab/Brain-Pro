@@ -8,13 +8,91 @@ import {
   generateRandomPitchSequence, 
   generateContourQuestion, 
   generateChromaticOddballQuestion, 
-  IMelodicContourInfo 
+  getContourSampleNotes,
+  generateOctaveLeapSequence,
+  IMelodicContourInfo,
+  MELODIC_CONTOURS
 } from '../../services/musicTheoryService';
 import { PianoKeyboard } from '../ui/PianoKeyboard';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
-import { Volume2, RotateCcw, Play, Music, Sparkles, GraduationCap, Zap, CheckCircle2, XCircle, ArrowRight, BookOpen, Anchor } from 'lucide-react';
+import { Volume2, RotateCcw, Play, Music, Sparkles, GraduationCap, Zap, CheckCircle2, XCircle, ArrowRight, BookOpen, Anchor, TrendingUp } from 'lucide-react';
+
+/**
+ * Interactive SVG Trajectory Graph for Melodic Contour
+ */
+const MelodicContourGraph: React.FC<{ notes: string[]; className?: string }> = ({ notes, className = '' }) => {
+  if (!notes || notes.length === 0) return null;
+
+  const semitoneMap: Record<string, number> = {
+    'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5, 'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11
+  };
+
+  const midiValues = notes.map(n => {
+    const pitch = n.slice(0, -1);
+    const oct = parseInt(n.slice(-1), 10) || 4;
+    return (oct * 12) + (semitoneMap[pitch] ?? 0);
+  });
+
+  const minMidi = Math.min(...midiValues);
+  const maxMidi = Math.max(...midiValues);
+  const range = Math.max(3, maxMidi - minMidi);
+
+  const width = 280;
+  const height = 80;
+  const padX = 28;
+  const padY = 18;
+
+  const points = midiValues.map((midi, i) => {
+    const x = padX + (i / Math.max(1, midiValues.length - 1)) * (width - 2 * padX);
+    const norm = (midi - minMidi) / range;
+    const y = height - padY - norm * (height - 2 * padY);
+    return { x, y, note: notes[i] };
+  });
+
+  const polylineStr = points.map(p => `${p.x},${p.y}`).join(' ');
+
+  return (
+    <div className={`flex flex-col items-center bg-slate-900/95 rounded-2xl p-2.5 border border-slate-800 shadow-md ${className}`}>
+      <span className="text-[10px] font-mono font-bold text-amber-400/90 mb-1 flex items-center gap-1">
+        <TrendingUp className="w-3 h-3 text-amber-400" /> Quỹ đạo cao độ (Melodic Pitch Curve)
+      </span>
+      <svg width={width} height={height} className="overflow-visible">
+        <defs>
+          <linearGradient id="contourLineGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#10b981" />
+            <stop offset="50%" stopColor="#f59e0b" />
+            <stop offset="100%" stopColor="#06b6d4" />
+          </linearGradient>
+        </defs>
+        {/* Trajectory Polyline */}
+        <polyline
+          fill="none"
+          stroke="url(#contourLineGrad)"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          points={polylineStr}
+        />
+        {/* Note Key Points */}
+        {points.map((p, idx) => (
+          <g key={idx}>
+            <circle cx={p.x} cy={p.y} r="5" fill="#f59e0b" stroke="#0f172a" strokeWidth="2" />
+            <text
+              x={p.x}
+              y={p.y - 8}
+              textAnchor="middle"
+              className="text-[9px] font-mono font-black fill-amber-300 drop-shadow-sm"
+            >
+              {p.note}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+};
 
 export const PitchRecallGame: React.FC = () => {
   const { 
@@ -33,6 +111,7 @@ export const PitchRecallGame: React.FC = () => {
 
   // Level configuration
   const isContourMode = effectiveLevel === 10;
+  const isOctaveLeap = effectiveLevel === 11;
   const isOddballMode = effectiveLevel === 12;
   const isReverseRecall = effectiveLevel === 9;
   const isChromaticStorm = effectiveLevel === 13;
@@ -45,6 +124,7 @@ export const PitchRecallGame: React.FC = () => {
     : effectiveLevel <= 2 ? 3 : effectiveLevel <= 4 ? 4 : effectiveLevel <= 7 ? 5 : effectiveLevel <= 10 ? 6 : 7;
 
   const octaveRange = useMemo<[number, number]>(() => {
+    if (effectiveLevel === 11) return [3, 5];
     return effectiveLevel >= 5 || isInfinity ? [4, 5] : [4, 4];
   }, [effectiveLevel, isInfinity]);
 
@@ -86,11 +166,18 @@ export const PitchRecallGame: React.FC = () => {
   // Generate new round
   const startNewRound = useCallback(() => {
     if (isContourMode) {
-      const q = generateContourQuestion(['ascend', 'descend', 'arch', 'wave'], 'C4');
+      const q = generateContourQuestion(['ascend', 'descend', 'arch', 'wave']);
       setContourQuestion(q);
       setSelectedContourType(null);
       targetSeqRef.current = q.notes;
       setTargetSequence(q.notes);
+      setUserSequence([]);
+      setLastFeedback(null);
+      setPhase('listen');
+    } else if (isOctaveLeap) {
+      const seq = generateOctaveLeapSequence(sequenceLength);
+      targetSeqRef.current = seq;
+      setTargetSequence(seq);
       setUserSequence([]);
       setLastFeedback(null);
       setPhase('listen');
@@ -115,7 +202,7 @@ export const PitchRecallGame: React.FC = () => {
       setLastFeedback(null);
       setPhase('listen');
     }
-  }, [sequenceLength, octaveRange, includeAccidentals, isContourMode, isOddballMode]);
+  }, [sequenceLength, octaveRange, includeAccidentals, isContourMode, isOctaveLeap, isOddballMode]);
 
   // Initial setup on level change
   useEffect(() => {
@@ -445,7 +532,15 @@ export const PitchRecallGame: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                {isContourMode ? 'Đường Nét Giai Điệu (Melodic Contour - Cấp 10)' : isOddballMode ? 'Nốt Ngoại Điệu (Chromatic Oddball - Cấp 12)' : 'Nhớ Cao Độ (Pitch Recall)'}
+                {isContourMode
+                  ? 'Đường Nét Giai Điệu (Melodic Contour - Cấp 10)'
+                  : isOctaveLeap
+                  ? 'Bước Nhảy Bát Độ (Octave Leaps - Cấp 11)'
+                  : isOddballMode
+                  ? 'Nốt Ngoại Điệu (Chromatic Oddball - Cấp 12)'
+                  : isReverseRecall
+                  ? 'Nhớ Cao Độ Đảo Ngược (Reverse Recall - Cấp 9)'
+                  : 'Nhớ Cao Độ (Pitch Recall)'}
               </h2>
               {isInfinity && (
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm">
@@ -456,10 +551,12 @@ export const PitchRecallGame: React.FC = () => {
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium">
               {isContourMode
                 ? 'Nhận diện hình dáng quỹ đạo của câu nhạc (Mã Parsons: Lên ↗, Xuống ↘, Cầu Vồng ∧, Lượn Sóng ∿)'
+                : isOctaveLeap
+                ? 'Phân biệt nốt cùng tên nhưng khác quãng tám (Pitch Chroma vs Pitch Height - Bước nhảy C3 ↔ C4 ↔ C5)'
                 : isOddballMode
                 ? 'Lắng nghe giai điệu trong âm giai Đô Trưởng và phát hiện nốt thăng lạ lẫm chen ngang'
                 : isReverseRecall
-                ? '⚠️ Chế độ đảo ngược: Nhập theo thứ tự TỪ CUỐI LÊN ĐẦU'
+                ? '⚠️ Chế độ đảo ngược: Nhập theo thứ tự TỪ CUỐI LÊN ĐẦU (Kích hoạt bộ nhớ làm việc thao tác ngược)'
                 : 'Lắng nghe chuỗi nốt và bấm lại theo đúng thứ tự (Hỗ trợ đàn MIDI)'}
             </p>
           </div>
@@ -781,9 +878,12 @@ export const PitchRecallGame: React.FC = () => {
                   </p>
                 )}
                 {isContourMode && contourQuestion && (
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
-                    💡 Mã Parsons: {contourQuestion.targetContour.parsonsPattern.join(' → ')} ({contourQuestion.targetContour.shapeDescriptionVi})
-                  </p>
+                  <div className="mt-2.5">
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                      💡 Mã Parsons: <strong className="text-amber-500">{contourQuestion.targetContour.parsonsPattern.join(' → ')}</strong> ({contourQuestion.targetContour.shapeDescriptionVi})
+                    </p>
+                    <MelodicContourGraph notes={lastFeedback.expected} className="mt-2" />
+                  </div>
                 )}
               </div>
 
@@ -808,9 +908,16 @@ export const PitchRecallGame: React.FC = () => {
                 </span>
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {isContourMode ? (
-                    <span className="px-3 py-1.5 rounded-lg text-xs font-black bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/30">
-                      {selectedContourType ? `${contourQuestion?.options.find(o => o.type === selectedContourType)?.symbol} ${contourQuestion?.options.find(o => o.type === selectedContourType)?.nameVi}` : 'Chưa chọn'}
-                    </span>
+                    <div>
+                      <span className="px-3 py-1.5 rounded-lg text-xs font-black bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/30 inline-block">
+                        {selectedContourType ? `${contourQuestion?.options.find(o => o.type === selectedContourType)?.symbol} ${contourQuestion?.options.find(o => o.type === selectedContourType)?.nameVi}` : 'Chưa chọn'}
+                      </span>
+                      {selectedContourType && (
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                          Mô tả: {contourQuestion?.options.find(o => o.type === selectedContourType)?.shapeDescriptionVi}
+                        </p>
+                      )}
+                    </div>
                   ) : isOddballMode ? (
                     <span className="px-3 py-1.5 rounded-lg text-xs font-black bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/30">
                       {selectedOddballIdx !== null ? `Nốt ${selectedOddballIdx + 1} (${oddballQuestion?.notes[selectedOddballIdx]})` : 'Chưa chọn'}
@@ -835,6 +942,18 @@ export const PitchRecallGame: React.FC = () => {
                 </div>
               </div>
 
+              {isContourMode && selectedContourType && !lastFeedback.isCorrect && (
+                <button
+                  type="button"
+                  disabled={isPlayingAudio || playingComparison !== null}
+                  onClick={() => playSequenceNotes(getContourSampleNotes(selectedContourType), 'user')}
+                  className="mt-3 w-full py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 ${playingComparison === 'user' ? 'animate-spin' : ''}`} />
+                  <span>{playingComparison === 'user' ? 'Đang phát...' : '🔊 Nghe thử mẫu hình bạn đã chọn'}</span>
+                </button>
+              )}
+
               {!isContourMode && !isOddballMode && (
                 <button
                   type="button"
@@ -854,8 +973,12 @@ export const PitchRecallGame: React.FC = () => {
             <p className="text-slate-600 dark:text-slate-400 text-xs italic">
               {isContourMode
                 ? '💡 Parsons Code: U=Up, D=Down, R=Repeat. Bộ não xử lý hình dáng giai điệu trước khi phân tích từng cao độ tuyệt đối.'
+                : isOctaveLeap
+                ? '💡 Bát độ tương đương (Octave Equivalence): C3, C4, C5 cùng một sắc âm (Chroma) nhưng khác độ cao vật lý (Height).'
                 : isOddballMode
                 ? '💡 Mọi giai điệu phương Tây đều dựa trên hệ âm chuẩn (tonal context). Nốt lạ kích hoạt phản ứng thính giác MMN (Mismatch Negativity).'
+                : isReverseRecall
+                ? '💡 Đảo ngược chuỗi âm thanh yêu cầu vùng não thùy trán (DLPFC) lưu trữ và thao tác đảo ngược trong trí nhớ làm việc.'
                 : '💡 Hãy chú ý cao độ tương đối giữa các nốt (nốt sau cao hơn hay trầm hơn nốt trước).'}
             </p>
             <button

@@ -663,9 +663,9 @@ exports.EXERCISES_METADATA = [
             { level: 7, timeLimitSec: 60, targetItemCount: 6, parametersJson: { sequenceLength: 6, octaveRange: [3, 5], keyCount: 17, accidentals: true, noteSpeedMs: 420 } },
             { level: 8, timeLimitSec: 60, targetItemCount: 7, parametersJson: { sequenceLength: 7, octaveRange: [3, 5], keyCount: 21, accidentals: true, noteSpeedMs: 400 } },
             { level: 9, timeLimitSec: 60, targetItemCount: 7, variantCode: 'REVERSE_PITCH', variantName: 'Đảo Ngược Chuỗi Âm', parametersJson: { sequenceLength: 6, reverseRecall: true, noteSpeedMs: 400 } },
-            { level: 10, timeLimitSec: 55, targetItemCount: 8, variantCode: 'RAPID_CADENCE', variantName: 'Chuỗi Hồi Mã Nhanh', parametersJson: { sequenceLength: 7, noteSpeedMs: 300, accidentals: true } },
-            { level: 11, timeLimitSec: 50, targetItemCount: 8, variantCode: 'OCTAVE_LEAP', variantName: 'Bước Nhảy Bát Độ', parametersJson: { sequenceLength: 8, octaveJumps: true, noteSpeedMs: 320 } },
-            { level: 12, timeLimitSec: 45, targetItemCount: 9, variantCode: 'POLYPHONIC_ECHO', variantName: 'Hồi Âm Đa Sắc Tộc', parametersJson: { sequenceLength: 8, reverseRecall: true, accidentals: true, noteSpeedMs: 280 } }
+            { level: 10, timeLimitSec: 55, targetItemCount: 4, variantCode: 'MELODIC_CONTOUR', variantName: 'Đường Nét Giai Điệu', parametersJson: { contourMode: true, parsonsCode: true, noteSpeedMs: 360 } },
+            { level: 11, timeLimitSec: 50, targetItemCount: 6, variantCode: 'OCTAVE_LEAP', variantName: 'Bước Nhảy Bát Độ', parametersJson: { sequenceLength: 6, octaveRange: [3, 5], octaveJumps: true, noteSpeedMs: 360 } },
+            { level: 12, timeLimitSec: 45, targetItemCount: 6, variantCode: 'CHROMATIC_ODDBALL', variantName: 'Nốt Ngoại Điệu', parametersJson: { sequenceLength: 6, oddballDetection: true, noteSpeedMs: 360 } }
         ]
     },
     {
