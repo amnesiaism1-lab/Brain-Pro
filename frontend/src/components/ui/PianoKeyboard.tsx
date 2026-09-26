@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Note } from 'tonal';
 import { PIANO_KEYS_88 } from '../../services/musicTheoryService';
 import { useMidiInput } from '../../hooks/useMidiInput';
 import { auditoryEngine } from '../../services/auditoryEngine';
@@ -16,6 +17,14 @@ export interface IPianoKeyboardProps {
   autoPlayAudio?: boolean;         // Auto play audio on MIDI or click (default true)
   showVelocityMeter?: boolean;     // Show real-time MIDI velocity touch readout (default true)
 }
+
+const BLACK_KEY_FLATS: Record<string, string> = {
+  'C': 'Db',
+  'D': 'Eb',
+  'F': 'Gb',
+  'G': 'Ab',
+  'A': 'Bb'
+};
 
 export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
   activeNotes = [],
@@ -44,6 +53,16 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
     }
   };
 
+  const isNoteInList = (keyNote: string, noteList: string[]): boolean => {
+    if (!noteList || noteList.length === 0) return false;
+    if (noteList.includes(keyNote)) return true;
+    const keyMidi = Note.midi(keyNote);
+    if (keyMidi !== null) {
+      return noteList.some(n => Note.midi(n) === keyMidi);
+    }
+    return false;
+  };
+
   const mergedActiveNotes = useMemo(() => {
     if (!enableMidiHighlight || activeMidiNotes.length === 0) {
       return activeNotes;
@@ -69,16 +88,21 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
       <div className="relative flex items-end">
         {/* White Keys */}
         {whiteKeys.map((key) => {
-          const isActive = mergedActiveNotes.includes(key.note);
-          const isSelected = selectedNotes.includes(key.note);
-          const isWrong = wrongNotes.includes(key.note);
+          const isActive = isNoteInList(key.note, mergedActiveNotes);
+          const isSelected = isNoteInList(key.note, selectedNotes);
+          const isWrong = isNoteInList(key.note, wrongNotes);
+
+          // Find exact label in selectedNotes if enharmonically matched
+          const keyMidi = Note.midi(key.note);
+          const matchedSelected = selectedNotes.find(n => Note.midi(n) === keyMidi);
+          const displayLabel = matchedSelected ? matchedSelected.replace(/\d/, '') : key.note;
 
           return (
             <button
               key={key.note}
               type="button"
               disabled={disabled}
-              onClick={() => handleKeyAction(key.note)}
+              onClick={() => handleKeyAction(matchedSelected || key.note)}
               className={`relative w-10 sm:w-12 h-36 sm:h-44 rounded-b-lg border-r border-b border-l border-slate-300 transition-all duration-75 flex flex-col justify-end items-center pb-2.5 shadow-md active:scale-[0.98] ${
                 isActive
                   ? 'bg-amber-400 border-amber-500 shadow-lg shadow-amber-400/50 scale-[0.99] z-10'
@@ -93,7 +117,7 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
                 <span className={`text-[11px] font-bold tracking-tight select-none ${
                   isWrong ? 'text-white font-black' : (isActive || isSelected ? 'text-slate-950 font-black' : 'text-slate-600')
                 }`}>
-                  {key.note}
+                  {displayLabel}
                 </span>
               )}
             </button>
@@ -109,12 +133,30 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
             // Black keys exist after C, D, F, G, A
             const hasBlack = ['C', 'D', 'F', 'G', 'A'].includes(noteLetter);
             const blackNoteName = `${noteLetter}#${oct}`;
-            const isBlackActive = mergedActiveNotes.includes(blackNoteName);
-            const isBlackSelected = selectedNotes.includes(blackNoteName);
-            const isBlackWrong = wrongNotes.includes(blackNoteName);
+            const flatNoteName = `${BLACK_KEY_FLATS[noteLetter]}${oct}`;
+            
+            const isBlackActive = isNoteInList(blackNoteName, mergedActiveNotes);
+            const isBlackSelected = isNoteInList(blackNoteName, selectedNotes);
+            const isBlackWrong = isNoteInList(blackNoteName, wrongNotes);
 
             if (!hasBlack) {
               return <div key={`spacer-${index}`} className="w-10 sm:w-12 pointer-events-none" />;
+            }
+
+            // Determine optimal label: if user's scale or active note uses flat, display flat!
+            const keyMidi = Note.midi(blackNoteName);
+            const matchedSelected = selectedNotes.find(n => Note.midi(n) === keyMidi);
+            const matchedActive = mergedActiveNotes.find(n => Note.midi(n) === keyMidi);
+            const relevantNote = matchedActive || matchedSelected;
+            
+            let labelText = `${noteLetter}#`;
+            if (relevantNote && relevantNote.includes('b')) {
+              labelText = BLACK_KEY_FLATS[noteLetter];
+            } else if (relevantNote && relevantNote.includes('#')) {
+              labelText = `${noteLetter}#`;
+            } else {
+              // Default shows both sharp & flat e.g. "A#/Bb"
+              labelText = `${noteLetter}#/${BLACK_KEY_FLATS[noteLetter]}`;
             }
 
             return (
@@ -122,7 +164,7 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
                 <button
                   type="button"
                   disabled={disabled}
-                  onClick={() => handleKeyAction(blackNoteName)}
+                  onClick={() => handleKeyAction(relevantNote || blackNoteName)}
                   style={{ transform: 'translateX(50%)' }}
                   className={`pointer-events-auto absolute top-0 right-0 w-6 sm:w-7 h-24 sm:h-28 rounded-b-md z-20 transition-all duration-75 flex flex-col justify-end items-center pb-2 shadow-lg border-b-2 active:scale-[0.96] ${
                     isBlackActive
@@ -135,10 +177,10 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
                   } ${disabled ? 'cursor-not-allowed opacity-90' : 'cursor-pointer'}`}
                 >
                   {showLabels && (
-                    <span className={`text-[9px] font-bold select-none ${
+                    <span className={`text-[8px] sm:text-[9px] font-bold leading-tight select-none text-center px-0.5 ${
                       isBlackWrong ? 'text-white font-black' : (isBlackActive || isBlackSelected ? 'text-slate-950 font-black' : 'text-slate-300')
                     }`}>
-                      {blackNoteName.replace(/\d/, '')}
+                      {labelText}
                     </span>
                   )}
                 </button>
