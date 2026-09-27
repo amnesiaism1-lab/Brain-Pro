@@ -968,6 +968,36 @@ export const EXERCISES_METADATA: IExercise[] = [
       { level: 11, timeLimitSec: 45, targetItemCount: 11, variantCode: 'RULE_STROOP_CASCADE_HYBRID', variantName: 'Giao Thoa Stroop Động Lực', parametersJson: { stroopClashHybrid: true } },
       { level: 12, timeLimitSec: 40, targetItemCount: 12, variantCode: 'RULE_SUPREME_EXECUTIVE_CONTROL', variantName: 'Kiểm Soát Điều Hành Tối Cao', parametersJson: { supremeSpeed: true, timeLimitPerItemMs: 1100 } }
     ]
+  },
+  {
+    id: 'ex-vocal-pitch-match',
+    categoryId: 'cat-6',
+    categoryCode: 'AUDITORY_MEMORY',
+    categoryName: 'Trí Nhớ Âm Thanh',
+    slug: 'vocal-pitch-match',
+    title: 'Cảm Âm & Dò Cao Độ Giọng Hát',
+    subtitle: 'Luyện tai nghe và kiểm soát cao độ giọng hát qua Microphone thời gian thực',
+    iconName: 'Mic',
+    scientificBasis: 'Kích hoạt vòng hồi tiếp thính giác - thanh quản (Auditory-Vocal Feedback Loop), rèn luyện độ nhạy cảm của vùng Broca và thùy thái dương trên (Superior Temporal Gyrus) trong việc hiệu chỉnh vi sai cao độ theo thời gian thực.',
+    instructions: 'Lắng nghe nốt nhạc tham chiếu hoặc quan sát dải cao độ mục tiêu. Sau đó cất giọng hát và giữ cao độ chuẩn xác trên đường băng năng lượng trước khi hết thời gian.',
+    rulesSummary: 'Hát khớp cao độ với độ lệch cents trong ngưỡng an toàn. Giữ nốt ổn định để sạc đầy thanh năng lượng và hoàn thành bài tập.',
+    maxDifficultyLevel: 12,
+    defaultDurationSec: 60,
+    isFeatured: true,
+    levelConfigs: [
+      { level: 1, timeLimitSec: 45, targetItemCount: 3, parametersJson: { noteCount: 1, centsTolerance: 50, holdDurationMs: 1500, referenceDrone: true, sequenceType: 'single' } },
+      { level: 2, timeLimitSec: 45, targetItemCount: 3, parametersJson: { noteCount: 1, centsTolerance: 40, holdDurationMs: 1800, referenceDrone: true, sequenceType: 'single' } },
+      { level: 3, timeLimitSec: 45, targetItemCount: 4, parametersJson: { noteCount: 1, centsTolerance: 35, holdDurationMs: 2000, referenceDrone: false, sequenceType: 'single' } },
+      { level: 4, timeLimitSec: 50, targetItemCount: 4, parametersJson: { noteCount: 1, centsTolerance: 28, holdDurationMs: 2200, referenceDrone: false, sequenceType: 'single' } },
+      { level: 5, timeLimitSec: 50, targetItemCount: 4, parametersJson: { noteCount: 2, centsTolerance: 25, holdDurationMs: 1800, sequenceType: 'interval', intervalType: 'consonant' } },
+      { level: 6, timeLimitSec: 55, targetItemCount: 5, parametersJson: { noteCount: 2, centsTolerance: 22, holdDurationMs: 2000, sequenceType: 'interval', intervalType: 'dissonant' } },
+      { level: 7, timeLimitSec: 55, targetItemCount: 5, parametersJson: { noteCount: 3, centsTolerance: 20, holdDurationMs: 1600, sequenceType: 'arpeggio', triad: 'major' } },
+      { level: 8, timeLimitSec: 60, targetItemCount: 6, parametersJson: { noteCount: 3, centsTolerance: 18, holdDurationMs: 1800, sequenceType: 'arpeggio', triad: 'minor' } },
+      { level: 9, timeLimitSec: 60, targetItemCount: 6, variantCode: 'VOCAL_PENTATONIC_CALL', variantName: 'Xướng Âm Ngũ Cung', parametersJson: { noteCount: 4, centsTolerance: 18, holdDurationMs: 1500, sequenceType: 'scale' } },
+      { level: 10, timeLimitSec: 60, targetItemCount: 5, variantCode: 'VOCAL_DIATONIC_CONTOUR', variantName: 'Giai Điệu Bảy Âm Liên Hoàn', parametersJson: { noteCount: 5, centsTolerance: 16, holdDurationMs: 1400, sequenceType: 'melody' } },
+      { level: 11, timeLimitSec: 55, targetItemCount: 5, variantCode: 'VOCAL_OCTAVE_SWITCH', variantName: 'Bước Nhảy Quãng Tám Thanh Quản', parametersJson: { noteCount: 4, centsTolerance: 15, holdDurationMs: 1500, octaveJump: true } },
+      { level: 12, timeLimitSec: 50, targetItemCount: 5, variantCode: 'VOCAL_MICROTONE_MASTERY', variantName: 'Bậc Thầy Vi Sai Cao Độ Phòng Thu', parametersJson: { noteCount: 5, centsTolerance: 12, holdDurationMs: 2000, microtoneStrict: true } }
+    ]
   }
 ];
 
@@ -1969,6 +1999,24 @@ export const EXERCISE_SYNERGIES: IExerciseSynergy[] = [
     title: 'Hòa Âm Thính Giác & Mạng Lưới Nơ-ron',
     description: 'Cảm nhận quãng hòa âm thuận tai khi nối các điểm nút, kết hợp nhận diện quãng âm nâng cao cảm thụ thính giác.',
     bonusXpPercent: 30
+  },
+  {
+    id: 'syn-vocal-pitch-recall',
+    exerciseASlug: 'vocal-pitch-match',
+    exerciseBSlug: 'pitch-recall',
+    synergyType: 'COMPLEMENTARY',
+    title: 'Hồi Tiếp Cảm Âm & Xướng Âm Toàn Diện',
+    description: 'Luyện tai nghe và thanh quản đồng bộ: vừa ghi nhớ chuỗi cao độ vừa xướng âm chuẩn xác với độ nhạy vi sai cents cao.',
+    bonusXpPercent: 30
+  },
+  {
+    id: 'syn-vocal-interval',
+    exerciseASlug: 'vocal-pitch-match',
+    exerciseBSlug: 'interval-identify',
+    synergyType: 'PROGRESSIVE',
+    title: 'Xướng Âm Quãng Nhạc Thực Chiến',
+    description: 'Nhận diện khoảng cách cao độ kết hợp hát xướng âm tức thì theo thang âm tương đối chuẩn phòng thu.',
+    bonusXpPercent: 35
   }
 ];
 

@@ -287,6 +287,17 @@ exports.EXERCISE_RELATION_MAP = {
             7: ['INHIBITION', 'SIMILARITY_DIFF'],
             10: ['INHIBITION', 'FOCUS_FIELD']
         }
+    },
+    'vocal-pitch-match': {
+        slug: 'vocal-pitch-match',
+        primaryRelation: 'SIMILARITY_DIFF',
+        secondaryRelations: ['ORDER_SEQUENCE', 'TEMPORAL_PREDICT'],
+        levelAffinity: {
+            1: ['SIMILARITY_DIFF'],
+            5: ['SIMILARITY_DIFF', 'ORDER_SEQUENCE'],
+            9: ['SIMILARITY_DIFF', 'TEMPORAL_PREDICT'],
+            13: ['SIMILARITY_DIFF', 'ORDER_SEQUENCE']
+        }
     }
 };
 function getRelationsForExercise(slug, level) {

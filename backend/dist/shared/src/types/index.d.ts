@@ -1,5 +1,5 @@
 export type CognitiveCategoryCode = 'SPEED_READING' | 'PERIPHERAL_VISION' | 'MEMORY' | 'ATTENTION' | 'REACTION' | 'AUDITORY_MEMORY';
-export type ExerciseSlug = 'anagram' | 'schulte-table' | 'find-letter' | 'find-number' | 'even-odd' | 'digit-span' | 'rsvp-speed-reader' | 'word-search' | 'twin-words' | 'peripheral-vision' | 'green-dot' | 'word-chunking' | 'reading-assessment' | 'reading-pacer' | 'text-scanning' | 'card-flip' | 'stroop-clash' | 'spatial-memory' | 'saccade-tracker' | 'pitch-recall' | 'interval-identify' | 'rhythm-recall' | 'chord-identify' | 'timbre-match' | 'sound-localization' | 'voice-track' | 'relational-network' | 'causal-cascade' | 'graph-memory-matrix' | 'rule-mutation-clash';
+export type ExerciseSlug = 'anagram' | 'schulte-table' | 'find-letter' | 'find-number' | 'even-odd' | 'digit-span' | 'rsvp-speed-reader' | 'word-search' | 'twin-words' | 'peripheral-vision' | 'green-dot' | 'word-chunking' | 'reading-assessment' | 'reading-pacer' | 'text-scanning' | 'card-flip' | 'stroop-clash' | 'spatial-memory' | 'saccade-tracker' | 'pitch-recall' | 'interval-identify' | 'rhythm-recall' | 'chord-identify' | 'timbre-match' | 'sound-localization' | 'voice-track' | 'relational-network' | 'causal-cascade' | 'graph-memory-matrix' | 'rule-mutation-clash' | 'vocal-pitch-match';
 export type ArticulationType = 'legato' | 'staccato' | 'tenuto' | 'accent';
 export type MelodicContourCode = 'UP' | 'DOWN' | 'REPEAT' | 'ARCH' | 'INVERTED_ARCH';
 export type CadenceType = 'AUTHENTIC' | 'HALF' | 'DECEPTIVE' | 'PLAGAL';
@@ -266,4 +266,31 @@ export interface IUser {
 export interface IAuthResponse {
     token: string;
     user: IUser;
+}
+export type VocalRangePreference = 'bass-baritone' | 'tenor-alto' | 'soprano' | 'auto';
+export interface IVocalPitchConfig {
+    centsTolerance: number;
+    holdDurationMs: number;
+    noteCount: number;
+    sequenceType?: 'single' | 'interval' | 'arpeggio' | 'scale' | 'melody' | 'chromatic';
+    preferredOctave?: number;
+    referenceDrone?: boolean;
+    tempoBpm?: number;
+}
+export interface IVocalPitchTracePoint {
+    tMs: number;
+    freqHz: number;
+    cents: number;
+    clarity: number;
+    targetNote: string;
+    matched: boolean;
+}
+export interface IVocalPitchAttemptTelemetry {
+    targetNotes: string[];
+    vocalRangeUsed: VocalRangePreference;
+    avgCentsDeviation: number;
+    vibratoRateHz?: number;
+    stabilityPct: number;
+    pitchTraceDownsampled: IVocalPitchTracePoint[];
+    accuracyPct: number;
 }

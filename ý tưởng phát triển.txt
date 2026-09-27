@@ -1,0 +1,140 @@
+Kế Hoạch Phát Triển: Pitch Tracker Thời Gian Thực Cho Cảm Âm (Vocal Pitch Training)
+
+Trước khi đi vào chi tiết, cần chỉnh lại một điểm quan trọng trong mô hình: đây không phải là mở rộng của 6 bài trong nhóm AUDITORY_MEMORY hiện có (pitch-recall, interval-identify, chord-identify...). Toàn bộ 6 bài đó nhận input qua click/MIDI keyboard — hệ thống phát âm ra, người dùng bấm lại. Cái bạn đang muốn là hoàn toàn khác về bản chất kỹ thuật: microphone → phân tích cao độ giọng hát → phản hồi tức thời. Đây là một pipeline audio-input mới toanh, chưa tồn tại trong kiến trúc hiện tại (service hiện có là auditoryEngine.ts để phát âm, midiService.ts để nhận phím, không có module nào nghe và phân tích giọng hát). Tôi sẽ lập kế hoạch cho nó như một hệ thống con độc lập, tích hợp vào Brain-Pro.
+
+1. Lõi kỹ thuật: chọn thuật toán pitch detection
+
+Đây là quyết định quan trọng nhất — chọn sai sẽ khiến toàn bộ tính năng lag hoặc sai quãng tám liên tục.
+
+Thuật toán	Độ chính xác	Độ trễ	Vấn đề chính
+Autocorrelation thô	Trung bình	Thấp	Dễ nhầm bội âm (octave error)
+FFT + Harmonic Product Spectrum	Trung bình	Thấp	Độ phân giải tần số kém ở âm trầm
+YIN / McLeod Pitch Method (MPM)	Cao (dưới 5 cents)	Rất thấp (~vài ms xử lý)	Không
+CREPE (deep learning, TensorFlow.js)	Rất cao	Cao hơn, cần tải model ~nhiều MB	Nặng, không cần thiết cho giọng hát đơn âm
+
+Giọng hát solo là nguồn đơn âm (monophonic) — bạn không cần đến CREPE (vốn được thiết kế để xử lý cả các nguồn phức tạp/polyphonic). MPM là lựa chọn hợp lý nhất: nhẹ, chạy 100% client-side, không tốn chi phí server, và xử lý octave error tốt hơn autocorrelation thuần túy nhờ cơ chế Normalized Square Difference Function.
+
+Đề xuất cụ thể: dùng thư viện pitchy (implement MPM bằng JS thuần, ESM, có type TypeScript sẵn — khớp với stack TS 5.7 hiện tại của bạn). API cốt lõi:
+
+ts
+import { PitchDetector } from "pitchy";
+
+const detector = PitchDetector.forFloat32Array(bufferSize);
+const [pitchHz, clarity] = detector.findPitch(inputBuffer, sampleRate);
+// clarity: 0–1, độ tin cậy của kết quả — dùng để lọc nhiễu/im lặng
+
+clarity chính là chìa khóa để phân biệt "đang hát" và "im lặng/tạp âm" — set ngưỡng ví dụ clarity > 0.9 mới nhận kết quả.
+
+2. Kiến trúc pipeline thời gian thực (client-side)
+getUserMedia (mic)
+   → MediaStreamAudioSourceNode
+      → AudioWorkletNode (chạy pitchy trên audio thread riêng)
+         → port.postMessage({ freq, clarity, timestamp }) mỗi buffer
+            → Main thread (React): smoothing → map sang nốt nhạc + cents lệch
+               → render UI (pitch curve, kim lệch cents, highlight phím ảo)
+
+Vì sao bắt buộc dùng AudioWorklet, không dùng ScriptProcessorNode (dù cái sau viết đơn giản hơn): ScriptProcessorNode chạy trên main thread → sẽ giật lag UI React khi cả game loop lẫn phân tích audio tranh chấp thread. AudioWorklet chạy trên thread âm thanh riêng, không bị ảnh hưởng bởi re-render.
+
+Buffer size hợp lý: 2048 samples ở 44.1kHz ≈ 46ms/frame — đủ để phân giải các nốt trầm (E2 ~82Hz cần ít nhất ~2-3 chu kỳ sóng để MPM hoạt động tốt) mà vẫn giữ độ trễ cảm nhận được là "tức thời" (<100ms tổng end-to-end là ngưỡng chấp nhận được cho phản hồi thời gian thực).
+
+Skeleton của AudioWorkletProcessor:
+
+js
+// pitch-processor.js
+class PitchProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.buffer = new Float32Array(2048);
+    this.writeIndex = 0;
+  }
+  process(inputs) {
+    const input = inputs[0][0];
+    if (!input) return true;
+    for (let i = 0; i < input.length; i++) {
+      this.buffer[this.writeIndex++] = input[i];
+      if (this.writeIndex === this.buffer.length) {
+        this.port.postMessage({ samples: this.buffer.slice(), sampleRate });
+        this.writeIndex = 0;
+      }
+    }
+    return true;
+  }
+}
+registerProcessor("pitch-processor", PitchProcessor);
+
+Việc chạy pitchy.findPitch() có thể thực hiện ngay trong worklet (nếu bundler hỗ trợ import ESM vào worklet context) hoặc gửi raw samples ra main thread rồi xử lý — cân nhắc theo cách bundle Vite hiện tại của bạn (Vite 6 hỗ trợ ?worker và inline worklet khá tốt, nên ưu tiên xử lý ngay trong worklet để giảm lượng data postMessage).
+
+Sau khi có freq, việc map sang tên nốt + độ lệch cents tái sử dụng được musicTheoryService.ts sẵn có của bạn:
+
+noteNumber = 12 * log2(freq / 440) + 69
+nearestNote = round(noteNumber)
+centsDeviation = (noteNumber - nearestNote) * 100
+3. Thiết kế trải nghiệm bài tập (game design)
+
+Đề xuất thêm bài tập mới, ví dụ slug vocal-pitch-match (nhóm AUDITORY_MEMORY, bài thứ 26), với 2 chế độ tăng dần theo độ khó — khớp với mô hình 22 cấp (12 chuẩn + 10 Infinity) bạn đang dùng:
+
+Cấp 1–4 (Single Note Hold): hệ thống phát 1 nốt tham chiếu, người dùng hát và giữ trong 2–3 giây. Ngưỡng sai lệch cho phép rộng (±50 cents) ở cấp thấp, hẹp dần (±15 cents) ở cấp cao.
+Cấp 5–8 (Scale/Arpeggio Repeat): hát lại chuỗi 3–5 nốt liên tiếp (thang âm, arpeggio).
+Cấp 9–12 (Melodic Dictation): hát lại một giai điệu ngắn có nhịp điệu — chấm cả cao độ lẫn timing.
+Cấp Infinity (13–22): có thể map vào các tầng hiện có — ví dụ ∞-V (Fibonacci Pattern) điều phối độ dài giai điệu tăng theo dãy Fibonacci; ∞-IX (Pendulum Rhythm) cho tempo biến thiên.
+
+UI đề xuất (giống mô hình các app Vanido/SingTrue/Yousician): một "piano roll" cuộn ngang, target note hiển thị dạng dải màu ngang, đường pitch thực tế của người hát vẽ đè lên theo thời gian thực — trực quan hơn nhiều so với chỉ hiện số Hz. Kèm một "kim đồng hồ cents" (lệch cao/thấp bao nhiêu cents) để phản hồi tức thì trước khi kết thúc lượt.
+
+Điểm số: tính theo % thời gian pitch nằm trong ngưỡng cho phép, tương tự cách bạn đang tính accuracy_rate trong game_attempts.
+
+4. Mở rộng mô hình dữ liệu (giữ đúng convention hiện tại)
+
+Không cần bảng hoàn toàn mới nếu bạn muốn tận dụng game_attempts sẵn có (exercise_slug = vocal-pitch-match), nhưng cấu trúc raw_metrics_json cần thiết kế riêng vì dữ liệu pitch là time-series dày đặc:
+
+jsonc
+// raw_metrics_json cho 1 lượt chơi ~20 giây
+{
+  "targetSequence": [
+    { "note": "C4", "startMs": 0, "durMs": 2000 },
+    { "note": "E4", "startMs": 2000, "durMs": 2000 }
+  ],
+  "pitchTrace": [
+    // downsample còn ~10-15 điểm/giây, KHÔNG lưu raw 20+ điểm/giây gốc
+    { "tMs": 0, "freqHz": 261.4, "cents": -6, "clarity": 0.94 },
+    { "tMs": 100, "freqHz": 262.0, "cents": -1, "clarity": 0.97 }
+  ],
+  "micCalibrationOffsetMs": 42,
+  "accuracyPct": 87.5
+}
+
+Lưu ý quan trọng: hệ thống hiện tại đã có giới hạn 50 relationEvents/lượt để chống spam payload — pitch data còn dày hơn, nên bắt buộc downsample ở client trước khi gửi (giữ ~10-15 điểm/giây thay vì raw 46ms/frame ~22 điểm/giây, và có thể nén bằng cách chỉ lưu điểm khi cents thay đổi đủ lớn — kiểu delta encoding).
+
+Nếu bạn muốn tích hợp sâu vào Cognitive Relational Architecture (12 relation_id), có thể map: mỗi lần so khớp một nốt trong chuỗi là 1 trial ghi vào relation_evidence với relation_id mới, ví dụ PITCH_MATCH, hoặc tái dùng SIMILARITY_DIFF (so sánh cao độ hát ra với cao độ mục tiêu) — tùy bạn có muốn 12 quan hệ giữ nguyên hay mở rộng thành 13.
+
+Bảng cấu hình riêng nếu tách khỏi exercise_level_configs chung (khuyến nghị vì tham số khác hẳn — không có grid_rows/cols):
+
+vocal_pitch_level_configs
+  * id : UUID [PK]
+  * level : INT (1-22)
+  * note_count : INT
+  * cents_tolerance : INT
+  * hold_duration_ms : INT
+  * has_rhythm : BOOLEAN
+  * parameters_json : JSONB
+5. Các thách thức kỹ thuật đặc thù — lường trước để tránh vỡ trận giữa chừng
+Octave error: MPM giảm thiểu nhưng không triệt tiêu hoàn toàn lỗi nhận nhầm bội âm bát độ, nhất là giọng nam trầm hoặc khi hát rất khẽ. Giải pháp thực dụng: khi so sánh với target note, tính cents lệch theo octave gần nhất trong phạm vi hợp lý (ví dụ chỉ xét ±1 octave so với target) thay vì tin tuyệt đối kết quả thô.
+Vibrato tự nhiên: giọng hát dao động ±20-30 cents quanh nốt là bình thường, không phải lỗi. Cần rolling average (cửa sổ 3-5 frame, tức ~150-200ms) trước khi chấm điểm, tránh chấm quá khắt khe theo từng frame đơn lẻ.
+Độ trễ input khác nhau giữa thiết bị: nên có bước calibration đầu phiên — phát 1 tiếng "tick" ngắn, đo round-trip latency, lưu micCalibrationOffsetMs per user/device.
+Chuẩn hóa mic: laptop mic, headset, mic ngoài có gain rất khác nhau — không dựa vào amplitude tuyệt đối để quyết định "có giọng hát hay không", dùng clarity của thuật toán pitch detection thay vì RMS đơn thuần.
+Safari/iOS: AudioWorklet được hỗ trợ từ Safari 14.1 trở lên nên về cơ bản ổn, nhưng Safari yêu cầu AudioContext phải được khởi tạo/resume trong một user-gesture (tap/click) — không tự động chạy khi load trang, và có báo cáo về lỗi worklet không phát âm ổn định trên vài phiên bản iOS Safari cụ thể (17.6, 18.0x). Cần test riêng trên thiết bị iOS thật, không chỉ trên simulator.
+Quyền microphone: cần UX rõ ràng xin quyền trước khi vào game (không im lặng gọi getUserMedia giữa gameplay), và có state xử lý khi user từ chối quyền — hiện graceful fallback (ví dụ chuyển hướng sang bài pitch-recall bằng MIDI/click).
+6. Lộ trình triển khai theo giai đoạn
+Giai đoạn	Nội dung	Ước lượng
+1. MVP	Single note matching: phát 1 nốt, hiển thị pitch real-time + cents lệch, chấm điểm cuối lượt. Chưa lưu telemetry chi tiết.	1–2 tuần
+2. Chuỗi nốt	Mở rộng target sequence, piano-roll UI cuộn, lưu pitchTrace vào game_attempts	1–2 tuần
+3. Melodic dictation + tích hợp DDA	Nhịp điệu, 22 cấp độ đầy đủ, nối vào Cognitive Relational Architecture/Brain Map	2–3 tuần
+4. Mở rộng	Import bài hát thực (cần tách vocal khỏi nhạc nền bằng model tách nguồn âm — phức tạp, nên để cuối cùng), leaderboard cộng đồng	Sau
+7. Kế hoạch kiểm thử
+
+Vài điểm test đáng chú ý cho tính năng loại này (khác hẳn test UI thông thường vì có audio real-time):
+
+Test độ chính xác thuật toán: chạy file sine wave đã biết tần số chính xác (ví dụ 440Hz) qua pipeline, verify kết quả trả về nằm trong sai số cho phép — không thể test bằng giọng người thật cho unit test vì không tái lập được.
+Test end-to-end trên nhiều trình duyệt/thiết bị thật: Chrome/Firefox/Safari desktop, Safari iOS, Chrome Android — vì đây chính là nơi hay vỡ trận nhất (mục 5).
+Test edge case: im lặng kéo dài, tạp âm nền, hát lệch hẳn 1 octave, ngắt kết nối mic giữa chừng, từ chối quyền mic.
+Automation qua Playwright (đã có qa-automation/): dùng flag --use-fake-device-for-media-stream của Chrome để giả lập input audio, hoặc mock trực tiếp output của AudioWorkletNode — khó test giọng hát thật qua CI nên tách phần "thuật toán" (test được bằng file audio cố định) khỏi phần "UI/luồng" (test bằng fake media stream).
+Test hiệu năng dài hạn: CPU/pin khi chạy AudioWorklet liên tục 60 phút (khớp gói INTENSIVE_60M).

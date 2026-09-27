@@ -590,13 +590,26 @@ export const NotesAndPitchModule: React.FC = () => {
             Thử thách tai của bạn với trọn bộ 12 cấp độ rèn luyện nhận thức cao độ trên đàn piano!
           </p>
         </div>
-        <button
-          onClick={handleStartPitchExercise}
-          className="px-6 py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-brand-600/30 active:scale-95 transition-all cursor-pointer"
-        >
-          <span>Luyện Tập: Nhớ Cao Độ (Pitch Recall)</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleStartPitchExercise}
+            className="px-5 py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-brand-600/30 active:scale-95 transition-all cursor-pointer"
+          >
+            <span>Luyện Tập: Nhớ Cao Độ</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => {
+              setSelectedExerciseSlug('vocal-pitch-match');
+              setActiveTab('exercises');
+            }}
+            className="px-5 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-95 transition-all cursor-pointer"
+          >
+            <span>Luyện Giọng Hát: Vocal Pitch Tracker</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

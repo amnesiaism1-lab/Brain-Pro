@@ -5,7 +5,8 @@ import {
   Maximize2, 
   Award, 
   Gauge, 
-  FileSearch
+  FileSearch,
+  Mic
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { EXERCISES_METADATA, CognitiveCategoryCode, INFINITY_ROMAN_NUMERALS, getInfinityLabel, EXERCISE_SYNERGIES } from '@brain-exercises/shared';
@@ -275,6 +276,13 @@ function renderExerciseIcon(slug: string) {
             <span className="text-emerald-400">🛡️</span>
           </div>
           <span className="text-[8px] font-black text-rose-300 tracking-wider">MUTATION</span>
+        </div>
+      );
+    case 'vocal-pitch-match':
+      return (
+        <div className="flex flex-col items-center justify-center text-white w-full h-full">
+          <Mic className="w-5 h-5 text-emerald-400 mb-0.5 animate-pulse" />
+          <span className="text-[8px] font-black text-emerald-300 tracking-wider">VOCAL</span>
         </div>
       );
     default:

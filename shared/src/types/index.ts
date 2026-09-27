@@ -36,7 +36,8 @@ export type ExerciseSlug =
   | 'relational-network'   // Mạng Lưới Quan Hệ Động Học (Relational Dynamics)
   | 'causal-cascade'       // Hiệu Ứng Domino Nhân Quả (Causal Cascade)
   | 'graph-memory-matrix'  // Trí Nhớ Ma Trận Đồ Thị (Graph Working Memory)
-  | 'rule-mutation-clash'; // Xung Đột Quy Tắc Biến Dị (Rule Mutation & Flexibility)
+  | 'rule-mutation-clash'  // Xung Đột Quy Tắc Biến Dị (Rule Mutation & Flexibility)
+  | 'vocal-pitch-match';   // Cảm Âm & Dò Cao Độ Giọng Hát Thời Gian Thực (Vocal Pitch Training)
 
 export type ArticulationType = 'legato' | 'staccato' | 'tenuto' | 'accent';
 export type MelodicContourCode = 'UP' | 'DOWN' | 'REPEAT' | 'ARCH' | 'INVERTED_ARCH';
@@ -344,3 +345,35 @@ export interface IAuthResponse {
   token: string;
   user: IUser;
 }
+
+export type VocalRangePreference = 'bass-baritone' | 'tenor-alto' | 'soprano' | 'auto';
+
+export interface IVocalPitchConfig {
+  centsTolerance: number;       // e.g. 50 down to 15 cents
+  holdDurationMs: number;       // Duration required to sustain note in ms (e.g. 1500 - 3000)
+  noteCount: number;            // 1 for single note, 2-5 for sequence
+  sequenceType?: 'single' | 'interval' | 'arpeggio' | 'scale' | 'melody' | 'chromatic';
+  preferredOctave?: number;     // e.g. 3 or 4
+  referenceDrone?: boolean;     // whether to keep background tonic anchor drone active
+  tempoBpm?: number;            // for rhythm-bound melody dictation
+}
+
+export interface IVocalPitchTracePoint {
+  tMs: number;
+  freqHz: number;
+  cents: number;
+  clarity: number;
+  targetNote: string;
+  matched: boolean;
+}
+
+export interface IVocalPitchAttemptTelemetry {
+  targetNotes: string[];
+  vocalRangeUsed: VocalRangePreference;
+  avgCentsDeviation: number;
+  vibratoRateHz?: number;
+  stabilityPct: number;
+  pitchTraceDownsampled: IVocalPitchTracePoint[];
+  accuracyPct: number;
+}
+
