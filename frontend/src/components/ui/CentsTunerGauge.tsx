@@ -24,6 +24,18 @@ export const CentsTunerGauge: React.FC<CentsTunerGaugeProps> = ({
   className = '',
 }) => {
   const isSinging = reading?.isSinging && (reading?.freqHz ?? 0) > 0;
+  const [lastNote, setLastNote] = React.useState<{ note: string; solfege: string; hz: number } | null>(null);
+
+  React.useEffect(() => {
+    if (reading?.isSinging && reading.noteName) {
+      setLastNote({
+        note: reading.noteName,
+        solfege: reading.solfegeName,
+        hz: reading.freqHz,
+      });
+    }
+  }, [reading]);
+
   const centsDiff = evaluation ? evaluation.centsDiff : 0;
   const clampedCents = Math.max(-50, Math.min(50, centsDiff));
   const needlePercent = ((clampedCents + 50) / 100) * 100; // 0% (-50c) to 100% (+50c)
@@ -125,18 +137,18 @@ export const CentsTunerGauge: React.FC<CentsTunerGaugeProps> = ({
 
       {/* Main Pitch & Cents readout */}
       <div className="flex items-baseline gap-3 my-2 text-center">
-        <div className="flex flex-col items-center">
-          <span className="text-4xl font-black font-mono tracking-tight text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.2)]">
-            {isSinging ? reading?.noteName : '--'}
+        <div className="flex flex-col items-center min-w-[100px]">
+          <span className={`text-4xl font-black font-mono tracking-tight transition-colors duration-150 ${isSinging ? 'text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]' : 'text-slate-500'}`}>
+            {isSinging ? reading?.noteName : (lastNote?.note || '--')}
           </span>
           <span className="text-xs font-bold text-slate-400">
-            {isSinging ? reading?.solfegeName : 'Im lặng'}
+            {isSinging ? reading?.solfegeName : (lastNote?.solfege ? `${lastNote.solfege} (Vừa nhận diện)` : 'Chờ giọng hát...')}
           </span>
         </div>
 
         <div className="flex flex-col items-start pl-3 border-l border-slate-800">
           <span className="text-xs font-mono font-bold text-slate-400">
-            {isSinging ? `${reading?.freqHz.toFixed(1)} Hz` : '0.0 Hz'}
+            {isSinging ? `${reading?.freqHz.toFixed(1)} Hz` : (lastNote?.hz ? `${lastNote.hz.toFixed(1)} Hz` : '0.0 Hz')}
           </span>
           <span className={`text-base font-mono font-black ${isInTune ? 'text-emerald-400' : isSinging ? 'text-rose-400' : 'text-slate-600'}`}>
             {isSinging ? `${centsDiff > 0 ? '+' : ''}${centsDiff} cents` : '0 cents'}

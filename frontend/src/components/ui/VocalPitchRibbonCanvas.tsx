@@ -104,6 +104,8 @@ export const VocalPitchRibbonCanvas: React.FC<VocalPitchRibbonCanvasProps> = ({
     }
   }, [reading, evaluation]);
 
+  const centerMidiRef = useRef<number>(targetMidi);
+
   // Main 60 FPS Render Loop
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -124,14 +126,21 @@ export const VocalPitchRibbonCanvas: React.FC<VocalPitchRibbonCanvasProps> = ({
       ctx.fillStyle = '#020617'; // slate-950
       ctx.fillRect(0, 0, width, height);
 
-      // Display window: vertical range around target note (+/- 7 semitones)
-      // If user is singing in another octave, adjust view center smoothly
-      let centerMidi = targetMidi;
+      // Display window: vertical range around target note (+/- 9 semitones)
+      // Smoothly track octave offset if singing in another octave
+      let desiredCenter = targetMidi;
       if (evaluation && evaluation.octaveOffset !== 0 && reading?.isSinging) {
-        centerMidi = targetMidi + evaluation.octaveOffset * 12;
+        desiredCenter = targetMidi + evaluation.octaveOffset * 12;
+      } else if (reading?.isSinging && reading.midiNumber > 0) {
+        const userOctDiff = Math.round((reading.midiNumber - targetMidi) / 12);
+        desiredCenter = targetMidi + userOctDiff * 12;
       }
-      const midiMin = centerMidi - 6;
-      const midiMax = centerMidi + 6;
+
+      centerMidiRef.current += (desiredCenter - centerMidiRef.current) * 0.1;
+      const centerMidi = centerMidiRef.current;
+
+      const midiMin = centerMidi - 9;
+      const midiMax = centerMidi + 9;
       const midiRange = midiMax - midiMin;
 
       const midiToY = (midiVal: number) => {
@@ -258,26 +267,54 @@ export const VocalPitchRibbonCanvas: React.FC<VocalPitchRibbonCanvasProps> = ({
         ctx.shadowBlur = 0;
       }
 
-      // 5. Draw Head Indicator (Current Singing Ball)
+      // 5. Draw Head Indicator (Current Singing Ball & Out-of-bounds Guidance)
       if (reading?.isSinging && reading.freqHz > 0) {
         const userExactMidi = 12 * Math.log2(reading.freqHz / 440) + 69;
-        const currentY = midiToY(userExactMidi);
+        const rawY = midiToY(userExactMidi);
         const inTune = evaluation?.inTolerance ?? false;
+
+        // Is voice off-screen?
+        const isTooHigh = userExactMidi > midiMax;
+        const isTooLow = userExactMidi < midiMin;
+        const clampedY = Math.max(26, Math.min(height - 26, rawY));
 
         // Outer pulsing ring
         ctx.beginPath();
-        ctx.arc(xAnchor, currentY, 12, 0, Math.PI * 2);
-        ctx.fillStyle = inTune ? 'rgba(52, 211, 153, 0.25)' : 'rgba(244, 63, 94, 0.25)';
+        ctx.arc(xAnchor, clampedY, inTune ? 14 : 10, 0, Math.PI * 2);
+        ctx.fillStyle = inTune ? 'rgba(52, 211, 153, 0.3)' : 'rgba(244, 63, 94, 0.25)';
         ctx.fill();
 
         // Inner glowing core
         ctx.beginPath();
-        ctx.arc(xAnchor, currentY, 6, 0, Math.PI * 2);
+        ctx.arc(xAnchor, clampedY, 6, 0, Math.PI * 2);
         ctx.fillStyle = inTune ? '#34d399' : '#f43f5e';
         ctx.shadowColor = inTune ? '#34d399' : '#f43f5e';
         ctx.shadowBlur = 15;
         ctx.fill();
         ctx.shadowBlur = 0;
+
+        // Note badge right above or below the head indicator
+        ctx.font = 'bold 11px monospace';
+        ctx.fillStyle = inTune ? '#6ee7b7' : '#fda4af';
+        ctx.textAlign = 'center';
+        const badgeY = clampedY < 45 ? clampedY + 20 : clampedY - 12;
+        ctx.fillText(`${reading.noteName} (${reading.solfegeName})`, xAnchor, badgeY);
+        ctx.textAlign = 'left';
+
+        // Out-of-bounds directional arrows and instructions
+        if (isTooHigh) {
+          ctx.fillStyle = 'rgba(244, 63, 94, 0.9)';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`▲ Giọng bạn (${reading.noteName}) đang cao hơn mục tiêu - Hãy hạ giọng xuống ▼`, width / 2, 22);
+          ctx.textAlign = 'left';
+        } else if (isTooLow) {
+          ctx.fillStyle = 'rgba(244, 63, 94, 0.9)';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`▼ Giọng bạn (${reading.noteName}) đang trầm hơn mục tiêu - Hãy nâng cao độ lên ▲`, width / 2, height - 12);
+          ctx.textAlign = 'left';
+        }
       }
 
       // 6. Update and render particle sparks

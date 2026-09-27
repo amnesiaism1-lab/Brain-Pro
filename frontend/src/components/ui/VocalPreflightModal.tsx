@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Headphones, Volume2, CheckCircle2, AlertTriangle, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { vocalPitchService, IVocalPitchReading } from '../../services/vocalPitchService';
 import { VocalRangePreference } from '@brain-exercises/shared';
@@ -19,11 +19,13 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
   const [selectedRange, setSelectedRange] = useState<VocalRangePreference>('auto');
   const [liveVolume, setLiveVolume] = useState<number>(0);
   const [detectedPitch, setDetectedPitch] = useState<string>('--');
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
-      if (micState === 'testing' || micState === 'granted') {
-        vocalPitchService.stopListening();
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
       }
       setMicState('idle');
       setLiveVolume(0);
@@ -35,9 +37,29 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
     handleTestMic();
 
     return () => {
-      vocalPitchService.stopListening();
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
     };
   }, [isOpen]);
+
+  const handleClose = () => {
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+    vocalPitchService.stopListening(true);
+    onClose();
+  };
+
+  const handleProceedClick = () => {
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+    onProceed(selectedRange);
+  };
 
   const handleTestMic = async () => {
     setMicState('testing');
@@ -48,7 +70,10 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
       setMicState('granted');
 
       // Subscribe to test volume
-      const unsubscribe = vocalPitchService.subscribe((reading: IVocalPitchReading) => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+      unsubscribeRef.current = vocalPitchService.subscribe((reading: IVocalPitchReading) => {
         const db = reading.volumeDb;
         const norm = Math.max(0, Math.min(100, ((db + 50) / 45) * 100));
         setLiveVolume(norm);
@@ -56,10 +81,6 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
           setDetectedPitch(`${reading.noteName} (${reading.solfegeName})`);
         }
       });
-
-      return () => {
-        unsubscribe();
-      };
     } catch (err: unknown) {
       setMicState('denied');
       const msg = err instanceof Error ? err.message : 'Không thể truy cập microphone';
@@ -82,7 +103,7 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
 
         {/* Close Button */}
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800/50 hover:bg-slate-800 transition"
         >
           <X className="w-5 h-5" />
@@ -232,7 +253,7 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
         {/* Action Button */}
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="px-4 py-2.5 rounded-xl font-bold text-slate-400 hover:text-white transition"
           >
             Hủy Bỏ
@@ -247,7 +268,7 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
             </button>
           ) : (
             <button
-              onClick={() => onProceed(selectedRange)}
+              onClick={handleProceedClick}
               disabled={micState === 'testing'}
               className="px-6 py-2.5 rounded-xl font-black text-slate-950 bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 transition shadow-lg shadow-emerald-400/25 flex items-center gap-2 disabled:opacity-50"
             >

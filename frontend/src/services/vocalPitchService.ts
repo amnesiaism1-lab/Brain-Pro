@@ -52,10 +52,13 @@ class VocalPitchService {
   private subscribers: Set<(reading: IVocalPitchReading) => void> = new Set();
 
   // Noise gate and limits
-  private minVolumeRms = 0.012; // ~ -38 dBFS
-  private minClarity = 0.82;
+  private minVolumeRms = 0.005; // ~ -46 dBFS (high sensitivity for natural, relaxed singing)
+  private minClarity = 0.68;    // 0.68 for McLeod Pitch Method (stable for natural human vocals)
   private minFreq = 65;   // C2 (approx 65.4 Hz)
   private maxFreq = 1100; // C6 (approx 1046.5 Hz)
+
+  private consecutiveDropFrames = 0;
+  private maxHangoverFrames = 4; // ~180ms grace window for vowel transitions and consonants
 
   // Vocal range preference
   private userRange: VocalRangePreference = 'auto';
@@ -82,6 +85,17 @@ class VocalPitchService {
    */
   public async startListening(): Promise<boolean> {
     if (this.isListening) return true;
+
+    // Fast-path: If media stream and processor are already active, seamlessly unpause
+    if (
+      this.mediaStream && 
+      this.mediaStream.active && 
+      this.mediaStream.getAudioTracks().some(t => t.readyState === 'live') &&
+      (this.workletNode || this.scriptProcessorNode)
+    ) {
+      this.isListening = true;
+      return true;
+    }
 
     try {
       // 1. Ensure AudioContext is running
@@ -179,16 +193,28 @@ class VocalPitchService {
       return true;
     } catch (err) {
       console.error('Failed to start vocal pitch tracking:', err);
-      this.stopListening();
+      this.stopListening(true);
       throw err;
     }
   }
 
   /**
+   * Pause pitch processing without destroying hardware audio tracks
+   */
+  public pauseListening(): void {
+    this.isListening = false;
+  }
+
+  /**
    * Stop microphone capture and clean up audio resources
    */
-  public stopListening(): void {
+  public stopListening(forceFullTeardown = true): void {
     this.isListening = false;
+
+    if (!forceFullTeardown) {
+      // Keep stream warm for fast re-entry
+      return;
+    }
 
     if (this.workletNode) {
       try {
@@ -258,6 +284,21 @@ class VocalPitchService {
 
     // Noise gate check
     if (rms < this.minVolumeRms) {
+      if (this.lastReading?.isSinging && this.consecutiveDropFrames < this.maxHangoverFrames) {
+        this.consecutiveDropFrames++;
+        const heldReading: IVocalPitchReading = {
+          ...this.lastReading,
+          volumeRms: rms,
+          volumeDb: Math.round(db),
+          timestamp: performance.now(),
+        };
+        this.notifySubscribers(heldReading);
+        return;
+      }
+
+      this.consecutiveDropFrames = 0;
+      this.smoothedFreq = 0;
+      this.pitchHistory = [];
       const silentReading: IVocalPitchReading = {
         freqHz: 0,
         clarity: 0,
@@ -285,6 +326,20 @@ class VocalPitchService {
       rawPitch <= this.maxFreq;
 
     if (!isValidPitch) {
+      // Hangover check: if user was singing and briefly dipped in clarity (e.g. consonant or breath)
+      if (this.lastReading?.isSinging && this.consecutiveDropFrames < this.maxHangoverFrames && rms >= this.minVolumeRms * 0.7) {
+        this.consecutiveDropFrames++;
+        const heldReading: IVocalPitchReading = {
+          ...this.lastReading,
+          volumeRms: rms,
+          volumeDb: Math.round(db),
+          timestamp: performance.now(),
+        };
+        this.notifySubscribers(heldReading);
+        return;
+      }
+
+      this.consecutiveDropFrames = 0;
       const unpitchedReading: IVocalPitchReading = {
         freqHz: 0,
         clarity,
@@ -301,6 +356,8 @@ class VocalPitchService {
       this.notifySubscribers(unpitchedReading);
       return;
     }
+
+    this.consecutiveDropFrames = 0;
 
     // 4. Median filter over recent 3 readings to eliminate octave jump flickers
     this.pitchHistory.push(rawPitch);

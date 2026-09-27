@@ -183,10 +183,8 @@ export const VocalPitchMatchGame: React.FC = () => {
         await new Promise((r) => setTimeout(r, 900));
       }
 
-      // If reference drone is enabled for early levels, start a quiet drone
-      if (params.referenceDrone || enableTonicAnchor) {
-        auditoryEngine.startDrone(targets[0].note, 0.12);
-      }
+      // Ensure no drone leaks into mic
+      auditoryEngine.stopDrone();
 
       // Phase: Countdown
       setPhase('countdown');
@@ -204,7 +202,7 @@ export const VocalPitchMatchGame: React.FC = () => {
       console.error('Audio prompt error:', e);
       setPhase('singing');
     }
-  }, [generateTargets, params.referenceDrone, enableTonicAnchor, playSound]);
+  }, [generateTargets, playSound]);
 
   // Replay current target note
   const handleReplayPrompt = useCallback(() => {
@@ -237,9 +235,34 @@ export const VocalPitchMatchGame: React.FC = () => {
     startRound(1);
   };
 
-  // Subscribe to live microphone pitch detection
+  // Synchronization & Audio Loop Refs
+  const phaseRef = useRef<GamePhase>(phase);
+  phaseRef.current = phase;
+
+  const currentTargetRef = useRef<TargetNoteItem>(currentTarget);
+  currentTargetRef.current = currentTarget;
+
+  const toleranceCentsRef = useRef<number>(toleranceCents);
+  toleranceCentsRef.current = toleranceCents;
+
+  const activeNoteIndexRef = useRef<number>(activeNoteIndex);
+  activeNoteIndexRef.current = activeNoteIndex;
+
+  const targetNotesRef = useRef<TargetNoteItem[]>(targetNotes);
+  targetNotesRef.current = targetNotes;
+
+  const currentRoundRef = useRef<number>(currentRound);
+  currentRoundRef.current = currentRound;
+
+  const totalRoundsRef = useRef<number>(totalRounds);
+  totalRoundsRef.current = totalRounds;
+
+  const lastInTuneTimeRef = useRef<number>(0);
+  const isHandlingSuccessRef = useRef<boolean>(false);
+
+  // Subscribe to live microphone pitch detection - stays active throughout game to prevent cold-start latency
   useEffect(() => {
-    if (phase !== 'singing') return;
+    if (showPreflightModal || isFinished) return;
 
     vocalPitchService.startListening().catch((err) => {
       console.warn('Microphone start error:', err);
@@ -248,11 +271,15 @@ export const VocalPitchMatchGame: React.FC = () => {
     const unsubscribe = vocalPitchService.subscribe((currentReading) => {
       setReading(currentReading);
 
+      const target = currentTargetRef.current;
+      const tolCents = toleranceCentsRef.current;
+      const currentPhase = phaseRef.current;
+
       // Evaluate match against current target note
       const evalResult = vocalPitchService.evaluatePitchMatch(
         currentReading,
-        currentTarget.note,
-        toleranceCents,
+        target.note,
+        tolCents,
         false // Smart Octave-folding enabled for natural singing comfort
       );
       setEvaluation(evalResult);
@@ -266,7 +293,7 @@ export const VocalPitchMatchGame: React.FC = () => {
           freqHz: currentReading.freqHz,
           cents: evalResult.centsDiff,
           clarity: currentReading.clarity,
-          targetNote: currentTarget.note,
+          targetNote: target.note,
           matched: evalResult.matched,
         });
       }
@@ -275,32 +302,44 @@ export const VocalPitchMatchGame: React.FC = () => {
       const dt = now - lastFrameTimestampRef.current;
       lastFrameTimestampRef.current = now;
 
-      if (evalResult.matched && currentReading.isSinging) {
-        setCurrentHoldMs((prev) => {
-          const next = prev + dt;
-          if (next >= currentTarget.holdDurationMs) {
-            // Success on this note!
-            handleNoteSuccess(currentTarget.note);
-            return 0;
+      // Only accumulate note hold progress during active singing phase
+      if (currentPhase === 'singing') {
+        if (evalResult.matched && currentReading.isSinging) {
+          lastInTuneTimeRef.current = now;
+          setCurrentHoldMs((prev) => {
+            const next = prev + dt;
+            if (next >= target.holdDurationMs && !isHandlingSuccessRef.current) {
+              isHandlingSuccessRef.current = true;
+              handleNoteSuccess(target.note);
+              return 0;
+            }
+            return next;
+          });
+          setConsecutiveInTuneStreak((s) => s + 1);
+        } else {
+          // Grace period: allow 250ms of breath/vibrato waver before decaying hold progress
+          const timeSinceInTune = now - lastInTuneTimeRef.current;
+          if (timeSinceInTune > 250) {
+            setCurrentHoldMs((prev) => Math.max(0, prev - dt * 0.35));
+            setConsecutiveInTuneStreak(0);
           }
-          return next;
-        });
-        setConsecutiveInTuneStreak((s) => s + 1);
-      } else {
-        // Slowly decay hold progress if voice wavers out of tune
-        setCurrentHoldMs((prev) => Math.max(0, prev - dt * 0.4));
-        setConsecutiveInTuneStreak(0);
+        }
       }
     });
 
     return () => {
       unsubscribe();
     };
-  }, [phase, currentTarget, toleranceCents]);
+  }, [showPreflightModal, isFinished]);
 
   // Handle note match success
   const handleNoteSuccess = (matchedNote: string) => {
     playSound('correct');
+
+    const activeIdx = activeNoteIndexRef.current;
+    const targets = targetNotesRef.current;
+    const round = currentRoundRef.current;
+    const total = totalRoundsRef.current;
 
     // Emit Relational Event (SIMILARITY_DIFF)
     emitTrialEvent({
@@ -310,7 +349,7 @@ export const VocalPitchMatchGame: React.FC = () => {
       relationWeight: 1.0,
       entities: {
         targetNote: matchedNote,
-        toleranceCents,
+        toleranceCents: toleranceCentsRef.current,
         requiredHoldMs,
       },
       stateBefore: 'SEEKING_PITCH',
@@ -333,19 +372,24 @@ export const VocalPitchMatchGame: React.FC = () => {
     } catch {}
 
     // Check if more notes in sequence
-    if (activeNoteIndex + 1 < targetNotes.length) {
-      setActiveNoteIndex((idx) => idx + 1);
+    if (activeIdx + 1 < targets.length) {
+      setActiveNoteIndex(activeIdx + 1);
       setCurrentHoldMs(0);
+      lastInTuneTimeRef.current = 0;
+      setTimeout(() => {
+        isHandlingSuccessRef.current = false;
+      }, 400);
     } else {
       // Completed entire round!
       setCorrectRounds((r) => r + 1);
-      const points = Math.round(100 * (1 + (toleranceCents <= 20 ? 0.4 : 0.1)));
+      const points = Math.round(100 * (1 + (toleranceCentsRef.current <= 20 ? 0.4 : 0.1)));
       setScore((s) => s + points);
 
-      if (currentRound < totalRounds) {
+      if (round < total) {
         setPhase('feedback');
         setTimeout(() => {
-          startRound(currentRound + 1);
+          isHandlingSuccessRef.current = false;
+          startRound(round + 1);
         }, 1200);
       } else {
         // All rounds complete!
@@ -357,7 +401,7 @@ export const VocalPitchMatchGame: React.FC = () => {
   // Finish Game
   const finishGame = useCallback(() => {
     auditoryEngine.stopDrone();
-    vocalPitchService.stopListening();
+    vocalPitchService.stopListening(true);
     setPhase('finished');
     setIsFinished(true);
   }, []);
@@ -384,7 +428,7 @@ export const VocalPitchMatchGame: React.FC = () => {
   useEffect(() => {
     return () => {
       auditoryEngine.stopDrone();
-      vocalPitchService.stopListening();
+      vocalPitchService.stopListening(true);
     };
   }, []);
 
@@ -453,66 +497,68 @@ export const VocalPitchMatchGame: React.FC = () => {
         </div>
       </div>
 
-      {/* Center Interactive Arena */}
-      <div className="w-full flex-1 flex flex-col items-center justify-center gap-4 my-2">
-        {/* Phase: Prompt Playing Notice */}
+      {/* Center Interactive Arena - ALWAYS MOUNTED to eliminate lag and flicker */}
+      <div className="w-full flex-1 relative flex flex-col items-center justify-center gap-4 my-2 min-h-[380px]">
+        {/* Phase: Prompt Playing Notice Banner */}
         {phase === 'prompt' && (
-          <div className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-indigo-950/80 border border-indigo-500/50 text-indigo-300 shadow-2xl animate-pulse">
-            <Volume2 className="w-6 h-6 text-indigo-400 animate-bounce" />
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-indigo-950/90 border border-indigo-500/60 text-indigo-200 shadow-2xl backdrop-blur-md animate-pulse">
+            <Volume2 className="w-5 h-5 text-indigo-400 animate-bounce shrink-0" />
             <div className="text-left">
-              <span className="text-xs uppercase font-mono font-bold tracking-wider text-indigo-400">Đang phát âm thanh mẫu...</span>
-              <div className="text-base font-bold text-white">Lắng nghe kỹ cao độ nốt {currentTarget.note} ({currentTarget.solfege})</div>
+              <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-indigo-300">Đang phát nốt mẫu</span>
+              <div className="text-sm font-bold text-white leading-tight">
+                Lắng nghe: {currentTarget.note} ({currentTarget.solfege})
+              </div>
             </div>
           </div>
         )}
 
-        {/* Phase: 3-2-1 Countdown */}
+        {/* Phase: 3-2-1 Countdown Overlay */}
         {phase === 'countdown' && (
-          <div className="flex flex-col items-center justify-center my-6">
-            <span className="text-6xl font-black font-mono text-emerald-400 animate-ping">
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-950/60 backdrop-blur-xs rounded-3xl pointer-events-none transition-all">
+            <span className="text-7xl font-black font-mono text-emerald-400 animate-ping">
               {countdownNum}
             </span>
-            <span className="text-sm font-bold text-slate-300 uppercase tracking-widest mt-4">
+            <span className="text-sm font-bold text-slate-200 uppercase tracking-widest mt-4">
               Chuẩn bị cất giọng...
             </span>
           </div>
         )}
 
-        {/* Phase: Feedback Transition */}
+        {/* Phase: Feedback Transition Celebration Overlay */}
         {phase === 'feedback' && (
-          <div className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 shadow-2xl animate-bounce">
-            <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-            <div className="text-left">
-              <span className="text-xs uppercase font-mono font-bold tracking-wider text-emerald-400">Xuất Sắc!</span>
-              <div className="text-base font-bold text-white">Bạn đã giữ vững cao độ nốt {currentTarget.note}!</div>
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-950/70 backdrop-blur-xs rounded-3xl pointer-events-none">
+            <div className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-emerald-950/90 border border-emerald-500/70 text-emerald-300 shadow-2xl animate-bounce">
+              <CheckCircle2 className="w-7 h-7 text-emerald-400 shrink-0" />
+              <div className="text-left">
+                <span className="text-xs uppercase font-mono font-bold tracking-wider text-emerald-400">Xuất Sắc!</span>
+                <div className="text-base font-bold text-white">Bạn đã giữ vững nốt {currentTarget.note}!</div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Phase: Active Singing Arena */}
-        {(phase === 'singing' || phase === 'prompt') && (
-          <div className="w-full flex flex-col gap-4">
-            {/* 60 FPS Visual Ribbon Runway Canvas */}
-            <VocalPitchRibbonCanvas
-              reading={reading}
-              evaluation={evaluation}
-              currentTargetNote={currentTarget.note}
-              toleranceCents={toleranceCents}
-              holdProgressPct={holdProgressPct}
-            />
+        {/* Live Arena Components - Continuously Active */}
+        <div className="w-full flex flex-col gap-4">
+          {/* 60 FPS Visual Ribbon Runway Canvas */}
+          <VocalPitchRibbonCanvas
+            reading={reading}
+            evaluation={evaluation}
+            currentTargetNote={currentTarget.note}
+            toleranceCents={toleranceCents}
+            holdProgressPct={holdProgressPct}
+          />
 
-            {/* Precision Cents Tuner HUD Gauge */}
-            <CentsTunerGauge
-              reading={reading}
-              evaluation={evaluation}
-              targetNote={currentTarget.note}
-              targetSolfege={currentTarget.solfege}
-              targetFreqHz={getNoteFrequency(currentTarget.note)}
-              toleranceCents={toleranceCents}
-              onReplayPrompt={handleReplayPrompt}
-            />
-          </div>
-        )}
+          {/* Precision Cents Tuner HUD Gauge */}
+          <CentsTunerGauge
+            reading={reading}
+            evaluation={evaluation}
+            targetNote={currentTarget.note}
+            targetSolfege={currentTarget.solfege}
+            targetFreqHz={getNoteFrequency(currentTarget.note)}
+            toleranceCents={toleranceCents}
+            onReplayPrompt={handleReplayPrompt}
+          />
+        </div>
       </div>
 
       {/* Bottom Status / Advice Footer */}
