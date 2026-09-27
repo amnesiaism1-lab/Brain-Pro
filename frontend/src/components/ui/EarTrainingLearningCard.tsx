@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { PianoKeyboard } from './PianoKeyboard';
+import { auditoryEngine } from '../../services/auditoryEngine';
+import { Note } from 'tonal';
 
 export interface IEarTrainingLearningCardProps {
   // Module info
@@ -99,6 +101,7 @@ export const EarTrainingLearningCard: React.FC<IEarTrainingLearningCardProps> = 
   const [isAutoAdvancePaused, setIsAutoAdvancePaused] = useState(false);
   const [countdown, setCountdown] = useState<number>(7);
   const [activeAudioTag, setActiveAudioTag] = useState<'question' | 'user' | 'correct' | null>(null);
+  const [cardActiveNote, setCardActiveNote] = useState<string | null>(null);
 
   // Auto-advance countdown when answered
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
@@ -411,12 +414,51 @@ export const EarTrainingLearningCard: React.FC<IEarTrainingLearningCardProps> = 
 
           {/* Visual Piano Pattern Insight */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-bold">
-              <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center justify-between text-xs font-bold gap-2">
+              <span className="text-slate-700 dark:text-slate-300 flex flex-wrap items-center gap-1.5">
                 <Music className="w-3.5 h-3.5 text-amber-500" />
-                Khuôn Hình Nốt Trên Đàn: <span className="font-mono text-emerald-600 dark:text-emerald-400 font-black">{pianoNotes.join(' - ')} (Đúng)</span>
+                <span>Khuôn Hình Nốt:</span>
+                <span className="inline-flex flex-wrap items-center gap-1 ml-1">
+                  {pianoNotes.map(pn => (
+                    <button
+                      key={pn}
+                      type="button"
+                      onClick={() => {
+                        auditoryEngine.resumeAudioContext().catch(() => {});
+                        auditoryEngine.playNote(pn, 0.5, { volume: 0.75 });
+                        setCardActiveNote(pn);
+                        setTimeout(() => setCardActiveNote(null), 300);
+                      }}
+                      className="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-800 dark:text-emerald-200 font-mono font-bold text-xs flex items-center gap-1 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                      title={`Bấm để nghe nốt ${pn} (${Math.round(Note.freq(pn) || 0)} Hz)`}
+                    >
+                      <Volume2 className="w-2.5 h-2.5" />
+                      <span>{pn}</span>
+                    </button>
+                  ))}
+                  <span className="text-emerald-600 dark:text-emerald-400 font-black text-[11px]">(Đúng)</span>
+                </span>
                 {userNotes.length > 0 && !isAnswerTrulyCorrect && (
-                  <span className="font-mono text-rose-500 font-bold ml-1.5">• {userNotes.join(' - ')} (Bạn chọn)</span>
+                  <span className="inline-flex flex-wrap items-center gap-1 ml-2">
+                    <span className="text-slate-400">• Bạn chọn:</span>
+                    {userNotes.map(un => (
+                      <button
+                        key={un}
+                        type="button"
+                        onClick={() => {
+                          auditoryEngine.resumeAudioContext().catch(() => {});
+                          auditoryEngine.playNote(un, 0.5, { volume: 0.75 });
+                          setCardActiveNote(un);
+                          setTimeout(() => setCardActiveNote(null), 300);
+                        }}
+                        className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-800 dark:text-rose-200 font-mono font-bold text-xs flex items-center gap-1 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                        title={`Bấm để nghe nốt ${un} (${Math.round(Note.freq(un) || 0)} Hz)`}
+                      >
+                        <Volume2 className="w-2.5 h-2.5" />
+                        <span>{un}</span>
+                      </button>
+                    ))}
+                  </span>
                 )}
               </span>
               {correctDescription && (
@@ -426,17 +468,28 @@ export const EarTrainingLearningCard: React.FC<IEarTrainingLearningCardProps> = 
               )}
             </div>
 
-            <div className="flex justify-center overflow-x-auto py-1">
+            <div className="flex flex-col items-center justify-center overflow-x-auto py-1">
               <PianoKeyboard
                 octaveRange={octaveRange}
+                activeNotes={cardActiveNote ? [cardActiveNote] : []}
                 selectedNotes={pianoNotes}
                 wrongNotes={!isAnswerTrulyCorrect ? userNotes : []}
-                disabled={true}
+                disabled={false}
+                onKeyClick={(note) => {
+                  auditoryEngine.resumeAudioContext().catch(() => {});
+                  auditoryEngine.playNote(note, 0.5, { volume: 0.75 });
+                  setCardActiveNote(note);
+                  setTimeout(() => setCardActiveNote(null), 300);
+                }}
                 showLabels={true}
                 autoPlayAudio={false}
                 showVelocityMeter={false}
+                enableMidiHighlight={true}
                 className="scale-90 sm:scale-100 origin-center"
               />
+              <p className="text-[11px] text-slate-400 mt-1">
+                💡 Bấm phím đàn hoặc nốt ở trên để nghe lại và đối chiếu tai nghe
+              </p>
             </div>
           </div>
 

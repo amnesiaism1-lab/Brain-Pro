@@ -17,7 +17,32 @@ import { PianoKeyboard } from '../ui/PianoKeyboard';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
-import { Volume2, RotateCcw, Play, Music, Sparkles, GraduationCap, Zap, CheckCircle2, XCircle, ArrowRight, BookOpen, Anchor, TrendingUp } from 'lucide-react';
+import { Volume2, RotateCcw, Play, Music, Sparkles, GraduationCap, Zap, CheckCircle2, XCircle, ArrowRight, BookOpen, Anchor, TrendingUp, Headphones } from 'lucide-react';
+import { Note } from 'tonal';
+
+/**
+ * Helper to explain semitone difference in musical intervals
+ */
+const getIntervalDiffDescription = (semitoneDiff: number): string => {
+  const abs = Math.abs(semitoneDiff);
+  const dir = semitoneDiff > 0 ? 'cao hơn' : 'thấp hơn';
+  const nameMap: Record<number, string> = {
+    1: '1 nửa cung (quãng 2 thứ - m2)',
+    2: '2 nửa cung (1 cung toàn phần - M2)',
+    3: '3 nửa cung (quãng 3 thứ - m3)',
+    4: '4 nửa cung (quãng 3 trưởng - M3)',
+    5: '5 nửa cung (quãng 4 đúng - P4)',
+    6: '6 nửa cung (quãng 4 tăng / tritone - 4A)',
+    7: '7 nửa cung (quãng 5 đúng - P5)',
+    8: '8 nửa cung (quãng 6 thứ - m6)',
+    9: '9 nửa cung (quãng 6 trưởng - M6)',
+    10: '10 nửa cung (quãng 7 thứ - m7)',
+    11: '11 nửa cung (quãng 7 trưởng - M7)',
+    12: '1 quãng tám (12 bán âm - P8)',
+  };
+  const desc = nameMap[abs] || `${abs} bán âm`;
+  return `Bạn nghe bị ${dir} ${desc}`;
+};
 
 /**
  * Interactive SVG Trajectory Graph for Melodic Contour
@@ -149,6 +174,7 @@ export const PitchRecallGame: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
   const [isLearnMode, setIsLearnMode] = useState<boolean>(true);
   const [lastFeedback, setLastFeedback] = useState<{ isCorrect: boolean; message: string; expected: string[] } | null>(null);
+  const [testedNote, setTestedNote] = useState<string | null>(null);
 
   // Contour & Oddball state (M1-1, M0-4)
   const [contourQuestion, setContourQuestion] = useState<ReturnType<typeof generateContourQuestion> | null>(null);
@@ -165,6 +191,7 @@ export const PitchRecallGame: React.FC = () => {
 
   // Generate new round
   const startNewRound = useCallback(() => {
+    setTestedNote(null);
     if (isContourMode) {
       const q = generateContourQuestion(['ascend', 'descend', 'arch', 'wave']);
       setContourQuestion(q);
@@ -323,6 +350,18 @@ export const PitchRecallGame: React.FC = () => {
       return;
     }
 
+    // When in feedback/result phase, allow free-play auditioning to test notes and understand mistakes!
+    if (phase === 'feedback') {
+      if (isPlayingRef.current) return;
+      auditoryEngine.resumeAudioContext().catch(() => {});
+      const vel = velocity || 0.65;
+      auditoryEngine.playNote(note, 0.45, { volume: Math.max(0.18, Math.pow(vel, 1.3) * 0.75) });
+      setActiveNotes([note]);
+      setTestedNote(note);
+      setTimeout(() => setActiveNotes([]), 260);
+      return;
+    }
+
     if (phase !== 'recall' || isPlayingRef.current) return;
 
     // Play clicked note sound immediately
@@ -412,6 +451,48 @@ export const PitchRecallGame: React.FC = () => {
     }
   };
 
+  // Play a single note for inspection / comparison
+  const handlePlaySingleNote = useCallback(async (note: string) => {
+    if (isPlayingRef.current) return;
+    try {
+      await auditoryEngine.resumeAudioContext();
+      auditoryEngine.playNote(note, 0.5, { volume: 0.75 });
+      setActiveNotes([note]);
+      setTestedNote(note);
+      setTimeout(() => setActiveNotes([]), 280);
+    } catch (e) {
+      console.warn('Play single note error:', e);
+    }
+  }, []);
+
+  // Sequentially play user's note then expected note for side-by-side ear comparison
+  const handleCompareNotePair = useCallback(async (userNote: string, expectedNote: string) => {
+    if (isPlayingRef.current) return;
+    try {
+      isPlayingRef.current = true;
+      await auditoryEngine.resumeAudioContext();
+
+      // 1. Play user note
+      setActiveNotes([userNote]);
+      setTestedNote(userNote);
+      auditoryEngine.playNote(userNote, 0.55, { volume: 0.75 });
+      await new Promise(r => setTimeout(r, 480));
+      setActiveNotes([]);
+      await new Promise(r => setTimeout(r, 120));
+
+      // 2. Play expected note
+      setActiveNotes([expectedNote]);
+      setTestedNote(expectedNote);
+      auditoryEngine.playNote(expectedNote, 0.6, { volume: 0.8 });
+      await new Promise(r => setTimeout(r, 550));
+      setActiveNotes([]);
+    } catch (e) {
+      console.warn('Compare note pair error:', e);
+    } finally {
+      isPlayingRef.current = false;
+    }
+  }, []);
+
   // Play a sequence of notes for A/B comparison
   const playSequenceNotes = useCallback(async (seq: string[], type: 'target' | 'user') => {
     if (seq.length === 0 || isPlayingRef.current) return;
@@ -423,6 +504,7 @@ export const PitchRecallGame: React.FC = () => {
       for (let i = 0; i < seq.length; i++) {
         const n = seq[i];
         setActiveNotes([n]);
+        setTestedNote(n);
         auditoryEngine.playNote(n, 0.45, { volume: 0.7 });
         await new Promise(r => setTimeout(r, noteSpeedMs));
         setActiveNotes([]);
@@ -673,18 +755,32 @@ export const PitchRecallGame: React.FC = () => {
         {!isContourMode && !isOddballMode && (
           <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
             {targetSequence.map((_, idx) => {
-              const userNote = userSequence[idx];
+              const userNote = userSequence[idx] || (phase === 'feedback' ? recordedUserSequence[idx] : undefined);
+              const isFeedback = phase === 'feedback';
+              const isMatch = isFeedback && lastFeedback && userNote === lastFeedback.expected[idx];
+              const isMismatch = isFeedback && lastFeedback && userNote && userNote !== lastFeedback.expected[idx];
               return (
-                <div
+                <button
                   key={`slot-${idx}`}
-                  className={`w-12 h-14 rounded-2xl flex items-center justify-center font-black font-mono text-base border-2 transition-all ${
-                    userNote
-                      ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-md scale-105'
+                  type="button"
+                  disabled={!userNote || isPlayingAudio}
+                  onClick={() => userNote && handlePlaySingleNote(userNote)}
+                  className={`w-12 h-14 rounded-2xl flex flex-col items-center justify-center font-black font-mono text-base border-2 transition-all ${
+                    isMismatch
+                      ? 'bg-rose-500 text-white border-rose-600 shadow-md ring-2 ring-rose-400 hover:scale-110 cursor-pointer active:scale-95'
+                      : isMatch
+                      ? 'bg-emerald-500 text-white border-emerald-600 shadow-md ring-2 ring-emerald-400 hover:scale-110 cursor-pointer active:scale-95'
+                      : userNote
+                      ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-md scale-105 hover:scale-110 cursor-pointer active:scale-95'
                       : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 shadow-inner'
                   }`}
+                  title={userNote ? `Bấm để nghe nốt ${userNote} (${Math.round(Note.freq(userNote) || 0)} Hz)` : undefined}
                 >
-                  {userNote || (idx + 1)}
-                </div>
+                  <span>{userNote || (idx + 1)}</span>
+                  {isFeedback && userNote && (
+                    <Volume2 className="w-3 h-3 opacity-80 mt-0.5" />
+                  )}
+                </button>
               );
             })}
           </div>
@@ -766,9 +862,16 @@ export const PitchRecallGame: React.FC = () => {
                 <button
                   key={`oddball-btn-${idx}`}
                   type="button"
-                  disabled={phase !== 'recall'}
-                  onClick={() => handleSelectOddball(idx)}
+                  disabled={isPlayingAudio}
+                  onClick={() => {
+                    if (phase === 'recall') {
+                      handleSelectOddball(idx);
+                    } else if (phase === 'feedback') {
+                      handlePlaySingleNote(note);
+                    }
+                  }}
                   className={`w-16 h-20 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 shadow-md transition-all cursor-pointer active:scale-95 ${btnStyle}`}
+                  title={phase === 'feedback' ? `Bấm để nghe nốt ${note} (${Math.round(Note.freq(note) || 0)} Hz)` : undefined}
                 >
                   <span className="text-xs font-mono font-bold text-slate-500">Nốt {idx + 1}</span>
                   <span className="text-base font-black font-mono">
@@ -776,6 +879,9 @@ export const PitchRecallGame: React.FC = () => {
                   </span>
                   {phase === 'feedback' && isTargetOddball && (
                     <span className="text-[10px] px-1 bg-emerald-500 text-white rounded font-bold">Lạ</span>
+                  )}
+                  {phase === 'feedback' && (
+                    <Volume2 className="w-3 h-3 text-slate-400 hover:text-amber-500 mt-0.5" />
                   )}
                 </button>
               );
@@ -790,20 +896,33 @@ export const PitchRecallGame: React.FC = () => {
           <PianoKeyboard
             octaveRange={octaveRange}
             activeNotes={activeNotes}
-            selectedNotes={userSequence}
+            selectedNotes={phase === 'feedback' ? (lastFeedback?.expected || targetSequence) : userSequence}
             wrongNotes={phase === 'feedback' && lastFeedback && !lastFeedback.isCorrect 
               ? recordedUserSequence.filter((n, idx) => n !== lastFeedback.expected[idx]) 
               : []
             }
-            disabled={isPlayingAudio || (phase === 'feedback' && isLearnMode)}
+            disabled={isPlayingAudio}
             onKeyClick={handleKeyClick}
-            showLabels={showVisualHints || effectiveLevel <= 4}
+            showLabels={phase === 'feedback' || showVisualHints || effectiveLevel <= 4}
             enableMidiHighlight={true}
             autoPlayAudio={false}
           />
-          <p className="text-[11px] text-slate-400 mt-2">
-            💡 Bạn có thể click chuột vào phím đàn hoặc gõ trực tiếp trên đàn piano MIDI USB/Bluetooth.
-          </p>
+          {phase === 'feedback' ? (
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-2.5 px-4 py-1.5 rounded-full bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/30 text-xs text-amber-800 dark:text-amber-300 shadow-sm animate-fadeIn">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span className="font-bold">Chế độ thử âm tự do:</span>
+              <span>Bấm phím đàn trên màn hình hoặc gõ đàn MIDI để nghe và đối chiếu cao độ.</span>
+              {testedNote && (
+                <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-900 dark:text-amber-200 font-mono font-bold text-xs ml-1 border border-amber-500/40">
+                  Vừa thử: {testedNote} ({Math.round(Note.freq(testedNote) || 0)} Hz)
+                </span>
+              )}
+            </div>
+          ) : (
+            <p className="text-[11px] text-slate-400 mt-2">
+              💡 Bạn có thể click chuột vào phím đàn hoặc gõ trực tiếp trên đàn piano MIDI USB/Bluetooth.
+            </p>
+          )}
         </div>
       )}
 
@@ -860,16 +979,21 @@ export const PitchRecallGame: React.FC = () => {
                 </span>
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {lastFeedback.expected.map((n, i) => (
-                    <span 
-                      key={i} 
-                      className={`px-2.5 py-1 rounded-lg font-mono font-black text-xs border shadow-xs ${
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={isPlayingAudio}
+                      onClick={() => handlePlaySingleNote(n)}
+                      className={`px-2.5 py-1.5 rounded-lg font-mono font-black text-xs border shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 hover:scale-105 hover:ring-2 ${
                         isOddballMode && oddballQuestion && i === oddballQuestion.oddballIndex
-                          ? 'bg-rose-500 text-white ring-2 ring-rose-400'
-                          : 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border-emerald-500/30'
+                          ? 'bg-rose-500 hover:bg-rose-600 text-white ring-2 ring-rose-400 border-rose-600'
+                          : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-800 dark:text-emerald-200 border-emerald-500/40 hover:ring-emerald-400'
                       }`}
+                      title={`Bấm để nghe nốt mẫu ${n} (${Math.round(Note.freq(n) || 0)} Hz)`}
                     >
-                      {n}
-                    </span>
+                      <Volume2 className="w-3 h-3 opacity-75" />
+                      <span>{n}</span>
+                    </button>
                   ))}
                 </div>
                 {isOddballMode && oddballQuestion && (
@@ -904,7 +1028,7 @@ export const PitchRecallGame: React.FC = () => {
             }`}>
               <div>
                 <span className={`text-xs font-bold ${lastFeedback.isCorrect ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
-                  {isContourMode ? 'Lựa chọn của bạn:' : isOddballMode ? 'Vị trí bạn đã bấm:' : 'Chuỗi bạn đã bấm:'}
+                  {isContourMode ? 'Lựa chọn của bạn:' : isOddballMode ? 'Vị trí bạn đã bấm:' : 'Chuỗi bạn đã bấm (Bấm nốt để nghe):'}
                 </span>
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {isContourMode ? (
@@ -926,16 +1050,21 @@ export const PitchRecallGame: React.FC = () => {
                     recordedUserSequence.map((n, i) => {
                       const isNoteMatch = n === lastFeedback.expected[i];
                       return (
-                        <span
+                        <button
                           key={i}
-                          className={`px-2.5 py-1 rounded-lg font-mono font-black text-xs border shadow-xs ${
+                          type="button"
+                          disabled={isPlayingAudio}
+                          onClick={() => handlePlaySingleNote(n)}
+                          className={`px-2.5 py-1.5 rounded-lg font-mono font-black text-xs border shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 hover:scale-105 hover:ring-2 ${
                             isNoteMatch
-                              ? 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border-emerald-500/30'
-                              : 'bg-rose-500/20 text-rose-800 dark:text-rose-200 border-rose-500/30 line-through'
+                              ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-800 dark:text-emerald-200 border-emerald-500/40 hover:ring-emerald-400'
+                              : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-800 dark:text-rose-200 border-rose-500/40 hover:ring-rose-400'
                           }`}
+                          title={`Bấm để nghe nốt bạn đã bấm: ${n} (${Math.round(Note.freq(n) || 0)} Hz)`}
                         >
-                          {n}
-                        </span>
+                          <Volume2 className="w-3 h-3 opacity-75" />
+                          <span className={!isNoteMatch ? 'line-through' : ''}>{n}</span>
+                        </button>
                       );
                     })
                   )}
@@ -967,6 +1096,86 @@ export const PitchRecallGame: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Detailed Note-by-Note Error Breakdown & Audio Diff */}
+          {!isContourMode && !isOddballMode && !lastFeedback.isCorrect && (
+            <div className="my-4 p-3.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/30 space-y-2.5 animate-fadeIn">
+              <div className="flex items-center justify-between text-xs font-bold text-amber-800 dark:text-amber-300">
+                <span className="flex items-center gap-1.5">
+                  <Headphones className="w-4 h-4 text-amber-500" />
+                  <span>Đối chiếu từng nốt sai (Bấm để nghe & hiểu vì sao bạn sai):</span>
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">Bấm nốt hoặc bấm nghe nối tiếp</span>
+              </div>
+
+              <div className="space-y-2">
+                {recordedUserSequence.map((userNote, idx) => {
+                  const expectedNote = lastFeedback.expected[idx];
+                  if (!userNote || !expectedNote || userNote === expectedNote) return null;
+
+                  const userMidi = Note.midi(userNote) || 0;
+                  const expMidi = Note.midi(expectedNote) || 0;
+                  const semitoneDiff = userMidi - expMidi;
+                  const userFreq = Math.round(Note.freq(userNote) || 0);
+                  const expFreq = Math.round(Note.freq(expectedNote) || 0);
+
+                  return (
+                    <div
+                      key={`err-${idx}`}
+                      className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 shadow-xs"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-mono font-bold text-[11px]">
+                          Vị trí #{idx + 1}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => handlePlaySingleNote(userNote)}
+                          disabled={isPlayingAudio}
+                          className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-700 dark:text-rose-300 font-mono font-bold text-xs flex items-center gap-1 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                          title="Bấm để nghe nốt bạn đã bấm"
+                        >
+                          <Volume2 className="w-3 h-3 text-rose-500" />
+                          <span>Bạn gõ: <strong>{userNote}</strong> ({userFreq} Hz)</span>
+                        </button>
+
+                        <span className="text-slate-400 text-xs font-bold">➔</span>
+
+                        <button
+                          type="button"
+                          onClick={() => handlePlaySingleNote(expectedNote)}
+                          disabled={isPlayingAudio}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-mono font-bold text-xs flex items-center gap-1 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                          title="Bấm để nghe nốt chuẩn"
+                        >
+                          <Volume2 className="w-3 h-3 text-emerald-500" />
+                          <span>Mẫu chuẩn: <strong>{expectedNote}</strong> ({expFreq} Hz)</span>
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                          {getIntervalDiffDescription(semitoneDiff)}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCompareNotePair(userNote, expectedNote)}
+                          disabled={isPlayingAudio}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1 shadow-xs transition-all cursor-pointer active:scale-95 hover:scale-105"
+                          title={`Nghe đối chiếu nốt ${userNote} rồi đến nốt ${expectedNote}`}
+                        >
+                          <Headphones className="w-3 h-3" />
+                          <span>Nghe nối tiếp ({userNote} ➔ {expectedNote})</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Theory Link & Hint */}
           <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
