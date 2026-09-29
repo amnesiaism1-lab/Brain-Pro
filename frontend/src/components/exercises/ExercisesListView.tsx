@@ -296,9 +296,12 @@ export const ExercisesListView: React.FC = () => {
     getExerciseLevel, 
     lastPlayedSlug, 
     lastViewedExerciseSlug,
+    selectedExercisesCategory,
+    setSelectedExercisesCategory,
     playSound 
   } = useAppStore();
-  const [selectedCategory, setSelectedCategory] = useState<CognitiveCategoryCode | 'ALL'>('ALL');
+  const selectedCategory = selectedExercisesCategory || 'ALL';
+  const setSelectedCategory = setSelectedExercisesCategory;
   const [highlightedSlug, setHighlightedSlug] = useState<string | null>(null);
 
   // Restore scroll to the last viewed exercise card seamlessly

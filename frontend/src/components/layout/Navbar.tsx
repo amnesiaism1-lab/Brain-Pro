@@ -92,9 +92,11 @@ export const Navbar: React.FC = () => {
       {/* Desktop Left Floating Navigation Sidebar */}
       <aside className="hidden md:flex fixed top-0 left-0 bottom-0 w-64 bg-[#F5EFE6] dark:bg-slate-900 border-r border-[#D5CBB9] dark:border-slate-800 flex-col z-40 p-4 shadow-sm">
         <div className="flex items-center gap-3 px-3 py-4 mb-6 border-b border-[#D5CBB9]/60 dark:border-slate-800">
-          <div className="w-10 h-10 rounded-2xl bg-brand-600 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
-            <Brain className="w-6 h-6 animate-pulse-fast" />
-          </div>
+          <img 
+            src="/favicon.png" 
+            alt="Brain Pro Logo" 
+            className="w-10 h-10 rounded-2xl object-cover shadow-lg shadow-cyan-500/20 border border-cyan-500/30" 
+          />
           <div>
             <h1 className="font-extrabold text-slate-800 dark:text-white text-base tracking-tight leading-none">
               BRAIN PRO

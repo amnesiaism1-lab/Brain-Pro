@@ -1,0 +1,29 @@
+{
+  "short_name": "Brain Pro",
+  "name": "Brain Exercises Pro - Luyện Não & Đọc Nhanh",
+  "description": "Nền tảng rèn luyện não bộ, mở rộng thị giác ngoại vi và tăng tốc độ đọc sách với 31 trò chơi khoa học thích ứng.",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "type": "image/png",
+      "sizes": "180x180"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#020617",
+  "theme_color": "#2563EB",
+  "display": "standalone",
+  "orientation": "portrait"
+}

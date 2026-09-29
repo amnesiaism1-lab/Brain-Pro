@@ -78,9 +78,16 @@ export const Header: React.FC = () => {
               <ChevronLeft className="w-7 h-7" />
             </button>
           ) : (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-xs sm:text-sm font-semibold shadow-inner">
-              <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300 fill-amber-300" />
-              <span>{streak} ngày</span>
+            <div className="flex items-center gap-2">
+              <img 
+                src="/favicon.png" 
+                alt="Brain Pro" 
+                className="w-8 h-8 rounded-xl object-cover shadow-md border border-white/20" 
+              />
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/15 text-xs sm:text-sm font-semibold shadow-inner">
+                <Flame className="w-4 h-4 text-amber-300 fill-amber-300" />
+                <span>{streak} ngày</span>
+              </div>
             </div>
           )}
         </div>

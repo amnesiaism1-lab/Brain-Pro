@@ -9,6 +9,7 @@ import {
   IUserCognitiveSnapshot,
   EXERCISE_SYNERGIES,
   WEEKLY_CHALLENGES,
+  CognitiveCategoryCode,
   RelationId,
   IRelationshipMastery,
   IRawMetricsJson,
@@ -23,6 +24,8 @@ interface AppState {
   // Navigation & Modals
   activeTab: MainNavTab;
   setActiveTab: (tab: MainNavTab) => void;
+  selectedExercisesCategory: CognitiveCategoryCode | 'ALL';
+  setSelectedExercisesCategory: (category: CognitiveCategoryCode | 'ALL') => void;
   selectedExerciseSlug: ExerciseSlug | null;
   setSelectedExerciseSlug: (slug: ExerciseSlug | null) => void;
   lastViewedExerciseSlug: ExerciseSlug | null;
@@ -402,6 +405,8 @@ export const useAppStore = create<AppState>((set, get) => {
 
     activeTab: 'home',
     setActiveTab: (tab) => set({ activeTab: tab }),
+    selectedExercisesCategory: 'ALL',
+    setSelectedExercisesCategory: (category) => set({ selectedExercisesCategory: category }),
     selectedExerciseSlug: null,
     lastViewedExerciseSlug: null,
     setLastViewedExerciseSlug: (slug) => set({ lastViewedExerciseSlug: slug }),

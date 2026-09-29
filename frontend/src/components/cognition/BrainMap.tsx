@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { 
   COGNITIVE_RELATIONS, 
   RelationId, 
-  IRelationshipMastery 
+  IRelationshipMastery,
+  EXERCISES_METADATA
 } from '@brain-exercises/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { 
@@ -11,7 +12,8 @@ import {
   ArrowRight,
   Target,
   Layers,
-  HelpCircle
+  HelpCircle,
+  Play
 } from 'lucide-react';
 
 interface NodeLayout {
@@ -51,7 +53,14 @@ const NETWORK_CONNECTIONS: Array<{ from: RelationId; to: RelationId }> = [
 ];
 
 export const BrainMap: React.FC = () => {
-  const { relationshipMasteries, setSelectedExerciseSlug, setActiveTab, playSound } = useAppStore();
+  const { 
+    relationshipMasteries, 
+    setSelectedExerciseSlug, 
+    setActiveGameSlug, 
+    getExerciseLevel,
+    setActiveTab, 
+    playSound 
+  } = useAppStore();
   const [selectedNodeId, setSelectedNodeId] = useState<RelationId>('TARGET_POSITION');
   const [hoveredNodeId, setHoveredNodeId] = useState<RelationId | null>(null);
 
@@ -87,8 +96,7 @@ export const BrainMap: React.FC = () => {
 
   const handleSelectGame = (slug: string) => {
     playSound('click');
-    setActiveTab('exercises');
-    setSelectedExerciseSlug(slug as any);
+    setActiveGameSlug(slug as any);
   };
 
   return (
@@ -340,16 +348,24 @@ export const BrainMap: React.FC = () => {
                 Bài tập rèn luyện quan hệ này (Bấm để tập ngay):
               </span>
               <div className="flex flex-wrap gap-2">
-                {selectedDef.representativeGames.map(slug => (
-                  <button
-                    key={slug}
-                    onClick={() => handleSelectGame(slug)}
-                    className="px-3.5 py-2 bg-brand-50 hover:bg-brand-600 hover:text-white dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 shadow-sm group"
-                  >
-                    <span>{slug}</span>
-                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                  </button>
-                ))}
+                {selectedDef.representativeGames.map(slug => {
+                  const meta = EXERCISES_METADATA.find(e => e.slug === slug);
+                  const currentLvl = getExerciseLevel(slug as any) || 1;
+                  return (
+                    <button
+                      key={slug}
+                      onClick={() => handleSelectGame(slug)}
+                      className="px-3.5 py-2 bg-brand-50 hover:bg-brand-600 hover:text-white dark:bg-slate-700/60 dark:hover:bg-brand-600 text-brand-700 dark:text-brand-300 dark:hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 active:scale-95 shadow-sm group border border-brand-200/60 dark:border-slate-600"
+                    >
+                      <Play className="w-3 h-3 fill-current text-brand-600 dark:text-brand-400 group-hover:text-white shrink-0" />
+                      <span>{meta?.title || slug}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-200/80 dark:bg-slate-600 group-hover:bg-white/20 font-mono font-bold">
+                        Cấp {currentLvl}
+                      </span>
+                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
