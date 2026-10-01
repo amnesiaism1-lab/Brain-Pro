@@ -590,17 +590,41 @@ export class DataStoreService implements OnModuleInit {
       timestamp: a.timestamp || new Date().toISOString()
     }));
 
+    const existingIds = new Set(this.wrongAnswers.map(w => w.id));
+    const existingSessionRounds = new Set(
+      this.wrongAnswers
+        .filter(w => w.sessionId && w.exerciseSlug && w.round !== undefined)
+        .map(w => `${w.sessionId}-${w.exerciseSlug}-${w.round}`)
+    );
+
+    const newUniqueAnswers: IWrongAnswer[] = [];
+    for (const a of enriched) {
+      if (a.id && existingIds.has(a.id)) continue;
+      const sessionRoundKey = a.sessionId && a.exerciseSlug && a.round !== undefined
+        ? `${a.sessionId}-${a.exerciseSlug}-${a.round}`
+        : null;
+      if (sessionRoundKey && existingSessionRounds.has(sessionRoundKey)) continue;
+
+      if (a.id) existingIds.add(a.id);
+      if (sessionRoundKey) existingSessionRounds.add(sessionRoundKey);
+      newUniqueAnswers.push(a);
+    }
+
+    if (newUniqueAnswers.length === 0) {
+      return [];
+    }
+
     // Prepend to in-memory list (latest first)
-    this.wrongAnswers = [...enriched, ...this.wrongAnswers].slice(0, 1000);
+    this.wrongAnswers = [...newUniqueAnswers, ...this.wrongAnswers].slice(0, 1000);
 
     // Persist to Supabase if connected
     if (this.isSupabaseConnected && this.pgPool) {
-      this.persistWrongAnswersToSupabase(enriched).catch(err => {
+      this.persistWrongAnswersToSupabase(newUniqueAnswers).catch(err => {
         console.warn('Async Supabase wrong-answers insert error:', err);
       });
     }
 
-    return enriched;
+    return newUniqueAnswers;
   }
 
   private async persistWrongAnswersToSupabase(answers: IWrongAnswer[]) {

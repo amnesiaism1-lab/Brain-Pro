@@ -70,6 +70,12 @@ export const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
     }
   };
 
+  // Clean redundant prefixes like "Chuỗi đúng:" or "Bạn chọn:"
+  const cleanDisplayLabel = (label: string): string => {
+    if (!label) return '';
+    return label.replace(/^(Chuỗi đúng|Bạn chọn)\s*:\s*/i, '').trim();
+  };
+
   // Play audio for correct answer
   const handlePlayCorrect = async () => {
     if (isPlayingCorrect) return;
@@ -273,7 +279,7 @@ export const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
 
           <div>
             <p className="text-sm sm:text-base font-bold text-emerald-950 dark:text-emerald-100">
-              {correctAnswer.label}
+              {cleanDisplayLabel(correctAnswer.label)}
             </p>
             {correctAnswer.semitones !== undefined && (
               <p className="text-xs text-emerald-700 dark:text-emerald-300 font-mono mt-0.5">
@@ -305,7 +311,7 @@ export const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
 
           <div>
             <p className="text-sm sm:text-base font-bold text-rose-950 dark:text-rose-100">
-              {userAnswer.label}
+              {cleanDisplayLabel(userAnswer.label)}
             </p>
             {userAnswer.semitones !== undefined && (
               <p className="text-xs text-rose-700 dark:text-rose-300 font-mono mt-0.5">

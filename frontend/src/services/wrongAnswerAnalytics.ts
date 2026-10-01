@@ -176,6 +176,41 @@ export function calculateConfusionMatrix(
 }
 
 /**
+ * Chuẩn hóa tên nhãn hiển thị cho cặp nhầm lẫn, loại bỏ tiền tố dài dòng (Chuỗi đúng, Bạn chọn, v.v.)
+ */
+export function formatConfusionPairDisplay(stat: IConfusionPairStat): { title: string; cleanA: string; cleanB: string } {
+  const sanitize = (text: string) => {
+    if (!text) return '';
+    return text
+      .replace(/^(Chuỗi đúng|Bạn chọn|Nốt mục tiêu|Nốt hát được|Mẫu chuẩn)\s*:\s*/i, '')
+      .trim();
+  };
+
+  const rawA = sanitize(stat.labelA) || stat.codeA || '';
+  const rawB = sanitize(stat.labelB) || stat.codeB || '';
+
+  // Kiểm tra nếu mã nốt nhạc là nốt đơn (ví dụ: F4, G#4, Bb3, C5)
+  const isPitchNote = (code: string) => /^[A-G][b#]?[0-9]$/.test(code);
+  if (stat.codeA && stat.codeB && isPitchNote(stat.codeA) && isPitchNote(stat.codeB)) {
+    return {
+      title: `Phân biệt Nốt ${stat.codeA} ↔ Nốt ${stat.codeB}`,
+      cleanA: `Nốt ${stat.codeA}`,
+      cleanB: `Nốt ${stat.codeB}`
+    };
+  }
+
+  // Rút gọn nếu chuỗi quá dài (ví dụ chuỗi nhiều nốt)
+  const cleanA = rawA.length > 25 ? rawA.slice(0, 22) + '...' : rawA;
+  const cleanB = rawB.length > 25 ? rawB.slice(0, 22) + '...' : rawB;
+
+  return {
+    title: `Phân biệt ${cleanA} ↔ ${cleanB}`,
+    cleanA,
+    cleanB
+  };
+}
+
+/**
  * Đề xuất ôn tập thông minh dựa trên độ lặp lại và tính cấp bách
  */
 export function generateReviewRecommendations(
@@ -187,18 +222,20 @@ export function generateReviewRecommendations(
   for (const s of stats) {
     if (s.masteredAt) continue; // Đã nắm vững thì bỏ qua
 
+    const { title, cleanA, cleanB } = formatConfusionPairDisplay(s);
+
     let urgency: 'high' | 'medium' | 'low' = 'low';
     let reason = '';
 
     if (s.recentErrors >= 4 || s.totalErrors >= 6) {
       urgency = 'high';
-      reason = `Bạn đã nhầm cặp ${s.labelA} ↔ ${s.labelB} ${s.recentErrors > 0 ? `${s.recentErrors} lần trong 7 ngày qua` : `${s.totalErrors} lần`}. Cần ôn tập ngay để tránh hình thành thói quen nghe sai.`;
+      reason = `Bạn đã nhầm lẫn giữa ${cleanA} và ${cleanB} ${s.recentErrors > 0 ? `${s.recentErrors} lần trong 7 ngày qua` : `${s.totalErrors} lần`}. Cần ôn tập ngay để tránh hình thành thói quen nghe sai.`;
     } else if (s.recentErrors >= 2 || s.totalErrors >= 3) {
       urgency = 'medium';
-      reason = `Ghi nhận ${s.totalErrors} lần nhầm giữa ${s.labelA} và ${s.labelB}. Nên củng cố để phân biệt sắc thái vi tế.`;
+      reason = `Ghi nhận ${s.totalErrors} lần nhầm giữa ${cleanA} và ${cleanB}. Nên củng cố để phân biệt sắc thái vi tế.`;
     } else {
       urgency = 'low';
-      reason = `Lỗi mới xuất hiện gần đây (${s.totalErrors} lần). Ôn lại 3-5 phút để tăng phản xạ.`;
+      reason = `Lỗi mới xuất hiện gần đây giữa ${cleanA} và ${cleanB} (${s.totalErrors} lần). Ôn lại 3-5 phút để tăng phản xạ.`;
     }
 
     // Tìm ví dụ câu sai mẫu gần nhất để trích ngữ cảnh
@@ -208,7 +245,7 @@ export function generateReviewRecommendations(
       id: `rec-${s.exerciseSlug}-${s.pairKey}`,
       exerciseSlug: s.exerciseSlug,
       confusionPairKey: s.pairKey,
-      title: `Phân biệt ${s.labelA} vs ${s.labelB}`,
+      title,
       urgency,
       reason,
       suggestedLevel: sample?.difficultyLevel || 3,

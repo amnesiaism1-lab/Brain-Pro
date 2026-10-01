@@ -191,10 +191,14 @@ export const PitchRecallGame: React.FC = () => {
   const playedRoundRef = useRef<number>(0);
   const isPlayingRef = useRef<boolean>(false);
   const targetSeqRef = useRef<string[]>([]);
+  const userSequenceRef = useRef<string[]>([]);
+  const evaluatedRoundRef = useRef<number>(-1);
 
   // Generate new round
   const startNewRound = useCallback(() => {
     setTestedNote(null);
+    userSequenceRef.current = [];
+    evaluatedRoundRef.current = -1;
     if (isContourMode) {
       const q = generateContourQuestion(['ascend', 'descend', 'arch', 'wave']);
       setContourQuestion(q);
@@ -372,95 +376,96 @@ export const PitchRecallGame: React.FC = () => {
     const vel = velocity || 0.65;
     auditoryEngine.playNote(note, 0.45, { volume: Math.max(0.18, Math.pow(vel, 1.3) * 0.7) });
 
-    setUserSequence(prev => {
-      const nextUserSeq = [...prev, note];
+    // Flash key briefly
+    setActiveNotes([note]);
+    setTimeout(() => setActiveNotes([]), 180);
 
-      // Flash key briefly
-      setActiveNotes([note]);
-      setTimeout(() => setActiveNotes([]), 180);
+    const nextUserSeq = [...userSequenceRef.current, note];
+    userSequenceRef.current = nextUserSeq;
+    setUserSequence(nextUserSeq);
 
-      // If reached expected length
-      if (nextUserSeq.length >= targetSequence.length) {
-        setPhase('feedback');
-        const reactionMs = Date.now() - trialStartTimeRef.current;
+    // If reached expected length
+    if (nextUserSeq.length >= targetSequence.length) {
+      if (evaluatedRoundRef.current === round) return;
+      evaluatedRoundRef.current = round;
 
-        // Expected target sequence
-        const expected = isReverseRecall ? [...targetSequence].reverse() : targetSequence;
-        const isCorrect = nextUserSeq.every((n, idx) => n === expected[idx]);
+      setPhase('feedback');
+      const reactionMs = Date.now() - trialStartTimeRef.current;
 
-        auditoryEngine.playFeedback(isCorrect);
-        setRecordedUserSequence(nextUserSeq);
+      // Expected target sequence
+      const expected = isReverseRecall ? [...targetSequence].reverse() : targetSequence;
+      const isCorrect = nextUserSeq.every((n, idx) => n === expected[idx]);
 
-        if (isCorrect) {
-          setCorrectRounds(p => p + 1);
-          setScore(p => p + 250);
-          setLastFeedback({
-            isCorrect: true,
-            message: 'Chính xác hoàn hảo!',
-            expected
-          });
-        } else {
-          setLastFeedback({
-            isCorrect: false,
-            message: `Chưa đúng! Chuỗi nốt đúng là: ${expected.join(' - ')}`,
-            expected
-          });
+      auditoryEngine.playFeedback(isCorrect);
+      setRecordedUserSequence(nextUserSeq);
 
-          const firstMismatchIdx = nextUserSeq.findIndex((n, idx) => n !== expected[idx]);
-          const correctNote = expected[firstMismatchIdx >= 0 ? firstMismatchIdx : 0] || expected[0];
-          const userNote = nextUserSeq[firstMismatchIdx >= 0 ? firstMismatchIdx : 0] || nextUserSeq[0];
-
-          trackWrongAnswer({
-            round,
-            difficultyLevel: effectiveLevel,
-            questionContext: {
-              sequenceNotes: expected,
-              isOctaveLeap,
-              isReverseRecall
-            },
-            correctAnswer: {
-              label: `Chuỗi đúng: ${expected.join(' - ')} (${correctNote})`,
-              code: correctNote
-            },
-            userAnswer: {
-              label: `Bạn chọn: ${nextUserSeq.join(' - ')} (${userNote})`,
-              code: userNote
-            },
-            responseTimeMs: reactionMs,
-            sessionId: sessionIdRef.current
-          });
-        }
-
-        emitTrialEvent({
-          exerciseSlug: 'pitch-recall',
-          level: effectiveLevel,
-          relationId: isReverseRecall ? 'ORDER_SEQUENCE' : 'IDENTITY_MATCH',
-          entities: {
-            target: targetSequence.join(','),
-            response: nextUserSeq.join(',')
-          },
-          stateBefore: 'listen',
-          stateAfter: 'recall',
-          responseMs: reactionMs,
-          correct: isCorrect
+      if (isCorrect) {
+        setCorrectRounds(p => p + 1);
+        setScore(p => p + 250);
+        setLastFeedback({
+          isCorrect: true,
+          message: 'Chính xác hoàn hảo!',
+          expected
+        });
+      } else {
+        setLastFeedback({
+          isCorrect: false,
+          message: `Chưa đúng! Chuỗi nốt đúng là: ${expected.join(' - ')}`,
+          expected
         });
 
-        // If not in deliberate learn mode, auto-advance for fast pacing
-        if (!isLearnMode) {
-          setTimeout(() => {
-            if (round >= maxRounds) {
-              setIsFinished(true);
-            } else {
-              setRound(r => r + 1);
-              startNewRound();
-            }
-          }, 1600);
-        }
+        const firstMismatchIdx = nextUserSeq.findIndex((n, idx) => n !== expected[idx]);
+        const correctNote = expected[firstMismatchIdx >= 0 ? firstMismatchIdx : 0] || expected[0];
+        const userNote = nextUserSeq[firstMismatchIdx >= 0 ? firstMismatchIdx : 0] || nextUserSeq[0];
+
+        trackWrongAnswer({
+          round,
+          difficultyLevel: effectiveLevel,
+          questionContext: {
+            sequenceNotes: expected,
+            isOctaveLeap,
+            isReverseRecall
+          },
+          correctAnswer: {
+            label: `${expected.join(' - ')} (Nốt ${correctNote})`,
+            code: correctNote
+          },
+          userAnswer: {
+            label: `${nextUserSeq.join(' - ')} (Nốt ${userNote})`,
+            code: userNote
+          },
+          responseTimeMs: reactionMs,
+          sessionId: sessionIdRef.current
+        });
       }
 
-      return nextUserSeq;
-    });
-  }, [phase, targetSequence, isReverseRecall, round, maxRounds, effectiveLevel, emitTrialEvent, startNewRound, isLearnMode]);
+      emitTrialEvent({
+        exerciseSlug: 'pitch-recall',
+        level: effectiveLevel,
+        relationId: isReverseRecall ? 'ORDER_SEQUENCE' : 'IDENTITY_MATCH',
+        entities: {
+          target: targetSequence.join(','),
+          response: nextUserSeq.join(',')
+        },
+        stateBefore: 'listen',
+        stateAfter: 'recall',
+        responseMs: reactionMs,
+        correct: isCorrect
+      });
+
+      // If not in deliberate learn mode, auto-advance for fast pacing
+      if (!isLearnMode) {
+        setTimeout(() => {
+          if (round >= maxRounds) {
+            setIsFinished(true);
+          } else {
+            setRound(r => r + 1);
+            startNewRound();
+          }
+        }, 1600);
+      }
+    }
+  }, [phase, targetSequence, isReverseRecall, round, maxRounds, effectiveLevel, emitTrialEvent, startNewRound, isLearnMode, trackWrongAnswer]);
 
   // Hook up physical MIDI piano: hitting keys on external MIDI keyboard inputs answers!
   useMidiInput({
@@ -472,6 +477,8 @@ export const PitchRecallGame: React.FC = () => {
 
   const handleReplay = () => {
     if (!isPlayingRef.current) {
+      userSequenceRef.current = [];
+      evaluatedRoundRef.current = -1;
       setUserSequence([]);
       setPhase('listen');
       playSequence();

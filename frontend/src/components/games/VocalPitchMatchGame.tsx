@@ -112,6 +112,7 @@ export const VocalPitchMatchGame: React.FC = () => {
   // Modal states
   const [showPreflightModal, setShowPreflightModal] = useState(true);
   const [isFinished, setIsFinished] = useState(false);
+  const hasFinishedRef = useRef(false);
 
   // Active target note
   const currentTarget = targetNotes[activeNoteIndex] || {
@@ -166,6 +167,7 @@ export const VocalPitchMatchGame: React.FC = () => {
 
   // Start new round
   const startRound = useCallback(async (roundNum: number) => {
+    hasFinishedRef.current = false;
     setCurrentRound(roundNum);
     setActiveNoteIndex(0);
     setCurrentHoldMs(0);
@@ -403,6 +405,9 @@ export const VocalPitchMatchGame: React.FC = () => {
 
   // Finish Game
   const finishGame = useCallback(() => {
+    if (hasFinishedRef.current) return;
+    hasFinishedRef.current = true;
+
     auditoryEngine.stopDrone();
     vocalPitchService.stopListening(true);
     setPhase('finished');

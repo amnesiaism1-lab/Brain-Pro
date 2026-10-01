@@ -44,12 +44,52 @@ export const initialWrongAnswerFilter: IWrongAnswerFilter = {
   searchQuery: ''
 };
 
+/**
+ * Lọc trùng lặp danh sách câu sai triệt để dựa trên:
+ * 1. id duy nhất
+ * 2. hoặc bộ khóa nghiệp vụ (sessionId + exerciseSlug + round)
+ * Giữ lại bản ghi hợp lệ đầu tiên (mới nhất).
+ */
+export const deduplicateWrongAnswers = (items: IWrongAnswer[]): IWrongAnswer[] => {
+  const seenIds = new Set<string>();
+  const seenRoundKeys = new Set<string>();
+  const result: IWrongAnswer[] = [];
+
+  for (const item of items) {
+    if (!item) continue;
+
+    // 1. Kiểm tra ID duy nhất
+    if (item.id) {
+      if (seenIds.has(item.id)) continue;
+      seenIds.add(item.id);
+    }
+
+    // 2. Kiểm tra bộ khóa nghiệp vụ: Trong cùng 1 lượt chơi (sessionId), 1 bài tập (slug) ở 1 vòng (round) chỉ có tối đa 1 câu sai
+    if (item.sessionId && item.exerciseSlug && item.round !== undefined) {
+      const roundKey = `${item.sessionId}-${item.exerciseSlug}-${item.round}`;
+      if (seenRoundKeys.has(roundKey)) continue;
+      seenRoundKeys.add(roundKey);
+    }
+
+    result.push(item);
+  }
+
+  return result;
+};
+
 export const loadInitialWrongAnswers = (): IWrongAnswer[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_WRONG_ANSWERS);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+
+    // Tự động dọn dẹp các bản ghi trùng lặp hiện có trong LocalStorage của người dùng
+    const cleaned = deduplicateWrongAnswers(parsed);
+    if (cleaned.length !== parsed.length) {
+      saveWrongAnswersToStorage(cleaned);
+    }
+    return cleaned;
   } catch (e) {
     console.warn('Failed to load wrong answers from localStorage:', e);
     return [];
@@ -82,7 +122,25 @@ export const createWrongAnswerSlice = (
 
     recordWrongAnswer: (wrong: IWrongAnswer) => {
       set((state: any) => {
-        const nextAnswers = [wrong, ...state.wrongAnswers].slice(0, MAX_LOCAL_WRONG_ANSWERS);
+        // Kiểm tra xem đã có câu sai cho (id) hoặc (sessionId + exerciseSlug + round) này chưa
+        const isDuplicate = state.wrongAnswers.some((item: IWrongAnswer) => {
+          if (wrong.id && item.id === wrong.id) return true;
+          if (
+            wrong.sessionId &&
+            item.sessionId === wrong.sessionId &&
+            item.exerciseSlug === wrong.exerciseSlug &&
+            item.round === wrong.round
+          ) {
+            return true;
+          }
+          return false;
+        });
+
+        if (isDuplicate) {
+          return state;
+        }
+
+        const nextAnswers = deduplicateWrongAnswers([wrong, ...state.wrongAnswers]).slice(0, MAX_LOCAL_WRONG_ANSWERS);
         saveWrongAnswersToStorage(nextAnswers);
         const stats = calculateConfusionMatrix(nextAnswers, state.historyFilter.exerciseSlug);
         const snapshots = calculateProgressTimeline(nextAnswers, 14);
@@ -107,7 +165,7 @@ export const createWrongAnswerSlice = (
     recordWrongAnswersBatch: (wrongs: IWrongAnswer[]) => {
       if (wrongs.length === 0) return;
       set((state: any) => {
-        const nextAnswers = [...wrongs, ...state.wrongAnswers].slice(0, MAX_LOCAL_WRONG_ANSWERS);
+        const nextAnswers = deduplicateWrongAnswers([...wrongs, ...state.wrongAnswers]).slice(0, MAX_LOCAL_WRONG_ANSWERS);
         saveWrongAnswersToStorage(nextAnswers);
         const stats = calculateConfusionMatrix(nextAnswers, state.historyFilter.exerciseSlug);
         const snapshots = calculateProgressTimeline(nextAnswers, 14);
@@ -234,7 +292,9 @@ export const createWrongAnswerSlice = (
                   localMap.set(remoteItem.id, remoteItem);
                 }
               });
-              const merged: IWrongAnswer[] = Array.from(localMap.values())
+              const merged: IWrongAnswer[] = deduplicateWrongAnswers(
+                Array.from(localMap.values())
+              )
                 .sort((a: IWrongAnswer, b: IWrongAnswer) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                 .slice(0, MAX_LOCAL_WRONG_ANSWERS);
 

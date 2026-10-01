@@ -50,9 +50,11 @@ export const RhythmRecallGame: React.FC = () => {
 
   const startTimeRef = useRef<number>(Date.now());
   const recallStartTimeRef = useRef<number>(0);
+  const evaluatedRoundRef = useRef<number>(-1);
 
   // Generate new pattern
   const startNewRound = useCallback(() => {
+    evaluatedRoundRef.current = -1;
     const data = generateRhythmPattern(stepCount, bpm, 0.5, {
       syncopated: effectiveLevel >= 5,
       accents: effectiveLevel >= 7,
@@ -174,6 +176,9 @@ export const RhythmRecallGame: React.FC = () => {
         // Sequencer finished!
         clearInterval(interval);
         setCurrentPlayStep(-1);
+
+        if (evaluatedRoundRef.current === round) return;
+        evaluatedRoundRef.current = round;
 
         // Calculate score
         const targetHits = patternData.steps.map((s, idx) => (s.isHit ? idx : -1)).filter(idx => idx !== -1);
