@@ -16,11 +16,14 @@ import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
 import { EarTrainingLearningCard } from '../ui/EarTrainingLearningCard';
+import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { Music, Volume2, RotateCcw, CheckCircle2, XCircle, Play, GraduationCap, Zap, Anchor, GitCommit } from 'lucide-react';
 
 export const ChordIdentifyGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, enableTonicAnchor, setEnableTonicAnchor } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
+  const { trackWrongAnswer } = useWrongAnswerTracker('chord-identify');
+  const sessionIdRef = useRef<string>(`session-chord-${Date.now()}`);
 
   const effectiveLevel = getExerciseLevel('chord-identify') || currentLevel || 1;
   const isInfinity = effectiveLevel >= 13;
@@ -273,6 +276,28 @@ export const ChordIdentifyGame: React.FC = () => {
     if (isCorrect) {
       setCorrectCount(prev => prev + 1);
       setScore(prev => prev + 220);
+    } else {
+      trackWrongAnswer({
+        round,
+        difficultyLevel: effectiveLevel,
+        questionContext: {
+          chordRoot: question.rootNote,
+          chordVoicing: playbackMode,
+          isCadenceMode: false,
+          isImpliedHarmonyMode: isImpliedMode,
+          notes: question.notes
+        },
+        correctAnswer: {
+          label: question.typeInfo.nameVi,
+          code: question.chordType
+        },
+        userAnswer: {
+          label: opt.nameVi,
+          code: opt.type
+        },
+        responseTimeMs: reactionMs,
+        sessionId: sessionIdRef.current
+      });
     }
 
     emitTrialEvent({
@@ -317,6 +342,24 @@ export const ChordIdentifyGame: React.FC = () => {
     if (isCorrect) {
       setCorrectCount(prev => prev + 1);
       setScore(prev => prev + 250);
+    } else {
+      trackWrongAnswer({
+        round,
+        difficultyLevel: effectiveLevel,
+        questionContext: {
+          isCadenceMode: true
+        },
+        correctAnswer: {
+          label: cadenceQuestion.targetCadence.nameVi,
+          code: cadenceQuestion.targetCadence.type
+        },
+        userAnswer: {
+          label: opt.nameVi,
+          code: opt.type
+        },
+        responseTimeMs: reactionMs,
+        sessionId: sessionIdRef.current
+      });
     }
 
     emitTrialEvent({

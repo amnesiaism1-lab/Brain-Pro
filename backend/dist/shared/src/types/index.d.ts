@@ -294,3 +294,4 @@ export interface IVocalPitchAttemptTelemetry {
     pitchTraceDownsampled: IVocalPitchTracePoint[];
     accuracyPct: number;
 }
+export * from './wrong-answer.types';

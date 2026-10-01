@@ -18,6 +18,8 @@ const analytics_controller_1 = require("./modules/analytics/analytics.controller
 const reminders_controller_1 = require("./modules/reminders/reminders.controller");
 const auth_controller_1 = require("./modules/auth/auth.controller");
 const auth_service_1 = require("./modules/auth/auth.service");
+const wrong_answers_controller_1 = require("./modules/wrong-answers/wrong-answers.controller");
+const wrong_answers_service_1 = require("./modules/wrong-answers/wrong-answers.service");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -36,10 +38,11 @@ exports.AppModule = AppModule = __decorate([
             reading_assessment_controller_1.ReadingAssessmentController,
             analytics_controller_1.AnalyticsController,
             reminders_controller_1.RemindersController,
-            auth_controller_1.AuthController
+            auth_controller_1.AuthController,
+            wrong_answers_controller_1.WrongAnswersController
         ],
-        providers: [data_store_service_1.DataStoreService, auth_service_1.AuthService],
-        exports: [data_store_service_1.DataStoreService, auth_service_1.AuthService]
+        providers: [data_store_service_1.DataStoreService, auth_service_1.AuthService, wrong_answers_service_1.WrongAnswersService],
+        exports: [data_store_service_1.DataStoreService, auth_service_1.AuthService, wrong_answers_service_1.WrongAnswersService]
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

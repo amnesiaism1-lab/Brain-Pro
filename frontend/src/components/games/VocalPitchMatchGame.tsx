@@ -32,6 +32,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 
 type GamePhase = 'preflight' | 'prompt' | 'countdown' | 'singing' | 'feedback' | 'finished';
 
@@ -49,6 +50,8 @@ export const VocalPitchMatchGame: React.FC = () => {
     playSound,
     enableTonicAnchor
   } = useAppStore();
+  const { trackWrongAnswer } = useWrongAnswerTracker('vocal-pitch-match');
+  const sessionIdRef = useRef<string>(`session-vocal-${Date.now()}`);
 
   const currentLevel = getExerciseLevel('vocal-pitch-match') || 1;
   const isInfinity = currentLevel > 12;
@@ -404,7 +407,30 @@ export const VocalPitchMatchGame: React.FC = () => {
     vocalPitchService.stopListening(true);
     setPhase('finished');
     setIsFinished(true);
-  }, []);
+
+    if (correctRounds < totalRounds && currentTargetRef.current?.note) {
+      const target = currentTargetRef.current;
+      trackWrongAnswer({
+        round: currentRoundRef.current,
+        difficultyLevel: currentLevel,
+        questionContext: {
+          targetNoteName: target.note,
+          centsTolerance: toleranceCentsRef.current
+        },
+        correctAnswer: {
+          label: `Nốt mục tiêu: ${target.note}`,
+          code: target.note
+        },
+        userAnswer: {
+          label: reading?.noteName ? `Nốt hát được: ${reading.noteName} (${Math.round(evaluation?.centsDiff ?? 0)} cents)` : 'Lệch cao độ / Chưa hoàn thành giữ nốt',
+          code: reading?.noteName || 'pitch-drift',
+          centsDeviation: Math.round(evaluation?.centsDiff ?? 0)
+        },
+        responseTimeMs: Math.round((timeLimitSec - timeLeft) * 1000),
+        sessionId: sessionIdRef.current
+      });
+    }
+  }, [correctRounds, totalRounds, currentLevel, reading, evaluation, timeLimitSec, timeLeft, trackWrongAnswer]);
 
   // Overall timer
   useEffect(() => {

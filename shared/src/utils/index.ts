@@ -185,3 +185,6 @@ export function generateWordSearchGrid(
 
   return { grid: finalGrid, placedWords };
 }
+
+export * from './wrong-answer.utils';
+

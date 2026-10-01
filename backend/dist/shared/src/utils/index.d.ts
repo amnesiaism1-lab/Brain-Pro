@@ -34,3 +34,4 @@ export declare function generateWordSearchGrid(rows?: number, cols?: number, wor
         direction: 'H' | 'V';
     }>;
 };
+export * from './wrong-answer.utils';

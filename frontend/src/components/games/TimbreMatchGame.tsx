@@ -11,6 +11,7 @@ import {
   IArticulationInfo 
 } from '../../services/musicTheoryService';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
+import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { Radio, Volume2, Play, CheckCircle2, XCircle, RotateCcw, GraduationCap, Zap, BookOpen, ArrowRight, Sparkles } from 'lucide-react';
 
 interface ITimbreOption {
@@ -81,6 +82,8 @@ const FILTER_OPTIONS: ITimbreOption[] = [
 export const TimbreMatchGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
+  const { trackWrongAnswer } = useWrongAnswerTracker('timbre-match');
+  const sessionIdRef = useRef<string>(`session-timbre-${Date.now()}`);
 
   const effectiveLevel = getExerciseLevel('timbre-match') || currentLevel || 1;
   const isInfinity = effectiveLevel >= 13;
@@ -252,6 +255,26 @@ export const TimbreMatchGame: React.FC = () => {
     if (isCorrect) {
       setCorrectCount(prev => prev + 1);
       setScore(prev => prev + 200);
+    } else {
+      trackWrongAnswer({
+        round,
+        difficultyLevel: effectiveLevel,
+        questionContext: {
+          targetWaveform: targetOption.waveform,
+          isOvertoneMode: false,
+          isArticulationMode: false
+        },
+        correctAnswer: {
+          label: targetOption.nameVi,
+          code: targetOption.id
+        },
+        userAnswer: {
+          label: opt.nameVi,
+          code: opt.id
+        },
+        responseTimeMs: reactionMs,
+        sessionId: sessionIdRef.current
+      });
     }
 
     emitTrialEvent({
@@ -288,6 +311,25 @@ export const TimbreMatchGame: React.FC = () => {
     if (isCorrect) {
       setCorrectCount(prev => prev + 1);
       setScore(prev => prev + 250);
+    } else if (overtoneQuestion) {
+      trackWrongAnswer({
+        round,
+        difficultyLevel: effectiveLevel,
+        questionContext: {
+          isOvertoneMode: true,
+          harmonicIndex: overtoneQuestion.boostHarmonicIndex
+        },
+        correctAnswer: {
+          label: `Hài âm số ${overtoneQuestion.boostHarmonicIndex}`,
+          code: `H${overtoneQuestion.boostHarmonicIndex}`
+        },
+        userAnswer: {
+          label: `Hài âm số ${opt.harmonicNumber}`,
+          code: `H${opt.harmonicNumber}`
+        },
+        responseTimeMs: reactionMs,
+        sessionId: sessionIdRef.current
+      });
     }
 
     emitTrialEvent({
@@ -325,6 +367,25 @@ export const TimbreMatchGame: React.FC = () => {
     if (isCorrect) {
       setCorrectCount(prev => prev + 1);
       setScore(prev => prev + 250);
+    } else if (articulationQuestion) {
+      trackWrongAnswer({
+        round,
+        difficultyLevel: effectiveLevel,
+        questionContext: {
+          isArticulationMode: true,
+          articulationType: articulationQuestion.targetType
+        },
+        correctAnswer: {
+          label: articulationQuestion.targetInfo.nameVi,
+          code: articulationQuestion.targetType
+        },
+        userAnswer: {
+          label: opt.nameVi,
+          code: opt.type
+        },
+        responseTimeMs: reactionMs,
+        sessionId: sessionIdRef.current
+      });
     }
 
     emitTrialEvent({

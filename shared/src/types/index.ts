@@ -377,3 +377,6 @@ export interface IVocalPitchAttemptTelemetry {
   accuracyPct: number;
 }
 
+export * from './wrong-answer.types';
+
+

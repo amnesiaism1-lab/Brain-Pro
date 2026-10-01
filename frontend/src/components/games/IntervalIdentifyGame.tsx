@@ -9,7 +9,9 @@ import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
 import { EarTrainingLearningCard } from '../ui/EarTrainingLearningCard';
-import { Sliders, Volume2, RotateCcw, CheckCircle2, XCircle, Play, Headphones, GraduationCap, Zap, Anchor, Radio, Sparkles } from 'lucide-react';
+import { Sliders, Volume2, RotateCcw, CheckCircle2, XCircle, Play, GraduationCap, Zap, Anchor, Radio, Sparkles } from 'lucide-react';
+import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
+
 
 export const IntervalIdentifyGame: React.FC = () => {
   const { 
@@ -24,6 +26,8 @@ export const IntervalIdentifyGame: React.FC = () => {
     recordEarConfusion
   } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
+  const { trackWrongAnswer } = useWrongAnswerTracker('interval-identify');
+  const sessionIdRef = useRef<string>(`session-interval-${Date.now()}`);
 
   const effectiveLevel = getExerciseLevel('interval-identify') || currentLevel || 1;
   const isInfinity = effectiveLevel >= 13;
@@ -268,6 +272,27 @@ export const IntervalIdentifyGame: React.FC = () => {
       // Record confusion pair for targeted pedagogical drilling
       const confusionPairKey = [question.intervalCode, opt.code].sort().join(':');
       recordEarConfusion(confusionPairKey);
+      trackWrongAnswer({
+        round,
+        difficultyLevel: effectiveLevel,
+        questionContext: {
+          rootNote: question.rootNote,
+          targetNote: question.targetNote,
+          playbackMode: playbackMode === 'mixed' ? 'ascending' : playbackMode
+        },
+        correctAnswer: {
+          label: question.intervalInfo.nameVi,
+          code: question.intervalCode,
+          semitones: question.intervalInfo.semitones
+        },
+        userAnswer: {
+          label: opt.nameVi,
+          code: opt.code,
+          semitones: opt.semitones
+        },
+        responseTimeMs: reactionMs,
+        sessionId: sessionIdRef.current
+      });
     }
 
     emitTrialEvent({

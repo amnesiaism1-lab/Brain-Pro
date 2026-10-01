@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Brain, BookOpen, Settings, User, Cloud, LogIn, LogOut } from 'lucide-react';
+import { Home, Brain, BookOpen, History, Settings, User, Cloud, LogIn, LogOut } from 'lucide-react';
 import { useAppStore, MainNavTab } from '../../store/useAppStore';
 
 export const Navbar: React.FC = () => {
@@ -10,7 +10,8 @@ export const Navbar: React.FC = () => {
     playSound,
     authUser,
     setIsAuthModalOpen,
-    logout
+    logout,
+    wrongAnswers
   } = useAppStore();
 
   // Hide bottom nav while game is actively playing to maximize focus & screen area
@@ -33,6 +34,20 @@ export const Navbar: React.FC = () => {
       id: 'learn',
       label: 'Lý thuyết',
       icon: <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
+    },
+    {
+      id: 'wrong-history',
+      label: 'Lịch sử sai',
+      icon: (
+        <div className="relative">
+          <History className="w-5 h-5 sm:w-6 sm:h-6" />
+          {wrongAnswers.length > 0 && (
+            <span className="absolute -top-1.5 -right-2 px-1 min-w-[16px] h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center shadow-sm">
+              {wrongAnswers.length > 99 ? '99+' : wrongAnswers.length}
+            </span>
+          )}
+        </div>
+      )
     },
     {
       id: 'settings',
@@ -66,7 +81,7 @@ export const Navbar: React.FC = () => {
         id="app-bottom-nav" 
         className="fixed bottom-0 left-0 right-0 z-40 bg-[#ECE5D8] dark:bg-slate-900 border-t border-[#D5CBB9] dark:border-slate-800 shadow-lg md:hidden"
       >
-        <div className="grid grid-cols-5 max-w-lg mx-auto py-1 px-1">
+        <div className="grid grid-cols-6 max-w-lg mx-auto py-1 px-1">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
             return (

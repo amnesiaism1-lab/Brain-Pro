@@ -1,6 +1,6 @@
 import { OnModuleInit } from '@nestjs/common';
 import { RelationId, IRelationshipMastery } from '@brain-exercises/shared';
-import { IExercise, IWorkoutRoutine, IReadingText, IGameAttemptRequest, IGameAttemptResponse, IUserAssessmentRequest, IUserAssessmentResponse, IUserStats, IUserReminder } from '@brain-exercises/shared';
+import { IExercise, IWorkoutRoutine, IReadingText, IGameAttemptRequest, IGameAttemptResponse, IUserAssessmentRequest, IUserAssessmentResponse, IUserStats, IUserReminder, IWrongAnswer, IConfusionPairStat, ExerciseSlug } from '@brain-exercises/shared';
 export declare class DataStoreService implements OnModuleInit {
     private exercises;
     private routines;
@@ -8,6 +8,7 @@ export declare class DataStoreService implements OnModuleInit {
     private attempts;
     private assessments;
     private relationMasteries;
+    private wrongAnswers;
     private reminders;
     private currentUser;
     private pgPool;
@@ -87,4 +88,21 @@ export declare class DataStoreService implements OnModuleInit {
     }): Promise<any>;
     getReminders(): IUserReminder[];
     updateReminders(reminders: IUserReminder[]): IUserReminder[];
+    saveWrongAnswers(answers: IWrongAnswer[], targetUserId?: string): IWrongAnswer[];
+    private persistWrongAnswersToSupabase;
+    getWrongAnswers(params?: {
+        exerciseSlug?: string;
+        severity?: string;
+        reviewStatus?: string;
+        limit?: number;
+        offset?: number;
+    }): {
+        total: number;
+        items: IWrongAnswer[];
+    };
+    updateWrongAnswerReview(id: string, quality: 0 | 1 | 2 | 3 | 4 | 5): IWrongAnswer | null;
+    getConfusionPairStats(exerciseSlug?: ExerciseSlug): IConfusionPairStat[];
+    clearWrongAnswers(exerciseSlug?: string): {
+        clearedCount: number;
+    };
 }

@@ -9,6 +9,8 @@ import { AnalyticsController } from './modules/analytics/analytics.controller';
 import { RemindersController } from './modules/reminders/reminders.controller';
 import { AuthController } from './modules/auth/auth.controller';
 import { AuthService } from './modules/auth/auth.service';
+import { WrongAnswersController } from './modules/wrong-answers/wrong-answers.controller';
+import { WrongAnswersService } from './modules/wrong-answers/wrong-answers.service';
 
 @Module({
   imports: [
@@ -24,9 +26,10 @@ import { AuthService } from './modules/auth/auth.service';
     ReadingAssessmentController,
     AnalyticsController,
     RemindersController,
-    AuthController
+    AuthController,
+    WrongAnswersController
   ],
-  providers: [DataStoreService, AuthService],
-  exports: [DataStoreService, AuthService]
+  providers: [DataStoreService, AuthService, WrongAnswersService],
+  exports: [DataStoreService, AuthService, WrongAnswersService]
 })
 export class AppModule {}

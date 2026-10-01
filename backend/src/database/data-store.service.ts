@@ -21,12 +21,16 @@ import {
   IUserAssessmentRequest,
   IUserAssessmentResponse,
   IUserStats,
-  IUserReminder
+  IUserReminder,
+  IWrongAnswer,
+  IConfusionPairStat,
+  ExerciseSlug
 } from '@brain-exercises/shared';
 import { 
   calculateRecommendedNextLevel,
   calculateEffectiveWpm,
-  calculateWpm
+  calculateWpm,
+  calculateNextReviewDate
 } from '@brain-exercises/shared';
 
 // Use pg Pool with robust fallback
@@ -41,6 +45,7 @@ export class DataStoreService implements OnModuleInit {
   private attempts: Array<IGameAttemptRequest & { id: string; userId: string; createdAt: Date }> = [];
   private assessments: Array<IUserAssessmentResponse & { id: string; userId: string; readingTextId: string; createdAt: Date }> = [];
   private relationMasteries: Record<RelationId, IRelationshipMastery> = createInitialMasteriesMap();
+  private wrongAnswers: IWrongAnswer[] = [];
   
   private reminders: IUserReminder[] = [
     {
@@ -573,5 +578,225 @@ export class DataStoreService implements OnModuleInit {
   updateReminders(reminders: IUserReminder[]): IUserReminder[] {
     this.reminders = reminders;
     return this.reminders;
+  }
+
+  // === WRONG ANSWERS PERSISTENCE & ANALYTICS ===
+
+  saveWrongAnswers(answers: IWrongAnswer[], targetUserId?: string): IWrongAnswer[] {
+    const finalUserId = targetUserId || this.currentUser.id;
+    const enriched = answers.map(a => ({
+      ...a,
+      userId: finalUserId,
+      timestamp: a.timestamp || new Date().toISOString()
+    }));
+
+    // Prepend to in-memory list (latest first)
+    this.wrongAnswers = [...enriched, ...this.wrongAnswers].slice(0, 1000);
+
+    // Persist to Supabase if connected
+    if (this.isSupabaseConnected && this.pgPool) {
+      this.persistWrongAnswersToSupabase(enriched).catch(err => {
+        console.warn('Async Supabase wrong-answers insert error:', err);
+      });
+    }
+
+    return enriched;
+  }
+
+  private async persistWrongAnswersToSupabase(answers: IWrongAnswer[]) {
+    if (!this.pgPool || answers.length === 0) return;
+    for (const a of answers) {
+      await this.pgPool.query(`
+        INSERT INTO wrong_answers (
+          id, user_id, exercise_slug, difficulty_level, round,
+          question_context, correct_answer, user_answer,
+          error_category, severity, confusion_pair_key,
+          response_time_ms, session_id, review_status, review_count,
+          last_reviewed_at, next_review_at, ease_factor, created_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          review_status = EXCLUDED.review_status,
+          review_count = EXCLUDED.review_count,
+          last_reviewed_at = EXCLUDED.last_reviewed_at,
+          next_review_at = EXCLUDED.next_review_at,
+          ease_factor = EXCLUDED.ease_factor
+      `, [
+        a.id,
+        a.userId,
+        a.exerciseSlug,
+        a.difficultyLevel,
+        a.round,
+        JSON.stringify(a.questionContext || {}),
+        JSON.stringify(a.correctAnswer || {}),
+        JSON.stringify(a.userAnswer || {}),
+        a.errorCategory,
+        a.severity,
+        a.confusionPairKey,
+        a.responseTimeMs,
+        a.sessionId,
+        a.reviewStatus,
+        a.reviewCount,
+        a.lastReviewedAt ? new Date(a.lastReviewedAt) : null,
+        a.nextReviewAt ? new Date(a.nextReviewAt) : null,
+        a.easeFactor,
+        new Date(a.timestamp)
+      ]);
+    }
+  }
+
+  getWrongAnswers(params?: {
+    exerciseSlug?: string;
+    severity?: string;
+    reviewStatus?: string;
+    limit?: number;
+    offset?: number;
+  }): { total: number; items: IWrongAnswer[] } {
+    let filtered = [...this.wrongAnswers];
+
+    if (params?.exerciseSlug && params.exerciseSlug !== 'ALL') {
+      filtered = filtered.filter(a => a.exerciseSlug === params.exerciseSlug);
+    }
+    if (params?.severity && params.severity !== 'ALL') {
+      filtered = filtered.filter(a => a.severity === params.severity);
+    }
+    if (params?.reviewStatus && params.reviewStatus !== 'ALL') {
+      filtered = filtered.filter(a => a.reviewStatus === params.reviewStatus);
+    }
+
+    const total = filtered.length;
+    const offset = params?.offset || 0;
+    const limit = params?.limit || 50;
+    const items = filtered.slice(offset, offset + limit);
+
+    return { total, items };
+  }
+
+  updateWrongAnswerReview(id: string, quality: 0 | 1 | 2 | 3 | 4 | 5): IWrongAnswer | null {
+    const itemIndex = this.wrongAnswers.findIndex(a => a.id === id);
+    if (itemIndex === -1) return null;
+
+    const item = this.wrongAnswers[itemIndex];
+    const srs = calculateNextReviewDate(item.easeFactor, item.reviewCount, quality);
+
+    const isMastered = quality >= 4 && (item.reviewCount + 1) >= 3;
+    const updated: IWrongAnswer = {
+      ...item,
+      easeFactor: srs.newEF,
+      reviewCount: item.reviewCount + 1,
+      lastReviewedAt: new Date().toISOString(),
+      nextReviewAt: srs.nextReviewDate.toISOString(),
+      reviewStatus: isMastered ? 'mastered' : 'reviewing'
+    };
+
+    this.wrongAnswers[itemIndex] = updated;
+
+    if (this.isSupabaseConnected && this.pgPool) {
+      this.persistWrongAnswersToSupabase([updated]).catch(err => {
+        console.warn('Async update wrong answer review error:', err);
+      });
+    }
+
+    return updated;
+  }
+
+  getConfusionPairStats(exerciseSlug?: ExerciseSlug): IConfusionPairStat[] {
+    const targetItems = exerciseSlug && exerciseSlug !== 'ALL' as any
+      ? this.wrongAnswers.filter(a => a.exerciseSlug === exerciseSlug)
+      : this.wrongAnswers;
+
+    const pairMap = new Map<string, {
+      pairKey: string;
+      exerciseSlug: ExerciseSlug;
+      labelA: string;
+      labelB: string;
+      codeA: string;
+      codeB: string;
+      totalErrors: number;
+      recentErrors: number;
+      totalResponseMs: number;
+      lastOccurredAt: string;
+      masteredCount: number;
+    }>();
+
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    for (const item of targetItems) {
+      const key = item.confusionPairKey;
+      if (!pairMap.has(key)) {
+        pairMap.set(key, {
+          pairKey: key,
+          exerciseSlug: item.exerciseSlug,
+          labelA: item.correctAnswer.label,
+          labelB: item.userAnswer.label,
+          codeA: item.correctAnswer.code,
+          codeB: item.userAnswer.code,
+          totalErrors: 0,
+          recentErrors: 0,
+          totalResponseMs: 0,
+          lastOccurredAt: item.timestamp,
+          masteredCount: 0
+        });
+      }
+
+      const stat = pairMap.get(key)!;
+      stat.totalErrors += 1;
+      stat.totalResponseMs += item.responseTimeMs || 0;
+      if (new Date(item.timestamp).getTime() >= sevenDaysAgo) {
+        stat.recentErrors += 1;
+      }
+      if (item.reviewStatus === 'mastered') {
+        stat.masteredCount += 1;
+      }
+      if (new Date(item.timestamp).getTime() > new Date(stat.lastOccurredAt).getTime()) {
+        stat.lastOccurredAt = item.timestamp;
+      }
+    }
+
+    const result: IConfusionPairStat[] = [];
+    pairMap.forEach(s => {
+      const avgMs = s.totalErrors > 0 ? Math.round(s.totalResponseMs / s.totalErrors) : 0;
+      const isMastered = s.masteredCount >= 2 && s.recentErrors === 0;
+
+      result.push({
+        pairKey: s.pairKey,
+        exerciseSlug: s.exerciseSlug,
+        labelA: s.labelA,
+        labelB: s.labelB,
+        codeA: s.codeA,
+        codeB: s.codeB,
+        totalErrors: s.totalErrors,
+        recentErrors: s.recentErrors,
+        avgResponseMs: avgMs,
+        masteredAt: isMastered ? s.lastOccurredAt : null,
+        trendDirection: s.recentErrors === 0 ? 'improving' : s.recentErrors >= 3 ? 'declining' : 'stagnant',
+        lastOccurredAt: s.lastOccurredAt
+      });
+    });
+
+    return result.sort((a, b) => b.totalErrors - a.totalErrors);
+  }
+
+  clearWrongAnswers(exerciseSlug?: string): { clearedCount: number } {
+    const beforeCount = this.wrongAnswers.length;
+    if (exerciseSlug && exerciseSlug !== 'ALL') {
+      this.wrongAnswers = this.wrongAnswers.filter(a => a.exerciseSlug !== exerciseSlug);
+    } else {
+      this.wrongAnswers = [];
+    }
+    const cleared = beforeCount - this.wrongAnswers.length;
+
+    if (this.isSupabaseConnected && this.pgPool) {
+      const query = exerciseSlug && exerciseSlug !== 'ALL'
+        ? 'DELETE FROM wrong_answers WHERE exercise_slug = $1'
+        : 'DELETE FROM wrong_answers';
+      const params = exerciseSlug && exerciseSlug !== 'ALL' ? [exerciseSlug] : [];
+      this.pgPool.query(query, params).catch(err => {
+        console.warn('Async Supabase delete wrong answers error:', err);
+      });
+    }
+
+    return { clearedCount: cleared };
   }
 }

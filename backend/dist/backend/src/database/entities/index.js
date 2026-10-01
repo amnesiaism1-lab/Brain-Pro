@@ -25,4 +25,5 @@ __exportStar(require("./reading-question.entity"), exports);
 __exportStar(require("./user-assessment.entity"), exports);
 __exportStar(require("./daily-streak.entity"), exports);
 __exportStar(require("./user-reminder.entity"), exports);
+__exportStar(require("./wrong-answer.entity"), exports);
 //# sourceMappingURL=index.js.map

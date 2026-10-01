@@ -5,11 +5,14 @@ import { calculateGameScore, INFINITY_ROMAN_NUMERALS } from '@brain-exercises/sh
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { SpatialRadar, ISpatialTarget } from '../ui/SpatialRadar';
+import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { Navigation, Volume2, Headphones, RotateCcw, Play, Sparkles } from 'lucide-react';
 
 export const SoundLocalizationGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
+  const { trackWrongAnswer } = useWrongAnswerTracker('sound-localization');
+  const sessionIdRef = useRef<string>(`session-sound-loc-${Date.now()}`);
 
   const effectiveLevel = getExerciseLevel('sound-localization') || currentLevel || 1;
   const isInfinity = effectiveLevel >= 13;
@@ -145,6 +148,27 @@ export const SoundLocalizationGame: React.FC = () => {
     if (isCorrect) {
       setCorrectCount(prev => prev + 1);
       setScore(prev => prev + 250);
+    } else {
+      trackWrongAnswer({
+        round,
+        difficultyLevel: effectiveLevel,
+        questionContext: {
+          targetAzimuth: currentTarget.azimuthDeg,
+          targetDistance: currentTarget.distanceTier
+        },
+        correctAnswer: {
+          label: `${currentTarget.label || 'Mục tiêu'} (${currentTarget.azimuthDeg}°)`,
+          code: currentTarget.id,
+          azimuthDeg: currentTarget.azimuthDeg
+        },
+        userAnswer: {
+          label: `${target.label || 'Vị trí chọn'} (${target.azimuthDeg}°)`,
+          code: target.id,
+          azimuthDeg: target.azimuthDeg
+        },
+        responseTimeMs: reactionMs,
+        sessionId: sessionIdRef.current
+      });
     }
 
     emitTrialEvent({

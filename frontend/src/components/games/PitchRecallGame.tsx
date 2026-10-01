@@ -17,6 +17,7 @@ import { PianoKeyboard } from '../ui/PianoKeyboard';
 import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
+import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { Volume2, RotateCcw, Play, Music, Sparkles, GraduationCap, Zap, CheckCircle2, XCircle, ArrowRight, BookOpen, Anchor, TrendingUp, Headphones } from 'lucide-react';
 import { Note } from 'tonal';
 
@@ -129,6 +130,8 @@ export const PitchRecallGame: React.FC = () => {
     setEnableTonicAnchor
   } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
+  const { trackWrongAnswer } = useWrongAnswerTracker('pitch-recall');
+  const sessionIdRef = useRef<string>(`session-pitch-${Date.now()}`);
 
   const effectiveLevel = getExerciseLevel('pitch-recall') || currentLevel || 1;
   const isInfinity = effectiveLevel >= 13;
@@ -401,6 +404,30 @@ export const PitchRecallGame: React.FC = () => {
             isCorrect: false,
             message: `Chưa đúng! Chuỗi nốt đúng là: ${expected.join(' - ')}`,
             expected
+          });
+
+          const firstMismatchIdx = nextUserSeq.findIndex((n, idx) => n !== expected[idx]);
+          const correctNote = expected[firstMismatchIdx >= 0 ? firstMismatchIdx : 0] || expected[0];
+          const userNote = nextUserSeq[firstMismatchIdx >= 0 ? firstMismatchIdx : 0] || nextUserSeq[0];
+
+          trackWrongAnswer({
+            round,
+            difficultyLevel: effectiveLevel,
+            questionContext: {
+              sequenceNotes: expected,
+              isOctaveLeap,
+              isReverseRecall
+            },
+            correctAnswer: {
+              label: `Chuỗi đúng: ${expected.join(' - ')} (${correctNote})`,
+              code: correctNote
+            },
+            userAnswer: {
+              label: `Bạn chọn: ${nextUserSeq.join(' - ')} (${userNote})`,
+              code: userNote
+            },
+            responseTimeMs: reactionMs,
+            sessionId: sessionIdRef.current
           });
         }
 

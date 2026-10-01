@@ -17,10 +17,11 @@ import {
   createInitialMasteriesMap,
   updateMasteryFromEvents
 } from '@brain-exercises/shared';
+import { createWrongAnswerSlice, WrongAnswerSliceState } from './slices/wrongAnswerSlice';
 
-export type MainNavTab = 'home' | 'exercises' | 'learn' | 'settings' | 'user';
+export type MainNavTab = 'home' | 'exercises' | 'learn' | 'wrong-history' | 'settings' | 'user';
 
-interface AppState {
+interface AppState extends WrongAnswerSliceState {
   // Navigation & Modals
   activeTab: MainNavTab;
   setActiveTab: (tab: MainNavTab) => void;
@@ -279,6 +280,8 @@ export const useAppStore = create<AppState>((set, get) => {
   } catch {}
 
   return {
+    ...createWrongAnswerSlice(set, get),
+
     // Auth state & Cloud Sync
     authUser: initialAuthUser,
     authToken: initialAuthToken,

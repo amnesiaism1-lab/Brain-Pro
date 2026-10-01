@@ -8,11 +8,14 @@ import { generateRhythmPattern, IRhythmStep } from '../../services/musicTheorySe
 import { RhythmGrid } from '../ui/RhythmGrid';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
+import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { Activity, Play, RotateCcw, Drum, Volume2, BookOpen } from 'lucide-react';
 
 export const RhythmRecallGame: React.FC = () => {
   const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
+  const { trackWrongAnswer } = useWrongAnswerTracker('rhythm-recall');
+  const sessionIdRef = useRef<string>(`session-rhythm-${Date.now()}`);
 
   const effectiveLevel = getExerciseLevel('rhythm-recall') || currentLevel || 1;
   const isInfinity = effectiveLevel >= 13;
@@ -190,6 +193,29 @@ export const RhythmRecallGame: React.FC = () => {
         if (isRoundPassed) {
           setCorrectRounds(prev => prev + 1);
           setScore(prev => prev + Math.round(acc * 2.5));
+        } else {
+          trackWrongAnswer({
+            round,
+            difficultyLevel: effectiveLevel,
+            questionContext: {
+              bpm: patternData.bpm,
+              stepCount: patternData.steps.length,
+              isRestMode,
+              isAccentMode
+            },
+            correctAnswer: {
+              label: `Mẫu chuẩn (${targetHits.length} phách)`,
+              code: targetHits.join('-'),
+              timingDeltaMs: Math.round(patternData.stepIntervalMs)
+            },
+            userAnswer: {
+              label: `Gõ khớp ${matches}/${targetHits.length} (${acc}%)`,
+              code: userTaps.join('-'),
+              timingDeltaMs: Math.round(patternData.stepIntervalMs * (100 - acc) / 100)
+            },
+            responseTimeMs: patternData.totalDurationMs,
+            sessionId: sessionIdRef.current
+          });
         }
 
         const relationId = isRestMode ? 'INHIBITION' : isAccentMode ? 'TARGET_DISTRACTOR' : 'TEMPORAL_PREDICT';

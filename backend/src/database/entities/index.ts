@@ -9,3 +9,5 @@ export * from './reading-question.entity';
 export * from './user-assessment.entity';
 export * from './daily-streak.entity';
 export * from './user-reminder.entity';
+export * from './wrong-answer.entity';
+

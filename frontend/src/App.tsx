@@ -16,6 +16,7 @@ import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { useOfflineSync } from './hooks/useOfflineSync';
 
 import { MusicTheoryView } from './components/learn/MusicTheoryView';
+import { WrongAnswerHistoryView } from './components/wrong-answers/WrongAnswerHistoryView';
 
 export const App: React.FC = () => {
   const { 
@@ -50,6 +51,8 @@ export const App: React.FC = () => {
         return <ExercisesListView />;
       case 'learn':
         return <MusicTheoryView />;
+      case 'wrong-history':
+        return <WrongAnswerHistoryView />;
       case 'settings':
         return <SettingsView />;
       case 'user':
