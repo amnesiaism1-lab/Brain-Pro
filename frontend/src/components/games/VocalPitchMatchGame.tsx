@@ -168,16 +168,25 @@ export const VocalPitchMatchGame: React.FC = () => {
   // Start new round
   const startRound = useCallback(async (roundNum: number) => {
     hasFinishedRef.current = false;
+    isHandlingSuccessRef.current = false;
+    holdMsRef.current = 0;
     setCurrentRound(roundNum);
+    currentRoundRef.current = roundNum;
     setActiveNoteIndex(0);
+    activeNoteIndexRef.current = 0;
     setCurrentHoldMs(0);
     setEvaluation(null);
 
     const targets = generateTargets();
     setTargetNotes(targets);
+    targetNotesRef.current = targets;
+    if (targets[0]) {
+      currentTargetRef.current = targets[0];
+    }
 
     // Phase: Play audio prompt
     setPhase('prompt');
+    phaseRef.current = 'prompt';
 
     try {
       await auditoryEngine.resumeAudioContext();
@@ -193,6 +202,7 @@ export const VocalPitchMatchGame: React.FC = () => {
 
       // Phase: Countdown
       setPhase('countdown');
+      phaseRef.current = 'countdown';
       setCountdownNum(3);
       for (let c = 3; c > 0; c--) {
         setCountdownNum(c);
@@ -202,10 +212,19 @@ export const VocalPitchMatchGame: React.FC = () => {
 
       // Phase: Singing
       setPhase('singing');
+      phaseRef.current = 'singing';
+      isHandlingSuccessRef.current = false;
+      holdMsRef.current = 0;
+      setCurrentHoldMs(0);
       lastFrameTimestampRef.current = performance.now();
     } catch (e) {
       console.error('Audio prompt error:', e);
       setPhase('singing');
+      phaseRef.current = 'singing';
+      isHandlingSuccessRef.current = false;
+      holdMsRef.current = 0;
+      setCurrentHoldMs(0);
+      lastFrameTimestampRef.current = performance.now();
     }
   }, [generateTargets, playSound]);
 
@@ -263,7 +282,11 @@ export const VocalPitchMatchGame: React.FC = () => {
   totalRoundsRef.current = totalRounds;
 
   const lastInTuneTimeRef = useRef<number>(0);
+  const holdMsRef = useRef<number>(0);
   const isHandlingSuccessRef = useRef<boolean>(false);
+
+  // Forward ref for handleNoteSuccess so audio subscription loop always calls the freshest handler
+  const handleNoteSuccessRef = useRef<(matchedNote: string) => void>(() => {});
 
   // Subscribe to live microphone pitch detection - stays active throughout game to prevent cold-start latency
   useEffect(() => {
@@ -304,28 +327,34 @@ export const VocalPitchMatchGame: React.FC = () => {
       }
 
       // Delta time accumulation for holding the pitch
-      const dt = now - lastFrameTimestampRef.current;
+      const dt = Math.min(100, Math.max(0, now - lastFrameTimestampRef.current));
       lastFrameTimestampRef.current = now;
 
       // Only accumulate note hold progress during active singing phase
       if (currentPhase === 'singing') {
         if (evalResult.matched && currentReading.isSinging) {
           lastInTuneTimeRef.current = now;
-          setCurrentHoldMs((prev) => {
-            const next = prev + dt;
-            if (next >= target.holdDurationMs && !isHandlingSuccessRef.current) {
+          holdMsRef.current += dt;
+
+          // Check if target hold duration reached (execute success outside setState updater!)
+          if (holdMsRef.current >= target.holdDurationMs) {
+            if (!isHandlingSuccessRef.current) {
               isHandlingSuccessRef.current = true;
-              handleNoteSuccess(target.note);
-              return 0;
+              holdMsRef.current = target.holdDurationMs;
+              setCurrentHoldMs(target.holdDurationMs);
+              handleNoteSuccessRef.current(target.note);
             }
-            return next;
-          });
+            return;
+          }
+
+          setCurrentHoldMs(holdMsRef.current);
           setConsecutiveInTuneStreak((s) => s + 1);
         } else {
           // Grace period: allow 250ms of breath/vibrato waver before decaying hold progress
           const timeSinceInTune = now - lastInTuneTimeRef.current;
           if (timeSinceInTune > 250) {
-            setCurrentHoldMs((prev) => Math.max(0, prev - dt * 0.35));
+            holdMsRef.current = Math.max(0, holdMsRef.current - dt * 0.35);
+            setCurrentHoldMs(holdMsRef.current);
             setConsecutiveInTuneStreak(0);
           }
         }
@@ -339,7 +368,9 @@ export const VocalPitchMatchGame: React.FC = () => {
 
   // Handle note match success
   const handleNoteSuccess = (matchedNote: string) => {
-    playSound('correct');
+    try {
+      playSound('correct');
+    } catch {}
 
     const activeIdx = activeNoteIndexRef.current;
     const targets = targetNotesRef.current;
@@ -347,25 +378,29 @@ export const VocalPitchMatchGame: React.FC = () => {
     const total = totalRoundsRef.current;
 
     // Emit Relational Event (SIMILARITY_DIFF)
-    emitTrialEvent({
-      exerciseSlug: 'vocal-pitch-match',
-      level: currentLevel,
-      relationId: 'SIMILARITY_DIFF',
-      relationWeight: 1.0,
-      entities: {
-        targetNote: matchedNote,
-        toleranceCents: toleranceCentsRef.current,
-        requiredHoldMs,
-      },
-      stateBefore: 'SEEKING_PITCH',
-      stateAfter: 'PITCH_MATCHED',
-      responseMs: Math.round(currentHoldMs),
-      correct: true,
-      extra: {
-        centsDeviation: evaluation?.centsDiff ?? 0,
-        octaveOffset: evaluation?.octaveOffset ?? 0,
-      },
-    });
+    try {
+      emitTrialEvent({
+        exerciseSlug: 'vocal-pitch-match',
+        level: currentLevel,
+        relationId: 'SIMILARITY_DIFF',
+        relationWeight: 1.0,
+        entities: {
+          targetNote: matchedNote,
+          toleranceCents: toleranceCentsRef.current,
+          requiredHoldMs,
+        },
+        stateBefore: 'SEEKING_PITCH',
+        stateAfter: 'PITCH_MATCHED',
+        responseMs: Math.round(holdMsRef.current),
+        correct: true,
+        extra: {
+          centsDeviation: evaluation?.centsDiff ?? 0,
+          octaveOffset: evaluation?.octaveOffset ?? 0,
+        },
+      });
+    } catch (err) {
+      console.warn('Trial event telemetry warning:', err);
+    }
 
     // Confetti celebration
     try {
@@ -378,7 +413,9 @@ export const VocalPitchMatchGame: React.FC = () => {
 
     // Check if more notes in sequence
     if (activeIdx + 1 < targets.length) {
+      activeNoteIndexRef.current = activeIdx + 1;
       setActiveNoteIndex(activeIdx + 1);
+      holdMsRef.current = 0;
       setCurrentHoldMs(0);
       lastInTuneTimeRef.current = 0;
       setTimeout(() => {
@@ -392,7 +429,11 @@ export const VocalPitchMatchGame: React.FC = () => {
 
       if (round < total) {
         setPhase('feedback');
+        phaseRef.current = 'feedback';
         setTimeout(() => {
+          holdMsRef.current = 0;
+          setCurrentHoldMs(0);
+          lastInTuneTimeRef.current = 0;
           isHandlingSuccessRef.current = false;
           startRound(round + 1);
         }, 1200);
@@ -402,6 +443,8 @@ export const VocalPitchMatchGame: React.FC = () => {
       }
     }
   };
+
+  handleNoteSuccessRef.current = handleNoteSuccess;
 
   // Finish Game
   const finishGame = useCallback(() => {
