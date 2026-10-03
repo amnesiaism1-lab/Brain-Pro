@@ -59,6 +59,11 @@ class VocalPitchService {
   private lastReading: IVocalPitchReading | null = null;
   private subscribers: Set<(reading: IVocalPitchReading) => void> = new Set();
 
+  // Pitch Stabilization & Note Hysteresis (Eliminates border oscillation and octave jumps)
+  private lockedMidi = 0;
+  private pendingNewMidi = 0;
+  private pendingNewMidiCount = 0;
+
   // Voice Focus & Anti-Transient State (Rejects door slams, desk knocks, keyboard clicks)
   private voiceFocusEnabled = true;
   private consecutivePitchFrames = 0;
@@ -762,23 +767,50 @@ class VocalPitchService {
 
     this.consecutiveDropFrames = 0;
 
-    // 4. Median filter over recent 3 readings to eliminate octave jump flickers
-    this.pitchHistory.push(rawPitch);
-    if (this.pitchHistory.length > 3) {
+    // 5. Smart Harmonic & Octave Lock (Eliminates Octave Doubling / Halving Jumps)
+    let processedPitch = rawPitch;
+    if (this.smoothedFreq > 0) {
+      const ratio = rawPitch / this.smoothedFreq;
+      // 2nd Harmonic detected (e.g. 440Hz while singing 220Hz)
+      if (ratio >= 1.84 && ratio <= 2.16) {
+        processedPitch = rawPitch / 2;
+      } 
+      // Subharmonic glitch detected (e.g. 110Hz while singing 220Hz)
+      else if (ratio >= 0.46 && ratio <= 0.54) {
+        processedPitch = rawPitch * 2;
+      }
+      // 3rd Harmonic detected (e.g. 660Hz while singing 220Hz)
+      else if (ratio >= 2.82 && ratio <= 3.18) {
+        processedPitch = rawPitch / 3;
+      }
+    }
+
+    // 6. 5-Sample Median Filter (Rejects random outside room noise outliers)
+    this.pitchHistory.push(processedPitch);
+    if (this.pitchHistory.length > 5) {
       this.pitchHistory.shift();
     }
     const sorted = [...this.pitchHistory].sort((a, b) => a - b);
     const medianFreq = sorted[Math.floor(sorted.length / 2)];
 
-    // 5. Exponential Moving Average (EMA) smoothing for studio-grade stability
-    const alpha = 0.38;
+    // 7. Adaptive Exponential Moving Average (EMA) smoothing
+    // If pitch is steady, smooth with alpha=0.20 for zero jitter
+    // If singer intentionally jumps notes (> 120 cents), adapt to alpha=0.55 for responsive tracking
+    let alpha = 0.22;
+    if (this.smoothedFreq > 0) {
+      const centsStep = Math.abs(1200 * Math.log2(medianFreq / this.smoothedFreq));
+      if (centsStep > 120) {
+        alpha = 0.55;
+      }
+    }
+
     if (this.smoothedFreq === 0) {
       this.smoothedFreq = medianFreq;
     } else {
       this.smoothedFreq = alpha * medianFreq + (1 - alpha) * this.smoothedFreq;
     }
 
-    // 6. Map to Note, Cents, and Solfege
+    // 8. Map to Note, Cents, and Solfege with Pitch Hysteresis
     const noteInfo = this.frequencyToNoteInfo(this.smoothedFreq);
 
     const reading: IVocalPitchReading = {
@@ -810,8 +842,9 @@ class VocalPitchService {
 
   /**
    * Convert frequency in Hz to Note Name, Solfege Name, Midi, and Cents Deviation
+   * Includes semitone hysteresis deadband to prevent flickering between adjacent notes.
    */
-  public frequencyToNoteInfo(freqHz: number): {
+  public frequencyToNoteInfo(freqHz: number, applyHysteresis = true): {
     noteName: string;
     solfegeName: string;
     midiNumber: number;
@@ -819,29 +852,62 @@ class VocalPitchService {
     nearestFreqHz: number;
   } {
     if (freqHz <= 0) {
+      this.lockedMidi = 0;
+      this.pendingNewMidi = 0;
+      this.pendingNewMidiCount = 0;
       return { noteName: '', solfegeName: '', midiNumber: 0, centsDeviation: 0, nearestFreqHz: 0 };
     }
 
     // MIDI 69 = A4 (440 Hz)
     const exactMidi = 12 * Math.log2(freqHz / 440) + 69;
-    const nearestMidi = Math.round(exactMidi);
-    const centsDeviation = Math.round((exactMidi - nearestMidi) * 100);
+    let chosenMidi = Math.round(exactMidi);
 
-    const noteIndex = ((nearestMidi % 12) + 12) % 12;
-    const octave = Math.floor(nearestMidi / 12) - 1;
+    // Note Hysteresis & Deadband to eliminate semitone border flickering
+    if (applyHysteresis && this.lockedMidi > 0) {
+      const diffFromLocked = exactMidi - this.lockedMidi;
+      // If within ±0.60 semitones (±60 cents), stick with the locked note
+      if (Math.abs(diffFromLocked) <= 0.60) {
+        chosenMidi = this.lockedMidi;
+        this.pendingNewMidiCount = 0;
+      } else {
+        // Singer is transitioning to a new note. Require 2 stable frames to lock new note
+        if (chosenMidi === this.pendingNewMidi) {
+          this.pendingNewMidiCount++;
+          if (this.pendingNewMidiCount >= 2) {
+            this.lockedMidi = chosenMidi;
+            this.pendingNewMidiCount = 0;
+          } else {
+            chosenMidi = this.lockedMidi;
+          }
+        } else {
+          this.pendingNewMidi = chosenMidi;
+          this.pendingNewMidiCount = 1;
+          chosenMidi = this.lockedMidi;
+        }
+      }
+    } else if (applyHysteresis) {
+      this.lockedMidi = chosenMidi;
+      this.pendingNewMidiCount = 0;
+    }
+
+    // Cents deviation against the chosen (locked) note
+    const centsDeviation = Math.round((exactMidi - chosenMidi) * 100);
+
+    const noteIndex = ((chosenMidi % 12) + 12) % 12;
+    const octave = Math.floor(chosenMidi / 12) - 1;
 
     const baseName = NOTE_NAMES[noteIndex];
     const solfege = SOLFEGE_NAMES[noteIndex];
     const noteName = `${baseName}${octave}`;
     const solfegeName = `${solfege} ${octave}`;
 
-    // Standard frequency of the nearest chromatic note
-    const nearestFreqHz = 440 * Math.pow(2, (nearestMidi - 69) / 12);
+    // Standard frequency of the chromatic note
+    const nearestFreqHz = 440 * Math.pow(2, (chosenMidi - 69) / 12);
 
     return {
       noteName,
       solfegeName,
-      midiNumber: nearestMidi,
+      midiNumber: chosenMidi,
       centsDeviation,
       nearestFreqHz: Math.round(nearestFreqHz * 100) / 100,
     };

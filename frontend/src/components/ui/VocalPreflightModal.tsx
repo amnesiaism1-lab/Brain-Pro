@@ -647,7 +647,7 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
           </div>
 
           {/* Quick Preset Buttons */}
-          <div className="grid grid-cols-3 gap-2 text-xs mb-1.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs mb-1.5">
             <button
               type="button"
               onClick={() => handleSetGatePreset(-45)}
@@ -676,15 +676,29 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
 
             <button
               type="button"
-              onClick={() => handleSetGatePreset(-30)}
+              onClick={() => handleSetGatePreset(-32)}
               className={`p-1.5 rounded-xl border text-center transition ${
-                noiseGateDb === -30
+                noiseGateDb === -32
                   ? 'border-emerald-500 bg-emerald-950/30 text-white font-bold'
                   : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
               }`}
             >
               <div className="text-[11px]">Khử Rè Ugreen</div>
-              <div className="text-[9px] text-slate-500">-30 dBFS</div>
+              <div className="text-[9px] text-slate-500">-32 dBFS</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSetGatePreset(-26)}
+              title="Chặn toàn bộ tạp âm bên ngoài, chỉ thu khi bạn hát gần mic"
+              className={`p-1.5 rounded-xl border text-center transition ${
+                noiseGateDb === -26
+                  ? 'border-sky-500 bg-sky-950/30 text-white font-bold shadow-sm'
+                  : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
+              }`}
+            >
+              <div className="text-[11px] text-sky-300">Cách Ly Giọng</div>
+              <div className="text-[9px] text-sky-400/80">-26 dBFS</div>
             </button>
           </div>
 
