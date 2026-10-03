@@ -61,14 +61,10 @@ class VocalPitchService {
 
   // Pitch Stabilization & Note Hysteresis (Eliminates border oscillation and octave jumps)
   private lockedMidi = 0;
-  private pendingNewMidi = 0;
-  private pendingNewMidiCount = 0;
 
   // Voice Focus & Anti-Transient State (Rejects door slams, desk knocks, keyboard clicks)
   private voiceFocusEnabled = true;
   private consecutivePitchFrames = 0;
-  private readonly minAttackFramesToTrigger = 2; // ~80-90ms sustained vocal requirement from silence to reject impulse clicks
-  private harmonicRepeatCount = 0;
 
   // Noise gate and limits
   // Default -38 dBFS suppresses typical USB sound card (Ugreen) idle noise (-45 to -36 dBFS)
@@ -80,7 +76,7 @@ class VocalPitchService {
   private maxFreq = 1100; // C6 (approx 1046.5 Hz)
 
   private consecutiveDropFrames = 0;
-  private maxHangoverFrames = 8; // ~350ms grace window for sustained notes, vibrato wavers and breath transitions
+  private maxHangoverFrames = 24; // ~250ms grace window for sustained notes (at 10.7ms hop size)
 
   // Vocal range preference
   private userRange: VocalRangePreference = 'auto';
@@ -468,24 +464,28 @@ class VocalPitchService {
       let workletSuccess = false;
       try {
         if (ctx.audioWorklet && typeof ctx.audioWorklet.addModule === 'function') {
+          // Sliding window with 512-sample hop size (~10.7ms at 48kHz, ~11.6ms at 44.1kHz)
+          // Emits 2048-sample analysis frames every 10.7ms for near-instantaneous pitch tracking!
           const workletCode = `
             class VocalPitchCaptureProcessor extends AudioWorkletProcessor {
               constructor() {
                 super();
                 this.bufferSize = ${this.bufferSize};
+                this.hopSize = 512;
                 this.buffer = new Float32Array(this.bufferSize);
-                this.writeIndex = 0;
+                this.hopCount = 0;
               }
               process(inputs) {
                 const input = inputs[0];
                 if (!input || !input[0]) return true;
                 const channel = input[0];
-                for (let i = 0; i < channel.length; i++) {
-                  this.buffer[this.writeIndex++] = channel[i];
-                  if (this.writeIndex >= this.bufferSize) {
-                    this.port.postMessage(this.buffer.slice());
-                    this.writeIndex = 0;
-                  }
+                const len = channel.length;
+                this.buffer.copyWithin(0, len);
+                this.buffer.set(channel, this.bufferSize - len);
+                this.hopCount += len;
+                if (this.hopCount >= this.hopSize) {
+                  this.port.postMessage(this.buffer.slice());
+                  this.hopCount = 0;
                 }
                 return true;
               }
@@ -513,12 +513,16 @@ class VocalPitchService {
       }
 
       // 8. Fallback to ScriptProcessorNode if AudioWorklet is blocked or failed
+      // Also uses 512-sample sliding window for uniform low-latency updates
       if (!workletSuccess) {
-        this.scriptProcessorNode = ctx.createScriptProcessor(this.bufferSize, 1, 1);
+        const slidingBuffer = new Float32Array(this.bufferSize);
+        this.scriptProcessorNode = ctx.createScriptProcessor(512, 1, 1);
         this.scriptProcessorNode.onaudioprocess = (e) => {
           if (!this.isListening) return;
           const inputData = e.inputBuffer.getChannelData(0);
-          this.processAudioBuffer(inputData, ctx.sampleRate);
+          slidingBuffer.copyWithin(0, inputData.length);
+          slidingBuffer.set(inputData, this.bufferSize - inputData.length);
+          this.processAudioBuffer(slidingBuffer, ctx.sampleRate);
         };
         this.lowPassFilterNode.connect(this.scriptProcessorNode);
         const muteGain = ctx.createGain();
@@ -645,7 +649,7 @@ class VocalPitchService {
   }
 
   /**
-   * Core Audio Processing: RMS volume calculation, Pitchy MPM, Median & EMA filtering
+   * Core Audio Processing: RMS volume calculation, Pitchy MPM, Instant Step-Tracking & Median Smoothing
    */
   private processAudioBuffer(buffer: Float32Array, sampleRate: number): void {
     if (!this.detector) return;
@@ -663,7 +667,6 @@ class VocalPitchService {
     // Schmitt Trigger Hysteresis Gate:
     // To trigger from silence: requires db >= noiseGateDb (e.g. -38 dBFS)
     // To sustain while singing: requires db >= (noiseGateDb - 7 dB) and rms >= (minVolumeRms * 0.45)
-    // This prevents the noise gate from chattering or cutting off sustained notes when breath softens.
     const activeGateDb = isAlreadySinging ? (this.noiseGateDb - this.gateHysteresisDb) : this.noiseGateDb;
     const activeMinRms = isAlreadySinging ? (this.minVolumeRms * 0.45) : this.minVolumeRms;
 
@@ -686,9 +689,6 @@ class VocalPitchService {
       this.smoothedFreq = 0;
       this.pitchHistory = [];
       this.lockedMidi = 0;
-      this.pendingNewMidi = 0;
-      this.pendingNewMidiCount = 0;
-      this.harmonicRepeatCount = 0;
       const silentReading: IVocalPitchReading = {
         freqHz: 0,
         clarity: 0,
@@ -711,10 +711,10 @@ class VocalPitchService {
 
     // 3. Filter valid human singing pitch based on vocal range & clarity
     // While already singing: relax clarity threshold to 0.60 so sustained notes with vibrato/vocal fry don't cut out.
-    // On fresh attack from silence: require 0.68 in voice focus mode (or 0.64 in standard mode) to reject ambient room noise.
+    // On fresh attack from silence: require 0.65 in voice focus mode (or 0.62 in standard mode).
     const effectiveMinClarity = isAlreadySinging 
       ? 0.60 
-      : (this.voiceFocusEnabled ? 0.68 : 0.64);
+      : (this.voiceFocusEnabled ? 0.65 : 0.62);
 
     const effectiveMinFreq = this.voiceFocusEnabled ? Math.max(90, this.getEffectiveMinFreq()) : this.getEffectiveMinFreq();
     const isValidPitch = 
@@ -754,96 +754,38 @@ class VocalPitchService {
       return;
     }
 
-    // 4. Anti-Transient Sustain Gate (Rejects knocking sounds, door thuds, desk bumps)
-    // Impulsive impacts (door slams, desk knocks, mouse clicks) last < 50ms (1 buffer frame).
-    // Human singing requires sustained periodic vocal cord vibration.
-    // NOTE: This check ONLY applies when triggering from silence; once actively singing, the voice is never suppressed!
-    if (!isAlreadySinging) {
-      this.consecutivePitchFrames++;
-      const requiredAttackFrames = this.voiceFocusEnabled ? this.minAttackFramesToTrigger : 1;
-      if (this.consecutivePitchFrames < requiredAttackFrames) {
-        // Sound is an isolated single-frame impulse/knock -> Suppress until confirmed
-        const transientReading: IVocalPitchReading = {
-          freqHz: 0,
-          clarity,
-          volumeRms: rms,
-          volumeDb: Math.round(db),
-          noteName: '',
-          solfegeName: '',
-          midiNumber: 0,
-          centsDeviation: 0,
-          isSinging: false,
-          timestamp: performance.now(),
-        };
-        this.lastReading = transientReading;
-        this.notifySubscribers(transientReading);
-        return;
-      }
-    } else {
-      // Actively singing: keep frame count healthy
-      this.consecutivePitchFrames = Math.max(3, this.consecutivePitchFrames + 1);
-    }
-
-    // Sound is confirmed active singing -> reset any drop frames
+    // 4. Instant Attack (Zero Artificial Delay):
+    // As soon as valid singing volume and periodicity are detected, emit singing immediately (<15ms latency).
+    this.consecutivePitchFrames = Math.max(1, this.consecutivePitchFrames + 1);
     this.consecutiveDropFrames = 0;
 
-    // 5. Smart Harmonic & Octave Lock (Eliminates Octave Doubling / Halving Jumps)
-    // If the singer intentionally jumps octaves for 4+ frames, release lock and accept new octave.
-    let processedPitch = rawPitch;
-    if (this.smoothedFreq > 0) {
-      const ratio = rawPitch / this.smoothedFreq;
-      if (ratio >= 1.84 && ratio <= 2.16) {
-        this.harmonicRepeatCount++;
-        if (this.harmonicRepeatCount <= 3) {
-          processedPitch = rawPitch / 2; // Fold transient harmonic spike
-        } else {
-          processedPitch = rawPitch; // Intentional octave leap
-        }
-      } else if (ratio >= 0.46 && ratio <= 0.54) {
-        this.harmonicRepeatCount++;
-        if (this.harmonicRepeatCount <= 3) {
-          processedPitch = rawPitch * 2; // Fold transient subharmonic glitch
-        } else {
-          processedPitch = rawPitch;
-        }
-      } else if (ratio >= 2.82 && ratio <= 3.18) {
-        this.harmonicRepeatCount++;
-        if (this.harmonicRepeatCount <= 3) {
-          processedPitch = rawPitch / 3;
-        } else {
-          processedPitch = rawPitch;
-        }
-      } else {
-        this.harmonicRepeatCount = 0;
-      }
-    }
+    // 5. Instant Step-Tracking vs Steady-Sustain Smoothing:
+    // Check pitch distance from currently smoothed frequency in cents:
+    const centsStep = this.smoothedFreq > 0 
+      ? Math.abs(1200 * Math.log2(rawPitch / this.smoothedFreq)) 
+      : 0;
 
-    // 6. 5-Sample Median Filter (Rejects random outside room noise outliers)
-    this.pitchHistory.push(processedPitch);
-    if (this.pitchHistory.length > 5) {
-      this.pitchHistory.shift();
-    }
-    const sorted = [...this.pitchHistory].sort((a, b) => a - b);
-    const medianFreq = sorted[Math.floor(sorted.length / 2)];
-
-    // 7. Adaptive Exponential Moving Average (EMA) smoothing
-    // If pitch is steady, smooth with alpha=0.22 for zero jitter
-    // If singer intentionally jumps notes (> 120 cents), adapt to alpha=0.55 for responsive tracking
-    let alpha = 0.22;
-    if (this.smoothedFreq > 0) {
-      const centsStep = Math.abs(1200 * Math.log2(medianFreq / this.smoothedFreq));
-      if (centsStep > 120) {
-        alpha = 0.55;
-      }
-    }
-
-    if (this.smoothedFreq === 0) {
-      this.smoothedFreq = medianFreq;
+    if (this.smoothedFreq === 0 || centsStep > 35) {
+      // SINGER IS CHANGING PITCH (Lowering, raising, or starting note):
+      // INSTANT SNAP: Immediately jump to the new pitch with ZERO lag!
+      // This allows near-instantaneous tracking when singer drops or raises pitch.
+      this.smoothedFreq = rawPitch;
+      this.pitchHistory = [rawPitch];
     } else {
+      // SINGER IS SUSTAINING THE SAME NOTE (within ±35 cents):
+      // Apply fast 3-sample median + responsive EMA (alpha = 0.60) to eliminate micro-jitter
+      this.pitchHistory.push(rawPitch);
+      if (this.pitchHistory.length > 3) {
+        this.pitchHistory.shift();
+      }
+      const sorted = [...this.pitchHistory].sort((a, b) => a - b);
+      const medianFreq = sorted[Math.floor(sorted.length / 2)];
+      
+      const alpha = 0.60;
       this.smoothedFreq = alpha * medianFreq + (1 - alpha) * this.smoothedFreq;
     }
 
-    // 8. Map to Note, Cents, and Solfege with Pitch Hysteresis
+    // 6. Map to Note, Cents, and Solfege with Ultra-Low Latency Hysteresis
     const noteInfo = this.frequencyToNoteInfo(this.smoothedFreq);
 
     const reading: IVocalPitchReading = {
@@ -874,8 +816,9 @@ class VocalPitchService {
   }
 
   /**
-   * Convert frequency in Hz to Note Name, Solfege Name, Midi, and Cents Deviation
-   * Includes semitone hysteresis deadband to prevent flickering between adjacent notes.
+   * Convert frequency in Hz to Note Name, Solfege Name, Midi, and Cents Deviation.
+   * Micro-hysteresis at the 0.5 semitone boundary prevents knife-edge flickering
+   * while switching notes immediately without lag.
    */
   public frequencyToNoteInfo(freqHz: number, applyHysteresis = true): {
     noteName: string;
@@ -886,8 +829,6 @@ class VocalPitchService {
   } {
     if (freqHz <= 0) {
       this.lockedMidi = 0;
-      this.pendingNewMidi = 0;
-      this.pendingNewMidiCount = 0;
       return { noteName: '', solfegeName: '', midiNumber: 0, centsDeviation: 0, nearestFreqHz: 0 };
     }
 
@@ -895,35 +836,21 @@ class VocalPitchService {
     const exactMidi = 12 * Math.log2(freqHz / 440) + 69;
     let chosenMidi = Math.round(exactMidi);
 
-    // Note Hysteresis & Deadband to eliminate semitone border flickering
+    // Micro-deadband (±0.04 semitones / 4 cents) ONLY at the exact knife-edge boundary (e.g. 59.48 vs 59.52)
+    // to prevent rapid 1-cent flickering when singing directly on the line between two notes.
     if (applyHysteresis && this.lockedMidi > 0) {
       const diffFromLocked = exactMidi - this.lockedMidi;
-      // If within ±0.60 semitones (±60 cents), stick with the locked note
-      if (Math.abs(diffFromLocked) <= 0.60) {
+      if (Math.abs(diffFromLocked) <= 0.54) {
         chosenMidi = this.lockedMidi;
-        this.pendingNewMidiCount = 0;
       } else {
-        // Singer is transitioning to a new note. Require 2 stable frames to lock new note
-        if (chosenMidi === this.pendingNewMidi) {
-          this.pendingNewMidiCount++;
-          if (this.pendingNewMidiCount >= 2) {
-            this.lockedMidi = chosenMidi;
-            this.pendingNewMidiCount = 0;
-          } else {
-            chosenMidi = this.lockedMidi;
-          }
-        } else {
-          this.pendingNewMidi = chosenMidi;
-          this.pendingNewMidiCount = 1;
-          chosenMidi = this.lockedMidi;
-        }
+        // Singer transitioned to a new note -> switch immediately with zero lag!
+        this.lockedMidi = chosenMidi;
       }
-    } else if (applyHysteresis) {
+    } else {
       this.lockedMidi = chosenMidi;
-      this.pendingNewMidiCount = 0;
     }
 
-    // Cents deviation against the chosen (locked) note
+    // Cents deviation against the chosen note
     const centsDeviation = Math.round((exactMidi - chosenMidi) * 100);
 
     const noteIndex = ((chosenMidi % 12) + 12) % 12;
