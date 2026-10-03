@@ -67,18 +67,20 @@ class VocalPitchService {
   // Voice Focus & Anti-Transient State (Rejects door slams, desk knocks, keyboard clicks)
   private voiceFocusEnabled = true;
   private consecutivePitchFrames = 0;
-  private readonly minSustainFramesToTrigger = 3; // ~120-150ms sustained vocal requirement to reject transients
+  private readonly minAttackFramesToTrigger = 2; // ~80-90ms sustained vocal requirement from silence to reject impulse clicks
+  private harmonicRepeatCount = 0;
 
   // Noise gate and limits
   // Default -38 dBFS suppresses typical USB sound card (Ugreen) idle noise (-45 to -36 dBFS)
   private noiseGateDb = -38;
+  private readonly gateHysteresisDb = 7; // 7 dB release margin: keeps gate open while singing even when breath/volume drops
   private minVolumeRms = Math.pow(10, -38 / 20); // ~0.0126
-  private minClarity = 0.70;    // 0.70 for McLeod Pitch Method (stable for natural human vocals)
+  private minClarity = 0.65;    // Balanced baseline for MPM (pitchy)
   private minFreq = 80;   // High-pass cutoff at 80Hz completely cuts 50Hz/60Hz/77.8Hz electrical hum!
   private maxFreq = 1100; // C6 (approx 1046.5 Hz)
 
   private consecutiveDropFrames = 0;
-  private maxHangoverFrames = 4; // ~180ms grace window for vowel transitions and consonants
+  private maxHangoverFrames = 8; // ~350ms grace window for sustained notes, vibrato wavers and breath transitions
 
   // Vocal range preference
   private userRange: VocalRangePreference = 'auto';
@@ -386,10 +388,11 @@ class VocalPitchService {
         throw new Error('Web Audio API is not available on this browser');
       }
 
-      // 2. Request microphone stream with clean settings & device selection
+      // 2. Request microphone stream with clean musical settings & device selection
+      // Disable browser echoCancellation & noiseSuppression so WebRTC does not treat sustained singing notes as stationary fan noise!
       const audioConstraints: MediaTrackConstraints = {
-        echoCancellation: true,
-        noiseSuppression: true,
+        echoCancellation: false,
+        noiseSuppression: false,
         autoGainControl: false,
         channelCount: 1,
       };
@@ -411,8 +414,8 @@ class VocalPitchService {
           this.currentDeviceId = null;
           stream = await navigator.mediaDevices.getUserMedia({
             audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
+              echoCancellation: false,
+              noiseSuppression: false,
               autoGainControl: false,
               channelCount: 1,
             },
@@ -647,7 +650,7 @@ class VocalPitchService {
   private processAudioBuffer(buffer: Float32Array, sampleRate: number): void {
     if (!this.detector) return;
 
-    // 1. Calculate RMS volume
+    // 1. Calculate RMS volume & dB
     let sumSquares = 0;
     for (let i = 0; i < buffer.length; i++) {
       sumSquares += buffer[i] * buffer[i];
@@ -655,13 +658,21 @@ class VocalPitchService {
     const rms = Math.sqrt(sumSquares / buffer.length);
     const db = rms > 0 ? 20 * Math.log10(rms) : -100;
 
-    // Noise gate check: Suppress quiet ambient noise and electrical hum
-    if (rms < this.minVolumeRms || db < this.noiseGateDb) {
-      this.consecutivePitchFrames = 0;
-      if (this.lastReading?.isSinging && this.consecutiveDropFrames < this.maxHangoverFrames) {
+    const isAlreadySinging = Boolean(this.lastReading?.isSinging);
+
+    // Schmitt Trigger Hysteresis Gate:
+    // To trigger from silence: requires db >= noiseGateDb (e.g. -38 dBFS)
+    // To sustain while singing: requires db >= (noiseGateDb - 7 dB) and rms >= (minVolumeRms * 0.45)
+    // This prevents the noise gate from chattering or cutting off sustained notes when breath softens.
+    const activeGateDb = isAlreadySinging ? (this.noiseGateDb - this.gateHysteresisDb) : this.noiseGateDb;
+    const activeMinRms = isAlreadySinging ? (this.minVolumeRms * 0.45) : this.minVolumeRms;
+
+    if (rms < activeMinRms || db < activeGateDb) {
+      if (isAlreadySinging && this.consecutiveDropFrames < this.maxHangoverFrames) {
+        // Sustained note hangover: bridges micro-pauses or breath dips without cutting the note
         this.consecutiveDropFrames++;
         const heldReading: IVocalPitchReading = {
-          ...this.lastReading,
+          ...this.lastReading!,
           volumeRms: rms,
           volumeDb: Math.round(db),
           timestamp: performance.now(),
@@ -671,8 +682,13 @@ class VocalPitchService {
       }
 
       this.consecutiveDropFrames = 0;
+      this.consecutivePitchFrames = 0;
       this.smoothedFreq = 0;
       this.pitchHistory = [];
+      this.lockedMidi = 0;
+      this.pendingNewMidi = 0;
+      this.pendingNewMidiCount = 0;
+      this.harmonicRepeatCount = 0;
       const silentReading: IVocalPitchReading = {
         freqHz: 0,
         clarity: 0,
@@ -693,21 +709,24 @@ class VocalPitchService {
     // 2. Find Pitch using MPM
     const [rawPitch, clarity] = this.detector.findPitch(buffer, sampleRate);
 
-    // 3. Filter valid human singing pitch based on vocal range & min frequency
+    // 3. Filter valid human singing pitch based on vocal range & clarity
+    // While already singing: relax clarity threshold to 0.60 so sustained notes with vibrato/vocal fry don't cut out.
+    // On fresh attack from silence: require 0.68 in voice focus mode (or 0.64 in standard mode) to reject ambient room noise.
+    const effectiveMinClarity = isAlreadySinging 
+      ? 0.60 
+      : (this.voiceFocusEnabled ? 0.68 : 0.64);
+
     const effectiveMinFreq = this.voiceFocusEnabled ? Math.max(90, this.getEffectiveMinFreq()) : this.getEffectiveMinFreq();
-    const effectiveMinClarity = this.voiceFocusEnabled ? 0.74 : this.minClarity;
     const isValidPitch = 
       clarity >= effectiveMinClarity && 
       rawPitch >= effectiveMinFreq && 
       rawPitch <= this.maxFreq;
 
     if (!isValidPitch) {
-      this.consecutivePitchFrames = 0;
-      // Hangover check: if user was singing and briefly dipped in clarity (e.g. consonant or breath)
-      if (this.lastReading?.isSinging && this.consecutiveDropFrames < this.maxHangoverFrames && rms >= this.minVolumeRms * 0.7) {
+      if (isAlreadySinging && this.consecutiveDropFrames < this.maxHangoverFrames) {
         this.consecutiveDropFrames++;
         const heldReading: IVocalPitchReading = {
-          ...this.lastReading,
+          ...this.lastReading!,
           volumeRms: rms,
           volumeDb: Math.round(db),
           timestamp: performance.now(),
@@ -717,6 +736,7 @@ class VocalPitchService {
       }
 
       this.consecutiveDropFrames = 0;
+      this.consecutivePitchFrames = 0;
       const unpitchedReading: IVocalPitchReading = {
         freqHz: 0,
         clarity,
@@ -735,53 +755,66 @@ class VocalPitchService {
     }
 
     // 4. Anti-Transient Sustain Gate (Rejects knocking sounds, door thuds, desk bumps)
-    // Human singing requires a sustained periodic vowel (> 120ms).
-    // Door slams and knocks are single-frame impulses and get suppressed immediately!
-    const freqRatio = this.smoothedFreq > 0 ? rawPitch / this.smoothedFreq : 1;
-    const isPitchStable = freqRatio >= 0.70 && freqRatio <= 1.40;
-
-    if (isPitchStable) {
+    // Impulsive impacts (door slams, desk knocks, mouse clicks) last < 50ms (1 buffer frame).
+    // Human singing requires sustained periodic vocal cord vibration.
+    // NOTE: This check ONLY applies when triggering from silence; once actively singing, the voice is never suppressed!
+    if (!isAlreadySinging) {
       this.consecutivePitchFrames++;
+      const requiredAttackFrames = this.voiceFocusEnabled ? this.minAttackFramesToTrigger : 1;
+      if (this.consecutivePitchFrames < requiredAttackFrames) {
+        // Sound is an isolated single-frame impulse/knock -> Suppress until confirmed
+        const transientReading: IVocalPitchReading = {
+          freqHz: 0,
+          clarity,
+          volumeRms: rms,
+          volumeDb: Math.round(db),
+          noteName: '',
+          solfegeName: '',
+          midiNumber: 0,
+          centsDeviation: 0,
+          isSinging: false,
+          timestamp: performance.now(),
+        };
+        this.lastReading = transientReading;
+        this.notifySubscribers(transientReading);
+        return;
+      }
     } else {
-      this.consecutivePitchFrames = 1;
+      // Actively singing: keep frame count healthy
+      this.consecutivePitchFrames = Math.max(3, this.consecutivePitchFrames + 1);
     }
 
-    if (this.voiceFocusEnabled && this.consecutivePitchFrames < this.minSustainFramesToTrigger) {
-      // Sound is a brief impulse/knock/door click -> Suppress pitch detection!
-      const transientReading: IVocalPitchReading = {
-        freqHz: 0,
-        clarity,
-        volumeRms: rms,
-        volumeDb: Math.round(db),
-        noteName: '',
-        solfegeName: '',
-        midiNumber: 0,
-        centsDeviation: 0,
-        isSinging: false,
-        timestamp: performance.now(),
-      };
-      this.lastReading = transientReading;
-      this.notifySubscribers(transientReading);
-      return;
-    }
-
+    // Sound is confirmed active singing -> reset any drop frames
     this.consecutiveDropFrames = 0;
 
     // 5. Smart Harmonic & Octave Lock (Eliminates Octave Doubling / Halving Jumps)
+    // If the singer intentionally jumps octaves for 4+ frames, release lock and accept new octave.
     let processedPitch = rawPitch;
     if (this.smoothedFreq > 0) {
       const ratio = rawPitch / this.smoothedFreq;
-      // 2nd Harmonic detected (e.g. 440Hz while singing 220Hz)
       if (ratio >= 1.84 && ratio <= 2.16) {
-        processedPitch = rawPitch / 2;
-      } 
-      // Subharmonic glitch detected (e.g. 110Hz while singing 220Hz)
-      else if (ratio >= 0.46 && ratio <= 0.54) {
-        processedPitch = rawPitch * 2;
-      }
-      // 3rd Harmonic detected (e.g. 660Hz while singing 220Hz)
-      else if (ratio >= 2.82 && ratio <= 3.18) {
-        processedPitch = rawPitch / 3;
+        this.harmonicRepeatCount++;
+        if (this.harmonicRepeatCount <= 3) {
+          processedPitch = rawPitch / 2; // Fold transient harmonic spike
+        } else {
+          processedPitch = rawPitch; // Intentional octave leap
+        }
+      } else if (ratio >= 0.46 && ratio <= 0.54) {
+        this.harmonicRepeatCount++;
+        if (this.harmonicRepeatCount <= 3) {
+          processedPitch = rawPitch * 2; // Fold transient subharmonic glitch
+        } else {
+          processedPitch = rawPitch;
+        }
+      } else if (ratio >= 2.82 && ratio <= 3.18) {
+        this.harmonicRepeatCount++;
+        if (this.harmonicRepeatCount <= 3) {
+          processedPitch = rawPitch / 3;
+        } else {
+          processedPitch = rawPitch;
+        }
+      } else {
+        this.harmonicRepeatCount = 0;
       }
     }
 
@@ -794,7 +827,7 @@ class VocalPitchService {
     const medianFreq = sorted[Math.floor(sorted.length / 2)];
 
     // 7. Adaptive Exponential Moving Average (EMA) smoothing
-    // If pitch is steady, smooth with alpha=0.20 for zero jitter
+    // If pitch is steady, smooth with alpha=0.22 for zero jitter
     // If singer intentionally jumps notes (> 120 cents), adapt to alpha=0.55 for responsive tracking
     let alpha = 0.22;
     if (this.smoothedFreq > 0) {
@@ -967,11 +1000,13 @@ class VocalPitchService {
     }
 
     const inTolerance = Math.abs(centsDiff) <= toleranceCents;
-    const matched = inTolerance && reading.clarity >= this.minClarity;
+    const minMatchClarity = 0.60;
+    const matched = inTolerance && reading.clarity >= minMatchClarity;
 
     // Stability score (1.0 = 0 cents diff, decays smoothly towards tolerance boundary)
     const normalizedErr = Math.min(1, Math.abs(centsDiff) / (toleranceCents * 1.5));
-    const stabilityScore = Math.max(0, 1 - normalizedErr) * reading.clarity;
+    const clarityNormalized = Math.min(1, reading.clarity / 0.75);
+    const stabilityScore = Math.max(0, 1 - normalizedErr) * clarityNormalized;
 
     return {
       matched,

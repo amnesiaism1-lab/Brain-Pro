@@ -607,11 +607,11 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
               <div className="text-xs font-bold text-white flex items-center gap-1.5">
                 <span>Tập Trung Vào Giọng Hát (Voice Focus)</span>
                 <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono">
-                  Anti-Transient
+                  Anti-Transient &amp; Sustain
                 </span>
               </div>
               <p className="text-[10px] text-slate-400 mt-0.5">
-                Khử tiếng cộc bàn, tiếng đóng cửa, tiếng gõ phím; chỉ nhận diện khi bạn ngân giọng hát thật (&gt;120ms).
+                Khử tiếng cộc bàn, tiếng đóng cửa, tiếng gõ phím; kích hoạt giọng hát chuẩn và giữ ngân mượt mà không bị ngắt tiếng.
               </p>
             </div>
           </div>
@@ -633,7 +633,7 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
               <Sliders className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Cân Chỉnh Khử Nhiễu & Tiếng Rè (Noise Gate):</span>
+              <span>Cân Chỉnh Khử Nhiễu &amp; Tiếng Rè (Noise Gate):</span>
             </span>
             <button
               type="button"
@@ -647,7 +647,7 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
           </div>
 
           {/* Quick Preset Buttons */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs mb-1.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs mb-2">
             <button
               type="button"
               onClick={() => handleSetGatePreset(-45)}
@@ -666,12 +666,12 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
               onClick={() => handleSetGatePreset(-38)}
               className={`p-1.5 rounded-xl border text-center transition ${
                 noiseGateDb === -38
-                  ? 'border-emerald-500 bg-emerald-950/30 text-white font-bold'
+                  ? 'border-emerald-500 bg-emerald-950/30 text-emerald-200 font-bold shadow-sm'
                   : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
               }`}
             >
-              <div className="text-[11px]">Tiêu Chuẩn</div>
-              <div className="text-[9px] text-slate-500">-38 dBFS</div>
+              <div className="text-[11px] font-bold">Tiêu Chuẩn</div>
+              <div className="text-[9px] text-emerald-400/90">-38 dB (Ngân Mượt)</div>
             </button>
 
             <button
@@ -683,7 +683,7 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
                   : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
               }`}
             >
-              <div className="text-[11px]">Khử Rè Ugreen</div>
+              <div className="text-[11px]">Khử Ồn Vừa</div>
               <div className="text-[9px] text-slate-500">-32 dBFS</div>
             </button>
 
@@ -697,9 +697,14 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
                   : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
               }`}
             >
-              <div className="text-[11px] text-sky-300">Cách Ly Giọng</div>
-              <div className="text-[9px] text-sky-400/80">-26 dBFS</div>
+              <div className="text-[11px] text-sky-300">Cách Ly Mạnh</div>
+              <div className="text-[9px] text-sky-400/80">-26 dB (Sát Mic)</div>
             </button>
+          </div>
+
+          <div className="text-[10px] text-slate-400 flex items-center gap-1.5 px-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+            <span>Đã bật cơ chế Hysteresis (trễ 7 dB) và giữ hơi (Hangover 350ms) giúp giữ nốt ngân liên tục không bị đứt đoạn.</span>
           </div>
 
           {calibrationNotice && (
