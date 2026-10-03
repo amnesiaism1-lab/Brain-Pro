@@ -63,20 +63,42 @@ export const VocalPitchRibbonCanvas: React.FC<VocalPitchRibbonCanvasProps> = ({
   };
 
   const targetMidi = getNoteMidi(currentTargetNote);
+  const visualSmoothMidiRef = useRef<number>(0);
 
-  // Append new incoming pitch reading
+  // Append new incoming pitch reading (with visual EMA smoothing layer)
   useEffect(() => {
     if (!reading) return;
     const now = performance.now();
     const isSinging = reading.isSinging && reading.freqHz > 0;
     const inTune = (evaluation?.inTolerance ?? false) && isSinging;
 
-    const exactMidi = isSinging ? 12 * Math.log2(reading.freqHz / 440) + 69 : 0;
+    let displayMidi = 0;
+    if (isSinging) {
+      const rawExactMidi = 12 * Math.log2(reading.freqHz / 440) + 69;
+      
+      // Visual-layer EMA smooth: bridges any residual micro-jitter that slips past the service filter.
+      // alpha=0.55 gives smooth trailing without noticeable display lag (~15ms effective latency).
+      if (visualSmoothMidiRef.current > 0) {
+        const drift = Math.abs(rawExactMidi - visualSmoothMidiRef.current);
+        if (drift > 1.5) {
+          // Singer changed note - snap visually (> 1.5 semitones = definitely a new pitch target)
+          visualSmoothMidiRef.current = rawExactMidi;
+        } else {
+          // Sustaining - smooth the visual trail
+          visualSmoothMidiRef.current = 0.55 * rawExactMidi + 0.45 * visualSmoothMidiRef.current;
+        }
+      } else {
+        visualSmoothMidiRef.current = rawExactMidi;
+      }
+      displayMidi = visualSmoothMidiRef.current;
+    } else {
+      visualSmoothMidiRef.current = 0;
+    }
 
     pointsRef.current.push({
       timeMs: now,
       freqHz: reading.freqHz,
-      midi: exactMidi,
+      midi: displayMidi,
       inTune,
       isSinging,
     });
@@ -241,6 +263,11 @@ export const VocalPitchRibbonCanvas: React.FC<VocalPitchRibbonCanvasProps> = ({
             continue;
           }
 
+          // If there is a pause or drop between samples (>150ms), break the line cleanly
+          if (i > 0 && (pt.timeMs - points[i - 1].timeMs > 150)) {
+            segmentStarted = false;
+          }
+
           // Compute X based on time difference from current head
           const dt = now - pt.timeMs;
           const x = xAnchor - (dt / timeWindowMs) * (width * 0.65);
@@ -269,7 +296,9 @@ export const VocalPitchRibbonCanvas: React.FC<VocalPitchRibbonCanvasProps> = ({
 
       // 5. Draw Head Indicator (Current Singing Ball & Out-of-bounds Guidance)
       if (reading?.isSinging && reading.freqHz > 0) {
-        const userExactMidi = 12 * Math.log2(reading.freqHz / 440) + 69;
+        const userExactMidi = visualSmoothMidiRef.current > 0
+          ? visualSmoothMidiRef.current
+          : (12 * Math.log2(reading.freqHz / 440) + 69);
         const rawY = midiToY(userExactMidi);
         const inTune = evaluation?.inTolerance ?? false;
 

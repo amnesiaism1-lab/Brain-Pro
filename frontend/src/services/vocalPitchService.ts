@@ -62,6 +62,11 @@ class VocalPitchService {
   // Pitch Stabilization & Note Hysteresis (Eliminates border oscillation and octave jumps)
   private lockedMidi = 0;
 
+  // Octave-Jump Rejection State (prevents MPM sub-harmonic / harmonic false detection)
+  private pendingJumpFreq = 0;       // Candidate new frequency during a large step
+  private pendingJumpFrames = 0;     // How many consecutive frames confirmed the candidate
+  private readonly jumpConfirmFrames = 3; // Require 3 consecutive frames (~30ms) before accepting a large jump
+
   // Voice Focus & Anti-Transient State (Rejects door slams, desk knocks, keyboard clicks)
   private voiceFocusEnabled = true;
   private consecutivePitchFrames = 0;
@@ -535,6 +540,8 @@ class VocalPitchService {
       this.pitchHistory = [];
       this.smoothedFreq = 0;
       this.consecutivePitchFrames = 0;
+      this.pendingJumpFreq = 0;
+      this.pendingJumpFrames = 0;
       return true;
     } catch (err) {
       console.error('Failed to start vocal pitch tracking:', err);
@@ -627,6 +634,8 @@ class VocalPitchService {
     this.pitchHistory = [];
     this.smoothedFreq = 0;
     this.consecutivePitchFrames = 0;
+    this.pendingJumpFreq = 0;
+    this.pendingJumpFrames = 0;
     this.lastReading = null;
   }
 
@@ -759,29 +768,105 @@ class VocalPitchService {
     this.consecutivePitchFrames = Math.max(1, this.consecutivePitchFrames + 1);
     this.consecutiveDropFrames = 0;
 
-    // 5. Instant Step-Tracking vs Steady-Sustain Smoothing:
+    // 5. Octave-Jump Rejection + Instant Step-Tracking + Steady-Sustain Smoothing:
+    // MPM commonly detects sub-harmonics (F/2) or harmonics (F*2) during sustained notes,
+    // producing violent 12-semitone jumps. We reject these octave glitches explicitly.
+    let pitchToUse = rawPitch;
+
+    if (this.smoothedFreq > 0) {
+      const ratio = rawPitch / this.smoothedFreq;
+      // Detect octave jump: ratio near 2.0 (harmonic) or 0.5 (sub-harmonic)
+      const isOctaveJump = 
+        (ratio > 1.85 && ratio < 2.15) ||  // ~+12 semitones (harmonic doubling)
+        (ratio > 0.47 && ratio < 0.53);     // ~-12 semitones (sub-harmonic halving)
+
+      if (isOctaveJump) {
+        // Reject: snap back to current sustained frequency
+        pitchToUse = this.smoothedFreq;
+        this.pendingJumpFreq = 0;
+        this.pendingJumpFrames = 0;
+      }
+    }
+
     // Check pitch distance from currently smoothed frequency in cents:
     const centsStep = this.smoothedFreq > 0 
-      ? Math.abs(1200 * Math.log2(rawPitch / this.smoothedFreq)) 
+      ? Math.abs(1200 * Math.log2(pitchToUse / this.smoothedFreq)) 
       : 0;
 
-    if (this.smoothedFreq === 0 || centsStep > 35) {
-      // SINGER IS CHANGING PITCH (Lowering, raising, or starting note):
-      // INSTANT SNAP: Immediately jump to the new pitch with ZERO lag!
-      // This allows near-instantaneous tracking when singer drops or raises pitch.
-      this.smoothedFreq = rawPitch;
-      this.pitchHistory = [rawPitch];
+    if (this.smoothedFreq === 0) {
+      // FIRST NOTE ATTACK from silence: snap immediately with zero lag.
+      this.smoothedFreq = pitchToUse;
+      this.pitchHistory = [pitchToUse];
+      this.pendingJumpFreq = 0;
+      this.pendingJumpFrames = 0;
+    } else if (centsStep > 80) {
+      // LARGE PITCH TRANSITION (> 80 cents = nearly a whole tone):
+      // Require multiple consecutive confirmation frames to prevent single-frame spikes.
+      // This eliminates random 1-frame octave/harmonic glitches while still
+      // allowing genuine note transitions to register within ~30ms.
+      const candidateCentsDiff = this.pendingJumpFreq > 0
+        ? Math.abs(1200 * Math.log2(pitchToUse / this.pendingJumpFreq))
+        : 999;
+
+      if (candidateCentsDiff < 50) {
+        // Same candidate as previous frame - increment confirmation counter
+        this.pendingJumpFrames++;
+      } else {
+        // New candidate direction - start fresh confirmation
+        this.pendingJumpFreq = pitchToUse;
+        this.pendingJumpFrames = 1;
+      }
+
+      if (this.pendingJumpFrames >= this.jumpConfirmFrames) {
+        // Confirmed genuine note change -> snap to new pitch
+        this.smoothedFreq = pitchToUse;
+        this.pitchHistory = [pitchToUse];
+        this.pendingJumpFreq = 0;
+        this.pendingJumpFrames = 0;
+      } else {
+        // Not yet confirmed: hold current smoothed frequency (reject the spike)
+        pitchToUse = this.smoothedFreq;
+      }
+    } else if (centsStep > 35) {
+      // MODERATE STEP (35-80 cents): Fast snap for musically meaningful transitions
+      // (e.g., moving from C4 to C#4 is 100 cents, D4 is 200 cents)
+      // Accept after 2 confirmation frames (~20ms) to filter random noise
+      const candidateCentsDiff = this.pendingJumpFreq > 0
+        ? Math.abs(1200 * Math.log2(pitchToUse / this.pendingJumpFreq))
+        : 999;
+
+      if (candidateCentsDiff < 40) {
+        this.pendingJumpFrames++;
+      } else {
+        this.pendingJumpFreq = pitchToUse;
+        this.pendingJumpFrames = 1;
+      }
+
+      if (this.pendingJumpFrames >= 2) {
+        this.smoothedFreq = pitchToUse;
+        this.pitchHistory = [pitchToUse];
+        this.pendingJumpFreq = 0;
+        this.pendingJumpFrames = 0;
+      } else {
+        pitchToUse = this.smoothedFreq;
+      }
     } else {
       // SINGER IS SUSTAINING THE SAME NOTE (within ±35 cents):
-      // Apply fast 3-sample median + responsive EMA (alpha = 0.60) to eliminate micro-jitter
-      this.pitchHistory.push(rawPitch);
-      if (this.pitchHistory.length > 3) {
+      // Apply 5-sample median + responsive EMA (alpha = 0.45) to eliminate micro-jitter
+      // while keeping the pitch trace smooth and stable.
+      this.pendingJumpFreq = 0;
+      this.pendingJumpFrames = 0;
+
+      this.pitchHistory.push(pitchToUse);
+      if (this.pitchHistory.length > 5) {
         this.pitchHistory.shift();
       }
       const sorted = [...this.pitchHistory].sort((a, b) => a - b);
       const medianFreq = sorted[Math.floor(sorted.length / 2)];
       
-      const alpha = 0.60;
+      // Lower alpha = smoother but slightly more latency. 0.45 provides excellent
+      // stability for sustained notes with natural vibrato (3-7Hz, ±20 cents)
+      const alpha = 0.45;
       this.smoothedFreq = alpha * medianFreq + (1 - alpha) * this.smoothedFreq;
     }
 
