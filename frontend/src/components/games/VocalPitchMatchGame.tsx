@@ -19,6 +19,7 @@ import {
 import { CentsTunerGauge } from '../ui/CentsTunerGauge';
 import { VocalPitchRibbonCanvas } from '../ui/VocalPitchRibbonCanvas';
 import { VocalPreflightModal } from '../ui/VocalPreflightModal';
+import { VocalStudioModal } from '../vocal-studio/VocalStudioModal';
 import { 
   Mic, 
   Volume2, 
@@ -29,7 +30,8 @@ import {
   CheckCircle2, 
   Flame, 
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Music
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
@@ -111,6 +113,7 @@ export const VocalPitchMatchGame: React.FC = () => {
 
   // Modal states
   const [showPreflightModal, setShowPreflightModal] = useState(true);
+  const [showStudioModal, setShowStudioModal] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const hasFinishedRef = useRef(false);
 
@@ -290,7 +293,7 @@ export const VocalPitchMatchGame: React.FC = () => {
 
   // Subscribe to live microphone pitch detection - stays active throughout game to prevent cold-start latency
   useEffect(() => {
-    if (showPreflightModal || isFinished) return;
+    if (showPreflightModal || isFinished || showStudioModal) return;
 
     vocalPitchService.startListening().catch((err) => {
       console.warn('Microphone start error:', err);
@@ -364,7 +367,7 @@ export const VocalPitchMatchGame: React.FC = () => {
     return () => {
       unsubscribe();
     };
-  }, [showPreflightModal, isFinished]);
+  }, [showPreflightModal, isFinished, showStudioModal]);
 
   // Handle note match success
   const handleNoteSuccess = (matchedNote: string) => {
@@ -482,7 +485,7 @@ export const VocalPitchMatchGame: React.FC = () => {
 
   // Overall timer
   useEffect(() => {
-    if (phase !== 'singing' || isFinished) return;
+    if (phase !== 'singing' || isFinished || showStudioModal) return;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -496,7 +499,7 @@ export const VocalPitchMatchGame: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [phase, isFinished, finishGame]);
+  }, [phase, isFinished, showStudioModal, finishGame]);
 
   // Clean up audio on unmount
   useEffect(() => {
@@ -553,9 +556,19 @@ export const VocalPitchMatchGame: React.FC = () => {
           </div>
         </div>
 
-        {/* Timer & Score Readout */}
+        {/* Timer & Score Readout + Studio MP3 Launcher */}
         <div className="flex items-center gap-3">
-          <div className="flex flex-col items-end">
+          <button
+            onClick={() => setShowStudioModal(true)}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 border border-indigo-400/40 transition hover:scale-105 active:scale-95"
+            title="Import file nhạc MP3/WAV để phân tích nốt & luyện hát theo ca sĩ"
+          >
+            <Music className="w-3.5 h-3.5 text-cyan-200 animate-pulse" />
+            <span className="hidden sm:inline">Studio Luyện MP3</span>
+            <span className="sm:hidden">Studio MP3</span>
+          </button>
+
+          <div className="flex flex-col items-end pl-3 border-l border-slate-800">
             <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Thời gian</span>
             <span className={`text-base font-mono font-bold ${timeLeft <= 10 ? 'text-rose-400 animate-pulse' : 'text-slate-200'}`}>
               {timeLeft}s
@@ -642,14 +655,31 @@ export const VocalPitchMatchGame: React.FC = () => {
           <span>Mẹo: Thả lỏng cơ hàm và lấy hơi từ bụng để giữ cao độ ổn định.</span>
         </div>
 
-        <button
-          onClick={() => setShowPreflightModal(true)}
-          className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/60 font-medium transition"
-        >
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Kiểm tra Micro</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowStudioModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-violet-950/70 hover:bg-violet-900/80 text-violet-200 border border-violet-700/60 font-semibold transition"
+          >
+            <Music className="w-3.5 h-3.5 text-violet-400" />
+            <span>Studio MP3</span>
+          </button>
+
+          <button
+            onClick={() => setShowPreflightModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/60 font-medium transition"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Kiểm tra Micro</span>
+          </button>
+        </div>
       </div>
+
+      {/* Vocal Studio Modal (Import MP3, Analysis & Sing-Along) */}
+      <VocalStudioModal
+        isOpen={showStudioModal}
+        onClose={() => setShowStudioModal(false)}
+        onOpenPreflightModal={() => setShowPreflightModal(true)}
+      />
 
       {/* Game Result Modal */}
       {isFinished && (

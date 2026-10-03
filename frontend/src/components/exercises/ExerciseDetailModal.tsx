@@ -2,8 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Play, ChevronLeft, Eye, Crosshair, Sparkles, Zap, Trophy, Target, 
   BarChart3, Settings2, Info, CheckCircle2, ShieldCheck, Flame, BookOpen, Type,
-  Infinity as InfinityIcon, Globe, Layers, Cpu, Orbit
+  Infinity as InfinityIcon, Globe, Layers, Cpu, Orbit, Music
 } from 'lucide-react';
+import { VocalStudioModal } from '../vocal-studio/VocalStudioModal';
 import { useAppStore } from '../../store/useAppStore';
 import { EXERCISES_METADATA, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
 import { infinityApiService, shuffleArray } from '../../services/infinityApiService';
@@ -136,8 +137,10 @@ export const ExerciseDetailModal: React.FC = () => {
     };
   }, [exerciseLevel]);
 
-  // Specific visual parameters for Peripheral Vision
+  // Specific visual parameters for Peripheral Vision & Vocal Match
   const isPeripheral = exercise.slug === 'peripheral-vision';
+  const isVocalMatch = exercise.slug === 'vocal-pitch-match';
+  const [showVocalStudio, setShowVocalStudio] = useState(false);
   const spanPx = (currentConfig.parametersJson as any)?.spanPx || (120 + (exerciseLevel * 45));
   const flashMs = (currentConfig.parametersJson as any)?.flashDurationMs || Math.max(200, 750 - (exerciseLevel * 45));
   const visualAngleDeg = Math.round(Math.min(65, 15 + (exerciseLevel * 3.8)));
@@ -267,6 +270,36 @@ export const ExerciseDetailModal: React.FC = () => {
 
       {activeTab === 'settings' ? (
         <div className="space-y-6">
+          {/* SPECIAL SECTION: Vocal Studio MP3 Import & Sing-Along */}
+          {isVocalMatch && (
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-violet-950 via-slate-900 to-indigo-950 border-2 border-indigo-500/40 p-5 sm:p-6 shadow-2xl">
+              <div className="absolute top-0 right-0 -mt-8 -mr-8 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-600 via-indigo-600 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 shrink-0">
+                    <Music className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base sm:text-lg font-black text-white">Studio Luyện Hát MP3 & Bóc Tách Pitch</h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40">MỚI</span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
+                      Tải file MP3 giọng hát hoặc chọn 3 bài hát mẫu để hệ thống tự động bóc tách cao độ, nhận diện quãng giọng, chia câu và hướng dẫn luyện hát chuẩn tông với đường chạy sóng âm kép thời gian thực!
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowVocalStudio(true)}
+                  className="px-5 py-3 rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 hover:from-violet-400 hover:to-cyan-400 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-cyan-500/25 active:scale-95 transition-all shrink-0"
+                >
+                  <Sparkles className="w-4 h-4 fill-slate-950" />
+                  <span>Mở Studio Luyện Hát</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* SPECIAL SECTION: Interactive Cockpit Visual Simulator (Only for Peripheral Vision) */}
           {isPeripheral && (
             <div className="bg-slate-950 rounded-3xl border-2 border-brand-500/40 p-5 sm:p-6 shadow-2xl overflow-hidden relative">
@@ -843,6 +876,12 @@ export const ExerciseDetailModal: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Vocal Studio Modal (Import MP3 & Sing-Along) */}
+      <VocalStudioModal
+        isOpen={showVocalStudio}
+        onClose={() => setShowVocalStudio(false)}
+      />
     </div>
   );
 };
