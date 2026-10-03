@@ -40,6 +40,7 @@ class VocalPitchService {
   private mediaStream: MediaStream | null = null;
   private sourceNode: MediaStreamAudioSourceNode | null = null;
   private highPassFilterNode: BiquadFilterNode | null = null;
+  private lowPassFilterNode: BiquadFilterNode | null = null;
   private micAnalyserNode: AnalyserNode | null = null;
   private monitorGainNode: GainNode | null = null;
   private isMonitoring = false;
@@ -57,6 +58,11 @@ class VocalPitchService {
   private smoothedFreq = 0;
   private lastReading: IVocalPitchReading | null = null;
   private subscribers: Set<(reading: IVocalPitchReading) => void> = new Set();
+
+  // Voice Focus & Anti-Transient State (Rejects door slams, desk knocks, keyboard clicks)
+  private voiceFocusEnabled = true;
+  private consecutivePitchFrames = 0;
+  private readonly minSustainFramesToTrigger = 3; // ~120-150ms sustained vocal requirement to reject transients
 
   // Noise gate and limits
   // Default -38 dBFS suppresses typical USB sound card (Ugreen) idle noise (-45 to -36 dBFS)
@@ -95,6 +101,23 @@ class VocalPitchService {
 
   public getUserRange(): VocalRangePreference {
     return this.userRange;
+  }
+
+  /**
+   * Voice Focus: Focus exclusively on human singing voice, rejecting door slams, desk thumps & clicks
+   */
+  public setVoiceFocus(enabled: boolean): void {
+    this.voiceFocusEnabled = enabled;
+    if (this.highPassFilterNode) {
+      const ctx = auditoryEngine.initContext();
+      if (ctx) {
+        this.highPassFilterNode.frequency.setValueAtTime(enabled ? 100 : 80, ctx.currentTime);
+      }
+    }
+  }
+
+  public getVoiceFocus(): boolean {
+    return this.voiceFocusEnabled;
   }
 
   /**
@@ -398,12 +421,17 @@ class VocalPitchService {
       this.mediaStream = stream;
       this.sourceNode = ctx.createMediaStreamSource(stream);
 
-      // 3. Studio-grade 80Hz High-Pass Filter (Low-Cut)
-      // Eliminates 50Hz/60Hz AC electrical hum, ground loops, and PC fan desk rumble
+      // 3. Studio-grade Vocal Bandpass Filtering (100Hz HPF - 3600Hz LPF)
+      // Eliminates 50Hz/60Hz AC electrical hum, ground loops, door slams (<100Hz), and key clicks (>3600Hz)
       this.highPassFilterNode = ctx.createBiquadFilter();
       this.highPassFilterNode.type = 'highpass';
-      this.highPassFilterNode.frequency.setValueAtTime(80, ctx.currentTime);
+      this.highPassFilterNode.frequency.setValueAtTime(this.voiceFocusEnabled ? 100 : 80, ctx.currentTime);
       this.highPassFilterNode.Q.setValueAtTime(0.707, ctx.currentTime);
+
+      this.lowPassFilterNode = ctx.createBiquadFilter();
+      this.lowPassFilterNode.type = 'lowpass';
+      this.lowPassFilterNode.frequency.setValueAtTime(3600, ctx.currentTime);
+      this.lowPassFilterNode.Q.setValueAtTime(0.707, ctx.currentTime);
 
       // 4. Dedicated Mic Analyser for live oscilloscope & waveform
       this.micAnalyserNode = ctx.createAnalyser();
@@ -414,12 +442,14 @@ class VocalPitchService {
       this.monitorGainNode = ctx.createGain();
       this.monitorGainNode.gain.setValueAtTime(this.isMonitoring ? 0.85 : 0, ctx.currentTime);
 
-      // Connect source to HighPassFilter
+      // Connect source -> HPF -> LPF
       this.sourceNode.connect(this.highPassFilterNode);
-      // Connect HighPassFilter to Analyser
-      this.highPassFilterNode.connect(this.micAnalyserNode);
-      // Connect HighPassFilter to Monitor Gain -> ctx.destination
-      this.highPassFilterNode.connect(this.monitorGainNode);
+      this.highPassFilterNode.connect(this.lowPassFilterNode);
+
+      // Connect LPF to Analyser
+      this.lowPassFilterNode.connect(this.micAnalyserNode);
+      // Connect LPF to Monitor Gain -> ctx.destination
+      this.lowPassFilterNode.connect(this.monitorGainNode);
       this.monitorGainNode.connect(ctx.destination);
 
       // 6. Initialize PitchDetector (MPM)
@@ -466,8 +496,8 @@ class VocalPitchService {
             }
           };
 
-          // AudioWorklet receives audio after the 80Hz HighPassFilter!
-          this.highPassFilterNode.connect(this.workletNode);
+          // AudioWorklet receives audio after the Bandpass Filter!
+          this.lowPassFilterNode.connect(this.workletNode);
           workletSuccess = true;
         }
       } catch (workletErr) {
@@ -482,7 +512,7 @@ class VocalPitchService {
           const inputData = e.inputBuffer.getChannelData(0);
           this.processAudioBuffer(inputData, ctx.sampleRate);
         };
-        this.highPassFilterNode.connect(this.scriptProcessorNode);
+        this.lowPassFilterNode.connect(this.scriptProcessorNode);
         const muteGain = ctx.createGain();
         muteGain.gain.setValueAtTime(0, ctx.currentTime);
         this.scriptProcessorNode.connect(muteGain);
@@ -492,6 +522,7 @@ class VocalPitchService {
       this.isListening = true;
       this.pitchHistory = [];
       this.smoothedFreq = 0;
+      this.consecutivePitchFrames = 0;
       return true;
     } catch (err) {
       console.error('Failed to start vocal pitch tracking:', err);
@@ -538,6 +569,13 @@ class VocalPitchService {
       this.micAnalyserNode = null;
     }
 
+    if (this.lowPassFilterNode) {
+      try {
+        this.lowPassFilterNode.disconnect();
+      } catch {}
+      this.lowPassFilterNode = null;
+    }
+
     if (this.highPassFilterNode) {
       try {
         this.highPassFilterNode.disconnect();
@@ -576,6 +614,7 @@ class VocalPitchService {
 
     this.pitchHistory = [];
     this.smoothedFreq = 0;
+    this.consecutivePitchFrames = 0;
     this.lastReading = null;
   }
 
@@ -613,6 +652,7 @@ class VocalPitchService {
 
     // Noise gate check: Suppress quiet ambient noise and electrical hum
     if (rms < this.minVolumeRms || db < this.noiseGateDb) {
+      this.consecutivePitchFrames = 0;
       if (this.lastReading?.isSinging && this.consecutiveDropFrames < this.maxHangoverFrames) {
         this.consecutiveDropFrames++;
         const heldReading: IVocalPitchReading = {
@@ -649,13 +689,15 @@ class VocalPitchService {
     const [rawPitch, clarity] = this.detector.findPitch(buffer, sampleRate);
 
     // 3. Filter valid human singing pitch based on vocal range & min frequency
-    const effectiveMinFreq = this.getEffectiveMinFreq();
+    const effectiveMinFreq = this.voiceFocusEnabled ? Math.max(90, this.getEffectiveMinFreq()) : this.getEffectiveMinFreq();
+    const effectiveMinClarity = this.voiceFocusEnabled ? 0.74 : this.minClarity;
     const isValidPitch = 
-      clarity >= this.minClarity && 
+      clarity >= effectiveMinClarity && 
       rawPitch >= effectiveMinFreq && 
       rawPitch <= this.maxFreq;
 
     if (!isValidPitch) {
+      this.consecutivePitchFrames = 0;
       // Hangover check: if user was singing and briefly dipped in clarity (e.g. consonant or breath)
       if (this.lastReading?.isSinging && this.consecutiveDropFrames < this.maxHangoverFrames && rms >= this.minVolumeRms * 0.7) {
         this.consecutiveDropFrames++;
@@ -684,6 +726,37 @@ class VocalPitchService {
       };
       this.lastReading = unpitchedReading;
       this.notifySubscribers(unpitchedReading);
+      return;
+    }
+
+    // 4. Anti-Transient Sustain Gate (Rejects knocking sounds, door thuds, desk bumps)
+    // Human singing requires a sustained periodic vowel (> 120ms).
+    // Door slams and knocks are single-frame impulses and get suppressed immediately!
+    const freqRatio = this.smoothedFreq > 0 ? rawPitch / this.smoothedFreq : 1;
+    const isPitchStable = freqRatio >= 0.70 && freqRatio <= 1.40;
+
+    if (isPitchStable) {
+      this.consecutivePitchFrames++;
+    } else {
+      this.consecutivePitchFrames = 1;
+    }
+
+    if (this.voiceFocusEnabled && this.consecutivePitchFrames < this.minSustainFramesToTrigger) {
+      // Sound is a brief impulse/knock/door click -> Suppress pitch detection!
+      const transientReading: IVocalPitchReading = {
+        freqHz: 0,
+        clarity,
+        volumeRms: rms,
+        volumeDb: Math.round(db),
+        noteName: '',
+        solfegeName: '',
+        midiNumber: 0,
+        centsDeviation: 0,
+        isSinging: false,
+        timestamp: performance.now(),
+      };
+      this.lastReading = transientReading;
+      this.notifySubscribers(transientReading);
       return;
     }
 

@@ -53,6 +53,9 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
   const [isCalibrating, setIsCalibrating] = useState<boolean>(false);
   const [calibrationNotice, setCalibrationNotice] = useState<string | null>(null);
 
+  // Voice Focus (Rejects door slams, desk knocks, keyboard clicks)
+  const [isVoiceFocus, setIsVoiceFocus] = useState<boolean>(vocalPitchService.getVoiceFocus());
+
   // Test recording & playback
   const [isRecordingTest, setIsRecordingTest] = useState<boolean>(false);
   const [recordCountdown, setRecordCountdown] = useState<number>(3);
@@ -284,6 +287,12 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
     const nextState = !isLiveMonitoring;
     setIsLiveMonitoring(nextState);
     vocalPitchService.setLiveMonitoring(nextState);
+  };
+
+  const handleToggleVoiceFocus = () => {
+    const nextState = !isVoiceFocus;
+    setIsVoiceFocus(nextState);
+    vocalPitchService.setVoiceFocus(nextState);
   };
 
   // Auto-calibrate noise floor
@@ -586,6 +595,37 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
               {errorMessage}
             </p>
           )}
+        </div>
+
+        {/* Voice Focus: Lọc tiếng cộc bàn, tiếng đóng cửa & va đập */}
+        <div className="p-3 mb-3.5 rounded-2xl bg-gradient-to-r from-sky-950/40 to-indigo-950/30 border border-sky-500/30 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                <span>Tập Trung Vào Giọng Hát (Voice Focus)</span>
+                <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono">
+                  Anti-Transient
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Khử tiếng cộc bàn, tiếng đóng cửa, tiếng gõ phím; chỉ nhận diện khi bạn ngân giọng hát thật (&gt;120ms).
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleToggleVoiceFocus}
+            className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition shrink-0 ${
+              isVoiceFocus
+                ? 'bg-sky-500 text-slate-950 shadow-sm'
+                : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {isVoiceFocus ? 'ĐANG BẬT' : 'ĐANG TẮT'}
+          </button>
         </div>
 
         {/* Khử Tạp Âm & Tiếng Rè Điện (Noise Gate Calibration) */}
