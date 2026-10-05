@@ -570,7 +570,9 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
             {/* Live Volume Fill */}
             <div
               className={`h-full rounded-full transition-all duration-75 ${
-                liveVolumeDb > noiseGateDb
+                liveVolumeDb > -4
+                  ? 'bg-gradient-to-r from-emerald-500 via-amber-400 to-rose-500'
+                  : liveVolumeDb > noiseGateDb
                   ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
                   : 'bg-slate-700/60'
               }`}
@@ -589,6 +591,16 @@ export const VocalPreflightModal: React.FC<VocalPreflightModalProps> = ({
             <span className="text-amber-400 font-bold">Vạch vàng: Ngưỡng lọc ({noiseGateDb} dB)</span>
             <span>Hát lớn (-5 dB)</span>
           </div>
+
+          {/* Proximity / Clipping warning when mouth is too close to mic */}
+          {liveVolumeDb > -4 && (
+            <div className="mt-2 px-2.5 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-[11px] text-amber-200 flex items-center gap-2 animate-pulse">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>
+                <strong>Cảnh báo quá sát mic (Clipping):</strong> Âm lượng đang ở mức kịch trần dễ gây vỡ tiếng khi lên nốt cao. Bạn nên lùi xa mic khoảng <strong>10–15 cm</strong> để âm thanh sạch và chuẩn nhất.
+              </span>
+            </div>
+          )}
 
           {errorMessage && (
             <p className="mt-2 text-xs text-rose-400 bg-rose-950/40 p-2.5 rounded-xl border border-rose-800/40">

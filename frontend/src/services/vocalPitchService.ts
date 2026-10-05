@@ -41,6 +41,8 @@ class VocalPitchService {
   private sourceNode: MediaStreamAudioSourceNode | null = null;
   private highPassFilterNode: BiquadFilterNode | null = null;
   private lowPassFilterNode: BiquadFilterNode | null = null;
+  private compressorNode: DynamicsCompressorNode | null = null;
+  private processedDestinationNode: MediaStreamAudioDestinationNode | null = null;
   private micAnalyserNode: AnalyserNode | null = null;
   private monitorGainNode: GainNode | null = null;
   private isMonitoring = false;
@@ -284,7 +286,12 @@ class VocalPitchService {
       }
     }
 
-    this.mediaRecorder = new MediaRecorder(this.mediaStream, options);
+    let streamToRecord = this.mediaStream;
+    if (this.processedDestinationNode && this.processedDestinationNode.stream.active) {
+      streamToRecord = this.processedDestinationNode.stream;
+    }
+
+    this.mediaRecorder = new MediaRecorder(streamToRecord, options);
     this.mediaRecorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) {
         this.recordedChunks.push(e.data);
@@ -442,26 +449,40 @@ class VocalPitchService {
       this.lowPassFilterNode.frequency.setValueAtTime(3600, ctx.currentTime);
       this.lowPassFilterNode.Q.setValueAtTime(0.707, ctx.currentTime);
 
-      // 4. Dedicated Mic Analyser for live oscilloscope & waveform
+      // 4. Studio Vocal Dynamics Compressor (Anti-Clipping / High-SPL Limiter)
+      // Softens sudden loud belting & high notes when mouth is close to mic,
+      // preventing harsh digital flat-topping and keeping pitch detection stable.
+      this.compressorNode = ctx.createDynamicsCompressor();
+      this.compressorNode.threshold.setValueAtTime(-12, ctx.currentTime);
+      this.compressorNode.knee.setValueAtTime(10, ctx.currentTime);
+      this.compressorNode.ratio.setValueAtTime(6, ctx.currentTime);
+      this.compressorNode.attack.setValueAtTime(0.003, ctx.currentTime); // Fast 3ms attack catches voice spikes
+      this.compressorNode.release.setValueAtTime(0.12, ctx.currentTime);  // 120ms smooth recovery
+
+      // Dedicated studio-processed destination stream for Test Mic recording & playback
+      this.processedDestinationNode = ctx.createMediaStreamDestination();
+
+      // 5. Dedicated Mic Analyser for live oscilloscope & waveform
       this.micAnalyserNode = ctx.createAnalyser();
       this.micAnalyserNode.fftSize = 512;
       this.micAnalyserNode.smoothingTimeConstant = 0.75;
 
-      // 5. Live Monitor Gain Node (routed to speakers/headphones on user request)
+      // 6. Live Monitor Gain Node (routed to speakers/headphones on user request)
       this.monitorGainNode = ctx.createGain();
       this.monitorGainNode.gain.setValueAtTime(this.isMonitoring ? 0.85 : 0, ctx.currentTime);
 
-      // Connect source -> HPF -> LPF
+      // Connect source -> HPF -> LPF -> Compressor
       this.sourceNode.connect(this.highPassFilterNode);
       this.highPassFilterNode.connect(this.lowPassFilterNode);
+      this.lowPassFilterNode.connect(this.compressorNode);
 
-      // Connect LPF to Analyser
-      this.lowPassFilterNode.connect(this.micAnalyserNode);
-      // Connect LPF to Monitor Gain -> ctx.destination
-      this.lowPassFilterNode.connect(this.monitorGainNode);
+      // Connect Compressor to Analyser, Processed Stream, and Live Monitor
+      this.compressorNode.connect(this.micAnalyserNode);
+      this.compressorNode.connect(this.processedDestinationNode);
+      this.compressorNode.connect(this.monitorGainNode);
       this.monitorGainNode.connect(ctx.destination);
 
-      // 6. Initialize PitchDetector (MPM)
+      // 7. Initialize PitchDetector (MPM)
       this.detector = PitchDetector.forFloat32Array(this.bufferSize);
       this.detector.clarityThreshold = this.minClarity;
 
@@ -509,8 +530,8 @@ class VocalPitchService {
             }
           };
 
-          // AudioWorklet receives audio after the Bandpass Filter!
-          this.lowPassFilterNode.connect(this.workletNode);
+          // AudioWorklet receives audio after the Bandpass Filter & Dynamics Compressor!
+          this.compressorNode.connect(this.workletNode);
           workletSuccess = true;
         }
       } catch (workletErr) {
@@ -519,7 +540,7 @@ class VocalPitchService {
 
       // 8. Fallback to ScriptProcessorNode if AudioWorklet is blocked or failed
       // Also uses 512-sample sliding window for uniform low-latency updates
-      if (!workletSuccess) {
+      if (!workletSuccess && this.compressorNode) {
         const slidingBuffer = new Float32Array(this.bufferSize);
         this.scriptProcessorNode = ctx.createScriptProcessor(512, 1, 1);
         this.scriptProcessorNode.onaudioprocess = (e) => {
@@ -529,7 +550,7 @@ class VocalPitchService {
           slidingBuffer.set(inputData, this.bufferSize - inputData.length);
           this.processAudioBuffer(slidingBuffer, ctx.sampleRate);
         };
-        this.lowPassFilterNode.connect(this.scriptProcessorNode);
+        this.compressorNode.connect(this.scriptProcessorNode);
         const muteGain = ctx.createGain();
         muteGain.gain.setValueAtTime(0, ctx.currentTime);
         this.scriptProcessorNode.connect(muteGain);
@@ -581,11 +602,25 @@ class VocalPitchService {
       this.monitorGainNode = null;
     }
 
+    if (this.processedDestinationNode) {
+      try {
+        this.processedDestinationNode.disconnect();
+      } catch {}
+      this.processedDestinationNode = null;
+    }
+
     if (this.micAnalyserNode) {
       try {
         this.micAnalyserNode.disconnect();
       } catch {}
       this.micAnalyserNode = null;
+    }
+
+    if (this.compressorNode) {
+      try {
+        this.compressorNode.disconnect();
+      } catch {}
+      this.compressorNode = null;
     }
 
     if (this.lowPassFilterNode) {
@@ -719,11 +754,14 @@ class VocalPitchService {
     const [rawPitch, clarity] = this.detector.findPitch(buffer, sampleRate);
 
     // 3. Filter valid human singing pitch based on vocal range & clarity
-    // While already singing: relax clarity threshold to 0.60 so sustained notes with vibrato/vocal fry don't cut out.
-    // On fresh attack from silence: require 0.65 in voice focus mode (or 0.62 in standard mode).
+    // High-SPL & Belting Resilience:
+    // When mouth is close to mic or belting powerful high notes (db > -8 or rms > 0.40),
+    // minor capsule saturation can lower clarity score temporarily.
+    // We dynamically relax clarity threshold to 0.52 so high-volume note attacks don't glitch or stutter.
+    const isVeryLoud = db > -8 || rms > 0.40;
     const effectiveMinClarity = isAlreadySinging 
-      ? 0.60 
-      : (this.voiceFocusEnabled ? 0.65 : 0.62);
+      ? (isVeryLoud ? 0.52 : 0.60) 
+      : (this.voiceFocusEnabled ? (isVeryLoud ? 0.56 : 0.65) : 0.62);
 
     const effectiveMinFreq = this.voiceFocusEnabled ? Math.max(90, this.getEffectiveMinFreq()) : this.getEffectiveMinFreq();
     const isValidPitch = 
