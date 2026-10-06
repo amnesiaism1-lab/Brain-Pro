@@ -36,11 +36,21 @@ import {
   Rewind
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { StudioTab, MicStatus, TuningTolerance, SingSessionStats, RunwayRenderState } from './types';
+import { 
+  StudioTab, 
+  MicStatus, 
+  TuningTolerance, 
+  SingSessionStats, 
+  RunwayRenderState, 
+  IUserPitchPoint 
+} from './types';
 import { findClosestPitchPoint, formatTimeMs, getPitchFeedback } from './utils/vocalHelpers';
 import { DifficultyBadge } from './components/DifficultyBadge';
 import { MicStatusBadge } from './components/MicStatusBadge';
 import { PitchRunwayCanvas } from './components/PitchRunwayCanvas';
+import { LivePitchMonitorBar } from './components/LivePitchMonitorBar';
+import { PhraseNavigatorDeck } from './components/PhraseNavigatorDeck';
+import { MicDeviceSelector } from './components/MicDeviceSelector';
 
 interface VocalStudioModalProps {
   isOpen: boolean;
@@ -88,7 +98,10 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
   const [realtimeScorePct, setRealtimeScorePct] = useState<number>(0);
   const [currentStreak, setCurrentStreak] = useState<number>(0);
 
-  // UI state for Help & Keyboard shortcuts
+  // User sung pitch trail history across playback time
+  const userPitchTrailRef = useRef<IUserPitchPoint[]>([]);
+
+  // UI state for Help & Keyboard hints
   const [showHelpGuide, setShowHelpGuide] = useState<boolean>(false);
   const [showKeyboardHints, setShowKeyboardHints] = useState<boolean>(false);
 
@@ -115,7 +128,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
     phraseScores: {},
   });
 
-  // Loop & audio sync state ref (Fixes BUG-01: prevents stale closure in ontimeupdate)
+  // Loop & audio sync state ref (Fixes BUG-01)
   const loopStateRef = useRef({
     isLoopingActive,
     loopStartMs,
@@ -138,11 +151,12 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
     };
   }, [isLoopingActive, loopStartMs, loopEndMs, activeTab, playbackSpeed, musicVolume, isMutedMusic]);
 
-  // Canvas render state ref (Fixes BUG-03: decouple canvas 60 FPS animation loop from React renders)
+  // Canvas render state ref (Fixes BUG-03)
   const renderStateRef = useRef<RunwayRenderState>({
     currentTimeMs: 0,
     durationMs: 0,
     pitchTrack: [],
+    userPitchTrail: [],
     currentRefPoint: null,
     userReading: null,
     isInTuneNow: false,
@@ -174,6 +188,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
       currentTimeMs,
       durationMs: analysisResult?.durationMs || 0,
       pitchTrack: analysisResult?.pitchTrack || [],
+      userPitchTrail: userPitchTrailRef.current,
       currentRefPoint,
       userReading,
       isInTuneNow,
@@ -332,6 +347,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
     setSessionStats(fresh);
     setRealtimeScorePct(0);
     setCurrentStreak(0);
+    userPitchTrailRef.current = [];
   }, []);
 
   // Initialize or update HTMLAudioElement lifecycle cleanly (Fixes BUG-01 & BUG-06)
@@ -497,14 +513,14 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
   const handleFileSelected = async (file: File) => {
     setErrorMessage(null);
 
-    // 1. Validate file extension & mime type
+    // Validate file extension & mime type
     const isAudio = file.type.includes('audio') || file.name.match(/\.(mp3|wav|m4a|ogg|flac|aac)$/i);
     if (!isAudio) {
       setErrorMessage('File không hợp lệ! Vui lòng chọn file âm thanh (MP3, WAV, M4A, OGG, FLAC).');
       return;
     }
 
-    // 2. File size check (>50MB)
+    // File size check (>50MB)
     if (file.size > 50 * 1024 * 1024) {
       setErrorMessage('File âm thanh quá lớn (> 50MB). Vui lòng chọn file ngắn hơn hoặc nén lại để tối ưu bộ nhớ.');
       return;
@@ -534,7 +550,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
     }
   };
 
-  // Real-time Pitch Evaluation & Score Accumulator (Fixes BUG-07 & BUG-08)
+  // Real-time Pitch Evaluation, Score Accumulator & User Pitch Trail Record
   useEffect(() => {
     if (!isPlaying || activeTab !== 'sing_along' || !currentRefPoint || !currentRefPoint.isVocal) {
       setIsInTuneNow(false);
@@ -552,10 +568,12 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
     const exactUserMidi = 12 * Math.log2(userReading.freqHz / 440) + 69;
 
     let centsDiff: number;
+    let displayMidi = exactUserMidi;
+
     if (smartOctaveFold) {
-      // Smart octave fold allows male and female voices singing together without penalty
       const octaveShift = Math.round((exactUserMidi - refMidi) / 12);
       const transposedUserMidi = exactUserMidi - octaveShift * 12;
+      displayMidi = transposedUserMidi;
       centsDiff = Math.round((transposedUserMidi - refMidi) * 100);
     } else {
       centsDiff = Math.round((exactUserMidi - refMidi) * 100);
@@ -565,6 +583,20 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
 
     const inTune = Math.abs(centsDiff) <= toleranceCents;
     setIsInTuneNow(inTune);
+
+    // Record user pitch point in trail history for visual runway rendering
+    userPitchTrailRef.current.push({
+      timeMs: currentTimeMs,
+      midi: displayMidi,
+      freqHz: userReading.freqHz,
+      centsDiff,
+      inTune,
+    });
+
+    // Prune trail if user rewound or if trail exceeds max length
+    if (userPitchTrailRef.current.length > 3000) {
+      userPitchTrailRef.current = userPitchTrailRef.current.slice(-2500);
+    }
 
     // Update session stats ref safely
     const stats = statsRef.current;
@@ -599,14 +631,23 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
       setRealtimeScorePct(scorePct);
       setSessionStats({ ...stats });
     }
-  }, [userReading, currentRefPoint, isPlaying, activeTab, smartOctaveFold, activePhrase, toleranceCents, currentStreak]);
+  }, [
+    userReading, 
+    currentRefPoint, 
+    isPlaying, 
+    activeTab, 
+    smartOctaveFold, 
+    activePhrase, 
+    toleranceCents, 
+    currentStreak,
+    currentTimeMs
+  ]);
 
   // Keyboard Shortcuts (Nielsen Heuristic H7: Flexibility and efficiency)
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is typing in an input
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
         return;
       }
@@ -657,7 +698,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-xl animate-in fade-in duration-200">
-      <div className="relative w-full max-w-5xl h-[92vh] max-h-[840px] rounded-3xl bg-slate-900/95 border border-slate-700/80 shadow-2xl flex flex-col overflow-hidden text-slate-100">
+      <div className="relative w-full max-w-5xl h-[94vh] max-h-[900px] rounded-3xl bg-slate-900/95 border border-slate-700/80 shadow-2xl flex flex-col overflow-hidden text-slate-100">
         
         {/* Top Header & Navigation Tabs */}
         <div className="p-4 sm:px-6 border-b border-slate-800 flex items-center justify-between gap-4 bg-slate-950/50 shrink-0">
@@ -976,42 +1017,6 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Phrase Breakdown Table */}
-                  <div className="p-4 rounded-3xl bg-slate-950/60 border border-slate-800">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
-                      <Layers className="w-3.5 h-3.5 text-sky-400" />
-                      <span>Danh Sách Phân Đoạn Từng Câu Hát ({analysisResult.phrases.length} câu)</span>
-                    </h4>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                      {analysisResult.phrases.map((phrase) => (
-                        <div
-                          key={phrase.id}
-                          className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-center justify-between gap-3 hover:border-slate-700 transition"
-                        >
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-white">Câu {phrase.phraseIndex}</span>
-                              <DifficultyBadge difficulty={phrase.difficulty} />
-                            </div>
-                            <div className="text-[10px] text-slate-400 mt-0.5">
-                              Quãng: <span className="text-slate-300 font-mono">{phrase.lowestNote} – {phrase.highestNote}</span> • Nhảy: {phrase.pitchJumpSemitones} bán âm
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleLoopPhrase(phrase)}
-                            className="px-2.5 py-1.5 rounded-xl bg-slate-800 text-sky-400 text-[11px] font-bold hover:bg-slate-700 transition flex items-center gap-1 shrink-0"
-                          >
-                            <Repeat className="w-3 h-3" />
-                            <span>Luyện câu</span>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
                   {/* Collapsible Coach Guide (Nielsen Heuristic H10) */}
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/50 overflow-hidden">
                     <button
@@ -1030,7 +1035,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                       <div className="p-4 pt-0 text-xs text-slate-400 space-y-2 border-t border-slate-800/60">
                         <p>• <strong>Khoảng cách Micro:</strong> Đặt micro cách miệng từ 15 – 20cm, tránh thổi hơi trực tiếp vào đầu thu.</p>
                         <p>• <strong>Tư thế & Lấy hơi:</strong> Đứng hoặc ngồi thẳng lưng, hít sâu bằng cơ hoành (bụng phình ra) để giữ cột hơi ổn định.</p>
-                        <p>• <strong>Đường băng Pitch Runway:</strong> Khi bài hát chạy, dải ruy-băng màu tím indigo là cao độ chuẩn. Quả cầu sáng màu ngọc biểu thị giọng hát trực tiếp của bạn. Hãy giữ quả cầu nằm chính giữa dải băng.</p>
+                        <p>• <strong>Đường băng Pitch Runway:</strong> Khi bài hát chạy, dải ruy-băng màu tím indigo là cao độ chuẩn. Dải ruy-băng màu xanh ngọc/vàng vẽ trực tiếp quỹ đạo giọng hát của bạn. Hãy giữ đường hát của bạn đè khớp lên đường mẫu!</p>
                         <p>• <strong>Smart Octave-Fold:</strong> Cho phép giọng Nam và Nữ hát cùng nhau không bị trừ điểm vì lệch quãng 8 tự nhiên.</p>
                       </div>
                     )}
@@ -1040,11 +1045,11 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: INTERACTIVE SING-ALONG STUDIO */}
+          {/* TAB 2: INTERACTIVE SING-ALONG STUDIO (UPGRADED WORKSPACE) */}
           {activeTab === 'sing_along' && analysisResult && (
             <div className="max-w-4xl mx-auto space-y-4">
               
-              {/* Runway Canvas Container */}
+              {/* SECTION 1: DUAL-TRACK RUNWAY CANVAS */}
               <div className="relative w-full rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl">
                 <PitchRunwayCanvas renderStateRef={renderStateRef} />
 
@@ -1123,7 +1128,17 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                 </div>
               </div>
 
-              {/* Scrubber & Player Timeline Controls */}
+              {/* SECTION 2: LIVE VOCAL PITCH & CHROMATIC MONITOR (DÒ CAO ĐỘ GIỌNG HÁT) */}
+              <LivePitchMonitorBar
+                currentRefPoint={currentRefPoint}
+                userReading={userReading}
+                currentCentsDiff={currentCentsDiff}
+                toleranceCents={toleranceCents}
+                pitchFeedback={pitchFeedback}
+                smartOctaveFold={smartOctaveFold}
+              />
+
+              {/* SECTION 3: SCRUBBER & PLAYER CONTROLS DECK */}
               <div className="p-4 rounded-3xl bg-slate-950/70 border border-slate-800 space-y-3">
                 {/* Timeline slider */}
                 <div className="flex items-center gap-3">
@@ -1212,10 +1227,13 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Audio Balances & Smart Toggles */}
-                  <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                  {/* Audio Balances, Mic Selector & Smart Toggles */}
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    {/* Microphone Device Selector Dropdown */}
+                    <MicDeviceSelector onOpenPreflightModal={onOpenPreflightModal} />
+
                     {/* Music volume slider */}
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 pl-1 border-l border-slate-800">
                       <button
                         type="button"
                         onClick={handleToggleMuteMusic}
@@ -1299,7 +1317,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                   </div>
                 </div>
 
-                {/* Keyboard Shortcut Hints Bar (Heuristic H7) */}
+                {/* Keyboard Shortcut Hints Bar */}
                 <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
                   <div className="flex items-center gap-3">
                     <button
@@ -1324,37 +1342,21 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                 </div>
               </div>
 
-              {/* Quick Phrase Jump Bar */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar text-xs">
-                <span className="text-[10px] uppercase font-mono text-slate-400 shrink-0">Chọn Câu:</span>
-                {analysisResult.phrases.map((phrase) => {
-                  const isCurrent = activePhrase?.phraseIndex === phrase.phraseIndex;
-                  const score = sessionStats.phraseScores[phrase.phraseIndex];
-                  const hasPracticed = score && score.total > 0;
-                  const phrasePct = hasPracticed ? Math.round((score.inTune / score.total) * 100) : null;
+              {/* SECTION 4: INTERACTIVE MULTI-ROW & TIMELINE PHRASE NAVIGATOR DECK */}
+              {/* Solves empty black void and provides comprehensive phrase controls */}
+              <PhraseNavigatorDeck
+                phrases={analysisResult.phrases}
+                durationMs={analysisResult.durationMs}
+                currentTimeMs={currentTimeMs}
+                activePhraseIndex={activePhrase?.phraseIndex || null}
+                selectedPhraseIndex={selectedPhraseIndex}
+                isLoopingActive={isLoopingActive}
+                sessionStats={sessionStats}
+                onLoopPhrase={handleLoopPhrase}
+                onSeekToPhrase={handleSeek}
+                onClearLoop={handleClearLoop}
+              />
 
-                  return (
-                    <button
-                      key={phrase.id}
-                      type="button"
-                      onClick={() => handleLoopPhrase(phrase)}
-                      className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition flex items-center gap-1.5 shrink-0 ${
-                        isCurrent
-                          ? 'bg-sky-500 text-slate-950 shadow-md ring-2 ring-sky-300/40'
-                          : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
-                      }`}
-                    >
-                      <span>Câu {phrase.phraseIndex}</span>
-                      <DifficultyBadge difficulty={phrase.difficulty} />
-                      {phrasePct !== null && (
-                        <span className={`text-[10px] font-mono px-1 rounded ${phrasePct >= 80 ? 'bg-emerald-950 text-emerald-300' : 'bg-slate-800 text-amber-300'}`}>
-                          {phrasePct}%
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
           )}
 

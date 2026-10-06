@@ -27,7 +27,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
     const resizeCanvasToDisplaySize = () => {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const width = canvas.clientWidth || 860;
-      const height = canvas.clientHeight || 260;
+      const height = canvas.clientHeight || 280;
 
       const displayWidth = Math.floor(width * dpr);
       const displayHeight = Math.floor(height * dpr);
@@ -50,6 +50,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       const {
         currentTimeMs,
         pitchTrack,
+        userPitchTrail,
         currentRefPoint,
         userReading,
         isInTuneNow,
@@ -64,16 +65,16 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
 
       // 1. Background Gradient
       const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-      bgGrad.addColorStop(0, '#090d16');
+      bgGrad.addColorStop(0, '#0a0e1a');
       bgGrad.addColorStop(0.5, '#050914');
       bgGrad.addColorStop(1, '#02050c');
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, width, height);
 
       // Runway time window configuration:
-      // Past window: 1.2s, Future window: 3.3s -> total 4.5s visible
-      const pastWindowMs = 1200;
-      const futureWindowMs = 3300;
+      // Past window: 1.5s, Future window: 3.5s -> total 5.0s visible
+      const pastWindowMs = 1500;
+      const futureWindowMs = 3500;
       const totalWindowMs = pastWindowMs + futureWindowMs;
       const playheadX = (pastWindowMs / totalWindowMs) * width;
 
@@ -92,7 +93,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         const y = midiToY(m);
         const isC = m % 12 === 0;
 
-        ctx.strokeStyle = isC ? 'rgba(56, 189, 248, 0.28)' : 'rgba(255, 255, 255, 0.05)';
+        ctx.strokeStyle = isC ? 'rgba(56, 189, 248, 0.32)' : 'rgba(255, 255, 255, 0.05)';
         ctx.lineWidth = isC ? 1.5 : 1;
         ctx.beginPath();
         ctx.moveTo(0, y);
@@ -104,7 +105,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         const oct = Math.floor(m / 12) - 1;
         const noteStr = `${NOTE_NAMES[noteIndex]}${oct}`;
 
-        ctx.fillStyle = isC ? '#38bdf8' : 'rgba(148, 163, 184, 0.45)';
+        ctx.fillStyle = isC ? '#38bdf8' : 'rgba(148, 163, 184, 0.5)';
         ctx.font = isC ? 'bold 11px monospace' : '10px monospace';
         ctx.fillText(noteStr, 8, y - 3);
       }
@@ -117,10 +118,10 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         const drawW = Math.max(0, loopX2 - drawX1);
 
         if (drawW > 0) {
-          ctx.fillStyle = 'rgba(16, 185, 129, 0.08)';
+          ctx.fillStyle = 'rgba(16, 185, 129, 0.09)';
           ctx.fillRect(drawX1, 0, drawW, height);
 
-          ctx.strokeStyle = 'rgba(52, 211, 153, 0.45)';
+          ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
           ctx.lineWidth = 1.5;
           ctx.setLineDash([4, 4]);
           ctx.strokeRect(drawX1, 0, drawW, height);
@@ -128,16 +129,16 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         }
       }
 
-      // 4. Reference Vocal Pitch Ribbon
       const windowStartMs = currentTimeMs - pastWindowMs;
       const windowEndMs = currentTimeMs + futureWindowMs;
 
+      // 4. Reference Vocal Pitch Ribbon (Indigo Neon Glow)
       if (pitchTrack && pitchTrack.length > 0) {
         ctx.save();
-        ctx.lineWidth = 5;
+        ctx.lineWidth = 6;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 12;
         ctx.shadowColor = '#6366f1';
         ctx.strokeStyle = '#818cf8';
 
@@ -170,16 +171,56 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         ctx.restore();
       }
 
+      // 4.5. User Sung Pitch Trail (Đường Cao Độ Giọng Bạn Hát)
+      // Visualizes exactly how you sang compared to the reference track!
+      if (userPitchTrail && userPitchTrail.length > 0) {
+        ctx.save();
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        for (let i = 1; i < userPitchTrail.length; i++) {
+          const ptPrev = userPitchTrail[i - 1];
+          const ptCurr = userPitchTrail[i];
+
+          // Skip points outside time window
+          if (ptCurr.timeMs < windowStartMs || ptPrev.timeMs > windowEndMs) continue;
+          // Skip if break between vocal points > 300ms
+          if (ptCurr.timeMs - ptPrev.timeMs > 300) continue;
+
+          const x1 = playheadX + ((ptPrev.timeMs - currentTimeMs) / totalWindowMs) * width;
+          const y1 = midiToY(ptPrev.midi);
+          const x2 = playheadX + ((ptCurr.timeMs - currentTimeMs) / totalWindowMs) * width;
+          const y2 = midiToY(ptCurr.midi);
+
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+
+          const trailColor = ptCurr.inTune
+            ? '#34d399'
+            : ptCurr.centsDiff < 0
+            ? '#fbbf24'
+            : '#f87171';
+
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = trailColor;
+          ctx.strokeStyle = trailColor;
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
       // 5. Target Note Hit-Box under playhead
       if (currentRefPoint && currentRefPoint.isVocal && currentRefPoint.midi > 0) {
         const targetY = midiToY(currentRefPoint.midi);
-        const boxW = 86;
-        const boxH = 24;
+        const boxW = 88;
+        const boxH = 26;
 
         ctx.save();
-        ctx.shadowBlur = 14;
+        ctx.shadowBlur = 16;
         ctx.shadowColor = isInTuneNow ? '#34d399' : '#818cf8';
-        ctx.fillStyle = isInTuneNow ? 'rgba(52, 211, 153, 0.35)' : 'rgba(129, 140, 248, 0.28)';
+        ctx.fillStyle = isInTuneNow ? 'rgba(52, 211, 153, 0.4)' : 'rgba(129, 140, 248, 0.3)';
         ctx.strokeStyle = isInTuneNow ? '#34d399' : '#a5b4fc';
         ctx.lineWidth = 2;
 
@@ -195,7 +236,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         ctx.restore();
       }
 
-      // 6. User Live Microphone Pitch Indicator
+      // 6. User Live Microphone Pitch Indicator (Orb with Pulse)
       if (userReading && userReading.isSinging && userReading.freqHz > 0) {
         const exactUserMidi = 12 * Math.log2(userReading.freqHz / 440) + 69;
 
@@ -208,7 +249,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         const userY = midiToY(displayMidi);
 
         ctx.save();
-        ctx.shadowBlur = 18;
+        ctx.shadowBlur = 20;
         const orbColor = isInTuneNow
           ? '#10b981'
           : currentCentsDiff < 0
@@ -224,19 +265,19 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
 
         // Outer pulse circle
         ctx.beginPath();
-        ctx.arc(playheadX, userY, 10, 0, Math.PI * 2);
+        ctx.arc(playheadX, userY, 11, 0, Math.PI * 2);
         ctx.fill();
 
         // Inner bright white core
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(playheadX, userY, 4, 0, Math.PI * 2);
+        ctx.arc(playheadX, userY, 4.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
 
       // 7. Playhead Vertical Guide Line
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.lineWidth = 2;
       ctx.setLineDash([3, 4]);
       ctx.beginPath();
@@ -244,6 +285,23 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       ctx.lineTo(playheadX, height);
       ctx.stroke();
       ctx.setLineDash([]);
+
+      // 8. Visual Ribbon Legend (Top Right)
+      ctx.save();
+      ctx.font = '10px sans-serif';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      // Reference Legend
+      ctx.fillStyle = '#818cf8';
+      ctx.fillRect(width - 190, 12, 10, 4);
+      ctx.fillStyle = 'rgba(203, 213, 225, 0.85)';
+      ctx.fillText('Nốt mẫu', width - 174, 17);
+
+      // User Singing Legend
+      ctx.fillStyle = '#34d399';
+      ctx.fillRect(width - 110, 12, 10, 4);
+      ctx.fillStyle = 'rgba(203, 213, 225, 0.85)';
+      ctx.fillText('Giọng bạn hát', width - 94, 17);
+      ctx.restore();
 
       ctx.restore();
 
@@ -261,7 +319,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
   return (
     <canvas
       ref={canvasRef}
-      className={`w-full h-[240px] sm:h-[280px] block ${className}`}
+      className={`w-full h-[260px] sm:h-[300px] block ${className}`}
     />
   );
 };

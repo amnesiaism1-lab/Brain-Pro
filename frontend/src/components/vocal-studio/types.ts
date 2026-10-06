@@ -7,6 +7,8 @@ export type MicStatus = 'idle' | 'connecting' | 'listening' | 'error' | 'permiss
 
 export type TuningTolerance = 20 | 35 | 50;
 
+export type PhraseViewMode = 'grid' | 'timeline_minutes' | 'needs_practice';
+
 export interface SingSessionStats {
   totalVocalFrames: number;
   inTuneFrames: number;
@@ -16,10 +18,19 @@ export interface SingSessionStats {
   phraseScores: Record<number, { total: number; inTune: number }>;
 }
 
+export interface IUserPitchPoint {
+  timeMs: number;
+  midi: number;
+  freqHz: number;
+  centsDiff: number;
+  inTune: boolean;
+}
+
 export interface RunwayRenderState {
   currentTimeMs: number;
   durationMs: number;
   pitchTrack: IReferencePitchPoint[];
+  userPitchTrail: IUserPitchPoint[];
   currentRefPoint: IReferencePitchPoint | null;
   userReading: IVocalPitchReading | null;
   isInTuneNow: boolean;
