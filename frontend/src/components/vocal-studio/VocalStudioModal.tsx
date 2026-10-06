@@ -6,10 +6,8 @@ import {
   IReferencePitchPoint 
 } from '../../services/vocalFileAnalysisService';
 import { vocalPitchService, IVocalPitchReading } from '../../services/vocalPitchService';
-import { auditoryEngine } from '../../services/auditoryEngine';
 import { 
   Upload, 
-  Music, 
   Mic, 
   Play, 
   Pause, 
@@ -19,39 +17,35 @@ import {
   Sparkles, 
   CheckCircle2, 
   Sliders, 
-  Activity, 
   X, 
   ArrowRight, 
   Headphones, 
   Repeat, 
   Award, 
   BarChart3, 
-  ChevronRight, 
   FileAudio,
-  Wand2,
-  Gauge,
+  Loader2,
   Layers,
-  Info
+  Info,
+  HelpCircle,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Keyboard,
+  FastForward,
+  Rewind
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { StudioTab, MicStatus, TuningTolerance, SingSessionStats, RunwayRenderState } from './types';
+import { findClosestPitchPoint, formatTimeMs, getPitchFeedback } from './utils/vocalHelpers';
+import { DifficultyBadge } from './components/DifficultyBadge';
+import { MicStatusBadge } from './components/MicStatusBadge';
+import { PitchRunwayCanvas } from './components/PitchRunwayCanvas';
 
 interface VocalStudioModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenPreflightModal?: () => void;
-}
-
-type StudioTab = 'analysis' | 'sing_along' | 'report';
-
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-
-interface SingSessionStats {
-  totalVocalFrames: number;
-  inTuneFrames: number;
-  flatFrames: number;
-  sharpFrames: number;
-  highestStreak: number;
-  phraseScores: Record<number, { total: number; inTune: number }>;
 }
 
 export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
@@ -68,6 +62,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
   const [analyzeProgress, setAnalyzeProgress] = useState<number>(0);
   const [analyzeStatusText, setAnalyzeStatusText] = useState<string>('');
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Audio Playback State
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -77,6 +72,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
   const [isMutedMusic, setIsMutedMusic] = useState<boolean>(false);
   const [isLiveMonitoring, setIsLiveMonitoring] = useState<boolean>(false);
   const [smartOctaveFold, setSmartOctaveFold] = useState<boolean>(true);
+  const [toleranceCents, setToleranceCents] = useState<TuningTolerance>(35);
 
   // A-B Looping
   const [loopStartMs, setLoopStartMs] = useState<number | null>(null);
@@ -84,14 +80,19 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
   const [isLoopingActive, setIsLoopingActive] = useState<boolean>(false);
   const [selectedPhraseIndex, setSelectedPhraseIndex] = useState<number | null>(null);
 
-  // Real-time Pitch & Scoring Telemetry
+  // Microphone & Real-time Pitch Telemetry
+  const [micStatus, setMicStatus] = useState<MicStatus>('idle');
   const [userReading, setUserReading] = useState<IVocalPitchReading | null>(null);
   const [currentCentsDiff, setCurrentCentsDiff] = useState<number>(0);
   const [isInTuneNow, setIsInTuneNow] = useState<boolean>(false);
   const [realtimeScorePct, setRealtimeScorePct] = useState<number>(0);
   const [currentStreak, setCurrentStreak] = useState<number>(0);
 
-  // Session Stats for Report
+  // UI state for Help & Keyboard shortcuts
+  const [showHelpGuide, setShowHelpGuide] = useState<boolean>(false);
+  const [showKeyboardHints, setShowKeyboardHints] = useState<boolean>(false);
+
+  // Session Stats for Diagnostic Report
   const [sessionStats, setSessionStats] = useState<SingSessionStats>({
     totalVocalFrames: 0,
     inTuneFrames: 0,
@@ -101,10 +102,9 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
     phraseScores: {},
   });
 
-  // Audio Element & Canvas Refs
+  // Audio Element & Resource Refs
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animFrameRef = useRef<number | null>(null);
+  const currentBlobUrlRef = useRef<string | null>(null);
   const unsubscribePitchRef = useRef<(() => void) | null>(null);
   const statsRef = useRef<SingSessionStats>({
     totalVocalFrames: 0,
@@ -115,6 +115,283 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
     phraseScores: {},
   });
 
+  // Loop & audio sync state ref (Fixes BUG-01: prevents stale closure in ontimeupdate)
+  const loopStateRef = useRef({
+    isLoopingActive,
+    loopStartMs,
+    loopEndMs,
+    activeTab,
+    playbackSpeed,
+    musicVolume,
+    isMutedMusic,
+  });
+
+  useEffect(() => {
+    loopStateRef.current = {
+      isLoopingActive,
+      loopStartMs,
+      loopEndMs,
+      activeTab,
+      playbackSpeed,
+      musicVolume,
+      isMutedMusic,
+    };
+  }, [isLoopingActive, loopStartMs, loopEndMs, activeTab, playbackSpeed, musicVolume, isMutedMusic]);
+
+  // Canvas render state ref (Fixes BUG-03: decouple canvas 60 FPS animation loop from React renders)
+  const renderStateRef = useRef<RunwayRenderState>({
+    currentTimeMs: 0,
+    durationMs: 0,
+    pitchTrack: [],
+    currentRefPoint: null,
+    userReading: null,
+    isInTuneNow: false,
+    currentCentsDiff: 0,
+    isLoopingActive: false,
+    loopStartMs: null,
+    loopEndMs: null,
+    smartOctaveFold: true,
+    lowestMidi: 48,
+    highestMidi: 72,
+    toleranceCents: 35,
+  });
+
+  // Find exact reference pitch at current playback time using binary search (Fixes BUG-04)
+  const currentRefPoint = useMemo<IReferencePitchPoint | null>(() => {
+    if (!analysisResult) return null;
+    return findClosestPitchPoint(analysisResult.pitchTrack, currentTimeMs);
+  }, [analysisResult, currentTimeMs]);
+
+  // Current active phrase
+  const activePhrase = useMemo<IVocalPhrase | null>(() => {
+    if (!analysisResult) return null;
+    return analysisResult.phrases.find((p) => currentTimeMs >= p.startMs && currentTimeMs <= p.endMs) || null;
+  }, [analysisResult, currentTimeMs]);
+
+  // Synchronize renderStateRef continuously
+  useEffect(() => {
+    renderStateRef.current = {
+      currentTimeMs,
+      durationMs: analysisResult?.durationMs || 0,
+      pitchTrack: analysisResult?.pitchTrack || [],
+      currentRefPoint,
+      userReading,
+      isInTuneNow,
+      currentCentsDiff,
+      isLoopingActive,
+      loopStartMs,
+      loopEndMs,
+      smartOctaveFold,
+      lowestMidi: analysisResult?.vocalRange.lowestMidi || 48,
+      highestMidi: analysisResult?.vocalRange.highestMidi || 72,
+      toleranceCents,
+    };
+  }, [
+    currentTimeMs,
+    analysisResult,
+    currentRefPoint,
+    userReading,
+    isInTuneNow,
+    currentCentsDiff,
+    isLoopingActive,
+    loopStartMs,
+    loopEndMs,
+    smartOctaveFold,
+    toleranceCents,
+  ]);
+
+  // Audio Playback Controls
+  const handleStartPlayback = useCallback(() => {
+    const audio = audioElementRef.current;
+    if (!audio) return;
+
+    audio.playbackRate = loopStateRef.current.playbackSpeed;
+    audio.volume = loopStateRef.current.isMutedMusic ? 0 : loopStateRef.current.musicVolume;
+
+    const { isLoopingActive, loopStartMs } = loopStateRef.current;
+    if (isLoopingActive && loopStartMs !== null && audio.currentTime * 1000 < loopStartMs) {
+      audio.currentTime = loopStartMs / 1000;
+    }
+
+    audio.play().then(() => {
+      setIsPlaying(true);
+    }).catch((err) => {
+      console.warn('Playback play error:', err);
+    });
+  }, []);
+
+  const handlePausePlayback = useCallback(() => {
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+    }
+    setIsPlaying(false);
+  }, []);
+
+  const handleTogglePlay = useCallback(() => {
+    if (!analysisResult) return;
+    if (isPlaying) {
+      handlePausePlayback();
+    } else {
+      handleStartPlayback();
+    }
+  }, [analysisResult, isPlaying, handlePausePlayback, handleStartPlayback]);
+
+  const handleStopPlayback = useCallback(() => {
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.currentTime = 0;
+    }
+    setIsPlaying(false);
+    setCurrentTimeMs(0);
+  }, []);
+
+  const handleSeek = useCallback((newTimeMs: number) => {
+    const clamped = Math.max(0, Math.min(analysisResult?.durationMs || 0, newTimeMs));
+    setCurrentTimeMs(clamped);
+    if (audioElementRef.current) {
+      audioElementRef.current.currentTime = clamped / 1000;
+    }
+  }, [analysisResult]);
+
+  const handleSkip = useCallback((seconds: number) => {
+    if (!analysisResult) return;
+    const targetMs = currentTimeMs + seconds * 1000;
+    handleSeek(targetMs);
+  }, [analysisResult, currentTimeMs, handleSeek]);
+
+  const handleSpeedChange = useCallback((speed: number) => {
+    setPlaybackSpeed(speed);
+    if (audioElementRef.current) {
+      audioElementRef.current.playbackRate = speed;
+    }
+  }, []);
+
+  const handleToggleMuteMusic = useCallback(() => {
+    setIsMutedMusic((prev) => {
+      const next = !prev;
+      if (audioElementRef.current) {
+        audioElementRef.current.volume = next ? 0 : musicVolume;
+      }
+      return next;
+    });
+  }, [musicVolume]);
+
+  const handleVolumeChange = useCallback((vol: number) => {
+    setMusicVolume(vol);
+    setIsMutedMusic(false);
+    if (audioElementRef.current) {
+      audioElementRef.current.volume = vol;
+    }
+  }, []);
+
+  const handleToggleMonitoring = useCallback(() => {
+    setIsLiveMonitoring((prev) => {
+      const next = !prev;
+      vocalPitchService.setLiveMonitoring(next);
+      return next;
+    });
+  }, []);
+
+  // Set Loop to a specific Phrase (Fixes BUG-05)
+  const handleLoopPhrase = useCallback((phrase: IVocalPhrase) => {
+    const start = Math.max(0, phrase.startMs - 350);
+    const end = phrase.endMs + 350;
+
+    setLoopStartMs(start);
+    setLoopEndMs(end);
+    setIsLoopingActive(true);
+    setSelectedPhraseIndex(phrase.phraseIndex);
+
+    // Seek to phrase start
+    handleSeek(start);
+
+    // Switch tab and start playback cleanly
+    setActiveTab('sing_along');
+    setTimeout(() => {
+      handleStartPlayback();
+    }, 50);
+  }, [handleSeek, handleStartPlayback]);
+
+  const handleClearLoop = useCallback(() => {
+    setIsLoopingActive(false);
+    setLoopStartMs(null);
+    setLoopEndMs(null);
+    setSelectedPhraseIndex(null);
+  }, []);
+
+  const resetSessionStats = useCallback(() => {
+    const fresh: SingSessionStats = {
+      totalVocalFrames: 0,
+      inTuneFrames: 0,
+      flatFrames: 0,
+      sharpFrames: 0,
+      highestStreak: 0,
+      phraseScores: {},
+    };
+    statsRef.current = fresh;
+    setSessionStats(fresh);
+    setRealtimeScorePct(0);
+    setCurrentStreak(0);
+  }, []);
+
+  // Initialize or update HTMLAudioElement lifecycle cleanly (Fixes BUG-01 & BUG-06)
+  useEffect(() => {
+    if (!analysisResult) return;
+
+    // Revoke previous blob URL if different
+    if (currentBlobUrlRef.current && currentBlobUrlRef.current !== analysisResult.audioBlobUrl) {
+      try {
+        URL.revokeObjectURL(currentBlobUrlRef.current);
+      } catch {}
+    }
+    currentBlobUrlRef.current = analysisResult.audioBlobUrl;
+
+    // Teardown previous audio element
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.src = '';
+      audioElementRef.current = null;
+    }
+
+    const audio = new Audio(analysisResult.audioBlobUrl);
+    audioElementRef.current = audio;
+    audio.playbackRate = playbackSpeed;
+    audio.volume = isMutedMusic ? 0 : musicVolume;
+
+    audio.ontimeupdate = () => {
+      const timeMs = audio.currentTime * 1000;
+      setCurrentTimeMs(timeMs);
+
+      // A-B Loop check with live ref
+      const { isLoopingActive, loopStartMs, loopEndMs } = loopStateRef.current;
+      if (isLoopingActive && loopEndMs !== null && loopStartMs !== null) {
+        if (timeMs >= loopEndMs) {
+          audio.currentTime = loopStartMs / 1000;
+        }
+      }
+    };
+
+    audio.onended = () => {
+      setIsPlaying(false);
+      const { activeTab } = loopStateRef.current;
+      if (activeTab === 'sing_along' && statsRef.current.totalVocalFrames > 0) {
+        setActiveTab('report');
+        try {
+          confetti({ particleCount: 45, spread: 70, origin: { y: 0.6 } });
+        } catch {}
+      }
+    };
+
+    audio.onplay = () => setIsPlaying(true);
+    audio.onpause = () => setIsPlaying(false);
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+      audioElementRef.current = null;
+    };
+  }, [analysisResult]);
+
   // Load a demo track on mount if no analysis exists
   useEffect(() => {
     if (isOpen && !analysisResult && !isAnalyzing) {
@@ -122,7 +399,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
     }
   }, [isOpen]);
 
-  // Clean up resources on unmount or close
+  // Stop playback and hardware mic when modal closes (Fixes BUG-02)
   useEffect(() => {
     if (!isOpen) {
       handleStopPlayback();
@@ -131,27 +408,56 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
         unsubscribePitchRef.current = null;
       }
       vocalPitchService.setLiveMonitoring(false);
+      vocalPitchService.stopListening(true);
+      setMicStatus('idle');
     }
-  }, [isOpen]);
+  }, [isOpen, handleStopPlayback]);
 
-  // Start microphone tracking when in sing_along tab
+  // Manage Microphone lifecycle according to active tab (Fixes BUG-02)
   useEffect(() => {
-    if (isOpen && activeTab === 'sing_along') {
-      vocalPitchService.startListening().catch((err) => {
-        console.warn('Microphone error in vocal studio:', err);
-      });
-
-      unsubscribePitchRef.current = vocalPitchService.subscribe((reading) => {
-        setUserReading(reading);
-      });
-    } else {
+    if (!isOpen || activeTab !== 'sing_along') {
       if (unsubscribePitchRef.current) {
         unsubscribePitchRef.current();
         unsubscribePitchRef.current = null;
       }
+      if (micStatus === 'listening') {
+        vocalPitchService.pauseListening();
+        setMicStatus('idle');
+      }
+      return;
     }
 
+    let isSubscribed = true;
+    setMicStatus('connecting');
+
+    vocalPitchService
+      .startListening()
+      .then(() => {
+        if (!isSubscribed) return;
+        setMicStatus('listening');
+        setErrorMessage(null);
+
+        unsubscribePitchRef.current = vocalPitchService.subscribe((reading) => {
+          if (isSubscribed) {
+            setUserReading(reading);
+          }
+        });
+      })
+      .catch((err: unknown) => {
+        if (!isSubscribed) return;
+        console.warn('Microphone error in vocal studio:', err);
+        const errName = err instanceof Error ? err.name : '';
+        if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+          setMicStatus('permission_denied');
+          setErrorMessage('Trình duyệt chưa được cấp quyền Micro. Vui lòng cho phép truy cập micro để hát theo.');
+        } else {
+          setMicStatus('error');
+          setErrorMessage('Không thể khởi tạo thiết bị Micro. Vui lòng kiểm tra lại mic.');
+        }
+      });
+
     return () => {
+      isSubscribed = false;
       if (unsubscribePitchRef.current) {
         unsubscribePitchRef.current();
         unsubscribePitchRef.current = null;
@@ -162,6 +468,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
   // Handle Loading Built-in Demo Tracks
   const handleLoadDemoTrack = async (type: 'scale' | 'ballad' | 'pentatonic') => {
     handleStopPlayback();
+    setErrorMessage(null);
     setIsAnalyzing(true);
     setAnalyzeProgress(10);
     setAnalyzeStatusText('Đang tạo âm thanh mẫu chất lượng cao...');
@@ -180,15 +487,26 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
       resetSessionStats();
     } catch (err) {
       console.error('Demo load error:', err);
+      setErrorMessage('Không thể tạo bài tập mẫu. Vui lòng thử lại.');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  // Handle File Input or Drag & Drop
+  // Handle File Input or Drag & Drop (Nielsen Heuristic H5: Error prevention)
   const handleFileSelected = async (file: File) => {
-    if (!file.type.includes('audio') && !file.name.match(/\.(mp3|wav|m4a|ogg|flac|aac)$/i)) {
-      alert('Vui lòng chọn một file âm thanh hợp lệ (MP3, WAV, M4A, OGG).');
+    setErrorMessage(null);
+
+    // 1. Validate file extension & mime type
+    const isAudio = file.type.includes('audio') || file.name.match(/\.(mp3|wav|m4a|ogg|flac|aac)$/i);
+    if (!isAudio) {
+      setErrorMessage('File không hợp lệ! Vui lòng chọn file âm thanh (MP3, WAV, M4A, OGG, FLAC).');
+      return;
+    }
+
+    // 2. File size check (>50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      setErrorMessage('File âm thanh quá lớn (> 50MB). Vui lòng chọn file ngắn hơn hoặc nén lại để tối ưu bộ nhớ.');
       return;
     }
 
@@ -210,186 +528,13 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
       resetSessionStats();
     } catch (err) {
       console.error('Analysis error:', err);
-      alert('Không thể giải mã file âm thanh này. Vui lòng thử một file MP3/WAV khác.');
+      setErrorMessage('Không thể giải mã file âm thanh này. Bạn hãy thử một file MP3/WAV khác hoặc sử dụng bản mẫu có sẵn.');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const resetSessionStats = () => {
-    const fresh: SingSessionStats = {
-      totalVocalFrames: 0,
-      inTuneFrames: 0,
-      flatFrames: 0,
-      sharpFrames: 0,
-      highestStreak: 0,
-      phraseScores: {},
-    };
-    statsRef.current = fresh;
-    setSessionStats(fresh);
-    setRealtimeScorePct(0);
-    setCurrentStreak(0);
-  };
-
-  // Audio Playback Controls
-  const handleTogglePlay = () => {
-    if (!analysisResult) return;
-
-    if (isPlaying) {
-      handlePausePlayback();
-    } else {
-      handleStartPlayback();
-    }
-  };
-
-  const handleStartPlayback = () => {
-    if (!analysisResult) return;
-
-    if (!audioElementRef.current) {
-      const audio = new Audio(analysisResult.audioBlobUrl);
-      audioElementRef.current = audio;
-
-      audio.onended = () => {
-        setIsPlaying(false);
-        if (activeTab === 'sing_along') {
-          setActiveTab('report');
-          try {
-            confetti({ particleCount: 35, spread: 60, origin: { y: 0.6 } });
-          } catch {}
-        }
-      };
-
-      audio.ontimeupdate = () => {
-        const timeMs = audio.currentTime * 1000;
-        setCurrentTimeMs(timeMs);
-
-        // A-B Loop check
-        if (isLoopingActive && loopEndMs !== null && loopStartMs !== null) {
-          if (timeMs >= loopEndMs) {
-            audio.currentTime = loopStartMs / 1000;
-          }
-        }
-      };
-    }
-
-    const audio = audioElementRef.current;
-    audio.playbackRate = playbackSpeed;
-    audio.volume = isMutedMusic ? 0 : musicVolume;
-
-    if (isLoopingActive && loopStartMs !== null && audio.currentTime * 1000 < loopStartMs) {
-      audio.currentTime = loopStartMs / 1000;
-    }
-
-    audio.play().then(() => {
-      setIsPlaying(true);
-    }).catch((err) => {
-      console.warn('Playback play error:', err);
-    });
-  };
-
-  const handlePausePlayback = () => {
-    if (audioElementRef.current) {
-      audioElementRef.current.pause();
-    }
-    setIsPlaying(false);
-  };
-
-  const handleStopPlayback = () => {
-    if (audioElementRef.current) {
-      audioElementRef.current.pause();
-      audioElementRef.current.currentTime = 0;
-    }
-    setIsPlaying(false);
-    setCurrentTimeMs(0);
-  };
-
-  const handleSeek = (newTimeMs: number) => {
-    setCurrentTimeMs(newTimeMs);
-    if (audioElementRef.current) {
-      audioElementRef.current.currentTime = newTimeMs / 1000;
-    }
-  };
-
-  const handleSpeedChange = (speed: number) => {
-    setPlaybackSpeed(speed);
-    if (audioElementRef.current) {
-      audioElementRef.current.playbackRate = speed;
-    }
-  };
-
-  const handleToggleMuteMusic = () => {
-    const next = !isMutedMusic;
-    setIsMutedMusic(next);
-    if (audioElementRef.current) {
-      audioElementRef.current.volume = next ? 0 : musicVolume;
-    }
-  };
-
-  const handleVolumeChange = (vol: number) => {
-    setMusicVolume(vol);
-    setIsMutedMusic(false);
-    if (audioElementRef.current) {
-      audioElementRef.current.volume = vol;
-    }
-  };
-
-  const handleToggleMonitoring = () => {
-    const next = !isLiveMonitoring;
-    setIsLiveMonitoring(next);
-    vocalPitchService.setLiveMonitoring(next);
-  };
-
-  // Set Loop to Phrase
-  const handleLoopPhrase = (phrase: IVocalPhrase) => {
-    setLoopStartMs(Math.max(0, phrase.startMs - 400));
-    setLoopEndMs(phrase.endMs + 500);
-    setIsLoopingActive(true);
-    setSelectedPhraseIndex(phrase.phraseIndex);
-    handleSeek(Math.max(0, phrase.startMs - 400));
-    setActiveTab('sing_along');
-    if (!isPlaying) {
-      handleStartPlayback();
-    }
-  };
-
-  const handleClearLoop = () => {
-    setIsLoopingActive(false);
-    setLoopStartMs(null);
-    setLoopEndMs(null);
-    setSelectedPhraseIndex(null);
-  };
-
-  // Find reference pitch at current playback time
-  const currentRefPoint = useMemo<IReferencePitchPoint | null>(() => {
-    if (!analysisResult) return null;
-    const track = analysisResult.pitchTrack;
-    if (track.length === 0) return null;
-
-    // Binary search or fast linear scan
-    const approxIndex = Math.floor((currentTimeMs / analysisResult.durationMs) * track.length);
-    const start = Math.max(0, approxIndex - 20);
-    const end = Math.min(track.length - 1, approxIndex + 20);
-
-    let closest = track[approxIndex] || track[0];
-    let minDiff = Math.abs(closest.timeMs - currentTimeMs);
-
-    for (let i = start; i <= end; i++) {
-      const diff = Math.abs(track[i].timeMs - currentTimeMs);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closest = track[i];
-      }
-    }
-    return closest;
-  }, [analysisResult, currentTimeMs]);
-
-  // Current active phrase
-  const activePhrase = useMemo<IVocalPhrase | null>(() => {
-    if (!analysisResult) return null;
-    return analysisResult.phrases.find((p) => currentTimeMs >= p.startMs && currentTimeMs <= p.endMs) || null;
-  }, [analysisResult, currentTimeMs]);
-
-  // Real-time Pitch Evaluation & Score Accumulator
+  // Real-time Pitch Evaluation & Score Accumulator (Fixes BUG-07 & BUG-08)
   useEffect(() => {
     if (!isPlaying || activeTab !== 'sing_along' || !currentRefPoint || !currentRefPoint.isVocal) {
       setIsInTuneNow(false);
@@ -403,14 +548,12 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
       return;
     }
 
-    // Reference note MIDI
     const refMidi = currentRefPoint.midi;
-    // User note MIDI
     const exactUserMidi = 12 * Math.log2(userReading.freqHz / 440) + 69;
 
     let centsDiff: number;
     if (smartOctaveFold) {
-      // Smart octave fold so males and females singing together don't get penalized
+      // Smart octave fold allows male and female voices singing together without penalty
       const octaveShift = Math.round((exactUserMidi - refMidi) / 12);
       const transposedUserMidi = exactUserMidi - octaveShift * 12;
       centsDiff = Math.round((transposedUserMidi - refMidi) * 100);
@@ -420,25 +563,24 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
 
     setCurrentCentsDiff(centsDiff);
 
-    const tolerance = 35; // ±35 cents is standard musical in-tune boundary
-    const inTune = Math.abs(centsDiff) <= tolerance;
+    const inTune = Math.abs(centsDiff) <= toleranceCents;
     setIsInTuneNow(inTune);
 
-    // Update session stats
+    // Update session stats ref safely
     const stats = statsRef.current;
     stats.totalVocalFrames++;
 
     if (inTune) {
       stats.inTuneFrames++;
-      setCurrentStreak((s) => {
-        const next = s + 1;
-        if (next > stats.highestStreak) stats.highestStreak = next;
-        return next;
-      });
+      stats.highestStreak = Math.max(stats.highestStreak, currentStreak + 1);
+      setCurrentStreak((prev) => prev + 1);
     } else {
       setCurrentStreak(0);
-      if (centsDiff < -tolerance) stats.flatFrames++;
-      else if (centsDiff > tolerance) stats.sharpFrames++;
+      if (centsDiff < -toleranceCents) {
+        stats.flatFrames++;
+      } else if (centsDiff > toleranceCents) {
+        stats.sharpFrames++;
+      }
     }
 
     // Accumulate phrase score
@@ -457,208 +599,65 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
       setRealtimeScorePct(scorePct);
       setSessionStats({ ...stats });
     }
-  }, [userReading, currentRefPoint, isPlaying, activeTab, smartOctaveFold, activePhrase]);
+  }, [userReading, currentRefPoint, isPlaying, activeTab, smartOctaveFold, activePhrase, toleranceCents, currentStreak]);
 
-  // Dual-Track Pitch Runway Visualizer (Canvas Rendering Loop)
+  // Keyboard Shortcuts (Nielsen Heuristic H7: Flexibility and efficiency)
   useEffect(() => {
-    if (activeTab !== 'sing_along' || !canvasRef.current || !analysisResult) return;
+    if (!isOpen) return;
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let isRendering = true;
-
-    const renderRunway = () => {
-      if (!isRendering) return;
-
-      const width = canvas.width;
-      const height = canvas.height;
-
-      // 1. Clear with gradient dark background
-      const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-      bgGrad.addColorStop(0, '#090d16');
-      bgGrad.addColorStop(1, '#030712');
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, width, height);
-
-      // Time runway window: 1 second in past to 3.5 seconds in future (total 4.5s)
-      const pastWindowMs = 1200;
-      const futureWindowMs = 3300;
-      const totalWindowMs = pastWindowMs + futureWindowMs;
-      const playheadX = (pastWindowMs / totalWindowMs) * width;
-
-      // MIDI vertical bounds
-      const minMidi = Math.max(36, analysisResult.vocalRange.lowestMidi - 4);
-      const maxMidi = Math.min(84, analysisResult.vocalRange.highestMidi + 4);
-      const midiSpan = Math.max(16, maxMidi - minMidi);
-
-      const midiToY = (m: number) => {
-        const norm = (m - minMidi) / midiSpan;
-        return height - norm * height;
-      };
-
-      // 2. Draw Horizontal Semitone Grid Lines
-      for (let m = minMidi; m <= maxMidi; m++) {
-        const y = midiToY(m);
-        const isC = m % 12 === 0;
-
-        ctx.strokeStyle = isC ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.05)';
-        ctx.lineWidth = isC ? 1.5 : 1;
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-
-        // Note Label on Left
-        const noteIndex = ((m % 12) + 12) % 12;
-        const oct = Math.floor(m / 12) - 1;
-        const noteStr = `${NOTE_NAMES[noteIndex]}${oct}`;
-
-        ctx.fillStyle = isC ? '#38bdf8' : 'rgba(148, 163, 184, 0.45)';
-        ctx.font = isC ? 'bold 11px monospace' : '10px monospace';
-        ctx.fillText(noteStr, 8, y - 3);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
       }
 
-      // 3. Draw Loop Overlay if Active
-      if (isLoopingActive && loopStartMs !== null && loopEndMs !== null) {
-        const loopX1 = playheadX + ((loopStartMs - currentTimeMs) / totalWindowMs) * width;
-        const loopX2 = playheadX + ((loopEndMs - currentTimeMs) / totalWindowMs) * width;
-
-        ctx.fillStyle = 'rgba(16, 185, 129, 0.08)';
-        ctx.fillRect(Math.max(0, loopX1), 0, Math.max(0, loopX2 - loopX1), height);
-
-        ctx.strokeStyle = 'rgba(52, 211, 153, 0.4)';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 4]);
-        ctx.strokeRect(Math.max(0, loopX1), 0, Math.max(0, loopX2 - loopX1), height);
-        ctx.setLineDash([]);
-      }
-
-      // 4. Draw Reference Vocal Pitch Path (Cyan / Indigo Glowing Ribbon)
-      const track = analysisResult.pitchTrack;
-      const windowStartMs = currentTimeMs - pastWindowMs;
-      const windowEndMs = currentTimeMs + futureWindowMs;
-
-      ctx.save();
-      ctx.lineWidth = 6;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.shadowBlur = 12;
-      ctx.shadowColor = '#6366f1';
-
-      let drawingSubpath = false;
-      ctx.beginPath();
-      ctx.strokeStyle = '#818cf8';
-
-      for (let i = 0; i < track.length; i++) {
-        const pt = track[i];
-        if (pt.timeMs < windowStartMs || pt.timeMs > windowEndMs) continue;
-
-        const x = playheadX + ((pt.timeMs - currentTimeMs) / totalWindowMs) * width;
-
-        if (pt.isVocal && pt.midi > 0) {
-          const y = midiToY(pt.midi);
-          if (!drawingSubpath) {
-            ctx.moveTo(x, y);
-            drawingSubpath = true;
-          } else {
-            ctx.lineTo(x, y);
-          }
-        } else {
-          if (drawingSubpath) {
-            ctx.stroke();
-            ctx.beginPath();
-            drawingSubpath = false;
-          }
+      if (e.code === 'Space') {
+        e.preventDefault();
+        handleTogglePlay();
+      } else if (e.code === 'KeyL') {
+        e.preventDefault();
+        if (isLoopingActive) {
+          handleClearLoop();
+        } else if (activePhrase) {
+          handleLoopPhrase(activePhrase);
         }
+      } else if (e.code === 'KeyR') {
+        e.preventDefault();
+        handleSeek(0);
+      } else if (e.code === 'KeyM') {
+        e.preventDefault();
+        handleToggleMuteMusic();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        handleSkip(-3);
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        handleSkip(3);
       }
-      if (drawingSubpath) ctx.stroke();
-      ctx.restore();
-
-      // 5. Draw Target Note Hit-Box under playhead
-      if (currentRefPoint && currentRefPoint.isVocal && currentRefPoint.midi > 0) {
-        const targetY = midiToY(currentRefPoint.midi);
-
-        // Glowing target pill
-        ctx.save();
-        ctx.shadowBlur = 16;
-        ctx.shadowColor = isInTuneNow ? '#34d399' : '#818cf8';
-        ctx.fillStyle = isInTuneNow ? 'rgba(52, 211, 153, 0.35)' : 'rgba(129, 140, 248, 0.3)';
-        ctx.strokeStyle = isInTuneNow ? '#34d399' : '#a5b4fc';
-        ctx.lineWidth = 2;
-
-        const boxW = 80;
-        const boxH = 22;
-        ctx.beginPath();
-        ctx.roundRect(playheadX - boxW / 2, targetY - boxH / 2, boxW, boxH, 8);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 11px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(currentRefPoint.noteName, playheadX, targetY + 4);
-        ctx.restore();
-      }
-
-      // 6. Draw User Real-Time Live Microphone Pitch Indicator
-      if (userReading && userReading.isSinging && userReading.freqHz > 0) {
-        const exactUserMidi = 12 * Math.log2(userReading.freqHz / 440) + 69;
-
-        // Apply smart octave folding to user coordinate
-        let displayMidi = exactUserMidi;
-        if (smartOctaveFold && currentRefPoint && currentRefPoint.isVocal && currentRefPoint.midi > 0) {
-          const octShift = Math.round((exactUserMidi - currentRefPoint.midi) / 12);
-          displayMidi = exactUserMidi - octShift * 12;
-        }
-
-        const userY = midiToY(displayMidi);
-
-        ctx.save();
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = isInTuneNow ? '#10b981' : Math.abs(currentCentsDiff) < 60 ? '#f59e0b' : '#ef4444';
-        ctx.fillStyle = isInTuneNow ? '#34d399' : Math.abs(currentCentsDiff) < 60 ? '#fbbf24' : '#f87171';
-
-        // Outer pulse circle
-        ctx.beginPath();
-        ctx.arc(playheadX, userY, 10, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Inner bright white center
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(playheadX, userY, 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-
-      // 7. Draw Playhead Vertical Guide Line
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([2, 4]);
-      ctx.beginPath();
-      ctx.moveTo(playheadX, 0);
-      ctx.lineTo(playheadX, height);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      animFrameRef.current = requestAnimationFrame(renderRunway);
     };
 
-    renderRunway();
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, handleTogglePlay, isLoopingActive, handleClearLoop, activePhrase, handleLoopPhrase, handleSeek, handleToggleMuteMusic, handleSkip]);
 
+  // Clean up blob URL on unmount
+  useEffect(() => {
     return () => {
-      isRendering = false;
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (currentBlobUrlRef.current) {
+        try {
+          URL.revokeObjectURL(currentBlobUrlRef.current);
+        } catch {}
+      }
     };
-  }, [activeTab, analysisResult, currentTimeMs, currentRefPoint, userReading, isInTuneNow, isLoopingActive, loopStartMs, loopEndMs, smartOctaveFold]);
+  }, []);
 
   if (!isOpen) return null;
 
+  const pitchFeedback = getPitchFeedback(currentCentsDiff, toleranceCents, !!userReading?.isSinging);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-xl animate-in fade-in duration-200">
-      <div className="relative w-full max-w-5xl h-[92vh] max-h-[820px] rounded-3xl bg-slate-900/95 border border-slate-700/80 shadow-2xl flex flex-col overflow-hidden text-slate-100">
+      <div className="relative w-full max-w-5xl h-[92vh] max-h-[840px] rounded-3xl bg-slate-900/95 border border-slate-700/80 shadow-2xl flex flex-col overflow-hidden text-slate-100">
         
         {/* Top Header & Navigation Tabs */}
         <div className="p-4 sm:px-6 border-b border-slate-800 flex items-center justify-between gap-4 bg-slate-950/50 shrink-0">
@@ -681,59 +680,103 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
             </div>
           </div>
 
-          {/* Tab Selector */}
-          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-950/70 border border-slate-800">
-            <button
-              type="button"
-              onClick={() => setActiveTab('analysis')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                activeTab === 'analysis'
-                  ? 'bg-sky-500 text-slate-950 shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <BarChart3 className="w-3.5 h-3.5" />
-              <span>Phân Tích &amp; Kế Hoạch</span>
-            </button>
+          {/* Right Header: Mic Status & Tabs */}
+          <div className="flex items-center gap-3">
+            {activeTab === 'sing_along' && (
+              <MicStatusBadge
+                status={micStatus}
+                volumeDb={userReading?.volumeDb}
+                isSinging={userReading?.isSinging}
+                onRetry={() => {
+                  vocalPitchService.startListening().then(() => setMicStatus('listening')).catch(() => setMicStatus('error'));
+                }}
+                onOpenPreflight={onOpenPreflightModal}
+              />
+            )}
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('sing_along')}
-              disabled={!analysisResult}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition disabled:opacity-40 ${
-                activeTab === 'sing_along'
-                  ? 'bg-emerald-500 text-slate-950 shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Mic className="w-3.5 h-3.5" />
-              <span>Phòng Luyện Hát</span>
-            </button>
+            {/* Tab Selector */}
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-950/70 border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setActiveTab('analysis')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                  activeTab === 'analysis'
+                    ? 'bg-sky-500 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Phân Tích &amp; Kế Hoạch</span>
+                <span className="sm:hidden">Phân Tích</span>
+              </button>
 
+              <button
+                type="button"
+                onClick={() => setActiveTab('sing_along')}
+                disabled={!analysisResult}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition disabled:opacity-40 ${
+                  activeTab === 'sing_along'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Mic className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Phòng Luyện Hát</span>
+                <span className="sm:hidden">Luyện Hát</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('report')}
+                disabled={!analysisResult || sessionStats.totalVocalFrames === 0}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition disabled:opacity-40 ${
+                  activeTab === 'report'
+                    ? 'bg-amber-500 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Award className="w-3.5 h-3.5" />
+                <span>Báo Cáo</span>
+              </button>
+            </div>
+
+            {/* Close button */}
             <button
               type="button"
-              onClick={() => setActiveTab('report')}
-              disabled={!analysisResult || sessionStats.totalVocalFrames === 0}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition disabled:opacity-40 ${
-                activeTab === 'report'
-                  ? 'bg-amber-500 text-slate-950 shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              onClick={onClose}
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              title="Đóng Studio"
             >
-              <Award className="w-3.5 h-3.5" />
-              <span>Báo Cáo</span>
+              <X className="w-5 h-5" />
             </button>
           </div>
-
-          {/* Close button */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
+
+        {/* Global Inline Error Banner (Nielsen Heuristic H9) */}
+        {errorMessage && (
+          <div className="mx-4 sm:mx-6 mt-3 p-3 rounded-2xl bg-rose-950/80 border border-rose-500/50 flex items-center justify-between gap-3 text-xs text-rose-200 animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleLoadDemoTrack('scale')}
+                className="px-2.5 py-1 rounded-lg bg-rose-800 hover:bg-rose-700 text-white font-bold text-[11px] transition"
+              >
+                Thử Bản Mẫu Khởi Động
+              </button>
+              <button
+                type="button"
+                onClick={() => setErrorMessage(null)}
+                className="p-1 hover:text-white text-rose-400"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
@@ -763,10 +806,10 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-white">Kéo thả file âm thanh Vocal của bạn vào đây</h3>
-                    <p className="text-xs text-slate-400 mt-1">Hỗ trợ các định dạng: MP3, WAV, M4A, OGG, FLAC</p>
+                    <p className="text-xs text-slate-400 mt-1">Hỗ trợ các định dạng: MP3, WAV, M4A, OGG, FLAC (Tối đa 50MB)</p>
                   </div>
 
-                  <div className="flex items-center gap-3 mt-1">
+                  <div className="flex flex-wrap items-center justify-center gap-3 mt-1">
                     <label className="cursor-pointer px-4 py-2 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs hover:bg-sky-400 transition shadow-md">
                       <span>Chọn file từ máy tính</span>
                       <input
@@ -810,7 +853,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                 {/* Progress bar during analysis */}
                 {isAnalyzing && (
                   <div className="absolute inset-0 rounded-3xl bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 gap-3 z-20">
-                    <Wand2 className="w-8 h-8 text-sky-400 animate-spin" />
+                    <Loader2 className="w-8 h-8 text-sky-400 animate-spin" />
                     <span className="text-sm font-bold text-white">{analyzeStatusText}</span>
                     <div className="w-64 h-2.5 bg-slate-800 rounded-full overflow-hidden">
                       <div 
@@ -849,10 +892,10 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
 
                     <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
                       <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Độ Khó Tổng Thể</span>
-                      <div className="text-sm sm:text-base font-black text-amber-400 mt-0.5">
-                        {analysisResult.vocalMetrics.overallDifficulty}
+                      <div className="mt-1">
+                        <DifficultyBadge difficulty={analysisResult.vocalMetrics.overallDifficulty} size="md" />
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">
+                      <div className="text-[10px] text-slate-500 mt-1">
                         Bước nhảy lớn: {analysisResult.vocalMetrics.maxIntervalSemitones} bán âm
                       </div>
                     </div>
@@ -922,9 +965,10 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                                 const phrase = analysisResult.phrases.find((p) => p.phraseIndex === step.targetPhraseIndex);
                                 if (phrase) handleLoopPhrase(phrase);
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 text-[11px] font-bold hover:bg-indigo-500/30 transition shrink-0"
+                              className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 text-[11px] font-bold hover:bg-indigo-500/30 transition shrink-0 flex items-center gap-1"
                             >
-                              Lặp Câu Này
+                              <Repeat className="w-3 h-3" />
+                              <span>Lặp Câu Này</span>
                             </button>
                           )}
                         </div>
@@ -948,15 +992,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-white">Câu {phrase.phraseIndex}</span>
-                              <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold ${
-                                phrase.difficulty === 'Thử thách' 
-                                  ? 'bg-rose-950 text-rose-300 border border-rose-500/30' 
-                                  : phrase.difficulty === 'Trung bình' 
-                                  ? 'bg-amber-950 text-amber-300 border border-amber-500/30' 
-                                  : 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
-                              }`}>
-                                {phrase.difficulty}
-                              </span>
+                              <DifficultyBadge difficulty={phrase.difficulty} />
                             </div>
                             <div className="text-[10px] text-slate-400 mt-0.5">
                               Quãng: <span className="text-slate-300 font-mono">{phrase.lowestNote} – {phrase.highestNote}</span> • Nhảy: {phrase.pitchJumpSemitones} bán âm
@@ -975,75 +1011,111 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                       ))}
                     </div>
                   </div>
+
+                  {/* Collapsible Coach Guide (Nielsen Heuristic H10) */}
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/50 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setShowHelpGuide(!showHelpGuide)}
+                      className="w-full p-3.5 flex items-center justify-between text-left text-xs font-bold text-slate-300 hover:text-white transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        <HelpCircle className="w-4 h-4 text-sky-400" />
+                        <span>Bí quyết luyện hát đạt điểm cao cùng AI Coach</span>
+                      </div>
+                      {showHelpGuide ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+
+                    {showHelpGuide && (
+                      <div className="p-4 pt-0 text-xs text-slate-400 space-y-2 border-t border-slate-800/60">
+                        <p>• <strong>Khoảng cách Micro:</strong> Đặt micro cách miệng từ 15 – 20cm, tránh thổi hơi trực tiếp vào đầu thu.</p>
+                        <p>• <strong>Tư thế & Lấy hơi:</strong> Đứng hoặc ngồi thẳng lưng, hít sâu bằng cơ hoành (bụng phình ra) để giữ cột hơi ổn định.</p>
+                        <p>• <strong>Đường băng Pitch Runway:</strong> Khi bài hát chạy, dải ruy-băng màu tím indigo là cao độ chuẩn. Quả cầu sáng màu ngọc biểu thị giọng hát trực tiếp của bạn. Hãy giữ quả cầu nằm chính giữa dải băng.</p>
+                        <p>• <strong>Smart Octave-Fold:</strong> Cho phép giọng Nam và Nữ hát cùng nhau không bị trừ điểm vì lệch quãng 8 tự nhiên.</p>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </div>
           )}
 
-          {/* TAB 2: INTERACTIVE SING-ALONG STUDIO (REAL-TIME DUAL-TRACK RUNWAY) */}
+          {/* TAB 2: INTERACTIVE SING-ALONG STUDIO */}
           {activeTab === 'sing_along' && analysisResult && (
             <div className="max-w-4xl mx-auto space-y-4">
               
               {/* Runway Canvas Container */}
               <div className="relative w-full rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl">
-                <canvas
-                  ref={canvasRef}
-                  width={860}
-                  height={260}
-                  className="w-full h-[240px] sm:h-[280px] block"
-                />
+                <PitchRunwayCanvas renderStateRef={renderStateRef} />
 
-                {/* Score & Tuner HUD Overlay */}
-                <div className="absolute top-3 left-4 flex items-center gap-2">
+                {/* Score & Tuner HUD Overlay (Top Left) */}
+                <div className="absolute top-3 left-4 flex flex-wrap items-center gap-2 z-10">
                   <div className="px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md flex items-center gap-2 text-xs">
                     <span className="text-[10px] font-mono text-slate-400 uppercase">Chuẩn Tông:</span>
-                    <span className={`font-black font-mono text-sm ${realtimeScorePct >= 80 ? 'text-emerald-400' : realtimeScorePct >= 60 ? 'text-amber-400' : 'text-slate-200'}`}>
-                      {realtimeScorePct}%
+                    <span className={`font-black font-mono text-sm ${
+                      sessionStats.totalVocalFrames === 0 
+                        ? 'text-slate-400' 
+                        : realtimeScorePct >= 80 
+                        ? 'text-emerald-400' 
+                        : realtimeScorePct >= 60 
+                        ? 'text-amber-400' 
+                        : 'text-rose-400'
+                    }`}>
+                      {sessionStats.totalVocalFrames === 0 ? '–' : `${realtimeScorePct}%`}
                     </span>
                   </div>
 
                   {currentStreak > 3 && (
                     <div className="px-2.5 py-1.5 rounded-xl bg-emerald-950/90 border border-emerald-500/50 backdrop-blur-md flex items-center gap-1.5 text-xs text-emerald-300 font-bold animate-pulse">
                       <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Streak: {currentStreak}</span>
+                      <span>Chuỗi: {currentStreak}</span>
                     </div>
                   )}
 
                   {isLoopingActive && (
                     <div className="px-2.5 py-1.5 rounded-xl bg-indigo-950/90 border border-indigo-500/50 backdrop-blur-md flex items-center gap-1.5 text-xs text-indigo-300 font-bold">
                       <Repeat className="w-3 h-3 text-indigo-400" />
-                      <span>Đang lặp câu {selectedPhraseIndex || ''}</span>
-                      <button type="button" onClick={handleClearLoop} className="ml-1 hover:text-white">✕</button>
+                      <span>Đang lặp {selectedPhraseIndex ? `câu ${selectedPhraseIndex}` : 'A-B'}</span>
+                      <button 
+                        type="button" 
+                        onClick={handleClearLoop} 
+                        className="ml-1 px-1 rounded hover:bg-indigo-800 text-indigo-200"
+                        title="Dừng lặp A-B"
+                      >
+                        ✕
+                      </button>
                     </div>
                   )}
                 </div>
 
-                {/* Real-time Tuner Cents Needle Overlay (Bottom Left) */}
-                <div className="absolute bottom-3 left-4 flex items-center gap-3 px-3 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md">
+                {/* Real-time Human Feedback & Tuner Needle (Bottom Left) */}
+                <div className="absolute bottom-3 left-4 flex items-center gap-3 px-3 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md z-10">
                   <div className="flex flex-col">
-                    <span className="text-[9px] font-mono text-slate-400 uppercase">Độ Lệch Cents</span>
-                    <span className={`text-xs font-mono font-bold ${isInTuneNow ? 'text-emerald-400' : Math.abs(currentCentsDiff) < 60 ? 'text-amber-400' : 'text-rose-400'}`}>
-                      {currentCentsDiff > 0 ? `+${currentCentsDiff}` : currentCentsDiff} cents
+                    <span className="text-[9px] font-mono text-slate-400 uppercase">Độ lệch cao độ</span>
+                    <span className={`text-xs font-bold ${pitchFeedback.badgeClass}`}>
+                      {pitchFeedback.text}
                     </span>
                   </div>
 
-                  {/* Micro Tuner Bar */}
-                  <div className="w-20 h-2 bg-slate-800 rounded-full overflow-hidden relative">
-                    <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-slate-600" />
-                    <div 
-                      className={`absolute top-0 bottom-0 w-2 rounded-full transition-all duration-75 ${
-                        isInTuneNow ? 'bg-emerald-400' : 'bg-amber-400'
-                      }`}
-                      style={{ 
-                        left: `${Math.max(0, Math.min(100, ((currentCentsDiff + 50) / 100) * 100))}%`,
-                        transform: 'translateX(-50%)'
-                      }}
-                    />
-                  </div>
+                  {/* Micro Tuner Cents Bar */}
+                  {userReading?.isSinging && (
+                    <div className="w-20 h-2 bg-slate-800 rounded-full overflow-hidden relative" title={`${currentCentsDiff} cents`}>
+                      <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-slate-500" />
+                      <div 
+                        className={`absolute top-0 bottom-0 w-2 rounded-full transition-all duration-75 ${
+                          isInTuneNow ? 'bg-emerald-400' : 'bg-amber-400'
+                        }`}
+                        style={{ 
+                          left: `${Math.max(0, Math.min(100, ((currentCentsDiff + 50) / 100) * 100))}%`,
+                          transform: 'translateX(-50%)'
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Target Note Badge (Bottom Right) */}
-                <div className="absolute bottom-3 right-4 px-3 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md flex items-center gap-2">
+                {/* Target Reference Note Badge (Bottom Right) */}
+                <div className="absolute bottom-3 right-4 px-3 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md flex items-center gap-2 z-10">
                   <span className="text-[10px] font-mono text-slate-400 uppercase">Nốt Đang Phát:</span>
                   <span className="text-sm font-black font-mono text-sky-400">
                     {currentRefPoint?.isVocal ? `${currentRefPoint.noteName} (${currentRefPoint.solfegeName})` : 'Nghỉ'}
@@ -1051,13 +1123,12 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                 </div>
               </div>
 
-              {/* Scrubber & Player Timeline */}
+              {/* Scrubber & Player Timeline Controls */}
               <div className="p-4 rounded-3xl bg-slate-950/70 border border-slate-800 space-y-3">
                 {/* Timeline slider */}
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-mono text-slate-400 w-12 text-right">
-                    {Math.floor(currentTimeMs / 60000)}:
-                    {String(Math.floor((currentTimeMs % 60000) / 1000)).padStart(2, '0')}
+                    {formatTimeMs(currentTimeMs)}
                   </span>
 
                   <input
@@ -1070,8 +1141,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                   />
 
                   <span className="text-xs font-mono text-slate-400 w-12">
-                    {Math.floor(analysisResult.durationMs / 60000)}:
-                    {String(Math.floor((analysisResult.durationMs % 60000) / 1000)).padStart(2, '0')}
+                    {formatTimeMs(analysisResult.durationMs)}
                   </span>
                 </div>
 
@@ -1082,9 +1152,18 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                       type="button"
                       onClick={() => handleSeek(0)}
                       className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition"
-                      title="Quay lại đầu bài"
+                      title="Quay lại đầu bài (Phím R)"
                     >
                       <RotateCcw className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSkip(-3)}
+                      className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition hidden sm:inline-flex"
+                      title="Lùi 3 giây (Phím ←)"
+                    >
+                      <Rewind className="w-4 h-4" />
                     </button>
 
                     <button
@@ -1103,6 +1182,15 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                           <span>Hát Theo Ngay</span>
                         </>
                       )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSkip(3)}
+                      className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition hidden sm:inline-flex"
+                      title="Tới 3 giây (Phím →)"
+                    >
+                      <FastForward className="w-4 h-4" />
                     </button>
 
                     {/* Speed selector */}
@@ -1125,14 +1213,14 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                   </div>
 
                   {/* Audio Balances & Smart Toggles */}
-                  <div className="flex items-center gap-3 text-xs">
+                  <div className="flex flex-wrap items-center gap-2.5 text-xs">
                     {/* Music volume slider */}
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={handleToggleMuteMusic}
                         className="text-slate-400 hover:text-white transition"
-                        title={isMutedMusic ? 'Bật lại tiếng nhạc mẫu' : 'Tắt tiếng nhạc mẫu để tự hát'}
+                        title={isMutedMusic ? 'Bật lại tiếng nhạc mẫu (Phím M)' : 'Tắt tiếng nhạc mẫu để tự hát (Phím M)'}
                       >
                         {isMutedMusic ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
                       </button>
@@ -1172,11 +1260,30 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                           ? 'border-purple-500 bg-purple-950/40 text-purple-300'
                           : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
                       }`}
-                      title="Tự động dịch quãng 8 cho nam/nữ"
+                      title="Tự động bù quãng 8 cho giọng Nam / Nữ"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       <span>Octave-Fold</span>
                     </button>
+
+                    {/* Tolerance Tuning Selector */}
+                    <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-[11px]" title="Độ dung sai chuẩn nốt (Cents)">
+                      <Sliders className="w-3 h-3 text-slate-400 ml-1" />
+                      {([50, 35, 20] as TuningTolerance[]).map((tol) => (
+                        <button
+                          key={tol}
+                          type="button"
+                          onClick={() => setToleranceCents(tol)}
+                          className={`px-2 py-0.5 rounded font-mono font-bold transition ${
+                            toleranceCents === tol
+                              ? 'bg-indigo-500 text-white'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          ±{tol}
+                        </button>
+                      ))}
+                    </div>
 
                     {/* Finish Practice & View Report button */}
                     <button
@@ -1187,9 +1294,33 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                       }}
                       className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 font-bold transition"
                     >
-                      Xem Kết Quả
+                      Xem Báo Cáo
                     </button>
                   </div>
+                </div>
+
+                {/* Keyboard Shortcut Hints Bar (Heuristic H7) */}
+                <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowKeyboardHints(!showKeyboardHints)}
+                      className="flex items-center gap-1 text-slate-400 hover:text-sky-300 transition"
+                    >
+                      <Keyboard className="w-3.5 h-3.5" />
+                      <span>Phím tắt: Space (Hát/Dừng), L (Lặp A-B), R (Về đầu), M (Mute)</span>
+                    </button>
+                  </div>
+
+                  {isLoopingActive && (
+                    <button
+                      type="button"
+                      onClick={handleClearLoop}
+                      className="text-indigo-400 hover:text-indigo-300 font-semibold"
+                    >
+                      ✕ Dừng lặp câu
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1198,6 +1329,10 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                 <span className="text-[10px] uppercase font-mono text-slate-400 shrink-0">Chọn Câu:</span>
                 {analysisResult.phrases.map((phrase) => {
                   const isCurrent = activePhrase?.phraseIndex === phrase.phraseIndex;
+                  const score = sessionStats.phraseScores[phrase.phraseIndex];
+                  const hasPracticed = score && score.total > 0;
+                  const phrasePct = hasPracticed ? Math.round((score.inTune / score.total) * 100) : null;
+
                   return (
                     <button
                       key={phrase.id}
@@ -1205,12 +1340,17 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                       onClick={() => handleLoopPhrase(phrase)}
                       className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition flex items-center gap-1.5 shrink-0 ${
                         isCurrent
-                          ? 'bg-sky-500 text-slate-950 shadow-md'
+                          ? 'bg-sky-500 text-slate-950 shadow-md ring-2 ring-sky-300/40'
                           : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
                       }`}
                     >
                       <span>Câu {phrase.phraseIndex}</span>
-                      <span className="text-[9px] opacity-75 font-mono">({phrase.lowestNote}-{phrase.highestNote})</span>
+                      <DifficultyBadge difficulty={phrase.difficulty} />
+                      {phrasePct !== null && (
+                        <span className={`text-[10px] font-mono px-1 rounded ${phrasePct >= 80 ? 'bg-emerald-950 text-emerald-300' : 'bg-slate-800 text-amber-300'}`}>
+                          {phrasePct}%
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -1288,6 +1428,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                       >
                         <div className="flex items-center gap-3">
                           <span className="font-bold text-white text-xs w-16">Câu {phrase.phraseIndex}</span>
+                          <DifficultyBadge difficulty={phrase.difficulty} />
                           <span className="text-[11px] font-mono text-slate-400">
                             {phrase.lowestNote} – {phrase.highestNote}
                           </span>
@@ -1305,9 +1446,10 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                           <button
                             type="button"
                             onClick={() => handleLoopPhrase(phrase)}
-                            className="px-2.5 py-1 rounded-xl bg-slate-800 text-sky-400 text-[11px] font-bold hover:bg-slate-700 transition"
+                            className="px-2.5 py-1 rounded-xl bg-slate-800 text-sky-400 text-[11px] font-bold hover:bg-slate-700 transition flex items-center gap-1"
                           >
-                            Luyện Lại
+                            <Repeat className="w-3 h-3" />
+                            <span>Luyện Lại</span>
                           </button>
                         </div>
                       </div>
@@ -1339,7 +1481,7 @@ export const VocalStudioModal: React.FC<VocalStudioModalProps> = ({
                     resetSessionStats();
                     handleSeek(0);
                     setActiveTab('sing_along');
-                    handleStartPlayback();
+                    setTimeout(() => handleStartPlayback(), 50);
                   }}
                   className="px-5 py-2.5 rounded-2xl bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-emerald-400 transition shadow-lg shadow-emerald-500/20"
                 >
