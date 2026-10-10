@@ -34,6 +34,7 @@ export interface IVocalNoteBar {
   solfegeName: string;
   avgCentsDiff: number;
   pointsCount: number;
+  rmsEnvelope?: number[];
 }
 
 export interface IVocalPhrase {
@@ -623,8 +624,8 @@ class VocalFileAnalysisService {
             const endMidi = pitchTrack[i].midi;
             const midiDiff = Math.abs(endMidi - startMidi);
 
-            // Bridge gap if duration <= 220ms and pitch change is continuous (<= 4.0 semitones)
-            if (gapDurationMs <= 220 && midiDiff <= 4.0) {
+            // Bridge gap if duration <= 280ms and pitch change is continuous (<= 14.0 semitones for smooth legato leaps like C5 -> G5)
+            if (gapDurationMs <= 280 && midiDiff <= 14.0) {
               for (let k = lastVoicedIdx + 1; k < i; k++) {
                 const alpha = (k - lastVoicedIdx) / (i - lastVoicedIdx);
                 const interpMidi = startMidi + alpha * (endMidi - startMidi);
@@ -904,10 +905,47 @@ class VocalFileAnalysisService {
         return;
       }
 
-      const exactMidi = weightedMidiSum / claritySum;
+      // Extract Sustain Core (trim 15% attack scoop and 10% release tail)
+      // Eliminates attack scoop pulling notes down (e.g. F#4 scooping into G4)
+      let targetMidi: number;
+      if (currentCluster.length >= 6) {
+        const startK = Math.floor(currentCluster.length * 0.15);
+        const endK = Math.ceil(currentCluster.length * 0.90);
+        const sustainSlice = currentCluster.slice(startK, endK);
+        let sMidiSum = 0;
+        let sClaritySum = 0;
+        const sortedMidis = sustainSlice.map((p) => p.midi).sort((a, b) => a - b);
+        const medianMidi = sortedMidis[Math.floor(sortedMidis.length / 2)];
+        for (const sp of sustainSlice) {
+          const sc = Math.max(0.1, sp.clarity);
+          sClaritySum += sc;
+          sMidiSum += sp.midi * sc;
+        }
+        const sustainAvg = sClaritySum > 0 ? sMidiSum / sClaritySum : medianMidi;
+        targetMidi = Math.abs(sustainAvg - medianMidi) < 0.6 ? sustainAvg : medianMidi;
+      } else {
+        targetMidi = weightedMidiSum / claritySum;
+      }
+
+      const exactMidi = targetMidi;
       const nominalMidi = Math.round(exactMidi);
       const noteInfo = this.midiToNoteInfo(nominalMidi);
       const avgCentsDiff = Math.round((exactMidi - nominalMidi) * 100);
+
+      // Compute 16-sample normalized RMS amplitude envelope for NewTone audio waveform silhouette
+      const envSamples = Math.max(8, Math.min(24, currentCluster.length));
+      const rawEnv: number[] = [];
+      let maxDb = -999;
+      for (let s = 0; s < envSamples; s++) {
+        const idx = Math.floor((s / (envSamples - 1)) * (currentCluster.length - 1));
+        const pDb = currentCluster[idx].volumeDb;
+        const linearAmp = Math.pow(10, Math.max(-60, pDb) / 20);
+        rawEnv.push(linearAmp);
+        if (linearAmp > maxDb) maxDb = linearAmp;
+      }
+      const rmsEnvelope = maxDb > 0.0001
+        ? rawEnv.map((v) => Math.round((v / maxDb) * 100) / 100)
+        : new Array(envSamples).fill(0.5);
 
       rawNoteBars.push({
         id: `note-bar-${barIndex++}`,
@@ -920,6 +958,7 @@ class VocalFileAnalysisService {
         solfegeName: noteInfo.solfegeName,
         avgCentsDiff,
         pointsCount: currentCluster.length,
+        rmsEnvelope,
       });
 
       currentCluster = [];
@@ -933,14 +972,20 @@ class VocalFileAnalysisService {
           currentCluster.push(pt);
           currentAnchorMidi = Math.round(pt.midi);
         } else {
-          // If pitch drifts away from current anchor note by >= 0.85 semitone, check if sustained
+          // If pitch drifts away from current anchor note by >= 0.88 semitone,
+          // check if this is a genuine sustained shift (>= 3 frames lookahead),
+          // preventing brief vocal scoops from prematurely splitting notes into stray accidentals!
           const diff = Math.abs(pt.midi - currentAnchorMidi);
-          const nextPt = i + 1 < pitchTrack.length ? pitchTrack[i + 1] : null;
-          const isSustainedShift = nextPt && nextPt.isVocal && nextPt.midi > 0
-            ? Math.abs(nextPt.midi - currentAnchorMidi) >= 0.75
-            : true;
+          let sustainedCount = 0;
+          for (let lookahead = 1; lookahead <= 4 && i + lookahead < pitchTrack.length; lookahead++) {
+            const lp = pitchTrack[i + lookahead];
+            if (lp.isVocal && lp.midi > 0 && Math.abs(lp.midi - currentAnchorMidi) >= 0.78) {
+              sustainedCount++;
+            }
+          }
+          const isTrueNoteChange = diff >= 0.88 && sustainedCount >= 3;
 
-          if (diff >= 0.85 && isSustainedShift) {
+          if (isTrueNoteChange) {
             flushCluster();
             currentCluster.push(pt);
             currentAnchorMidi = Math.round(pt.midi);

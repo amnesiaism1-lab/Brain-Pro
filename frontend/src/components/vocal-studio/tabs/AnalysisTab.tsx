@@ -37,7 +37,7 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
   const [showHelpGuide, setShowHelpGuide] = useState(false);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="w-full max-w-[1850px] mx-auto space-y-6 px-1 sm:px-3">
       {/* 1. Drag & Drop Upload Card */}
       <div
         className={`relative rounded-3xl border-2 border-dashed p-6 text-center transition-all ${

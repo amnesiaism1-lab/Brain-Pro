@@ -201,7 +201,7 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
                   {groupPhrases.map((phrase) => renderPhraseCard(phrase))}
                 </div>
               </div>
@@ -233,7 +233,7 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
             ))}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
             {filteredPhrases.map((phrase) => renderPhraseCard(phrase))}
           </div>
         </div>

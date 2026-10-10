@@ -31,7 +31,7 @@ export const ReportTab: React.FC<ReportTabProps> = ({
       : 0;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="w-full max-w-[1600px] mx-auto space-y-6 px-1 sm:px-3">
       {/* 1. Overall Score Banner */}
       <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-950/60 via-slate-950 to-indigo-950/50 border border-emerald-500/40 text-center relative overflow-hidden">
         <div className="inline-flex p-3 rounded-2xl bg-emerald-500/10 text-emerald-400 mb-2">

@@ -189,7 +189,8 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       ctx.fillRect(0, 0, width, height);
 
       const scaleSet = new Set(scaleNotes || []);
-      const pianoKeyWidth = 32;
+      const pianoKeyWidth = width > 1200 ? 46 : 36;
+      const octOffset = state.octaveConvention === 'international' ? 0 : 1;
 
       for (let m = minMidi; m <= maxMidi; m++) {
         const yTop = midiToY(m + 0.5);
@@ -229,12 +230,13 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         ctx.stroke();
 
         // Note label on left piano key (C prominent, scale notes crisp)
-        const oct = Math.floor(m / 12) - 1;
+        // Displays octave according to active convention (FL Studio C5/G5 vs International C4/G4)
+        const oct = Math.floor(m / 12) - 1 + octOffset;
         const noteStr = `${noteName}${oct}`;
         ctx.fillStyle = isC ? '#38bdf8' : isInScale ? '#f1f5f9' : 'rgba(100, 116, 139, 0.5)';
-        ctx.font = isC ? 'bold 10px monospace' : isInScale ? 'bold 8.5px monospace' : '8px monospace';
+        ctx.font = isC ? 'bold 10.5px monospace' : isInScale ? 'bold 9px monospace' : '8.5px monospace';
         ctx.textAlign = 'left';
-        ctx.fillText(noteStr, 3, lineY + 3);
+        ctx.fillText(noteStr, 4, lineY + 3.5);
       }
 
       // 3. Tolerance Band around Active Target Note
@@ -262,7 +264,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       }
 
       // 5. Reference Vocal Track: FL Studio NewTone-Style Note Blocks & Pitch Ribbon
-      // A. Render Note Blocks (Solid rectangular semitone blocks on piano roll)
+      // A. Render Note Blocks (Solid rectangular semitone blocks on piano roll with internal audio waveform)
       if (noteBars && noteBars.length > 0) {
         for (let i = 0; i < noteBars.length; i++) {
           const bar = noteBars[i];
@@ -273,7 +275,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           const x2 = playheadX + ((bar.endTimeMs - effectiveTimeMs) / totalWindowMs) * width;
           const barW = Math.max(14, x2 - x1);
           const barY = midiToY(barMidi);
-          const barH = Math.min(26, Math.max(16, (height / midiSpan) * 0.88));
+          const barH = Math.min(30, Math.max(18, (height / midiSpan) * 0.90));
           const topY = barY - barH / 2;
 
           const isActive = effectiveTimeMs >= bar.startTimeMs && effectiveTimeMs <= bar.endTimeMs;
@@ -318,6 +320,38 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           ctx.fill();
           ctx.stroke();
 
+          // Render FL Studio NewTone Audio Waveform Amplitude Silhouette inside note block
+          if (bar.rmsEnvelope && bar.rmsEnvelope.length > 1) {
+            ctx.save();
+            ctx.beginPath();
+            const maxAmpH = barH * 0.40;
+            const env = bar.rmsEnvelope;
+            // Top silhouette
+            for (let k = 0; k < env.length; k++) {
+              const frac = k / (env.length - 1);
+              const wx = x1 + frac * barW;
+              const amp = Math.max(0.08, env[k]);
+              const wy = barY - amp * maxAmpH;
+              if (k === 0) ctx.moveTo(wx, wy);
+              else ctx.lineTo(wx, wy);
+            }
+            // Bottom silhouette (symmetrical)
+            for (let k = env.length - 1; k >= 0; k--) {
+              const frac = k / (env.length - 1);
+              const wx = x1 + frac * barW;
+              const amp = Math.max(0.08, env[k]);
+              const wy = barY + amp * maxAmpH;
+              ctx.lineTo(wx, wy);
+            }
+            ctx.closePath();
+            ctx.fillStyle = isActive ? 'rgba(255, 255, 255, 0.40)' : 'rgba(255, 240, 220, 0.26)';
+            ctx.fill();
+            ctx.strokeStyle = isActive ? 'rgba(255, 255, 255, 0.70)' : 'rgba(255, 240, 220, 0.45)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+          }
+
           // Top highlight accent stripe (NewTone 3D glass look)
           ctx.setLineDash([]);
           ctx.fillStyle = isActive ? 'rgba(255, 255, 255, 0.45)' : 'rgba(253, 186, 116, 0.4)';
@@ -325,7 +359,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
 
           // Note text badge on the block
           if (barW >= 22) {
-            const oct = Math.floor(barMidi / 12) - 1;
+            const oct = Math.floor(barMidi / 12) - 1 + octOffset;
             const displayNoteName = `${barNoteName}${oct}`;
             ctx.fillStyle = isActive ? '#ffffff' : 'rgba(254, 243, 199, 0.9)';
             ctx.font = 'bold 10px monospace';
@@ -501,7 +535,9 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
 
       // 9B. Off-Screen Note Indicators (Prevent notes disappearing when moving outside vertical frame)
       if (highestOffscreenMidi > -Infinity) {
-        const offNote = midiToNoteInfo(highestOffscreenMidi);
+        const offSemi = ((highestOffscreenMidi % 12) + 12) % 12;
+        const offOct = Math.floor(highestOffscreenMidi / 12) - 1 + octOffset;
+        const offName = `${NOTE_NAMES[offSemi]}${offOct}`;
         const diff = Math.round(highestOffscreenMidi - maxMidi);
         ctx.save();
         ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
@@ -512,12 +548,14 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 9.5px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(`▲ Nốt cao: ${offNote.noteName} (+${diff}st)`, width - 152, 39);
+        ctx.fillText(`▲ Nốt cao: ${offName} (+${diff}st)`, width - 152, 39);
         ctx.restore();
       }
 
       if (lowestOffscreenMidi < Infinity) {
-        const offNote = midiToNoteInfo(lowestOffscreenMidi);
+        const offSemi = ((lowestOffscreenMidi % 12) + 12) % 12;
+        const offOct = Math.floor(lowestOffscreenMidi / 12) - 1 + octOffset;
+        const offName = `${NOTE_NAMES[offSemi]}${offOct}`;
         const diff = Math.round(minMidi - lowestOffscreenMidi);
         ctx.save();
         ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
@@ -528,7 +566,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 9.5px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(`▼ Nốt trầm: ${offNote.noteName} (-${diff}st)`, width - 152, height - 11);
+        ctx.fillText(`▼ Nốt trầm: ${offName} (-${diff}st)`, width - 152, height - 11);
         ctx.restore();
       }
 
@@ -574,7 +612,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
   return (
     <canvas
       ref={canvasRef}
-      className={`w-full h-[260px] sm:h-[300px] block ${className}`}
+      className={`w-full h-[320px] sm:h-[380px] md:h-[440px] lg:h-[480px] xl:h-[520px] block ${className}`}
     />
   );
 };

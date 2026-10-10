@@ -17,7 +17,7 @@ import { MiniKeyboardScale } from '../components/MiniKeyboardScale';
 import { TransportBar } from '../controls/TransportBar';
 import { PhraseNavigatorDeck } from '../components/PhraseNavigatorDeck';
 import { PitchFeedbackDetail } from '../utils/vocalHelpers';
-import { midiToNoteInfo, NOTE_NAMES } from '@brain-exercises/shared';
+import { midiToNoteInfo, NOTE_NAMES, SOLFEGE_NAMES } from '@brain-exercises/shared';
 import { ISelectedKeyOverride } from '../../../store/vocalStudioStore';
 
 interface SingAlongTabProps {
@@ -57,6 +57,8 @@ interface SingAlongTabProps {
   onToggleSnapToScale: (val: boolean) => void;
   transposeSemitones: number;
   onChangeTranspose: (semitones: number) => void;
+  octaveConvention?: 'fl_studio' | 'international';
+  onChangeOctaveConvention?: (val: 'fl_studio' | 'international') => void;
 
   // Preferences & Options
   toleranceCents: TuningTolerance;
@@ -113,6 +115,8 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   onToggleSnapToScale,
   transposeSemitones,
   onChangeTranspose,
+  octaveConvention = 'fl_studio',
+  onChangeOctaveConvention,
   toleranceCents,
   onChangeTolerance,
   targetMode,
@@ -150,11 +154,11 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
 
   const currentTargetOctave =
     currentRefPoint && currentRefPoint.isVocal && currentRefPoint.midi > 0
-      ? midiToNoteInfo(currentRefPoint.midi).octave
-      : 4;
+      ? midiToNoteInfo(currentRefPoint.midi).octave + (octaveConvention === 'international' ? 0 : 1)
+      : 5;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
+    <div className="w-full max-w-[1850px] mx-auto space-y-4 px-1 sm:px-2">
       {/* 1. DUAL-TRACK RUNWAY CANVAS CONTAINER */}
       <div className="relative w-full rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl">
         <PitchRunwayCanvas renderStateRef={renderStateRef} />
@@ -234,8 +238,13 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         <div className="absolute bottom-3 right-4 px-3 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md flex items-center gap-2 z-10">
           <span className="text-[10px] font-mono text-slate-400 uppercase">Nốt Đang Phát:</span>
           <span className="text-sm font-black font-mono text-sky-400">
-            {currentRefPoint?.isVocal
-              ? `${currentRefPoint.noteName} (${currentRefPoint.solfegeName})`
+            {currentRefPoint?.isVocal && currentRefPoint.midi > 0
+              ? (() => {
+                  const m = currentRefPoint.midi + (transposeSemitones || 0);
+                  const semi = ((Math.round(m) % 12) + 12) % 12;
+                  const oct = Math.floor(Math.round(m) / 12) - 1 + (octaveConvention === 'international' ? 0 : 1);
+                  return `${NOTE_NAMES[semi]}${oct} (${SOLFEGE_NAMES[semi]} ${oct})`;
+                })()
               : 'Nghỉ'}
           </span>
         </div>
@@ -274,6 +283,8 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         onToggleSnapToScale={onToggleSnapToScale}
         transposeSemitones={transposeSemitones}
         onChangeTranspose={onChangeTranspose}
+        octaveConvention={octaveConvention}
+        onChangeOctaveConvention={onChangeOctaveConvention}
         toleranceCents={toleranceCents}
         onChangeTolerance={onChangeTolerance}
         targetMode={targetMode}

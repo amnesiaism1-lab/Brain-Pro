@@ -153,6 +153,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     renderStateRef.current.transposeSemitones = store.transposeSemitones;
     renderStateRef.current.snapToScale = store.snapToScale;
     renderStateRef.current.selectedKeyName = activeKeyName;
+    renderStateRef.current.octaveConvention = store.octaveConvention;
   }, [
     store.smartOctaveFold,
     store.toleranceCents,
@@ -164,6 +165,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     store.loopEndMs,
     store.transposeSemitones,
     store.snapToScale,
+    store.octaveConvention,
     activeScaleNotes,
     activeKeyName,
   ]);
@@ -707,6 +709,8 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onToggleSnapToScale={store.setSnapToScale}
             transposeSemitones={store.transposeSemitones}
             onChangeTranspose={store.setTransposeSemitones}
+            octaveConvention={store.octaveConvention}
+            onChangeOctaveConvention={store.setOctaveConvention}
             toleranceCents={store.toleranceCents}
             onChangeTolerance={store.setToleranceCents}
             targetMode={store.targetMode}

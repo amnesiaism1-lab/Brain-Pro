@@ -42,6 +42,8 @@ export interface IUserPitchPoint {
   trend?: 'in_tune' | 'sharp' | 'flat';
 }
 
+export type OctaveConvention = 'fl_studio' | 'international';
+
 export interface IVocalNoteBar {
   id: string;
   startTimeMs: number;
@@ -53,6 +55,7 @@ export interface IVocalNoteBar {
   solfegeName: string;
   avgCentsDiff: number;
   pointsCount: number;
+  rmsEnvelope?: number[];
 }
 
 export interface RunwayRenderState {
@@ -79,4 +82,5 @@ export interface RunwayRenderState {
   transposeSemitones?: number;
   snapToScale?: boolean;
   selectedKeyName?: string;
+  octaveConvention?: OctaveConvention;
 }

@@ -22,6 +22,8 @@ interface ScaleSelectorPopoverProps {
   onToggleSnapToScale: (val: boolean) => void;
   transposeSemitones: number;
   onChangeTranspose: (semitones: number) => void;
+  octaveConvention?: 'fl_studio' | 'international';
+  onChangeOctaveConvention?: (val: 'fl_studio' | 'international') => void;
 }
 
 const ROOTS = [
@@ -48,6 +50,8 @@ export const ScaleSelectorPopover: React.FC<ScaleSelectorPopoverProps> = ({
   onToggleSnapToScale,
   transposeSemitones,
   onChangeTranspose,
+  octaveConvention = 'fl_studio',
+  onChangeOctaveConvention,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -390,6 +394,49 @@ export const ScaleSelectorPopover: React.FC<ScaleSelectorPopoverProps> = ({
                   +12 (Nữ)
                 </button>
               </div>
+            </div>
+
+            {/* 4. Octave Convention (FL Studio NewTone vs International SPN) */}
+            <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300 font-semibold text-[11px]">
+                  Quy ước Quãng 8 (Octave Notation)
+                </span>
+                <span className="text-[10px] text-amber-400 font-mono">
+                  {octaveConvention === 'fl_studio' ? 'FL Studio (Middle C = C5)' : 'Quốc Tế (Middle C = C4)'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => onChangeOctaveConvention?.('fl_studio')}
+                  className={`py-1.5 px-2 rounded-lg border font-mono transition flex flex-col items-center text-center ${
+                    octaveConvention === 'fl_studio'
+                      ? 'border-indigo-500 bg-indigo-950/70 text-indigo-200 shadow-sm'
+                      : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
+                  }`}
+                  title="FL Studio NewTone: Đô giữa là C5, Sol giữa là G5"
+                >
+                  <span className="font-bold text-xs">FL Studio (C5 / G5)</span>
+                  <span className="text-[9px] text-slate-400">Chuẩn NewTone DAW</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeOctaveConvention?.('international')}
+                  className={`py-1.5 px-2 rounded-lg border font-mono transition flex flex-col items-center text-center ${
+                    octaveConvention === 'international'
+                      ? 'border-indigo-500 bg-indigo-950/70 text-indigo-200 shadow-sm'
+                      : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
+                  }`}
+                  title="Chuẩn Quốc Tế SPN: Đô giữa là C4, Sol giữa là G4"
+                >
+                  <span className="font-bold text-xs">Quốc Tế SPN (C4 / G4)</span>
+                  <span className="text-[9px] text-slate-400">Chuẩn ISO Âm Học</span>
+                </button>
+              </div>
+              <p className="text-[9.5px] text-slate-400 leading-tight">
+                💡 Trong FL Studio, Middle C được gán nhãn là C5 (thay vì C4 theo chuẩn quốc tế). Tần số âm học của nốt Sol (~392Hz) không đổi giữa hai chuẩn.
+              </p>
             </div>
           </div>
         </div>

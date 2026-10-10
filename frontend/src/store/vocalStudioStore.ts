@@ -27,6 +27,7 @@ export interface VocalStudioPreferences {
   selectedKeyOverride: ISelectedKeyOverride | null;
   snapToScale: boolean;
   transposeSemitones: number;
+  octaveConvention: 'fl_studio' | 'international';
 }
 
 const STORAGE_KEY = 'be_vocal_studio_prefs';
@@ -46,6 +47,7 @@ function loadSavedPreferences(): VocalStudioPreferences {
     selectedKeyOverride: null,
     snapToScale: false,
     transposeSemitones: 0,
+    octaveConvention: 'fl_studio',
   };
 
   if (typeof window === 'undefined') return defaults;
@@ -122,6 +124,7 @@ export interface VocalStudioState extends VocalStudioPreferences {
   setSelectedKeyOverride: (key: ISelectedKeyOverride | null) => void;
   setSnapToScale: (val: boolean) => void;
   setTransposeSemitones: (val: number) => void;
+  setOctaveConvention: (val: 'fl_studio' | 'international') => void;
 
   setAnalysisResult: (res: IVocalAnalysisResult | null) => void;
   setIsAnalyzing: (val: boolean) => void;
@@ -243,6 +246,11 @@ export const useVocalStudioStore = create<VocalStudioState>((set) => ({
   setTransposeSemitones: (transposeSemitones) => {
     savePreferences({ transposeSemitones });
     set({ transposeSemitones });
+  },
+
+  setOctaveConvention: (octaveConvention) => {
+    savePreferences({ octaveConvention });
+    set({ octaveConvention });
   },
 
   setAnalysisResult: (analysisResult) => set({ analysisResult }),

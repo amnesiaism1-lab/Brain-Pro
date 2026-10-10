@@ -43,6 +43,8 @@ interface TransportBarProps {
   onToggleSnapToScale: (val: boolean) => void;
   transposeSemitones: number;
   onChangeTranspose: (semitones: number) => void;
+  octaveConvention?: 'fl_studio' | 'international';
+  onChangeOctaveConvention?: (val: 'fl_studio' | 'international') => void;
 
   // Options popover props
   toleranceCents: TuningTolerance;
@@ -93,6 +95,8 @@ export const TransportBar: React.FC<TransportBarProps> = ({
   onToggleSnapToScale,
   transposeSemitones,
   onChangeTranspose,
+  octaveConvention = 'fl_studio',
+  onChangeOctaveConvention,
   toleranceCents,
   onChangeTolerance,
   targetMode,
@@ -241,6 +245,8 @@ export const TransportBar: React.FC<TransportBarProps> = ({
             onToggleSnapToScale={onToggleSnapToScale}
             transposeSemitones={transposeSemitones}
             onChangeTranspose={onChangeTranspose}
+            octaveConvention={octaveConvention}
+            onChangeOctaveConvention={onChangeOctaveConvention}
           />
 
           {/* Sing Options Popover */}

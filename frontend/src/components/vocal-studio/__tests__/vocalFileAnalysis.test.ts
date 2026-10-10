@@ -526,4 +526,75 @@ describe('Vocal File Analysis & Range Extraction', () => {
     // Relative key must be populated
     expect(keyRes.estimatedKey.relativeKey).toBeDefined();
   });
+
+  it('TC-35: Attack scoop does not pull down a sustained G4 note into F#4 (Sustain core median)', () => {
+    // 3 frames of attack scoop at F#4 (~66.2), followed by 10 frames of sustained G4 (~67.05)
+    const points: any[] = [];
+    const midis = [66.1, 66.3, 66.4, 67.0, 67.1, 67.0, 67.05, 67.0, 67.1, 67.0, 67.05, 67.0, 67.0];
+    for (let i = 0; i < midis.length; i++) {
+      const m = midis[i];
+      points.push({
+        timeMs: i * 25,
+        freqHz: 440 * Math.pow(2, (m - 69) / 12),
+        midi: m,
+        noteName: 'Note',
+        solfegeName: '',
+        clarity: 0.88,
+        volumeDb: -12,
+        isVocal: true,
+      });
+    }
+
+    const noteBars = vocalFileAnalysisService.segmentNoteBars(points);
+    expect(noteBars.length).toBeGreaterThanOrEqual(1);
+    // The main note bar must be identified as G4 (MIDI 67), not pulled down to F#4 (MIDI 66)!
+    const mainBar = noteBars[noteBars.length - 1];
+    expect(mainBar.midi).toBe(67);
+    expect(mainBar.noteName).toBe('G4');
+  });
+
+  it('TC-36: segmentNoteBars populates normalized rmsEnvelope for audio waveform silhouette', () => {
+    const points: any[] = [];
+    for (let i = 0; i < 12; i++) {
+      points.push({
+        timeMs: i * 25,
+        freqHz: 392.0,
+        midi: 67,
+        noteName: 'G4',
+        solfegeName: 'Sol 4',
+        clarity: 0.90,
+        volumeDb: -10 - (i % 3) * 5,
+        isVocal: true,
+      });
+    }
+
+    const noteBars = vocalFileAnalysisService.segmentNoteBars(points);
+    expect(noteBars.length).toBe(1);
+    const bar = noteBars[0];
+    expect(bar.rmsEnvelope).toBeDefined();
+    expect(bar.rmsEnvelope!.length).toBeGreaterThanOrEqual(8);
+    // All envelope values must be in [0, 1]
+    expect(bar.rmsEnvelope!.every((v) => v >= 0 && v <= 1)).toBe(true);
+  });
+
+  it('TC-37: bridgeMicroGaps bridges intervals up to 14 semitones for smooth legato leap (C4 -> G4 / C5 -> G5)', () => {
+    // Note on C4 (MIDI 60), 50ms unvoiced gap, then G4 (MIDI 67 - 7 semitone leap)
+    const points: any[] = [
+      { timeMs: 0, freqHz: 261.63, midi: 60, noteName: 'C4', solfegeName: 'Đô 4', clarity: 0.9, volumeDb: -12, isVocal: true },
+      { timeMs: 25, freqHz: 261.63, midi: 60, noteName: 'C4', solfegeName: 'Đô 4', clarity: 0.9, volumeDb: -12, isVocal: true },
+      { timeMs: 50, freqHz: 0, midi: 0, noteName: '', solfegeName: '', clarity: 0, volumeDb: -30, isVocal: false },
+      { timeMs: 75, freqHz: 0, midi: 0, noteName: '', solfegeName: '', clarity: 0, volumeDb: -30, isVocal: false },
+      { timeMs: 100, freqHz: 392.0, midi: 67, noteName: 'G4', solfegeName: 'Sol 4', clarity: 0.9, volumeDb: -12, isVocal: true },
+      { timeMs: 125, freqHz: 392.0, midi: 67, noteName: 'G4', solfegeName: 'Sol 4', clarity: 0.9, volumeDb: -12, isVocal: true },
+    ];
+
+    vocalFileAnalysisService.bridgeMicroGaps(points);
+    // Gap frames (index 2 & 3) must be bridged smoothly with a continuous pitch slope
+    expect(points[2].isVocal).toBe(true);
+    expect(points[2].midi).toBeGreaterThan(60);
+    expect(points[2].midi).toBeLessThan(67);
+    expect(points[3].isVocal).toBe(true);
+    expect(points[3].midi).toBeGreaterThan(points[2].midi);
+    expect(points[3].midi).toBeLessThanOrEqual(67);
+  });
 });
