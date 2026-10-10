@@ -45,7 +45,7 @@ interface VocalStudioProps {
   onOpenPreflightModal?: () => void;
 }
 
-let cachedDemoResult: IVocalAnalysisResult | null = null;
+
 
 export const VocalStudio: React.FC<VocalStudioProps> = ({
   isOpen,
@@ -450,15 +450,6 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     store.setIsAnalyzing(true);
     store.setErrorMessage(null);
     try {
-      if (preset === 'scale' && cachedDemoResult) {
-        store.setAnalysisResult(cachedDemoResult);
-        renderStateRef.current.pitchTrack = cachedDemoResult.pitchTrack;
-        renderStateRef.current.noteBars = cachedDemoResult.noteBars;
-        renderStateRef.current.durationMs = cachedDemoResult.durationMs;
-        store.setActiveTab('analysis');
-        store.setIsAnalyzing(false);
-        return;
-      }
       const demo = await vocalFileAnalysisService.generateDemoVocalTrack(preset);
       const analysisResult = await vocalFileAnalysisService.analyzeVocalAudio(
         demo.file,
@@ -467,7 +458,6 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
           store.setAnalyzeProgress(p, s);
         }
       );
-      if (preset === 'scale') cachedDemoResult = analysisResult;
       loadAudioBlob(demo.file, demo.name, analysisResult);
       store.setActiveTab('analysis');
     } catch (err: any) {

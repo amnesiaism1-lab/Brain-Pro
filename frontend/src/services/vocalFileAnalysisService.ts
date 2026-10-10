@@ -178,7 +178,7 @@ class VocalFileAnalysisService {
     const filteredPcm = this.applyVocalBandpassFilter(rawMonoPcm, sampleRate);
 
     const bufferSize = 2048;
-    const hopSize = 1024; // ~23ms hop step for detailed pitch curve
+    const hopSize = 512; // ~11.6ms high-density hop step for detailed pitch curve & fine vibrato tracking
     const detector = PitchDetector.forFloat32Array(bufferSize);
     detector.clarityThreshold = 0.60;
 
@@ -263,19 +263,25 @@ class VocalFileAnalysisService {
       sampleCursor += hopSize;
       frameCount++;
 
-      if (frameCount % 100 === 0 && totalFrames > 0) {
-        const pct = Math.min(80, 25 + Math.round((frameCount / totalFrames) * 55));
-        notify(pct, `Đang phân tích cao độ (${Math.round((timeMs / 1000))}s / ${Math.round(durationMs / 1000)}s)...`);
+      if (frameCount % 30 === 0 && totalFrames > 0) {
+        const pct = Math.min(84, 15 + Math.round((frameCount / totalFrames) * 70));
+        notify(pct, `Giai đoạn 2/4: Quét phổ cao độ vi mô (${Math.round((timeMs / 1000))}s / ${Math.round(durationMs / 1000)}s)...`);
+        // Real async yield to ensure browser repaints progress bar smoothly!
+        await new Promise((resolve) => setTimeout(resolve, 6));
       }
     }
 
-    // Apply 5-frame median temporal smoothing to eliminate single-frame glitches
+    notify(86, 'Giai đoạn 3/4: Giải mã Viterbi HMM & khử lỗi quãng 8...');
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    this.applyViterbiSmoothing(pitchTrack);
     this.smoothPitchTrack(pitchTrack);
 
-    // Segment into discrete NewTone-style Note Bars
+    notify(92, 'Giai đoạn 4/4: Phân đoạn Khối Nốt Nhạc NewTone (Note Blocks)...');
+    await new Promise((resolve) => setTimeout(resolve, 80));
     const noteBars = this.segmentNoteBars(pitchTrack);
 
-    notify(85, 'Đang phân đoạn câu hát và xác định giọng điệu (Key & Scale)...');
+    notify(96, 'Đang xác định âm giai và tối ưu lộ trình luyện tập...');
+    await new Promise((resolve) => setTimeout(resolve, 60));
 
     // 4. Robust Vocal Range & Statistics via 5th-95th percentile filtering
     const vocalPoints = pitchTrack.filter((p) => p.isVocal && p.freqHz > 0);
@@ -519,6 +525,157 @@ class VocalFileAnalysisService {
     }
 
     return output;
+  }
+
+  /**
+   * Global Viterbi Path Decoder (Hidden Markov Model)
+   * Solves the optimal pitch trajectory across all voiced frames to eliminate octave-jumping artifacts (doubling / halving).
+   */
+  public applyViterbiSmoothing(pitchTrack: IReferencePitchPoint[]): void {
+    const voicedIndices: number[] = [];
+    for (let i = 0; i < pitchTrack.length; i++) {
+      if (pitchTrack[i].isVocal && pitchTrack[i].freqHz > 0) {
+        voicedIndices.push(i);
+      }
+    }
+
+    if (voicedIndices.length < 5) return;
+
+    // Cluster voiced points into contiguous vocal segments separated by silence (>150ms)
+    const segments: number[][] = [];
+    let currentSegment: number[] = [voicedIndices[0]];
+
+    for (let k = 1; k < voicedIndices.length; k++) {
+      const prevIdx = voicedIndices[k - 1];
+      const currIdx = voicedIndices[k];
+      const timeDiff = pitchTrack[currIdx].timeMs - pitchTrack[prevIdx].timeMs;
+
+      if (timeDiff <= 150) {
+        currentSegment.push(currIdx);
+      } else {
+        if (currentSegment.length >= 4) {
+          segments.push(currentSegment);
+        }
+        currentSegment = [currIdx];
+      }
+    }
+    if (currentSegment.length >= 4) {
+      segments.push(currentSegment);
+    }
+
+    for (const seg of segments) {
+      const T = seg.length;
+      // For each frame t, generate 3 pitch candidate states:
+      // State 0: nominal f0
+      // State 1: f0 / 2 (octave down, if >= 75 Hz)
+      // State 2: f0 * 2 (octave up, if <= 1150 Hz)
+      const numStates = 3;
+      const dp = Array.from({ length: T }, () => new Float64Array(numStates).fill(Infinity));
+      const backpointer = Array.from({ length: T }, () => new Int32Array(numStates).fill(0));
+
+      const getCandidateMidi = (frameIdx: number, state: number): number => {
+        const baseMidi = pitchTrack[frameIdx].midi;
+        if (state === 0) return baseMidi;
+        if (state === 1) return baseMidi - 12; // Octave down
+        if (state === 2) return baseMidi + 12; // Octave up
+        return baseMidi;
+      };
+
+      const getCandidateHz = (frameIdx: number, state: number): number => {
+        const baseHz = pitchTrack[frameIdx].freqHz;
+        if (state === 0) return baseHz;
+        if (state === 1) return baseHz / 2;
+        if (state === 2) return baseHz * 2;
+        return baseHz;
+      };
+
+      // Initialize t = 0
+      for (let s = 0; s < numStates; s++) {
+        const hz = getCandidateHz(seg[0], s);
+        if (hz < 75 || hz > 1150) {
+          dp[0][s] = Infinity;
+          continue;
+        }
+        const priorCost = s === 0 ? 0 : 5.0;
+        const emissionCost = (1 - pitchTrack[seg[0]].clarity) * 10;
+        dp[0][s] = priorCost + emissionCost;
+      }
+
+      // Forward step: compute min cost path
+      for (let t = 1; t < T; t++) {
+        const currFrameIdx = seg[t];
+        const emissionCost = (1 - pitchTrack[currFrameIdx].clarity) * 10;
+
+        for (let sCurr = 0; sCurr < numStates; sCurr++) {
+          const hzCurr = getCandidateHz(currFrameIdx, sCurr);
+          if (hzCurr < 75 || hzCurr > 1150) {
+            dp[t][sCurr] = Infinity;
+            continue;
+          }
+
+          const midiCurr = getCandidateMidi(currFrameIdx, sCurr);
+          let minCost = Infinity;
+          let bestPrevState = 0;
+
+          for (let sPrev = 0; sPrev < numStates; sPrev++) {
+            if (dp[t - 1][sPrev] === Infinity) continue;
+            const midiPrev = getCandidateMidi(seg[t - 1], sPrev);
+            const deltaMidi = Math.abs(midiCurr - midiPrev);
+
+            // Transition penalty:
+            // Continuous vocal glissando (< 1.5 semitones): very low cost
+            // Leaps (1.5 - 6 semitones): moderate cost
+            // Octave jumps (> 8 semitones): heavy penalty!
+            let transCost = deltaMidi * 0.8;
+            if (deltaMidi > 7.5 && deltaMidi < 14) {
+              transCost += 20.0; // Octave jump penalty!
+            } else if (deltaMidi >= 14) {
+              transCost += 35.0; // Huge leap penalty!
+            }
+
+            const totalCost = dp[t - 1][sPrev] + transCost;
+            if (totalCost < minCost) {
+              minCost = totalCost;
+              bestPrevState = sPrev;
+            }
+          }
+
+          dp[t][sCurr] = minCost + emissionCost;
+          backpointer[t][sCurr] = bestPrevState;
+        }
+      }
+
+      // Backtracking
+      let bestFinalState = 0;
+      let minFinalCost = Infinity;
+      for (let s = 0; s < numStates; s++) {
+        if (dp[T - 1][s] < minFinalCost) {
+          minFinalCost = dp[T - 1][s];
+          bestFinalState = s;
+        }
+      }
+
+      const optimalStates = new Int32Array(T);
+      optimalStates[T - 1] = bestFinalState;
+      for (let t = T - 1; t > 0; t--) {
+        optimalStates[t - 1] = backpointer[t][optimalStates[t]];
+      }
+
+      // Apply optimal states
+      for (let t = 0; t < T; t++) {
+        const frameIdx = seg[t];
+        const state = optimalStates[t];
+        if (state !== 0) {
+          const newMidi = getCandidateMidi(frameIdx, state);
+          const newHz = getCandidateHz(frameIdx, state);
+          pitchTrack[frameIdx].midi = Math.round(newMidi * 100) / 100;
+          pitchTrack[frameIdx].freqHz = Math.round(newHz * 10) / 10;
+          const noteInfo = this.midiToNoteInfo(newMidi);
+          pitchTrack[frameIdx].noteName = noteInfo.noteName;
+          pitchTrack[frameIdx].solfegeName = noteInfo.solfegeName;
+        }
+      }
+    }
   }
 
   /**

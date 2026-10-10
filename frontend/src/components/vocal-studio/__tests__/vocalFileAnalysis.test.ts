@@ -186,4 +186,30 @@ describe('Vocal File Analysis & Range Extraction', () => {
     expect(bars[0].noteName).toBe('G4');
     expect(bars[0].durationMs).toBe(700);
   });
+
+  it('TC-18: Global Viterbi Path Decoder eliminates octave-jump errors (octave doubling/halving)', () => {
+    // Continuous melody on C4 (MIDI 60, 261.63Hz), but frames 4 and 5 got accidentally octave-doubled to C5 (MIDI 72, 523.25Hz)
+    const points: any[] = [];
+    for (let i = 0; i < 10; i++) {
+      const isGlitch = i === 4 || i === 5;
+      points.push({
+        timeMs: i * 25,
+        freqHz: isGlitch ? 523.25 : 261.63,
+        midi: isGlitch ? 72 : 60,
+        noteName: isGlitch ? 'C5' : 'C4',
+        solfegeName: isGlitch ? 'Đô 5' : 'Đô 4',
+        clarity: 0.85,
+        volumeDb: -15,
+        isVocal: true,
+      });
+    }
+
+    vocalFileAnalysisService.applyViterbiSmoothing(points);
+
+    // After Viterbi smoothing, frames 4 and 5 must be pulled down to C4 (MIDI 60)
+    expect(points[4].midi).toBe(60);
+    expect(points[4].noteName).toBe('C4');
+    expect(points[5].midi).toBe(60);
+    expect(points[5].noteName).toBe('C4');
+  });
 });
