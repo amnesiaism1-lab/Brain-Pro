@@ -392,13 +392,13 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     else handleStartPlayback();
   };
 
-  const handleSeek = (timeMs: number) => {
+  const handleSeek = useCallback((timeMs: number) => {
     const audio = audioElementRef.current;
     const clamped = Math.max(0, Math.min(store.analysisResult?.durationMs || 0, timeMs));
     if (audio) audio.currentTime = clamped / 1000;
     renderStateRef.current.currentTimeMs = clamped;
     store.setCurrentTimeMs(clamped);
-  };
+  }, [store.analysisResult?.durationMs]);
 
   const handleSkip = (sec: number) => {
     handleSeek(store.currentTimeMs + sec * 1000);

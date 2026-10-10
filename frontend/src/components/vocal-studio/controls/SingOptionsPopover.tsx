@@ -35,6 +35,8 @@ interface SingOptionsPopoverProps {
   onChangeLatencyOffsetMs: (val: number) => void;
   isWindowLocked: boolean;
   onToggleWindowLock: () => void;
+  octaveConvention?: 'fl_studio' | 'international';
+  onChangeOctaveConvention?: (val: 'fl_studio' | 'international') => void;
 }
 
 export const SingOptionsPopover: React.FC<SingOptionsPopoverProps> = ({
@@ -53,6 +55,8 @@ export const SingOptionsPopover: React.FC<SingOptionsPopoverProps> = ({
   onChangeLatencyOffsetMs,
   isWindowLocked,
   onToggleWindowLock,
+  octaveConvention = 'fl_studio',
+  onChangeOctaveConvention,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -197,6 +201,42 @@ export const SingOptionsPopover: React.FC<SingOptionsPopoverProps> = ({
                   title="Chấm bám sát micro-pitch của file nhạc gốc"
                 >
                   Bám Bản Gốc
+                </button>
+              </div>
+            </div>
+
+            {/* Octave Convention Selector */}
+            <div>
+              <label className="text-[11px] font-mono uppercase text-slate-400 mb-1.5 flex items-center justify-between">
+                <span>Hệ Quy Chiếu Quãng 8</span>
+                <span className="text-[10px] text-sky-400 font-mono">
+                  {octaveConvention === 'fl_studio' ? 'FL Studio (Middle C = C5)' : 'Quốc Tế (Middle C = C4)'}
+                </span>
+              </label>
+              <div className="grid grid-cols-2 gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => onChangeOctaveConvention?.('fl_studio')}
+                  className={`py-1.5 px-2 rounded-lg font-bold text-xs transition text-center ${
+                    octaveConvention === 'fl_studio'
+                      ? 'bg-sky-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Chuẩn FL Studio / NewTone: Middle C là C5"
+                >
+                  FL Studio (C5)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeOctaveConvention?.('international')}
+                  className={`py-1.5 px-2 rounded-lg font-bold text-xs transition text-center ${
+                    octaveConvention === 'international'
+                      ? 'bg-sky-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Chuẩn Quốc Tế SPN / Piano: Middle C là C4"
+                >
+                  Quốc Tế (C4)
                 </button>
               </div>
             </div>

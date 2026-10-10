@@ -451,7 +451,7 @@ class VocalPitchService {
 
       this.lowPassFilterNode = ctx.createBiquadFilter();
       this.lowPassFilterNode.type = 'lowpass';
-      this.lowPassFilterNode.frequency.setValueAtTime(3600, ctx.currentTime);
+      this.lowPassFilterNode.frequency.setValueAtTime(1800, ctx.currentTime);
       this.lowPassFilterNode.Q.setValueAtTime(0.707, ctx.currentTime);
 
       // 4. Studio Vocal Dynamics Compressor (Anti-Clipping / High-SPL Limiter)

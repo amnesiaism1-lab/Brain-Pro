@@ -266,6 +266,8 @@ export const TransportBar: React.FC<TransportBarProps> = ({
             onChangeLatencyOffsetMs={onChangeLatencyOffsetMs}
             isWindowLocked={isWindowLocked}
             onToggleWindowLock={onToggleWindowLock}
+            octaveConvention={octaveConvention}
+            onChangeOctaveConvention={onChangeOctaveConvention}
           />
 
           {/* View Report Button */}

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { RunwayRenderState } from '../types';
 import { NOTE_NAMES, midiToNoteInfo } from '@brain-exercises/shared';
+import { auditoryEngine } from '../../../services/auditoryEngine';
 
 interface PitchRunwayCanvasProps {
   renderStateRef: React.MutableRefObject<RunwayRenderState>;
@@ -10,16 +11,35 @@ interface PitchRunwayCanvasProps {
 
 const ACCIDENTAL_SEMITONES = new Set([1, 3, 6, 8, 10]);
 
+const playAuditionNote = (midi: number) => {
+  const freq = 440 * Math.pow(2, (midi - 69) / 12);
+  try {
+    auditoryEngine.startNote(freq, 0.85, { timbrePreset: 'acoustic-piano' });
+    setTimeout(() => {
+      auditoryEngine.stopNote(freq, 0.2);
+    }, 380);
+  } catch (err) {
+    console.warn('Audition note playback failed:', err);
+  }
+};
+
 export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
   renderStateRef,
   className = '',
   onSeek,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const onSeekRef = useRef(onSeek);
+  useEffect(() => {
+    onSeekRef.current = onSeek;
+  }, [onSeek]);
+
   const manualOffsetRef = useRef(0);
   const manualSpanRef = useRef<number | null>(null);
   const userInteractedUntilRef = useRef(0);
   const hoverXRef = useRef<number | null>(null);
+  const smoothMinMidiRef = useRef(48); // C3
+  const smoothMaxMidiRef = useRef(72); // C5
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -30,8 +50,6 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
 
     let animId: number;
     let isMounted = true;
-    let smoothMinMidi = 48; // C3
-    let smoothMaxMidi = 72; // C5
 
     let isMouseDown = false;
     let mouseDownPos = { x: 0, y: 0 };
@@ -46,25 +64,65 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       if (!isMouseDown) return;
       isMouseDown = false;
       const dist = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
-      // Movement under 6px -> click to seek (DAW style)
-      if (dist < 6 && onSeek) {
-        const rect = canvas.getBoundingClientRect();
-        const clickX = e.clientX - rect.left;
-        const width = canvas.clientWidth || 860;
-        const pianoKeyWidth = width > 1200 ? 46 : 36;
-        if (clickX < pianoKeyWidth) return;
+      if (dist >= 8) return; // Ignore drag/swipe
 
-        const state = renderStateRef.current;
-        const latencyOffsetMs = state.latencyOffsetMs ?? 45;
-        const effectiveTimeMs = Math.max(0, state.currentTimeMs - latencyOffsetMs);
-        const pastWindowMs = 1500;
-        const futureWindowMs = 3500;
-        const totalWindowMs = pastWindowMs + futureWindowMs;
-        const playheadX = (pastWindowMs / totalWindowMs) * width;
+      const rect = canvas.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      const width = canvas.clientWidth || 860;
+      const height = canvas.clientHeight || 280;
+      const pianoKeyWidth = width > 1200 ? 46 : 36;
 
-        const clickedTimeMs = effectiveTimeMs + ((clickX - playheadX) / width) * totalWindowMs;
-        const clampedMs = Math.max(0, Math.min(state.durationMs || 999999, Math.round(clickedTimeMs)));
-        onSeek(clampedMs);
+      const state = renderStateRef.current;
+      const latencyOffsetMs = state.latencyOffsetMs ?? 45;
+      const effectiveTimeMs = Math.max(0, state.currentTimeMs - latencyOffsetMs);
+      const pastWindowMs = 1500;
+      const futureWindowMs = 3500;
+      const totalWindowMs = pastWindowMs + futureWindowMs;
+      const playheadX = (pastWindowMs / totalWindowMs) * width;
+
+      const effectiveSpan = manualSpanRef.current ?? (smoothMaxMidiRef.current - smoothMinMidiRef.current);
+      const effectiveMin = smoothMinMidiRef.current + manualOffsetRef.current;
+      const midiSpan = Math.max(12, effectiveSpan);
+
+      // 1. Clicked on Piano Key column on left: Audition clicked note
+      if (clickX < pianoKeyWidth) {
+        const clickedMidi = Math.round(effectiveMin + (1 - clickY / height) * midiSpan);
+        playAuditionNote(clickedMidi);
+        return;
+      }
+
+      // 2. Clicked on Runway Canvas:
+      const clickedTimeMs = effectiveTimeMs + ((clickX - playheadX) / width) * totalWindowMs;
+      const clampedMs = Math.max(0, Math.min(state.durationMs || 999999, Math.round(clickedTimeMs)));
+      const clickedMidi = effectiveMin + (1 - clickY / height) * midiSpan;
+
+      // Check if user clicked on or near a note block
+      let hitBar = null;
+      if (state.noteBars && state.noteBars.length > 0) {
+        for (let i = 0; i < state.noteBars.length; i++) {
+          const bar = state.noteBars[i];
+          const m = bar.midi + (state.transposeSemitones || 0);
+          const tMargin = Math.max(100, (bar.endTimeMs - bar.startTimeMs) * 0.15);
+          if (
+            clickedTimeMs >= bar.startTimeMs - tMargin &&
+            clickedTimeMs <= bar.endTimeMs + tMargin &&
+            Math.abs(m - clickedMidi) <= 0.85
+          ) {
+            hitBar = bar;
+            break;
+          }
+        }
+      }
+
+      if (hitBar) {
+        // Audition the note tone and seek to note start
+        const m = hitBar.midi + (state.transposeSemitones || 0);
+        playAuditionNote(m);
+        onSeekRef.current?.(hitBar.startTimeMs);
+      } else {
+        // Seek to the exact clicked timestamp
+        onSeekRef.current?.(clampedMs);
       }
     };
 
@@ -91,7 +149,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       if (e.ctrlKey || e.metaKey) {
         // Zoom vertical span in/out
         const delta = e.deltaY > 0 ? 1 : -1;
-        const currentSpan = manualSpanRef.current ?? (smoothMaxMidi - smoothMinMidi);
+        const currentSpan = manualSpanRef.current ?? (smoothMaxMidiRef.current - smoothMinMidiRef.current);
         manualSpanRef.current = Math.max(10, Math.min(36, currentSpan + delta));
       } else {
         // Pan vertical up/down
@@ -189,13 +247,6 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         }
       }
 
-      if (userReading?.isSinging && userReading.freqHz > 0) {
-        const um = 12 * Math.log2(userReading.freqHz / 440) + 69;
-        if (um < localMin) localMin = um;
-        if (um > localMax) localMax = um;
-        notesInWindow++;
-      }
-
       let targetMin: number;
       let targetMax: number;
 
@@ -215,18 +266,21 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           targetMax = Math.min(96, targetMin + desiredSpan);
         }
 
-        smoothMinMidi += (targetMin - smoothMinMidi) * 0.08;
-        smoothMaxMidi += (targetMax - smoothMaxMidi) * 0.08;
+        // Deadzone filter: only adapt if difference > 0.08 semitones to avoid micro-jitter
+        if (Math.abs(targetMin - smoothMinMidiRef.current) > 0.08) {
+          smoothMinMidiRef.current += (targetMin - smoothMinMidiRef.current) * 0.05;
+        }
+        if (Math.abs(targetMax - smoothMaxMidiRef.current) > 0.08) {
+          smoothMaxMidiRef.current += (targetMax - smoothMaxMidiRef.current) * 0.05;
+        }
       }
 
-      // Apply manual offset and span if user interacted with mouse wheel
-      const effectiveSpan = manualSpanRef.current ?? (smoothMaxMidi - smoothMinMidi);
-      const effectiveMin = smoothMinMidi + manualOffsetRef.current;
-      const minMidi = Math.floor(effectiveMin);
-      const maxMidi = Math.ceil(effectiveMin + effectiveSpan);
-      const midiSpan = Math.max(12, maxMidi - minMidi);
+      // Smooth floating-point coordinate mapping (NEVER discretely truncated!)
+      const effectiveSpan = manualSpanRef.current ?? (smoothMaxMidiRef.current - smoothMinMidiRef.current);
+      const effectiveMin = smoothMinMidiRef.current + manualOffsetRef.current;
+      const midiSpan = Math.max(12, effectiveSpan);
 
-      const midiToY = (m: number) => height - ((m - minMidi) / midiSpan) * height;
+      const midiToY = (m: number) => height - ((m - effectiveMin) / midiSpan) * height;
 
       // Detect off-screen notes within visible runway
       let highestOffscreenMidi = -Infinity;
@@ -237,8 +291,8 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           const bar = noteBars[i];
           if (bar.endTimeMs >= windowStartMs && bar.startTimeMs <= windowEndMs) {
             const m = bar.midi + transposeSemitones;
-            if (m > maxMidi && m > highestOffscreenMidi) highestOffscreenMidi = m;
-            if (m < minMidi && m < lowestOffscreenMidi) lowestOffscreenMidi = m;
+            if (m > effectiveMin + midiSpan && m > highestOffscreenMidi) highestOffscreenMidi = m;
+            if (m < effectiveMin && m < lowestOffscreenMidi) lowestOffscreenMidi = m;
           }
         }
       }
@@ -251,7 +305,10 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       const pianoKeyWidth = width > 1200 ? 46 : 36;
       const octOffset = state.octaveConvention === 'international' ? 0 : 1;
 
-      for (let m = minMidi; m <= maxMidi; m++) {
+      const startMidi = Math.floor(effectiveMin) - 1;
+      const endMidi = Math.ceil(effectiveMin + midiSpan) + 1;
+
+      for (let m = startMidi; m <= endMidi; m++) {
         const yTop = midiToY(m + 0.5);
         const yBottom = midiToY(m - 0.5);
         const stripH = Math.max(1, yBottom - yTop);
@@ -629,7 +686,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         const offSemi = ((highestOffscreenMidi % 12) + 12) % 12;
         const offOct = Math.floor(highestOffscreenMidi / 12) - 1 + octOffset;
         const offName = `${NOTE_NAMES[offSemi]}${offOct}`;
-        const diff = Math.round(highestOffscreenMidi - maxMidi);
+        const diff = Math.round(highestOffscreenMidi - (effectiveMin + midiSpan));
         ctx.save();
         ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
         ctx.fillRect(width - 240, 26, 175, 18);
@@ -647,7 +704,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         const offSemi = ((lowestOffscreenMidi % 12) + 12) % 12;
         const offOct = Math.floor(lowestOffscreenMidi / 12) - 1 + octOffset;
         const offName = `${NOTE_NAMES[offSemi]}${offOct}`;
-        const diff = Math.round(minMidi - lowestOffscreenMidi);
+        const diff = Math.round(effectiveMin - lowestOffscreenMidi);
         ctx.save();
         ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
         ctx.fillRect(width - 240, height - 24, 175, 18);
@@ -754,7 +811,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('mouseleave', handleMouseLeave);
     };
-  }, [renderStateRef, onSeek]);
+  }, [renderStateRef]);
 
   return (
     <canvas
