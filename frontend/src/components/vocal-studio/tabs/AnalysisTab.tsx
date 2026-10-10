@@ -76,6 +76,9 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
                 type="file"
                 accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac"
                 className="hidden"
+                onClick={(e) => {
+                  (e.target as HTMLInputElement).value = '';
+                }}
                 onChange={(e) => {
                   if (e.target.files?.[0]) onFileSelected(e.target.files[0]);
                 }}

@@ -4,7 +4,7 @@ import {
   BarChart3, Settings2, Info, CheckCircle2, ShieldCheck, Flame, BookOpen, Type,
   Infinity as InfinityIcon, Globe, Layers, Cpu, Orbit, Music
 } from 'lucide-react';
-import { VocalStudioModal } from '../vocal-studio/VocalStudioModal';
+import { useVocalStudioStore } from '../../store/vocalStudioStore';
 import { useAppStore } from '../../store/useAppStore';
 import { EXERCISES_METADATA, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
 import { infinityApiService, shuffleArray } from '../../services/infinityApiService';
@@ -140,7 +140,7 @@ export const ExerciseDetailModal: React.FC = () => {
   // Specific visual parameters for Peripheral Vision & Vocal Match
   const isPeripheral = exercise.slug === 'peripheral-vision';
   const isVocalMatch = exercise.slug === 'vocal-pitch-match';
-  const [showVocalStudio, setShowVocalStudio] = useState(false);
+  const openVocalStudio = useVocalStudioStore((s) => s.openStudio);
   const spanPx = (currentConfig.parametersJson as any)?.spanPx || (120 + (exerciseLevel * 45));
   const flashMs = (currentConfig.parametersJson as any)?.flashDurationMs || Math.max(200, 750 - (exerciseLevel * 45));
   const visualAngleDeg = Math.round(Math.min(65, 15 + (exerciseLevel * 3.8)));
@@ -290,7 +290,7 @@ export const ExerciseDetailModal: React.FC = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => setShowVocalStudio(true)}
+                  onClick={() => openVocalStudio()}
                   className="px-5 py-3 rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 hover:from-violet-400 hover:to-cyan-400 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-cyan-500/25 active:scale-95 transition-all shrink-0"
                 >
                   <Sparkles className="w-4 h-4 fill-slate-950" />
@@ -877,11 +877,6 @@ export const ExerciseDetailModal: React.FC = () => {
         </div>
       )}
 
-      {/* Vocal Studio Modal (Import MP3 & Sing-Along) */}
-      <VocalStudioModal
-        isOpen={showVocalStudio}
-        onClose={() => setShowVocalStudio(false)}
-      />
     </div>
   );
 };
