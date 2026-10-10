@@ -5,6 +5,7 @@ import { NOTE_NAMES, midiToNoteInfo } from '@brain-exercises/shared';
 interface PitchRunwayCanvasProps {
   renderStateRef: React.MutableRefObject<RunwayRenderState>;
   className?: string;
+  onSeek?: (timeMs: number) => void;
 }
 
 const ACCIDENTAL_SEMITONES = new Set([1, 3, 6, 8, 10]);
@@ -12,11 +13,13 @@ const ACCIDENTAL_SEMITONES = new Set([1, 3, 6, 8, 10]);
 export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
   renderStateRef,
   className = '',
+  onSeek,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const manualOffsetRef = useRef(0);
   const manualSpanRef = useRef<number | null>(null);
   const userInteractedUntilRef = useRef(0);
+  const hoverXRef = useRef<number | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -29,6 +32,58 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
     let isMounted = true;
     let smoothMinMidi = 48; // C3
     let smoothMaxMidi = 72; // C5
+
+    let isMouseDown = false;
+    let mouseDownPos = { x: 0, y: 0 };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return; // Only left click
+      isMouseDown = true;
+      mouseDownPos = { x: e.clientX, y: e.clientY };
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!isMouseDown) return;
+      isMouseDown = false;
+      const dist = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
+      // Movement under 6px -> click to seek (DAW style)
+      if (dist < 6 && onSeek) {
+        const rect = canvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const width = canvas.clientWidth || 860;
+        const pianoKeyWidth = width > 1200 ? 46 : 36;
+        if (clickX < pianoKeyWidth) return;
+
+        const state = renderStateRef.current;
+        const latencyOffsetMs = state.latencyOffsetMs ?? 45;
+        const effectiveTimeMs = Math.max(0, state.currentTimeMs - latencyOffsetMs);
+        const pastWindowMs = 1500;
+        const futureWindowMs = 3500;
+        const totalWindowMs = pastWindowMs + futureWindowMs;
+        const playheadX = (pastWindowMs / totalWindowMs) * width;
+
+        const clickedTimeMs = effectiveTimeMs + ((clickX - playheadX) / width) * totalWindowMs;
+        const clampedMs = Math.max(0, Math.min(state.durationMs || 999999, Math.round(clickedTimeMs)));
+        onSeek(clampedMs);
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const width = canvas.clientWidth || 860;
+      const pianoKeyWidth = width > 1200 ? 46 : 36;
+      if (mx >= pianoKeyWidth) {
+        hoverXRef.current = mx;
+      } else {
+        hoverXRef.current = null;
+      }
+    };
+
+    const handleMouseLeave = () => {
+      isMouseDown = false;
+      hoverXRef.current = null;
+    };
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -54,6 +109,10 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
 
     canvas.addEventListener('wheel', handleWheel, { passive: false });
     canvas.addEventListener('dblclick', handleDblClick);
+    canvas.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseleave', handleMouseLeave);
 
     const resizeCanvas = () => {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -441,7 +500,8 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
 
       // 7. Target Hit-Box under Playhead
       if (currentRefPoint && currentRefPoint.isVocal && currentRefPoint.midi > 0) {
-        const targetY = midiToY(currentRefPoint.midi);
+        const refMidi = currentRefPoint.midi + transposeSemitones;
+        const targetY = midiToY(refMidi);
         ctx.save();
         ctx.shadowBlur = 12;
         ctx.shadowColor = isInTuneNow ? '#10b981' : '#f59e0b';
@@ -453,10 +513,16 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         ctx.fill();
         ctx.stroke();
 
+        // Consistent octave naming across piano roll, note bars and target hit-box
+        const semi = ((Math.round(refMidi) % 12) + 12) % 12;
+        const noteName = NOTE_NAMES[semi];
+        const oct = Math.floor(Math.round(refMidi) / 12) - 1 + octOffset;
+        const displayTargetName = `${noteName}${oct}`;
+
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 11px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(currentRefPoint.noteName, playheadX, targetY + 4);
+        ctx.fillText(displayTargetName, playheadX, targetY + 4);
         ctx.restore();
       }
 
@@ -467,7 +533,8 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         let octShift = 0;
 
         if (smartOctaveFold && currentRefPoint && currentRefPoint.isVocal && currentRefPoint.midi > 0) {
-          octShift = Math.round((exactUserMidi - currentRefPoint.midi) / 12);
+          const refMidi = currentRefPoint.midi + transposeSemitones;
+          octShift = Math.round((exactUserMidi - refMidi) / 12);
           displayMidi = exactUserMidi - octShift * 12;
         }
 
@@ -519,6 +586,30 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           ctx.beginPath();
           ctx.arc(playheadX, userY, 4, 0, Math.PI * 2);
           ctx.fill();
+
+          // User live sung note pill tag next to orb
+          const userSemi = ((Math.round(displayMidi) % 12) + 12) % 12;
+          const userOct = Math.floor(Math.round(displayMidi) / 12) - 1 + octOffset;
+          const userNoteName = `${NOTE_NAMES[userSemi]}${userOct}`;
+          const centsLabel = currentCentsDiff > 0 ? `+${currentCentsDiff}c` : `${currentCentsDiff}c`;
+
+          ctx.shadowBlur = 4;
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+          ctx.strokeStyle = orbColor;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(playheadX + 14, userY - 10, 68, 20, 5);
+          } else {
+            ctx.rect(playheadX + 14, userY - 10, 68, 20);
+          }
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = orbColor;
+          ctx.font = 'bold 9.5px monospace';
+          ctx.textAlign = 'left';
+          ctx.fillText(`${userNoteName} ${centsLabel}`, playheadX + 18, userY + 4);
           ctx.restore();
         }
       }
@@ -596,6 +687,58 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       ctx.fillText('⚡ 0ms', width - 58, legendY);
       ctx.restore();
 
+      // 11. Click to Seek Hover Time Guide Line
+      if (hoverXRef.current !== null && onSeek) {
+        const hx = hoverXRef.current;
+        const latencyOffsetMs = rawLatencyOffsetMs ?? 45;
+        const effectiveTimeMs = Math.max(0, currentTimeMs - latencyOffsetMs);
+        const pastWindowMs = 1500;
+        const futureWindowMs = 3500;
+        const totalWindowMs = pastWindowMs + futureWindowMs;
+        const playheadX = (pastWindowMs / totalWindowMs) * width;
+        const hoverTimeMs = Math.max(
+          0,
+          Math.min(
+            state.durationMs || 999999,
+            Math.round(effectiveTimeMs + ((hx - playheadX) / totalWindowMs) * totalWindowMs)
+          )
+        );
+
+        const sec = Math.floor(hoverTimeMs / 1000);
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        const timeLabel = `${m}:${s < 10 ? '0' : ''}${s}`;
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath();
+        ctx.moveTo(hx, 0);
+        ctx.lineTo(hx, height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Hover Time Pill at top
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(hx - 24, 6, 48, 16, 4);
+        } else {
+          ctx.rect(hx - 24, 6, 48, 16);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 9.5px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(timeLabel, hx, 18);
+        ctx.restore();
+      }
+
       ctx.restore();
       animId = requestAnimationFrame(render);
     };
@@ -606,13 +749,17 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       cancelAnimationFrame(animId);
       canvas.removeEventListener('wheel', handleWheel);
       canvas.removeEventListener('dblclick', handleDblClick);
+      canvas.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mouseup', handleMouseUp);
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('mouseleave', handleMouseLeave);
     };
-  }, [renderStateRef]);
+  }, [renderStateRef, onSeek]);
 
   return (
     <canvas
       ref={canvasRef}
-      className={`w-full h-[320px] sm:h-[380px] md:h-[440px] lg:h-[480px] xl:h-[520px] block ${className}`}
+      className={`w-full h-[320px] sm:h-[380px] md:h-[440px] lg:h-[480px] xl:h-[520px] block cursor-crosshair ${className}`}
     />
   );
 };

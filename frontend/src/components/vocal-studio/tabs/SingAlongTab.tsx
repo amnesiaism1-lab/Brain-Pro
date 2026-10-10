@@ -161,7 +161,7 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
     <div className="w-full max-w-[1850px] mx-auto space-y-4 px-1 sm:px-2">
       {/* 1. DUAL-TRACK RUNWAY CANVAS CONTAINER */}
       <div className="relative w-full rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl">
-        <PitchRunwayCanvas renderStateRef={renderStateRef} />
+        <PitchRunwayCanvas renderStateRef={renderStateRef} onSeek={onSeek} />
 
         {/* Score & Tuner HUD Overlay (Top Left) */}
         <div className="absolute top-3 left-4 flex flex-wrap items-center gap-2 z-10">
@@ -234,19 +234,67 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
           )}
         </div>
 
-        {/* Target Reference Note Badge (Bottom Right) */}
-        <div className="absolute bottom-3 right-4 px-3 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md flex items-center gap-2 z-10">
-          <span className="text-[10px] font-mono text-slate-400 uppercase">Nốt Đang Phát:</span>
-          <span className="text-sm font-black font-mono text-sky-400">
-            {currentRefPoint?.isVocal && currentRefPoint.midi > 0
-              ? (() => {
-                  const m = currentRefPoint.midi + (transposeSemitones || 0);
-                  const semi = ((Math.round(m) % 12) + 12) % 12;
-                  const oct = Math.floor(Math.round(m) / 12) - 1 + (octaveConvention === 'international' ? 0 : 1);
-                  return `${NOTE_NAMES[semi]}${oct} (${SOLFEGE_NAMES[semi]} ${oct})`;
-                })()
-              : 'Nghỉ'}
-          </span>
+        {/* Dual Singing & Reference HUD Badges (Bottom Right) */}
+        <div className="absolute bottom-3 right-4 flex items-center gap-2 z-10 flex-wrap justify-end">
+          {/* Live Humming / Singing Note Badge */}
+          <div
+            className={`px-3 py-1.5 rounded-2xl border backdrop-blur-md flex items-center gap-2 shadow-lg transition-all ${
+              userReading?.isSinging
+                ? isInTuneNow
+                  ? 'bg-emerald-950/80 border-emerald-500/70 text-emerald-300 ring-1 ring-emerald-500/30'
+                  : 'bg-amber-950/80 border-amber-500/70 text-amber-300 ring-1 ring-amber-500/30'
+                : 'bg-slate-900/75 border-slate-700/60 text-slate-400'
+            }`}
+          >
+            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  userReading?.isSinging
+                    ? isInTuneNow
+                      ? 'bg-emerald-400 animate-pulse'
+                      : 'bg-amber-400 animate-pulse'
+                    : 'bg-slate-600'
+                }`}
+              />
+              Giọng Bạn:
+            </span>
+            <span className="text-sm font-black font-mono">
+              {userReading?.isSinging && userReading.freqHz > 0
+                ? (() => {
+                    const exactUserMidi = 12 * Math.log2(userReading.freqHz / 440) + 69;
+                    const semi = ((Math.round(exactUserMidi) % 12) + 12) % 12;
+                    const oct =
+                      Math.floor(Math.round(exactUserMidi) / 12) -
+                      1 +
+                      (octaveConvention === 'international' ? 0 : 1);
+                    const noteStr = `${NOTE_NAMES[semi]}${oct} (${SOLFEGE_NAMES[semi]} ${oct})`;
+                    const centsStr =
+                      currentCentsDiff > 0 ? `+${currentCentsDiff}c` : `${currentCentsDiff}c`;
+                    return `${noteStr} [${centsStr}]`;
+                  })()
+                : 'Đang lắng nghe...'}
+            </span>
+          </div>
+
+          {/* Target Reference Song Note Badge */}
+          <div className="px-3 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md flex items-center gap-2 shadow-lg">
+            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+              Nốt Đang Phát:
+            </span>
+            <span className="text-sm font-black font-mono text-sky-400">
+              {currentRefPoint?.isVocal && currentRefPoint.midi > 0
+                ? (() => {
+                    const m = currentRefPoint.midi + (transposeSemitones || 0);
+                    const semi = ((Math.round(m) % 12) + 12) % 12;
+                    const oct =
+                      Math.floor(Math.round(m) / 12) -
+                      1 +
+                      (octaveConvention === 'international' ? 0 : 1);
+                    return `${NOTE_NAMES[semi]}${oct} (${SOLFEGE_NAMES[semi]} ${oct})`;
+                  })()
+                : 'Nghỉ'}
+            </span>
+          </div>
         </div>
       </div>
 
