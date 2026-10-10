@@ -200,24 +200,25 @@ getUserMedia (echoCancellation:false, noiseSuppression:false, autoGainControl:fa
 | Hiệu năng vẽ | Chưa rõ | Canvas + `OffscreenCanvas`/Worker nếu cần; ngân sách: ≤ 4 ms/khung vẽ; không setState mỗi khung |
 | Phân tích file 8:43 | Chưa rõ | Giải mã bằng `decodeAudioData`/`OfflineAudioContext`, xử lý theo khối trong Worker, báo tiến trình; ngân sách: ≤ 30 s cho 5 phút nhạc trên laptop tầm trung |
 
-### 5.2 Trích cao độ từ **bản thu có nhạc nền** (nguyên nhân gốc của đường mẫu vỡ vụn)
+### 5.2 Nâng cấp Logic Phân tích Cao độ (Chuẩn "NewTone" / Melodyne)
 
-Ba cấp độ nâng dần, mỗi cấp là một lần phát hành:
+Luồng phân tích hiện tại (dùng thư viện `pitchy` bằng vòng lặp `while` đồng bộ trên Main Thread) là nguyên nhân gây ra trải nghiệm "nhanh, lỏng lẻo", kết quả rời rạc vỡ vụn và có thể block UI. Để đạt độ chính xác ngang tầm các công cụ studio chuyên nghiệp (như NewTone của FL Studio), luồng phân tích file MP3 (offline mode) cần được kiến trúc lại toàn diện và đưa vào **Web Worker**:
 
-| Cấp | Phương pháp | Chất lượng | Chi phí |
-|-----|-------------|-----------|---------|
-| A | Mono hóa + **trích kênh giữa** (mid = L+R, giảm nhạc cụ lệch kênh) + band-pass 80–1100 Hz + pYIN + lọc melody-salience + **phân đoạn nốt** (chuẩn hóa thành note bar) | Trung bình, chạy hoàn toàn trên trình duyệt | Thấp |
-| B | **Tách giọng (stem separation)** bằng mô hình ONNX trong trình duyệt (kiểu Demucs/Spleeter nhỏ) rồi pYIN/CREPE trên stem giọng | Tốt | Trung bình (tải mô hình lớn, CPU nặng) |
-| C | Tách giọng phía **worker GPU ngoài** (không chạy trên Vercel Serverless), trả stem giọng + nhạc nền, cache theo hash | Rất tốt, còn cho chế độ karaoke | Cao (chi phí + bản quyền) |
+1. **Tiền xử lý (Pre-processing):** Giải mã audio sang PCM. Nếu bài hát có nhạc nền, áp dụng mono hóa (L+R) và band-pass filter (80–1100 Hz) để cô lập dải tần giọng người trước khi đo.
+2. **Trích xuất Ứng viên (Pitch Candidate Extraction):** Thay vì đo MPM thô từng khung, sử dụng thuật toán **pYIN** (hoặc mô hình CREPE-tiny qua ONNX.js trong Worker) để thu thập một mảng các *xác suất cao độ* (pitch candidates) thay vì chỉ lấy một cao độ duy nhất mỗi khung.
+3. **Giải mã Viterbi (Temporal Smoothing):** Áp dụng mô hình HMM (Hidden Markov Model) với thuật toán Viterbi để dò ra quỹ đạo cao độ mượt nhất xuyên suốt chuỗi thời gian. Bước này áp dụng hàm phạt "nhảy quãng 8" (octave-jump penalty), giúp loại bỏ triệt để các đốm "rác", lỗi quãng 8 hay điểm ngoại lai lởm chởm.
+4. **Phân đoạn Nốt (Melodic Contouring):** 
+   - Chuyển đổi F0 mượt → MIDI liên tục (float) và chạy Median filter.
+   - **Gom nhóm (Segmentation):** Các khung có cao độ ổn định (độ biến thiên < 50 cents) kéo dài ≥ 80ms sẽ được gộp lại thành một khối nốt (`NoteEvent`) vuông vức, giống hệt các block nốt trong giao diện NewTone.
+   - Bên trong mỗi khối vuông, lưu lại mảng F0 chi tiết (pitch-bend array) để vẽ đường lượn sóng (vibrato/glissando) nếu cần.
+5. **Bộ nhớ đệm (Caching):** Tính mã băm (SHA-256) của file tải lên và lưu toàn bộ mảng `NoteEvent` vào **IndexedDB**. Khi người dùng tải lại cùng file, kết quả render sẽ hiện ra ngay lập tức mà không cần xử lý lại.
 
-**Khuyến nghị:** làm cấp A ngay (Phase 2), thiết kế interface `ReferenceExtractor` để cắm cấp B/C sau (Phase 6).
+*(Định hướng tương lai Phase 6: Có thể tích hợp Tách giọng Stem Separation (như Demucs/Spleeter) xử lý bằng GPU-worker hoặc WebGPU để lọc sạch hoàn toàn nhạc đệm trước khi đo cao độ, đưa chất lượng lên mức tối đa).*
 
-### 5.3 Phân đoạn nốt (chuẩn hóa đường cao độ)
-1. Đổi f0 → MIDI liên tục (float).
-2. Median filter, rồi chia đoạn khi cao độ ổn định (độ lệch chuẩn < 50 cents trong ≥ 80 ms).
-3. Mỗi đoạn → 1 note event `{start, end, midi_float, midi_round}`; giữ thêm đường bend (10 Hz) để vẽ mảnh bên trong.
-4. Nối nốt cách nhau < 100 ms cùng `midi_round`; bỏ nốt < 80 ms.
-5. Nốt đích để chấm = `midi_round` (chế độ *chuẩn*) hoặc `midi_float` (chế độ *bám bản gốc*).
+### 5.3 Lọc nhiễu & Chuẩn hóa Note Bar
+- Nối các khối nốt cách nhau < 100 ms nếu chúng có cùng nốt tròn (`midi_round`).
+- Loại bỏ hoàn toàn các phân đoạn quá ngắn (< 80 ms), coi như nhiễu hoặc âm vô thanh (unvoiced).
+- **Chế độ mục tiêu:** Nốt đích để chấm điểm sẽ là `midi_round` (Chế độ "Chuẩn" - làm phẳng giống Auto-Tune) hoặc `midi_float` (Chế độ "Bám bản gốc" - giữ nguyên sắc thái rung ngân của ca sĩ thật).
 
 ### 5.4 Phát hiện tông, quãng giọng, độ khó
 | Chỉ số | Công thức đề xuất |
