@@ -51,6 +51,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       const {
         currentTimeMs,
         pitchTrack,
+        noteBars,
         userPitchTrail,
         currentRefPoint,
         userReading,
@@ -144,15 +145,75 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         }
       }
 
-      // 5. Reference Vocal Track (Note Bars + Bend Ribbon)
+      // 5. Reference Vocal Track: NewTone-Style Note Blocks & Micro-Pitch Ribbon
+      // A. Render Note Blocks (Discrete rectangular note bars on piano roll)
+      if (noteBars && noteBars.length > 0) {
+        for (let i = 0; i < noteBars.length; i++) {
+          const bar = noteBars[i];
+          if (bar.endTimeMs < windowStartMs || bar.startTimeMs > windowEndMs) continue;
+
+          const x1 = playheadX + ((bar.startTimeMs - currentTimeMs) / totalWindowMs) * width;
+          const x2 = playheadX + ((bar.endTimeMs - currentTimeMs) / totalWindowMs) * width;
+          const barW = Math.max(12, x2 - x1);
+          const barY = midiToY(bar.midi);
+          const barH = Math.min(24, Math.max(16, (height / midiSpan) * 0.85));
+          const topY = barY - barH / 2;
+
+          const isActive = currentTimeMs >= bar.startTimeMs && currentTimeMs <= bar.endTimeMs;
+
+          ctx.save();
+          if (isActive && isInTuneNow) {
+            // Hit effect: glowing neon emerald
+            ctx.shadowBlur = 16;
+            ctx.shadowColor = '#10b981';
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.4)';
+            ctx.strokeStyle = '#34d399';
+            ctx.lineWidth = 2.5;
+          } else if (isActive) {
+            // Active current note
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = '#818cf8';
+            ctx.fillStyle = 'rgba(99, 102, 241, 0.45)';
+            ctx.strokeStyle = '#c7d2fe';
+            ctx.lineWidth = 2;
+          } else {
+            // Inactive (past/future) note block
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = 'rgba(99, 102, 241, 0.25)';
+            ctx.fillStyle = 'rgba(79, 70, 229, 0.22)';
+            ctx.strokeStyle = 'rgba(129, 140, 248, 0.65)';
+            ctx.lineWidth = 1.2;
+          }
+
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(x1, topY, barW, barH, 4);
+          } else {
+            ctx.rect(x1, topY, barW, barH);
+          }
+          ctx.fill();
+          ctx.stroke();
+
+          // Note text badge on the block
+          if (barW >= 24) {
+            ctx.fillStyle = isActive ? '#ffffff' : 'rgba(224, 231, 255, 0.85)';
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(bar.noteName, x1 + 5, barY + 3.5);
+          }
+          ctx.restore();
+        }
+      }
+
+      // B. Render Micro-Pitch Contour Ribbon (Amber / Gold curve showing singer vibrato & slides inside note blocks)
       if (pitchTrack && pitchTrack.length > 0) {
         ctx.save();
-        ctx.lineWidth = 5;
+        ctx.lineWidth = 2.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#6366f1';
-        ctx.strokeStyle = '#818cf8';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#f59e0b';
+        ctx.strokeStyle = '#fbbf24';
 
         let drawing = false;
         ctx.beginPath();

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { PitchDetector } from 'pitchy';
 import { freqToMidi, midiToNoteInfo } from '@brain-exercises/shared';
 import { generateSyntheticMelody } from './fixtures';
+import { vocalFileAnalysisService } from '../../../services/vocalFileAnalysisService';
 
 describe('Vocal File Analysis & Range Extraction', () => {
   it('TC-09 & DEF-04: C3 to G4 scale yields robust p5-p95 range of ~19 semitones (not 35)', () => {
@@ -91,5 +92,98 @@ describe('Vocal File Analysis & Range Extraction', () => {
     planTempos.forEach((t) => {
       expect(supportedTempos).toContain(t);
     });
+  });
+
+  it('TC-16: NewTone Note Bar segmentation groups sustained pitch points into discrete note bars', () => {
+    // Simulate a melodic phrase: C4 (60) for 400ms, then D4 (62) for 500ms
+    const points: any[] = [];
+    // C4 sustained
+    for (let t = 0; t <= 400; t += 25) {
+      points.push({
+        timeMs: t,
+        freqHz: 261.63,
+        midi: 60.1, // slight micro deviation +10 cents
+        noteName: 'C4',
+        solfegeName: 'Đô 4',
+        clarity: 0.9,
+        volumeDb: -15,
+        isVocal: true,
+      });
+    }
+    // D4 sustained
+    for (let t = 450; t <= 950; t += 25) {
+      points.push({
+        timeMs: t,
+        freqHz: 293.66,
+        midi: 61.95, // slight micro deviation -5 cents
+        noteName: 'D4',
+        solfegeName: 'Rê 4',
+        clarity: 0.92,
+        volumeDb: -14,
+        isVocal: true,
+      });
+    }
+
+    const bars = vocalFileAnalysisService.segmentNoteBars(points);
+
+    expect(bars.length).toBe(2);
+    // First bar should be C4
+    expect(bars[0].midi).toBe(60);
+    expect(bars[0].noteName).toBe('C4');
+    expect(bars[0].durationMs).toBeGreaterThanOrEqual(350);
+
+    // Second bar should be D4
+    expect(bars[1].midi).toBe(62);
+    expect(bars[1].noteName).toBe('D4');
+    expect(bars[1].durationMs).toBeGreaterThanOrEqual(450);
+  });
+
+  it('TC-17: Micro breath gaps on same note merge seamlessly into one sustained note bar', () => {
+    const points: any[] = [];
+    // G4 first syllable (0 to 300ms)
+    for (let t = 0; t <= 300; t += 25) {
+      points.push({
+        timeMs: t,
+        freqHz: 392.0,
+        midi: 67.0,
+        noteName: 'G4',
+        solfegeName: 'Sol 4',
+        clarity: 0.95,
+        volumeDb: -12,
+        isVocal: true,
+      });
+    }
+    // Micro breath gap: 325ms is silence
+    points.push({
+      timeMs: 325,
+      freqHz: 0,
+      midi: 0,
+      noteName: '',
+      solfegeName: '',
+      clarity: 0,
+      volumeDb: -80,
+      isVocal: false,
+    });
+    // G4 continuation (350ms to 700ms, gap is only 50ms)
+    for (let t = 350; t <= 700; t += 25) {
+      points.push({
+        timeMs: t,
+        freqHz: 392.0,
+        midi: 67.0,
+        noteName: 'G4',
+        solfegeName: 'Sol 4',
+        clarity: 0.95,
+        volumeDb: -12,
+        isVocal: true,
+      });
+    }
+
+    const bars = vocalFileAnalysisService.segmentNoteBars(points);
+
+    // Should merge into 1 sustained note bar
+    expect(bars.length).toBe(1);
+    expect(bars[0].midi).toBe(67);
+    expect(bars[0].noteName).toBe('G4');
+    expect(bars[0].durationMs).toBe(700);
   });
 });

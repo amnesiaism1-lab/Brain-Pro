@@ -200,25 +200,106 @@ getUserMedia (echoCancellation:false, noiseSuppression:false, autoGainControl:fa
 | Hiệu năng vẽ | Chưa rõ | Canvas + `OffscreenCanvas`/Worker nếu cần; ngân sách: ≤ 4 ms/khung vẽ; không setState mỗi khung |
 | Phân tích file 8:43 | Chưa rõ | Giải mã bằng `decodeAudioData`/`OfflineAudioContext`, xử lý theo khối trong Worker, báo tiến trình; ngân sách: ≤ 30 s cho 5 phút nhạc trên laptop tầm trung |
 
-### 5.2 Nâng cấp Logic Phân tích Cao độ (Chuẩn "NewTone" / Melodyne)
+### 5.2 Phân tích Kỹ thuật: Vì sao Logic Hiện tại bị coi là "Lỏng lẻo" & Cách NewTone (FL Studio) xử lý
 
-Luồng phân tích hiện tại (dùng thư viện `pitchy` bằng vòng lặp `while` đồng bộ trên Main Thread) là nguyên nhân gây ra trải nghiệm "nhanh, lỏng lẻo", kết quả rời rạc vỡ vụn và có thể block UI. Để đạt độ chính xác ngang tầm các công cụ studio chuyên nghiệp (như NewTone của FL Studio), luồng phân tích file MP3 (offline mode) cần được kiến trúc lại toàn diện và đưa vào **Web Worker**:
+#### A. Nguyên nhân gốc rễ của hiện tượng "Tải file lên xong ngay, cao độ lỏng lẻo"
+1. **Chạy đồng bộ trên Main Thread bằng vòng lặp thô:**
+   - Trong `vocalFileAnalysisService.ts`, toàn bộ dữ liệu âm thanh sau khi giải mã PCM được quăng vào vòng lặp `while` trên luồng chính. Với CPU máy tính hiện đại, một file âm thanh ngắn được lướt qua trong vài chục mili-giây.
+   - Do không chia nhỏ tác vụ (chunking / Web Worker), thanh tiến trình % nhảy tức thì từ 25% → 85% → 100%, gây cảm giác "chưa tính toán kỹ lưỡng hoặc giả lập số liệu".
+2. **Không có bộ lọc tín hiệu giọng nói (Signal Conditioning):**
+   - File MP3 thương mại luôn có nhạc nền (trống kick, bass, hi-hat, synth, bè). Hiện tại mã nguồn lấy kênh 0 (trái) nguyên bản mà không trích kênh giữa (Mid) hay lọc dải thông (Bandpass).
+   - Tần số trầm của trống kick (<60Hz) và tiếng xì của cymbal (>2000Hz) gây nhiễu nghiêm trọng cho hàm tự tương quan, dẫn tới lỗi nhảy quãng 8 (octave error) và bắt nhầm tạp âm thành giọng hát.
+3. **Thiếu hoàn toàn thuật toán khử nhiễu chuỗi thời gian (Temporal Smoothing / Viterbi):**
+   - Hiện tại thuật toán lấy cao độ độc lập ở từng khung 23ms (`detector.findPitch`). Nếu một khung bị nhiễu hài âm, nó vọt lên nốt khác ngay lập tức, tạo ra đường cao độ "răng cưa", "vỡ vụn".
+4. **Chưa có thuật toán phân đoạn nốt (Melodic Note Segmentation):**
+   - Sự khác biệt căn bản giữa một "bộ đo tần số cơ bản" và phần mềm chuyên nghiệp như **NewTone (FL Studio)** hay **Melodyne (Celemony)** là: NewTone gom các khung thời gian có cao độ liên tục thành **Khối Nốt Nhạc (Note Bars)** hình chữ nhật hiển thị trên Piano Roll.
+   - Hiện tại hệ thống chỉ vẽ một đường nét liền mảnh kết nối các chấm F0, không có khái niệm thân nốt, độ dài nốt, khiến người dùng nhìn vào thấy đường bay lượn lờ, không biết điểm bắt đầu và kết thúc của từng nốt.
 
-1. **Tiền xử lý (Pre-processing):** Giải mã audio sang PCM. Nếu bài hát có nhạc nền, áp dụng mono hóa (L+R) và band-pass filter (80–1100 Hz) để cô lập dải tần giọng người trước khi đo.
-2. **Trích xuất Ứng viên (Pitch Candidate Extraction):** Thay vì đo MPM thô từng khung, sử dụng thuật toán **pYIN** (hoặc mô hình CREPE-tiny qua ONNX.js trong Worker) để thu thập một mảng các *xác suất cao độ* (pitch candidates) thay vì chỉ lấy một cao độ duy nhất mỗi khung.
-3. **Giải mã Viterbi (Temporal Smoothing):** Áp dụng mô hình HMM (Hidden Markov Model) với thuật toán Viterbi để dò ra quỹ đạo cao độ mượt nhất xuyên suốt chuỗi thời gian. Bước này áp dụng hàm phạt "nhảy quãng 8" (octave-jump penalty), giúp loại bỏ triệt để các đốm "rác", lỗi quãng 8 hay điểm ngoại lai lởm chởm.
-4. **Phân đoạn Nốt (Melodic Contouring):** 
-   - Chuyển đổi F0 mượt → MIDI liên tục (float) và chạy Median filter.
-   - **Gom nhóm (Segmentation):** Các khung có cao độ ổn định (độ biến thiên < 50 cents) kéo dài ≥ 80ms sẽ được gộp lại thành một khối nốt (`NoteEvent`) vuông vức, giống hệt các block nốt trong giao diện NewTone.
-   - Bên trong mỗi khối vuông, lưu lại mảng F0 chi tiết (pitch-bend array) để vẽ đường lượn sóng (vibrato/glissando) nếu cần.
-5. **Bộ nhớ đệm (Caching):** Tính mã băm (SHA-256) của file tải lên và lưu toàn bộ mảng `NoteEvent` vào **IndexedDB**. Khi người dùng tải lại cùng file, kết quả render sẽ hiện ra ngay lập tức mà không cần xử lý lại.
+---
 
-*(Định hướng tương lai Phase 6: Có thể tích hợp Tách giọng Stem Separation (như Demucs/Spleeter) xử lý bằng GPU-worker hoặc WebGPU để lọc sạch hoàn toàn nhạc đệm trước khi đo cao độ, đưa chất lượng lên mức tối đa).*
+#### B. So sánh Đối chiếu: Hệ thống Hiện tại vs. Chuẩn NewTone (FL Studio)
 
-### 5.3 Lọc nhiễu & Chuẩn hóa Note Bar
-- Nối các khối nốt cách nhau < 100 ms nếu chúng có cùng nốt tròn (`midi_round`).
-- Loại bỏ hoàn toàn các phân đoạn quá ngắn (< 80 ms), coi như nhiễu hoặc âm vô thanh (unvoiced).
-- **Chế độ mục tiêu:** Nốt đích để chấm điểm sẽ là `midi_round` (Chế độ "Chuẩn" - làm phẳng giống Auto-Tune) hoặc `midi_float` (Chế độ "Bám bản gốc" - giữ nguyên sắc thái rung ngân của ca sĩ thật).
+| Tiêu chí | Hệ thống Hiện tại | Chuẩn NewTone (FL Studio) | Giải pháp Nâng cấp đề xuất |
+|---|---|---|---|
+| **Môi trường chạy** | Main Thread (đồng bộ, dễ đơ UI) | Audio Engine riêng / Background Worker | Chạy toàn bộ trong **Web Worker**, báo progress thực tế 0%–100% |
+| **Kênh âm thanh** | Kênh trái mono đơn thuần | Tách Mid/Side, cô lập Vocal Center | **Trích kênh giữa** `Mid = (L + R) * 0.5` làm triệt tiêu nhạc cụ lệch kênh |
+| **Dải lọc tần số** | Không lọc (nhận cả 20Hz–20kHz) | Bandpass Filter 70Hz–1100Hz | Áp dụng **Biquad Bandpass Filter (80Hz–1100Hz)** trước khi đo cao độ |
+| **Thuật toán dò F0** | MPM thô 1 ứng viên duy nhất | Multi-candidate autocorrelation / pYIN | Lấy top ứng viên cao độ kèm trọng số năng lượng/độ rõ (clarity) |
+| **Mịn hóa thời gian** | Không có (chỉ ngưỡng clarity) | Dynamic Programming / **Viterbi HMM** | **Viterbi Algorithm** phạt bước nhảy quãng 8 và biến thiên đột ngột |
+| **Phân đoạn nốt** | Không có (chỉ có cụm câu phrase) | **Note Slicing / Segmentation** | Gom khung ổn định ≥80ms thành **Khối Nốt (`NoteEvent`/`NoteBar`)** |
+| **Hiển thị trực quan** | Đường kẻ polyline mảnh màu tím | **Note Blocks dạng thanh hộp + Pitch Ribbon** | Vẽ **Thanh nốt hộp chữ nhật bo góc** + đường vi mô lượn sóng bên trong |
+| **Lưu trữ / Caching** | Không lưu, F5 phân tích lại | Lưu session / Project cache | **IndexedDB Caching** theo mã băm SHA-256 của file |
+
+---
+
+#### C. Kiến trúc Pipeline 5 Tầng Chuẩn NewTone
+
+```
+[File MP3 Tải Lên]
+       │
+       ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ TẦNG 1: TIỀN XỬ LÝ & CÔ LẬP GIỌNG (Signal Conditioning)                │
+│  • Decode PCM 44.1kHz/48kHz qua Web Audio API                          │
+│  • Trích kênh giữa: Mid = (Left + Right) * 0.5 (triệt tiêu nhạc cụ bè) │
+│  • Biquad Bandpass Filter: 80 Hz – 1100 Hz (cắt sạch kick & hi-hat)   │
+│  • VAD (Voice Activity Detection): Gate RMS ngưỡng tự thích ứng       │
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │
+                                   ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ TẦNG 2: TRÍCH XUẤT CAO ĐỘ ĐA ỨNG VIÊN (Multi-Candidate Extraction)    │
+│  • Cửa sổ phân tích: 2048 mẫu (~46ms), Bước nhảy hop: 512 mẫu (~11ms)  │
+│  • Trích xuất danh sách ứng viên (Candidate F0, Clarity, Harmonic Sal) │
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │
+                                   ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ TẦNG 3: GIẢI MÃ QUỸ ĐẠO MƯỢT BẰNG THUẬT TOÁN VITERBI (HMM Smoothing) │
+│  • Trạng thái: Chuỗi cao độ khả dĩ qua các khung thời gian            │
+│  • Hàm chi phí: Phạt nặng biến thiên > 1 bán âm & phạt nhảy quãng 8    │
+│  • Kết quả: Đường F0 mượt mà liên tục, không răng cưa, không rác      │
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │
+                                   ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ TẦNG 4: PHÂN ĐOẠN NỐT NHẠC (Melodic Note Segmentation & Contouring)    │
+│  • Phát hiện Onset & ranh giới nốt (độ lệch chuẩn cao độ < 50 cents)  │
+│  • Đóng gói thành `IVocalNoteBar[]`: {startMs, endMs, midi, noteName}  │
+│  • Lưu trữ vi mô: mảng micro-cents bên trong nốt (vibrato/glissando)   │
+│  • Gộp nốt cùng cao độ (khoảng hở < 100ms), xóa vụn nhiễu < 80ms       │
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │
+                                   ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ TẦNG 5: KẾT XUẤT CANVAS PIANO ROLL CHUẨN NEWTONE (Dual-Layer Render)   │
+│  • Lớp nền: Khối Note Bar hình chữ nhật bo góc tại đúng phím MIDI     │
+│  • Lớp vi mô: Đường Pitch Contour (màu hổ phách) uốn lượn trong khối   │
+│  • Lớp tương tác: Vết giọng người hát + Hit effect khi đúng dải dung sai│
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 5.3 Chi tiết Kỹ thuật Thuật toán Phân đoạn Nốt (Note Segmentation)
+
+1. **Chuyển đổi tần số sang không gian MIDI liên tục:**
+   $$m_t = 12 \cdot \log_2\left(\frac{f_t}{440}\right) + 69$$
+2. **Lọc trung vị (Median Filter 5 khung):**
+   $$m'_t = \text{median}(m_{t-2}, m_{t-1}, m_t, m_{t+1}, m_{t+2})$$
+   Loại bỏ hoàn toàn các cú vọt 1 khung do nhiễu micro hoặc phụ âm vô thanh.
+3. **Phát hiện ranh giới nốt (Note Boundary Detection):**
+   - Một nốt mới được tạo khi:
+     - Năng lượng chuyển từ im lặng sang có tiếng (`isVocal = true`).
+     - Hoặc $|m'_t - m'_{\text{anchor}}| \ge 0.75$ bán âm trong ít nhất 3 khung liên tiếp (ca sĩ chuyển nốt).
+4. **Tổng hợp thuộc tính Khối Nốt (`IVocalNoteBar`):**
+   - $t_{\text{start}}, t_{\text{end}}$: Thời điểm bắt đầu và kết thúc (ms).
+   - $\text{MIDI}_{\text{nominal}} = \text{round}\left(\frac{1}{N} \sum_{i} m'_i\right)$: Nốt danh định trên phím đàn (ví dụ: 60 = C4, 62 = D4).
+   - $\Delta\text{cents} = \left(\frac{1}{N} \sum_{i} m'_i - \text{MIDI}_{\text{nominal}}\right) \times 100$: Độ lệch trung bình (ca sĩ đang hát non hay gắt).
+   - $\text{vibrato} = \text{std\_dev}(m'_i) \times 100$: Biên độ rung giọng.
+5. **Chuẩn hóa & Dọn dẹp:**
+   - Hợp nhất: 2 nốt kề nhau có cùng $\text{MIDI}_{\text{nominal}}$ và khoảng cách $< 100\text{ ms}$ được gộp thành 1 nốt ngân dài liền mạch.
+   - Loại bỏ: Khối nốt có thời lượng $< 80\text{ ms}$ bị loại (tiếng thở, tặc lưỡi, phụ âm bật).
 
 ### 5.4 Phát hiện tông, quãng giọng, độ khó
 | Chỉ số | Công thức đề xuất |
@@ -680,16 +761,19 @@ create table vs_device_calibrations (
 | 1.6 | Layout mobile (roll trên, điều khiển dưới, bottom-sheet) | M | Dùng được trên 360px |
 | 1.7 | Storybook cho trạng thái chính | S | Có story cho mọi trạng thái 10.4 |
 
-### Phase 2 — Âm thanh & phân tích (2 tuần)
+### Phase 2 — Kiến trúc DSP & Note Blocks Chuẩn NewTone (2 tuần)
 | Task | Mô tả | Effort | Tiêu chí hoàn thành |
 |------|-------|--------|--------------------|
-| 2.1 | AudioWorklet + MPM/YIN, tắt AEC/NS/AGC, ring buffer, hậu xử lý | L | Sai số ≤5¢ trên fixture; trễ ≤100 ms |
-| 2.2 | Trích mẫu cấp A trong Worker (mid + pYIN + phân đoạn nốt) + tiến trình + hủy | L | Note bar khớp ≥85% fixture; ≤30 s/5 phút |
-| 2.3 | Cache phân tích theo `audio_sha256` | S | Mở lại bài < 1 s |
-| 2.4 | Phát hiện tông (K-S + top-2), quãng p5–95, độ khó có giải thích | M | TC-09; hiển thị "câu nào khó" |
-| 2.5 | Wizard lần đầu: mic, mức vào, đo quãng giọng | M | Hoàn tất < 60 s; lưu vào Hồ sơ |
-| 2.6 | Hiệu chuẩn độ trễ + cảnh báo tai nghe/rò loa | M | Offset lưu theo thiết bị |
-| 2.7 | Time-stretch giữ cao độ; tốc độ 0.5–1.25x; dịch tông ±12 | M | Cao độ mẫu đúng ±5¢ khi đổi tốc độ |
+| 2.1 | **Tiền xử lý âm thanh (Signal Conditioning):** Trích kênh giữa `Mid = (L+R)*0.5`, Biquad Bandpass Filter (80Hz–1100Hz), VAD RMS Gate | M | Giảm 60% nhiễu nhạc đệm và tiếng xì trống trên bản thu MP3 |
+| 2.2 | **Mịn hóa Viterbi HMM & Median filter:** Thuật toán phạt nhảy quãng 8 và biến thiên đột ngột trên chuỗi F0 | L | Triệt tiêu hoàn toàn lỗi octave halving/doubling; không còn đường răng cưa vỡ vụn |
+| 2.3 | **Phân đoạn Nốt Nhạc (Note Slicing):** Thuật toán phát hiện Onset & nhóm khung thành `IVocalNoteBar[]` (thời lượng, nốt danh định, độ lệch cents) | L | Trích xuất thành công danh sách Note Blocks vuông vắn; nốt ngân liền mạch; loại bỏ nhiễu < 80ms |
+| 2.4 | **Kết xuất Canvas chuẩn NewTone:** Vẽ khối Note Bar hình chữ nhật bo góc viền phát sáng + đường lượn sóng micro-cents (pitch ribbon) màu hổ phách | M | Giao diện Piano Roll hiển thị trực quan các nốt hát mẫu chuẩn như NewTone; có hit-detection hiệu ứng sáng khi hát đúng |
+| 2.5 | **Web Worker Background Pipeline:** Chuyển toàn bộ giải mã PCM, F0 và phân đoạn sang Web Worker, cập nhật tiến trình 0%–100% không đơ UI | M | UI giữ 60fps khi phân tích; có thanh tiến trình phân tích thực tế kèm thời gian còn lại |
+| 2.6 | **IndexedDB Caching:** Hash file SHA-256 và lưu mảng `IVocalNoteBar[]` vào IndexedDB | S | Mở lại bài cũ hiển thị ngay lập tức < 200ms |
+| 2.7 | **Realtime AudioWorklet:** Thu mic với độ trễ thấp, tắt AEC/NS/AGC, ring buffer cho giọng người hát | L | Sai số realtime ≤ 5¢; trễ hiển thị ≤ 100ms |
+| 2.8 | **Hiệu chuẩn độ trễ (Latency Calibration) & Wizard:** Đo trễ thiết bị và lưu `latencyOffsetMs` | M | Điểm chấm công bằng không bị lệch thời gian khi hát qua Bluetooth/loa ngoài |
+| 2.9 | **Wizard Onboarding lần đầu:** Quyền mic, đo mức tín hiệu vào (VU meter), đo quãng giọng người dùng | M | Hoàn tất < 60 s; lưu vào Hồ sơ giọng hát |
+| 2.10 | **Time-stretch & Dịch tông:** Đổi tốc độ 0.5–1.25x giữ nguyên cao độ; dịch tông bài hát ±12 bán âm | M | Cao độ mẫu đúng ±5¢ khi đổi tốc độ hoặc dịch tông |
 
 ### Phase 3 — Quy trình luyện (1.5–2 tuần)
 | Task | Mô tả | Effort | Tiêu chí hoàn thành |

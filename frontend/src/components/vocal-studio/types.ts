@@ -43,11 +43,16 @@ export interface IUserPitchPoint {
 }
 
 export interface IVocalNoteBar {
+  id: string;
   startTimeMs: number;
   endTimeMs: number;
+  durationMs: number;
   midi: number;
+  exactMidi: number;
   noteName: string;
   solfegeName: string;
+  avgCentsDiff: number;
+  pointsCount: number;
 }
 
 export interface RunwayRenderState {

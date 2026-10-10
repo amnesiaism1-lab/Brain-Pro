@@ -421,6 +421,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     store.setCurrentTimeMs(0);
     renderStateRef.current.durationMs = result.durationMs;
     renderStateRef.current.pitchTrack = result.pitchTrack;
+    renderStateRef.current.noteBars = result.noteBars;
     renderStateRef.current.lowestMidi = result.vocalRange.lowestMidi;
     renderStateRef.current.highestMidi = result.vocalRange.highestMidi;
   };
@@ -452,6 +453,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
       if (preset === 'scale' && cachedDemoResult) {
         store.setAnalysisResult(cachedDemoResult);
         renderStateRef.current.pitchTrack = cachedDemoResult.pitchTrack;
+        renderStateRef.current.noteBars = cachedDemoResult.noteBars;
         renderStateRef.current.durationMs = cachedDemoResult.durationMs;
         store.setActiveTab('analysis');
         store.setIsAnalyzing(false);

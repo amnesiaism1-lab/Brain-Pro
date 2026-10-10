@@ -23,6 +23,19 @@ export interface IReferencePitchPoint {
   isVocal: boolean;
 }
 
+export interface IVocalNoteBar {
+  id: string;
+  startTimeMs: number;
+  endTimeMs: number;
+  durationMs: number;
+  midi: number;
+  exactMidi: number;
+  noteName: string;
+  solfegeName: string;
+  avgCentsDiff: number;
+  pointsCount: number;
+}
+
 export interface IVocalPhrase {
   id: string;
   phraseIndex: number;
@@ -63,6 +76,7 @@ export interface IVocalAnalysisResult {
   audioBuffer: AudioBuffer;
   audioBlobUrl: string;
   pitchTrack: IReferencePitchPoint[];
+  noteBars: IVocalNoteBar[];
   phrases: IVocalPhrase[];
 
   vocalRange: {
@@ -142,11 +156,26 @@ class VocalFileAnalysisService {
 
     notify(25, 'Đang trích xuất đường cao độ vocal bằng thuật toán MPM...');
 
-    // 3. Offline Pitch Extraction using Pitchy MPM
+    // 3. Offline Pitch Extraction using Mid-Channel Conditioning, Bandpass Filtering & MPM
     const sampleRate = audioBuffer.sampleRate;
-    const channelData = audioBuffer.getChannelData(0); // Mono or left channel
-    const totalSamples = channelData.length;
+    const numChannels = audioBuffer.numberOfChannels;
+    const totalSamples = audioBuffer.length;
     const durationMs = Math.round((totalSamples / sampleRate) * 1000);
+
+    // Mid-side conditioning: extract center vocal channel (L+R)*0.5 to attenuate side-panned stereo instruments
+    const rawMonoPcm = new Float32Array(totalSamples);
+    if (numChannels >= 2) {
+      const left = audioBuffer.getChannelData(0);
+      const right = audioBuffer.getChannelData(1);
+      for (let i = 0; i < totalSamples; i++) {
+        rawMonoPcm[i] = (left[i] + right[i]) * 0.5;
+      }
+    } else {
+      rawMonoPcm.set(audioBuffer.getChannelData(0));
+    }
+
+    // Apply vocal bandpass filter (80Hz to 1150Hz) to remove kick drum rumble and cymbal sizzle
+    const filteredPcm = this.applyVocalBandpassFilter(rawMonoPcm, sampleRate);
 
     const bufferSize = 2048;
     const hopSize = 1024; // ~23ms hop step for detailed pitch curve
@@ -156,19 +185,19 @@ class VocalFileAnalysisService {
     const pitchTrack: IReferencePitchPoint[] = [];
     const frameBuffer = new Float32Array(bufferSize);
 
-    // Calculate ambient noise floor
+    // Calculate dynamic ambient noise floor from filtered vocal channel
     let maxRms = 0;
     for (let i = 0; i < totalSamples; i += 2048) {
       let sqSum = 0;
       const chunkLen = Math.min(2048, totalSamples - i);
       for (let j = 0; j < chunkLen; j++) {
-        const val = channelData[i + j];
+        const val = filteredPcm[i + j];
         sqSum += val * val;
       }
       const r = Math.sqrt(sqSum / chunkLen);
       if (r > maxRms) maxRms = r;
     }
-    const dynamicNoiseFloorRms = Math.max(0.008, maxRms * 0.05);
+    const dynamicNoiseFloorRms = Math.max(0.005, maxRms * 0.05);
 
     let sampleCursor = 0;
     const totalFrames = Math.floor((totalSamples - bufferSize) / hopSize);
@@ -177,10 +206,10 @@ class VocalFileAnalysisService {
     while (sampleCursor + bufferSize <= totalSamples) {
       const timeMs = Math.round((sampleCursor / sampleRate) * 1000);
 
-      // Extract window
+      // Extract window from bandpassed signal
       let sumSquares = 0;
       for (let j = 0; j < bufferSize; j++) {
-        const val = channelData[sampleCursor + j];
+        const val = filteredPcm[sampleCursor + j];
         frameBuffer[j] = val;
         sumSquares += val * val;
       }
@@ -188,11 +217,11 @@ class VocalFileAnalysisService {
       const rms = Math.sqrt(sumSquares / bufferSize);
       const db = rms > 0 ? 20 * Math.log10(rms) : -100;
 
-      if (rms >= dynamicNoiseFloorRms && db >= -45) {
+      if (rms >= dynamicNoiseFloorRms && db >= -48) {
         const [rawPitch, clarity] = detector.findPitch(frameBuffer, sampleRate);
 
         // Vocal singing frequencies typically range between 80Hz (E2) and 1150Hz (D6)
-        if (clarity >= 0.62 && rawPitch >= 80 && rawPitch <= 1150) {
+        if (clarity >= 0.60 && rawPitch >= 80 && rawPitch <= 1150) {
           const exactMidi = 12 * Math.log2(rawPitch / 440) + 69;
           const noteInfo = this.midiToNoteInfo(exactMidi);
 
@@ -239,6 +268,12 @@ class VocalFileAnalysisService {
         notify(pct, `Đang phân tích cao độ (${Math.round((timeMs / 1000))}s / ${Math.round(durationMs / 1000)}s)...`);
       }
     }
+
+    // Apply 5-frame median temporal smoothing to eliminate single-frame glitches
+    this.smoothPitchTrack(pitchTrack);
+
+    // Segment into discrete NewTone-style Note Bars
+    const noteBars = this.segmentNoteBars(pitchTrack);
 
     notify(85, 'Đang phân đoạn câu hát và xác định giọng điệu (Key & Scale)...');
 
@@ -329,6 +364,7 @@ class VocalFileAnalysisService {
       audioBuffer,
       audioBlobUrl: blobUrl,
       pitchTrack,
+      noteBars,
       phrases,
       vocalRange: {
         lowestNote: lowestPoint.noteName,
@@ -446,6 +482,180 @@ class VocalFileAnalysisService {
     }
 
     return phrases;
+  }
+
+  /**
+   * 2-stage RC filter: High-pass at 80Hz (cuts kick drum/sub-bass) + Low-pass at 1150Hz (cuts hi-hats/cymbals)
+   * This isolates the fundamental vocal frequency band (E2 to D6) for robust pitch detection.
+   */
+  private applyVocalBandpassFilter(input: Float32Array, sampleRate: number): Float32Array {
+    const output = new Float32Array(input.length);
+    const dt = 1.0 / sampleRate;
+
+    // Highpass stage at 80 Hz
+    const rcHp = 1.0 / (2 * Math.PI * 80);
+    const alphaHp = rcHp / (rcHp + dt);
+
+    // Lowpass stage at 1150 Hz
+    const rcLp = 1.0 / (2 * Math.PI * 1150);
+    const alphaLp = dt / (rcLp + dt);
+
+    let prevHpIn = 0;
+    let prevHpOut = 0;
+    let prevLpOut = 0;
+
+    for (let i = 0; i < input.length; i++) {
+      const x = input[i];
+      // High-pass
+      const hpOut = alphaHp * (prevHpOut + x - prevHpIn);
+      prevHpIn = x;
+      prevHpOut = hpOut;
+
+      // Low-pass
+      const lpOut = prevLpOut + alphaLp * (hpOut - prevLpOut);
+      prevLpOut = lpOut;
+
+      output[i] = lpOut;
+    }
+
+    return output;
+  }
+
+  /**
+   * 5-point median filter on contiguous voiced pitch points to eliminate isolated single-frame glitches
+   */
+  private smoothPitchTrack(pitchTrack: IReferencePitchPoint[]): void {
+    const windowSize = 5;
+    const half = Math.floor(windowSize / 2);
+
+    for (let i = 0; i < pitchTrack.length; i++) {
+      if (!pitchTrack[i].isVocal || pitchTrack[i].midi <= 0) continue;
+
+      const neighborMidis: number[] = [];
+      for (let j = Math.max(0, i - half); j <= Math.min(pitchTrack.length - 1, i + half); j++) {
+        if (pitchTrack[j].isVocal && pitchTrack[j].midi > 0) {
+          neighborMidis.push(pitchTrack[j].midi);
+        }
+      }
+
+      if (neighborMidis.length >= 3) {
+        neighborMidis.sort((a, b) => a - b);
+        const medianMidi = neighborMidis[Math.floor(neighborMidis.length / 2)];
+
+        // If current point differs by > 1.2 semitones from median, snap to median to remove outlier
+        if (Math.abs(pitchTrack[i].midi - medianMidi) > 1.2) {
+          pitchTrack[i].midi = Math.round(medianMidi * 100) / 100;
+          pitchTrack[i].freqHz = Math.round(440 * Math.pow(2, (medianMidi - 69) / 12) * 10) / 10;
+          const noteInfo = this.midiToNoteInfo(medianMidi);
+          pitchTrack[i].noteName = noteInfo.noteName;
+          pitchTrack[i].solfegeName = noteInfo.solfegeName;
+        }
+      }
+    }
+  }
+
+  /**
+   * Segment smoothed pitch timeline into discrete NewTone-style Note Bars
+   */
+  public segmentNoteBars(pitchTrack: IReferencePitchPoint[]): IVocalNoteBar[] {
+    const rawNoteBars: IVocalNoteBar[] = [];
+    let currentCluster: IReferencePitchPoint[] = [];
+    let currentAnchorMidi = 0;
+    let barIndex = 1;
+
+    const flushCluster = () => {
+      if (currentCluster.length < 3) { // Ignore artifacts < ~70ms
+        currentCluster = [];
+        return;
+      }
+
+      const startTimeMs = currentCluster[0].timeMs;
+      const endTimeMs = currentCluster[currentCluster.length - 1].timeMs;
+      const durationMs = endTimeMs - startTimeMs;
+
+      if (durationMs < 75) {
+        currentCluster = [];
+        return;
+      }
+
+      let midiSum = 0;
+      for (const pt of currentCluster) {
+        midiSum += pt.midi;
+      }
+      const exactMidi = midiSum / currentCluster.length;
+      const nominalMidi = Math.round(exactMidi);
+      const noteInfo = this.midiToNoteInfo(nominalMidi);
+      const avgCentsDiff = Math.round((exactMidi - nominalMidi) * 100);
+
+      rawNoteBars.push({
+        id: `note-bar-${barIndex++}`,
+        startTimeMs,
+        endTimeMs,
+        durationMs,
+        midi: nominalMidi,
+        exactMidi: Math.round(exactMidi * 100) / 100,
+        noteName: noteInfo.noteName,
+        solfegeName: noteInfo.solfegeName,
+        avgCentsDiff,
+        pointsCount: currentCluster.length,
+      });
+
+      currentCluster = [];
+    };
+
+    for (let i = 0; i < pitchTrack.length; i++) {
+      const pt = pitchTrack[i];
+
+      if (pt.isVocal && pt.midi > 0) {
+        if (currentCluster.length === 0) {
+          currentCluster.push(pt);
+          currentAnchorMidi = Math.round(pt.midi);
+        } else {
+          // If pitch drifts away from current anchor note by >= 0.85 semitone, create note boundary
+          const diff = Math.abs(pt.midi - currentAnchorMidi);
+          if (diff >= 0.85) {
+            flushCluster();
+            currentCluster.push(pt);
+            currentAnchorMidi = Math.round(pt.midi);
+          } else {
+            currentCluster.push(pt);
+          }
+        }
+      } else {
+        if (currentCluster.length > 0) {
+          flushCluster();
+        }
+      }
+    }
+
+    if (currentCluster.length > 0) {
+      flushCluster();
+    }
+
+    // Merge adjacent note bars that share the same nominal MIDI separated by micro-gap < 120ms
+    const mergedBars: IVocalNoteBar[] = [];
+    for (let i = 0; i < rawNoteBars.length; i++) {
+      const current = rawNoteBars[i];
+      if (mergedBars.length === 0) {
+        mergedBars.push(current);
+        continue;
+      }
+
+      const prev = mergedBars[mergedBars.length - 1];
+      const gapMs = current.startTimeMs - prev.endTimeMs;
+
+      if (prev.midi === current.midi && gapMs <= 120) {
+        prev.endTimeMs = current.endTimeMs;
+        prev.durationMs = prev.endTimeMs - prev.startTimeMs;
+        prev.pointsCount += current.pointsCount;
+        prev.exactMidi = Math.round(((prev.exactMidi + current.exactMidi) / 2) * 100) / 100;
+        prev.avgCentsDiff = Math.round((prev.exactMidi - prev.midi) * 100);
+      } else {
+        mergedBars.push(current);
+      }
+    }
+
+    return mergedBars;
   }
 
   /**
