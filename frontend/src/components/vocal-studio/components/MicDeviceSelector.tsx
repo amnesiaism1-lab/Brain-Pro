@@ -75,43 +75,56 @@ export const MicDeviceSelector: React.FC<MicDeviceSelectorProps> = ({
   const deviceLabel = activeDevice?.label || (devices.length > 0 ? 'Microphone mặc định' : 'Microphone');
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="w-full space-y-2" ref={dropdownRef}>
       <button
         type="button"
         onClick={() => {
           fetchDevices();
           setIsOpen(!isOpen);
         }}
-        className="px-2.5 py-1.5 rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:text-white hover:border-slate-700 flex items-center gap-1.5 text-xs font-semibold transition"
-        title="Chọn thiết bị Micro"
+        className="w-full px-3 py-2.5 rounded-xl border border-slate-800 bg-slate-900/90 text-slate-200 hover:text-white hover:border-slate-700 flex items-center justify-between text-xs font-semibold transition shadow-sm group"
+        title="Chọn thiết bị Microphone"
       >
-        <Mic className="w-3.5 h-3.5 text-sky-400" />
-        <span className="max-w-[120px] truncate">{deviceLabel}</span>
-        <ChevronDown className="w-3 h-3 text-slate-400" />
+        <div className="flex items-center gap-2 min-w-0 pr-2">
+          <Mic className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+          <span className="truncate text-left">{deviceLabel}</span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[10px] text-slate-400 font-mono">
+            {devices.length > 0 ? `${devices.length} mic` : ''}
+          </span>
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+              isOpen ? 'rotate-180 text-sky-400' : 'group-hover:text-slate-300'
+            }`}
+          />
+        </div>
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 bottom-full mb-2 w-72 p-2 rounded-2xl bg-slate-950 border border-slate-700 shadow-2xl z-50 text-xs animate-in fade-in zoom-in-95">
-          <div className="px-2 py-1.5 text-[10px] font-mono uppercase tracking-wider text-slate-400 border-b border-slate-800 flex items-center justify-between">
-            <span>Thiết Bị Micro Thu Âm</span>
+        <div className="w-full p-2.5 rounded-2xl bg-slate-900/95 border border-slate-700 shadow-xl space-y-2 animate-in fade-in duration-150">
+          <div className="px-1 text-[10px] font-mono uppercase tracking-wider text-slate-400 flex items-center justify-between">
+            <span>Danh Sách Micro Thu Âm</span>
             <button
               type="button"
               onClick={fetchDevices}
-              className="hover:text-white flex items-center gap-1"
-              title="Làm mới danh sách"
+              className="text-sky-400 hover:text-sky-300 flex items-center gap-1 text-[10px] font-sans transition"
+              title="Quét lại các cổng micro"
             >
               <RefreshCw className="w-2.5 h-2.5" />
+              <span>Quét lại</span>
             </button>
           </div>
 
-          <div className="max-h-48 overflow-y-auto py-1 space-y-0.5 custom-scrollbar">
+          <div className="max-h-40 overflow-y-auto space-y-1 custom-scrollbar pr-0.5">
             {devices.length === 0 ? (
-              <div className="p-2 text-slate-500 italic text-center">
-                Chưa tìm thấy micro. Hãy kiểm tra quyền truy cập.
+              <div className="p-2.5 text-slate-400 italic text-center text-[11px] bg-slate-950/60 rounded-xl">
+                Chưa tìm thấy micro. Hãy kiểm tra quyền truy cập micro trên trình duyệt.
               </div>
             ) : (
               devices.map((dev, i) => {
-                const isSelected = dev.deviceId === selectedDeviceId || (!selectedDeviceId && i === 0);
+                const isSelected =
+                  dev.deviceId === selectedDeviceId || (!selectedDeviceId && i === 0);
                 return (
                   <button
                     key={dev.deviceId || i}
@@ -119,12 +132,16 @@ export const MicDeviceSelector: React.FC<MicDeviceSelectorProps> = ({
                     onClick={() => handleSelectDevice(dev.deviceId)}
                     className={`w-full p-2 rounded-xl text-left flex items-center justify-between gap-2 transition ${
                       isSelected
-                        ? 'bg-sky-500/15 text-sky-300 font-bold border border-sky-500/30'
-                        : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                        ? 'bg-sky-500/20 text-sky-300 font-bold border border-sky-500/40'
+                        : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                     }`}
                   >
-                    <span className="truncate">{dev.label || `Microphone ${i + 1}`}</span>
-                    {isSelected && <Check className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
+                    <span className="truncate text-xs">
+                      {dev.label || `Microphone ${i + 1}`}
+                    </span>
+                    {isSelected && (
+                      <Check className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                    )}
                   </button>
                 );
               })
@@ -132,18 +149,24 @@ export const MicDeviceSelector: React.FC<MicDeviceSelectorProps> = ({
           </div>
 
           {/* Action Tools */}
-          <div className="pt-2 border-t border-slate-800 space-y-1">
+          <div className="pt-2 border-t border-slate-800 space-y-1.5">
             <button
               type="button"
               onClick={handleCalibrate}
               disabled={isCalibrating}
-              className="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center justify-between transition"
+              className="w-full px-2.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-semibold flex items-center justify-between transition border border-slate-800"
             >
-              <div className="flex items-center gap-1.5">
-                <Sliders className="w-3 h-3 text-sky-400" />
-                <span>{isCalibrating ? 'Đang đo tiếng ồn...' : 'Hiệu chuẩn tạp âm (1.5s)'}</span>
+              <div className="flex items-center gap-2">
+                <Sliders className="w-3.5 h-3.5 text-sky-400" />
+                <span>
+                  {isCalibrating ? 'Đang đo tiếng ồn...' : 'Hiệu chuẩn tạp âm (1.5s)'}
+                </span>
               </div>
-              {calibrationResult && <span className="text-[10px] text-emerald-400">{calibrationResult}</span>}
+              {calibrationResult && (
+                <span className="text-[10px] text-emerald-400 font-medium truncate max-w-[150px]">
+                  {calibrationResult}
+                </span>
+              )}
             </button>
 
             {onOpenPreflightModal && (
@@ -153,10 +176,10 @@ export const MicDeviceSelector: React.FC<MicDeviceSelectorProps> = ({
                   setIsOpen(false);
                   onOpenPreflightModal();
                 }}
-                className="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1.5 transition"
+                className="w-full px-2.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-semibold flex items-center gap-2 transition border border-slate-800"
               >
-                <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                <span>Mở Bảng Kiểm Tra &amp; Thử Giọng Toàn Diện</span>
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Bảng Kiểm Tra &amp; Thử Giọng Toàn Diện</span>
               </button>
             )}
           </div>
