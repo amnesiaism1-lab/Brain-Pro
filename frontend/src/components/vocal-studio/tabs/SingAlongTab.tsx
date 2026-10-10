@@ -115,7 +115,7 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   onToggleSnapToScale,
   transposeSemitones,
   onChangeTranspose,
-  octaveConvention = 'fl_studio',
+  octaveConvention = 'international',
   onChangeOctaveConvention,
   toleranceCents,
   onChangeTolerance,

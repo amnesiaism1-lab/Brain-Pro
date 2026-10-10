@@ -95,7 +95,7 @@ export const TransportBar: React.FC<TransportBarProps> = ({
   onToggleSnapToScale,
   transposeSemitones,
   onChangeTranspose,
-  octaveConvention = 'fl_studio',
+  octaveConvention = 'international',
   onChangeOctaveConvention,
   toleranceCents,
   onChangeTolerance,

@@ -50,7 +50,7 @@ export const ScaleSelectorPopover: React.FC<ScaleSelectorPopoverProps> = ({
   onToggleSnapToScale,
   transposeSemitones,
   onChangeTranspose,
-  octaveConvention = 'fl_studio',
+  octaveConvention = 'international',
   onChangeOctaveConvention,
 }) => {
   const [isOpen, setIsOpen] = useState(false);

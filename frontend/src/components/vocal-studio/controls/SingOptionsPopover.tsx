@@ -55,7 +55,7 @@ export const SingOptionsPopover: React.FC<SingOptionsPopoverProps> = ({
   onChangeLatencyOffsetMs,
   isWindowLocked,
   onToggleWindowLock,
-  octaveConvention = 'fl_studio',
+  octaveConvention = 'international',
   onChangeOctaveConvention,
 }) => {
   const [isOpen, setIsOpen] = useState(false);

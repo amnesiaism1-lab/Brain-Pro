@@ -47,7 +47,7 @@ function loadSavedPreferences(): VocalStudioPreferences {
     selectedKeyOverride: null,
     snapToScale: false,
     transposeSemitones: 0,
-    octaveConvention: 'fl_studio',
+    octaveConvention: 'international',
   };
 
   if (typeof window === 'undefined') return defaults;
@@ -55,9 +55,11 @@ function loadSavedPreferences(): VocalStudioPreferences {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaults;
     const parsed = JSON.parse(raw);
+    const hasExplicitChoice = localStorage.getItem('be_vocal_studio_octave_explicit') === 'true';
     return {
       ...defaults,
       ...parsed,
+      octaveConvention: hasExplicitChoice && parsed.octaveConvention ? parsed.octaveConvention : 'international',
     };
   } catch {
     return defaults;
@@ -249,6 +251,9 @@ export const useVocalStudioStore = create<VocalStudioState>((set) => ({
   },
 
   setOctaveConvention: (octaveConvention) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('be_vocal_studio_octave_explicit', 'true');
+    }
     savePreferences({ octaveConvention });
     set({ octaveConvention });
   },
