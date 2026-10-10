@@ -8,6 +8,11 @@ import {
 } from '../components/vocal-studio/types';
 import { IVocalAnalysisResult, IVocalPhrase } from '../services/vocalFileAnalysisService';
 
+export interface ISelectedKeyOverride {
+  root: string;
+  mode: 'major' | 'minor';
+}
+
 export interface VocalStudioPreferences {
   toleranceCents: TuningTolerance;
   targetMode: TargetPitchMode;
@@ -19,6 +24,9 @@ export interface VocalStudioPreferences {
   concertA4Hz: number;
   latencyOffsetMs: number;
   isWindowLocked: boolean;
+  selectedKeyOverride: ISelectedKeyOverride | null;
+  snapToScale: boolean;
+  transposeSemitones: number;
 }
 
 const STORAGE_KEY = 'be_vocal_studio_prefs';
@@ -35,6 +43,9 @@ function loadSavedPreferences(): VocalStudioPreferences {
     concertA4Hz: 440,
     latencyOffsetMs: 0,
     isWindowLocked: false,
+    selectedKeyOverride: null,
+    snapToScale: false,
+    transposeSemitones: 0,
   };
 
   if (typeof window === 'undefined') return defaults;
@@ -108,6 +119,9 @@ export interface VocalStudioState extends VocalStudioPreferences {
   setConcertA4Hz: (val: number) => void;
   setLatencyOffsetMs: (val: number) => void;
   setIsWindowLocked: (val: boolean) => void;
+  setSelectedKeyOverride: (key: ISelectedKeyOverride | null) => void;
+  setSnapToScale: (val: boolean) => void;
+  setTransposeSemitones: (val: number) => void;
 
   setAnalysisResult: (res: IVocalAnalysisResult | null) => void;
   setIsAnalyzing: (val: boolean) => void;
@@ -214,6 +228,21 @@ export const useVocalStudioStore = create<VocalStudioState>((set) => ({
   setIsWindowLocked: (isWindowLocked) => {
     savePreferences({ isWindowLocked });
     set({ isWindowLocked });
+  },
+
+  setSelectedKeyOverride: (selectedKeyOverride) => {
+    savePreferences({ selectedKeyOverride });
+    set({ selectedKeyOverride });
+  },
+
+  setSnapToScale: (snapToScale) => {
+    savePreferences({ snapToScale });
+    set({ snapToScale });
+  },
+
+  setTransposeSemitones: (transposeSemitones) => {
+    savePreferences({ transposeSemitones });
+    set({ transposeSemitones });
   },
 
   setAnalysisResult: (analysisResult) => set({ analysisResult }),

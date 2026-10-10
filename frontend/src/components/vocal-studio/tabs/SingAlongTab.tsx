@@ -17,7 +17,8 @@ import { MiniKeyboardScale } from '../components/MiniKeyboardScale';
 import { TransportBar } from '../controls/TransportBar';
 import { PhraseNavigatorDeck } from '../components/PhraseNavigatorDeck';
 import { PitchFeedbackDetail } from '../utils/vocalHelpers';
-import { midiToNoteInfo } from '@brain-exercises/shared';
+import { midiToNoteInfo, NOTE_NAMES } from '@brain-exercises/shared';
+import { ISelectedKeyOverride } from '../../../store/vocalStudioStore';
 
 interface SingAlongTabProps {
   analysisResult: IVocalAnalysisResult;
@@ -48,6 +49,14 @@ interface SingAlongTabProps {
   pitchFeedback: PitchFeedbackDetail;
   currentRefPoint: IReferencePitchPoint | null;
   userReading: IVocalPitchReading | null;
+
+  // Scale and Transpose
+  selectedKeyOverride: ISelectedKeyOverride | null;
+  onSelectKeyOverride: (key: ISelectedKeyOverride | null) => void;
+  snapToScale: boolean;
+  onToggleSnapToScale: (val: boolean) => void;
+  transposeSemitones: number;
+  onChangeTranspose: (semitones: number) => void;
 
   // Preferences & Options
   toleranceCents: TuningTolerance;
@@ -98,6 +107,12 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   pitchFeedback,
   currentRefPoint,
   userReading,
+  selectedKeyOverride,
+  onSelectKeyOverride,
+  snapToScale,
+  onToggleSnapToScale,
+  transposeSemitones,
+  onChangeTranspose,
   toleranceCents,
   onChangeTolerance,
   targetMode,
@@ -117,6 +132,21 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   activePhrase,
 }) => {
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
+
+  const activeScaleNotes = React.useMemo(() => {
+    if (selectedKeyOverride) {
+      const root = selectedKeyOverride.root;
+      const mode = selectedKeyOverride.mode;
+      const rootIdx = (NOTE_NAMES as readonly string[]).indexOf(root);
+      if (rootIdx >= 0) {
+        const majorIntervals = [0, 2, 4, 5, 7, 9, 11];
+        const minorIntervals = [0, 2, 3, 5, 7, 8, 10];
+        const intervals = mode === 'major' ? majorIntervals : minorIntervals;
+        return intervals.map((i) => NOTE_NAMES[(rootIdx + i) % 12]);
+      }
+    }
+    return analysisResult.estimatedKey?.scaleNotes || [];
+  }, [selectedKeyOverride, analysisResult]);
 
   const currentTargetOctave =
     currentRefPoint && currentRefPoint.isVocal && currentRefPoint.midi > 0
@@ -213,7 +243,7 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
 
       {/* 2. MINI-KEYBOARD CHORDS & AUDITORY PREVIEW (Task 1.5) */}
       <MiniKeyboardScale
-        scaleNotes={analysisResult.estimatedKey?.scaleNotes || []}
+        scaleNotes={activeScaleNotes}
         activeTargetNote={currentRefPoint?.isVocal ? currentRefPoint.noteName : null}
         activeUserNote={userReading?.isSinging ? userReading.noteName : null}
         currentOctave={currentTargetOctave}
@@ -236,6 +266,14 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         isLoopingActive={isLoopingActive}
         onToggleLoop={onToggleLoop}
         onViewReport={onViewReport}
+        selectedKeyOverride={selectedKeyOverride}
+        onSelectKeyOverride={onSelectKeyOverride}
+        estimatedKey={analysisResult.estimatedKey}
+        topKeyCandidates={analysisResult.topKeyCandidates}
+        snapToScale={snapToScale}
+        onToggleSnapToScale={onToggleSnapToScale}
+        transposeSemitones={transposeSemitones}
+        onChangeTranspose={onChangeTranspose}
         toleranceCents={toleranceCents}
         onChangeTolerance={onChangeTolerance}
         targetMode={targetMode}

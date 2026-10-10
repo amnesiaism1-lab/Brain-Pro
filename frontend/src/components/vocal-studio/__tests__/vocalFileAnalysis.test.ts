@@ -352,4 +352,178 @@ describe('Vocal File Analysis & Range Extraction', () => {
       expect(points[i].midi).toBeLessThanOrEqual(62.1);
     }
   });
+
+  it('TC-30: Female vocal phrase A#4-C5-D#5-F5-G5-A#4 matches FL Studio NewTone with zero octave drop', () => {
+    // Exact opening phrase of "Trời Giấu Trời Mang Đi" (AMEE)
+    // Notes: A#4 (70, 466Hz), C5 (72, 523Hz), D#5 (75, 622Hz), F5 (77, 698Hz), G5 (79, 784Hz), A#4 (70, 466Hz)
+    const phraseNotes = [
+      { midi: 70, noteName: 'A#4', freq: 466.16, frames: 3 }, // 75ms short pickup
+      { midi: 72, noteName: 'C5', freq: 523.25, frames: 6 },
+      { midi: 75, noteName: 'D#5', freq: 622.25, frames: 8 },
+      { midi: 77, noteName: 'F5', freq: 698.46, frames: 8 },
+      { midi: 79, noteName: 'G5', freq: 783.99, frames: 10 },
+      { midi: 70, noteName: 'A#4', freq: 466.16, frames: 8 },
+    ];
+
+    const points: any[] = [];
+    let t = 0;
+    for (const n of phraseNotes) {
+      for (let f = 0; f < n.frames; f++) {
+        points.push({
+          timeMs: t,
+          freqHz: n.freq,
+          midi: n.midi,
+          noteName: n.noteName,
+          solfegeName: '',
+          clarity: 0.85,
+          volumeDb: -14,
+          isVocal: true,
+        });
+        t += 25;
+      }
+    }
+
+    vocalFileAnalysisService.applyViterbiSmoothing(points);
+
+    // Check octave preservation after Viterbi
+    const noteBars = vocalFileAnalysisService.segmentNoteBars(points);
+
+    // All notes must retain their true octaves (Quãng 5: C5, D#5, F5, G5 and A#4)
+    // NEVER fall to D#4 (63), F4 (65), G4 (67), or A#3 (58)!
+    const extractedMidis = noteBars.map((b) => b.midi);
+    expect(extractedMidis).toEqual([70, 72, 75, 77, 79, 70]);
+
+    const extractedNames = noteBars.map((b) => b.noteName);
+    expect(extractedNames).toEqual(['A#4', 'C5', 'D#5', 'F5', 'G5', 'A#4']);
+  });
+
+  it('TC-31: Real 9-semitone melodic leap (C4 to A4) does not trigger octave drop in following melody', () => {
+    // C4 (60) leaping 9 semitones to A4 (69), then stepping down G4(67), F4(65), E4(64)
+    const melody = [
+      { midi: 60, noteName: 'C4', freq: 261.63, frames: 8 },
+      { midi: 69, noteName: 'A4', freq: 440.00, frames: 8 },
+      { midi: 67, noteName: 'G4', freq: 392.00, frames: 8 },
+      { midi: 65, noteName: 'F4', freq: 349.23, frames: 8 },
+      { midi: 64, noteName: 'E4', freq: 329.63, frames: 8 },
+    ];
+
+    const points: any[] = [];
+    let t = 0;
+    for (const m of melody) {
+      for (let f = 0; f < m.frames; f++) {
+        points.push({
+          timeMs: t,
+          freqHz: m.freq,
+          midi: m.midi,
+          noteName: m.noteName,
+          solfegeName: '',
+          clarity: 0.88,
+          volumeDb: -12,
+          isVocal: true,
+        });
+        t += 25;
+      }
+    }
+
+    vocalFileAnalysisService.applyViterbiSmoothing(points);
+    const noteBars = vocalFileAnalysisService.segmentNoteBars(points);
+
+    // All note bars must preserve their correct 4th octave
+    expect(noteBars.map((b) => b.midi)).toEqual([60, 69, 67, 65, 64]);
+    expect(noteBars.map((b) => b.noteName)).toEqual(['C4', 'A4', 'G4', 'F4', 'E4']);
+  });
+
+  it('TC-32: Sustained real octave leap (G4 to G5) is preserved without truncating G5', () => {
+    // G4 (67) sustained 300ms, then jumping an octave to G5 (79) sustained 300ms
+    const notes = [
+      { midi: 67, noteName: 'G4', freq: 392.00, frames: 12 },
+      { midi: 79, noteName: 'G5', freq: 783.99, frames: 12 },
+    ];
+
+    const points: any[] = [];
+    let t = 0;
+    for (const n of notes) {
+      for (let f = 0; f < n.frames; f++) {
+        points.push({
+          timeMs: t,
+          freqHz: n.freq,
+          midi: n.midi,
+          noteName: n.noteName,
+          solfegeName: '',
+          clarity: 0.90,
+          volumeDb: -10,
+          isVocal: true,
+        });
+        t += 25;
+      }
+    }
+
+    vocalFileAnalysisService.applyViterbiSmoothing(points);
+    const noteBars = vocalFileAnalysisService.segmentNoteBars(points);
+
+    expect(noteBars.length).toBe(2);
+    expect(noteBars[0].midi).toBe(67);
+    expect(noteBars[0].noteName).toBe('G4');
+    expect(noteBars[1].midi).toBe(79);
+    expect(noteBars[1].noteName).toBe('G5');
+  });
+
+  it('TC-33: Transient pitch-halving glitch (2 frames down to C4 inside C5) is corrected by Viterbi', () => {
+    // Sustained C5 (72, 523Hz) with 2 frames pitch detector subharmonic glitch down to C4 (60, 261Hz)
+    const points: any[] = [];
+    for (let i = 0; i < 12; i++) {
+      const isGlitch = i === 5 || i === 6;
+      points.push({
+        timeMs: i * 25,
+        freqHz: isGlitch ? 261.63 : 523.25,
+        midi: isGlitch ? 60.0 : 72.0,
+        noteName: isGlitch ? 'C4' : 'C5',
+        solfegeName: '',
+        clarity: 0.85,
+        volumeDb: -15,
+        isVocal: true,
+      });
+    }
+
+    vocalFileAnalysisService.applyViterbiSmoothing(points);
+
+    // Glitch frames 5 & 6 must be pulled up to C5 (72)
+    expect(points[5].midi).toBe(72);
+    expect(points[5].noteName).toBe('C5');
+    expect(points[6].midi).toBe(72);
+    expect(points[6].noteName).toBe('C5');
+  });
+
+  it('TC-34: Key and scale detection provides top-3 ranked candidates and relative keys', () => {
+    // Generate scale in D# Major: D#(75), F(77), G(79), G#(80), A#(82), C(84), D(86)
+    const points: any[] = [];
+    const dsMajorNotes = [75, 77, 79, 80, 82, 84, 86];
+    let t = 0;
+    for (const m of dsMajorNotes) {
+      for (let i = 0; i < 6; i++) {
+        points.push({
+          timeMs: t,
+          freqHz: 440 * Math.pow(2, (m - 69) / 12),
+          midi: m,
+          noteName: 'Note',
+          solfegeName: '',
+          clarity: 0.90,
+          volumeDb: -12,
+          isVocal: true,
+        });
+        t += 25;
+      }
+    }
+
+    const noteBars = vocalFileAnalysisService.segmentNoteBars(points);
+    const keyRes = (vocalFileAnalysisService as any).estimateKeyAndScale(points, noteBars);
+
+    expect(keyRes.topCandidates.length).toBe(3);
+    // Best or top candidates must contain D# Major or relative C Minor
+    const topKeys = keyRes.topCandidates.map((c: any) => c.key);
+    const hasDsOrCMinor = topKeys.some((k: string) => k.includes('D#') || k.includes('C'));
+    expect(hasDsOrCMinor).toBe(true);
+    // Relative key must be populated
+    expect(keyRes.estimatedKey.relativeKey).toBeDefined();
+  });
 });

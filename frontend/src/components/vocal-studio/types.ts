@@ -75,4 +75,8 @@ export interface RunwayRenderState {
   isWindowLocked?: boolean;
   noteBars?: IVocalNoteBar[];
   latencyOffsetMs?: number;
+  scaleNotes?: string[];
+  transposeSemitones?: number;
+  snapToScale?: boolean;
+  selectedKeyName?: string;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Mic2,
   X,
@@ -37,7 +37,7 @@ import { useVocalStudioStore } from '../../store/vocalStudioStore';
 import { AnalysisTab } from './tabs/AnalysisTab';
 import { SingAlongTab } from './tabs/SingAlongTab';
 import { ReportTab } from './tabs/ReportTab';
-import { evaluateCentsDeviation } from '@brain-exercises/shared';
+import { evaluateCentsDeviation, NOTE_NAMES, SOLFEGE_NAMES } from '@brain-exercises/shared';
 
 interface VocalStudioProps {
   isOpen: boolean;
@@ -113,6 +113,32 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     };
   }, [isOpen, onClose]);
 
+  const activeScaleNotes = useMemo(() => {
+    if (store.selectedKeyOverride) {
+      const root = store.selectedKeyOverride.root;
+      const mode = store.selectedKeyOverride.mode;
+      const rootIdx = (NOTE_NAMES as readonly string[]).indexOf(root);
+      if (rootIdx >= 0) {
+        const majorIntervals = [0, 2, 4, 5, 7, 9, 11];
+        const minorIntervals = [0, 2, 3, 5, 7, 8, 10];
+        const intervals = mode === 'major' ? majorIntervals : minorIntervals;
+        return intervals.map((i) => NOTE_NAMES[(rootIdx + i) % 12]);
+      }
+    }
+    return store.analysisResult?.estimatedKey?.scaleNotes || ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  }, [store.selectedKeyOverride, store.analysisResult]);
+
+  const activeKeyName = useMemo(() => {
+    if (store.selectedKeyOverride) {
+      const root = store.selectedKeyOverride.root;
+      const mode = store.selectedKeyOverride.mode;
+      const rootIdx = (NOTE_NAMES as readonly string[]).indexOf(root);
+      const solfege = rootIdx >= 0 ? SOLFEGE_NAMES[rootIdx] : root;
+      return mode === 'major' ? `${solfege} Trưởng (${root} Major)` : `${solfege} Thứ (${root} Minor)`;
+    }
+    return store.analysisResult?.estimatedKey?.key || 'Đô Trưởng (C Major)';
+  }, [store.selectedKeyOverride, store.analysisResult]);
+
   // Keep render state ref updated with store settings
   useEffect(() => {
     renderStateRef.current.smartOctaveFold = store.smartOctaveFold;
@@ -123,6 +149,10 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     renderStateRef.current.isLoopingActive = store.isLoopingActive;
     renderStateRef.current.loopStartMs = store.loopStartMs;
     renderStateRef.current.loopEndMs = store.loopEndMs;
+    renderStateRef.current.scaleNotes = activeScaleNotes;
+    renderStateRef.current.transposeSemitones = store.transposeSemitones;
+    renderStateRef.current.snapToScale = store.snapToScale;
+    renderStateRef.current.selectedKeyName = activeKeyName;
   }, [
     store.smartOctaveFold,
     store.toleranceCents,
@@ -132,6 +162,10 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     store.isLoopingActive,
     store.loopStartMs,
     store.loopEndMs,
+    store.transposeSemitones,
+    store.snapToScale,
+    activeScaleNotes,
+    activeKeyName,
   ]);
 
   // 60fps Playhead Clock & A-B Loop (Task 0.4)
@@ -185,13 +219,30 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
         effectiveMs
       );
 
-      // Compute cents diff with smart octave fold
+      // Compute cents diff with smart octave fold and transpose
       let cents = 0;
       let inTune = false;
       const isTargetVocal = Boolean(refPt && refPt.isVocal && refPt.midi > 0);
 
       if (reading.isSinging && reading.freqHz > 0 && isTargetVocal && refPt) {
-        const evalResult = evaluateCentsDeviation(reading.freqHz, refPt.midi, {
+        let targetMidi = refPt.midi + (store.transposeSemitones || 0);
+
+        // Snap to Scale if enabled
+        if (store.snapToScale && activeScaleNotes.length > 0) {
+          const semi = ((Math.round(targetMidi) % 12) + 12) % 12;
+          const noteName = NOTE_NAMES[semi];
+          if (!activeScaleNotes.includes(noteName)) {
+            for (let shift = -1; shift <= 1; shift += 2) {
+              const testSemi = ((semi + shift) % 12 + 12) % 12;
+              if (activeScaleNotes.includes(NOTE_NAMES[testSemi])) {
+                targetMidi = Math.round(targetMidi) + shift;
+                break;
+              }
+            }
+          }
+        }
+
+        const evalResult = evaluateCentsDeviation(reading.freqHz, targetMidi, {
           smartOctaveFold: renderStateRef.current.smartOctaveFold,
           a4: store.concertA4Hz,
         });
@@ -650,6 +701,12 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             pitchFeedback={pitchFeedback}
             currentRefPoint={currentRefPoint}
             userReading={userReading}
+            selectedKeyOverride={store.selectedKeyOverride}
+            onSelectKeyOverride={store.setSelectedKeyOverride}
+            snapToScale={store.snapToScale}
+            onToggleSnapToScale={store.setSnapToScale}
+            transposeSemitones={store.transposeSemitones}
+            onChangeTranspose={store.setTransposeSemitones}
             toleranceCents={store.toleranceCents}
             onChangeTolerance={store.setToleranceCents}
             targetMode={store.targetMode}

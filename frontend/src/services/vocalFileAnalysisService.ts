@@ -90,13 +90,8 @@ export interface IVocalAnalysisResult {
     recommendedVoiceType: 'Bass' | 'Baritone' | 'Tenor' | 'Alto' | 'Soprano';
   };
 
-  estimatedKey: {
-    key: string;              // e.g. "Đô Trưởng (C Major)"
-    root: string;             // "C"
-    mode: 'major' | 'minor';
-    confidence: number;       // 0..1
-    scaleNotes: string[];     // ["C", "D", "E", "F", "G", "A", "B"]
-  };
+  estimatedKey: IKeyCandidate;
+  topKeyCandidates?: IKeyCandidate[];
 
   vocalMetrics: {
     singingTimeMs: number;
@@ -109,6 +104,15 @@ export interface IVocalAnalysisResult {
   };
 
   practicePlan: IVocalPracticePlan;
+}
+
+export interface IKeyCandidate {
+  key: string;              // e.g. "Đô Trưởng (C Major)"
+  root: string;             // "C"
+  mode: 'major' | 'minor';
+  confidence: number;       // 0..1
+  scaleNotes: string[];     // ["C", "D", "E", "F", "G", "A", "B"]
+  relativeKey?: string;     // e.g. "La Thứ (A Minor)"
 }
 
 // Krumhansl-Kessler key profile weights for key determination
@@ -226,9 +230,9 @@ class VocalFileAnalysisService {
       if (rms >= dynamicNoiseFloorRms && db >= -46) {
         const [rawPitch, clarity] = detector.findPitch(frameBuffer, sampleRate);
 
-        // Vocal singing frequencies strictly between 95Hz (F#2) and 880Hz (A5)
+        // Vocal singing frequencies between 75Hz (D#2/E2) and 1250Hz (D#6)
         // With clarity >= 0.30, real singing in mixed MP3 accompaniment is reliably captured!
-        if (clarity >= 0.30 && rawPitch >= 95 && rawPitch <= 880) {
+        if (clarity >= 0.30 && rawPitch >= 75 && rawPitch <= 1250) {
           const exactMidi = 12 * Math.log2(rawPitch / 440) + 69;
           const noteInfo = this.midiToNoteInfo(exactMidi);
 
@@ -321,7 +325,9 @@ class VocalFileAnalysisService {
     const recommendedVoiceType = this.classifyVoiceType(lowestPoint.freqHz, highestPoint.freqHz);
 
     // 5. Key & Scale Estimation using Pitch Class Chroma Histogram
-    const estimatedKey = this.estimateKeyAndScale(vocalPoints);
+    const keyAnalysis = this.estimateKeyAndScale(vocalPoints, noteBars);
+    const estimatedKey = keyAnalysis.estimatedKey;
+    const topKeyCandidates = keyAnalysis.topCandidates;
 
     notify(92, 'Đang phân đoạn câu hát và tối ưu lộ trình luyện tập...');
 
@@ -391,6 +397,7 @@ class VocalFileAnalysisService {
         recommendedVoiceType,
       },
       estimatedKey,
+      topKeyCandidates,
       vocalMetrics: {
         singingTimeMs: Math.round(singingTimeMs),
         singingRatioPercent,
@@ -499,12 +506,14 @@ class VocalFileAnalysisService {
   }
 
   /**
-   * 4th-Order Cascaded Butterworth Biquad Bandpass Filter (95Hz to 880Hz, -24dB/octave slope)
-   * Drastically attenuates kick drums (<95Hz) and cymbal sizzle / synths (>880Hz),
-   * strictly isolating human singing vocal fundamentals (F#2 to A5).
+   * 4th-Order Cascaded Butterworth Biquad Bandpass Filter (80Hz to 1300Hz, -24dB/octave slope)
+   * Drastically attenuates kick drums (<80Hz) and cymbal sizzle / synths (>1300Hz),
+   * strictly isolating human singing vocal fundamentals (E2 to D#6).
+   * Uses 2 cascaded biquads with conjugate Butterworth pole Q-factors (0.5412 and 1.3066)
+   * for maximally flat passband and steep -24dB/octave roll-off.
    */
   private applyVocalBandpassFilter(input: Float32Array, sampleRate: number): Float32Array {
-    const createBiquadHPF = (fc: number, fs: number, Q = 0.7071) => {
+    const createBiquadHPF = (fc: number, fs: number, Q: number) => {
       const w0 = (2 * Math.PI * fc) / fs;
       const alpha = Math.sin(w0) / (2 * Q);
       const cosw0 = Math.cos(w0);
@@ -518,7 +527,7 @@ class VocalFileAnalysisService {
       };
     };
 
-    const createBiquadLPF = (fc: number, fs: number, Q = 0.7071) => {
+    const createBiquadLPF = (fc: number, fs: number, Q: number) => {
       const w0 = (2 * Math.PI * fc) / fs;
       const alpha = Math.sin(w0) / (2 * Q);
       const cosw0 = Math.cos(w0);
@@ -548,14 +557,16 @@ class VocalFileAnalysisService {
       return out;
     };
 
-    // Cascade: 2 HPF stages at 95Hz (4th order = -24dB/oct) + 2 LPF stages at 880Hz (4th order = -24dB/oct)
-    const hpfCoeffs = createBiquadHPF(95, sampleRate);
-    const lpfCoeffs = createBiquadLPF(880, sampleRate);
+    // 4th-order Butterworth cascade: Section 1 Q=0.5412, Section 2 Q=1.3066
+    const hpf1 = createBiquadHPF(80, sampleRate, 0.5412);
+    const hpf2 = createBiquadHPF(80, sampleRate, 1.3066);
+    const lpf1 = createBiquadLPF(1300, sampleRate, 0.5412);
+    const lpf2 = createBiquadLPF(1300, sampleRate, 1.3066);
 
-    const s1 = processStage(input, hpfCoeffs);
-    const s2 = processStage(s1, hpfCoeffs);
-    const s3 = processStage(s2, lpfCoeffs);
-    return processStage(s3, lpfCoeffs);
+    const s1 = processStage(input, hpf1);
+    const s2 = processStage(s1, hpf2);
+    const s3 = processStage(s2, lpf1);
+    return processStage(s3, lpf2);
   }
 
   /**
@@ -638,6 +649,15 @@ class VocalFileAnalysisService {
   /**
    * Global Viterbi Path Decoder (Hidden Markov Model)
    * Solves the optimal pitch trajectory across all voiced frames to eliminate octave-jumping artifacts (doubling / halving).
+   *
+   * Formulated like FL Studio NewTone / Celemony Melodyne:
+   * - State 0: observed fundamental f0 from MPM (default hypothesis, strongly trusted on high clarity)
+   * - State 1: f0 / 2 (candidate octave-down error)
+   * - State 2: f0 * 2 (candidate octave-up error)
+   * - Active per-frame emission penalty for States 1 & 2 strictly prevents octave collapse.
+   * - Bounded melodic distance penalty allows musical leaps (minor 3rd to octave) without switching states.
+   * - State change penalty (+12.0) prevents spurious octave flapping.
+   * - Safety guard: if >35% frames in a high-clarity phrase are shifted away from MPM, preserves State 0.
    */
   public applyViterbiSmoothing(pitchTrack: IReferencePitchPoint[]): void {
     const voicedIndices: number[] = [];
@@ -675,8 +695,8 @@ class VocalFileAnalysisService {
       const T = seg.length;
       // For each frame t, generate 3 pitch candidate states:
       // State 0: nominal f0
-      // State 1: f0 / 2 (octave down, if >= 75 Hz)
-      // State 2: f0 * 2 (octave up, if <= 1150 Hz)
+      // State 1: f0 / 2 (octave down, if >= 70 Hz)
+      // State 2: f0 * 2 (octave up, if <= 1250 Hz)
       const numStates = 3;
       const dp = Array.from({ length: T }, () => new Float64Array(numStates).fill(Infinity));
       const backpointer = Array.from({ length: T }, () => new Int32Array(numStates).fill(0));
@@ -697,29 +717,45 @@ class VocalFileAnalysisService {
         return baseHz;
       };
 
+      // Calculate segment average clarity
+      let segClaritySum = 0;
+      for (let t = 0; t < T; t++) {
+        segClaritySum += pitchTrack[seg[t]].clarity;
+      }
+      const avgSegClarity = segClaritySum / T;
+
       // Initialize t = 0
+      const clarity0 = pitchTrack[seg[0]].clarity;
       for (let s = 0; s < numStates; s++) {
         const hz = getCandidateHz(seg[0], s);
-        if (hz < 75 || hz > 1150) {
+        if (hz < 70 || hz > 1250) {
           dp[0][s] = Infinity;
           continue;
         }
-        const priorCost = s === 0 ? 0 : 5.0;
-        const emissionCost = (1 - pitchTrack[seg[0]].clarity) * 10;
+        // Strong prior toward state 0 (measured MPM fundamental)
+        const priorCost = s === 0 ? 0 : 6.0;
+        const emissionCost = s === 0
+          ? (1 - clarity0) * 3.0
+          : 2.5 + (1 - clarity0) * 3.0;
         dp[0][s] = priorCost + emissionCost;
       }
 
       // Forward step: compute min cost path
       for (let t = 1; t < T; t++) {
         const currFrameIdx = seg[t];
-        const emissionCost = (1 - pitchTrack[currFrameIdx].clarity) * 10;
+        const clarity = pitchTrack[currFrameIdx].clarity;
 
         for (let sCurr = 0; sCurr < numStates; sCurr++) {
           const hzCurr = getCandidateHz(currFrameIdx, sCurr);
-          if (hzCurr < 75 || hzCurr > 1150) {
+          if (hzCurr < 70 || hzCurr > 1250) {
             dp[t][sCurr] = Infinity;
             continue;
           }
+
+          // Active per-frame emission penalty on states 1 and 2 to strictly prevent lingering in an octave shift
+          const emissionCost = sCurr === 0
+            ? (1 - clarity) * 3.0
+            : 2.5 + (1 - clarity) * 3.0;
 
           const midiCurr = getCandidateMidi(currFrameIdx, sCurr);
           let minCost = Infinity;
@@ -731,17 +767,19 @@ class VocalFileAnalysisService {
             const deltaMidi = Math.abs(midiCurr - midiPrev);
 
             // Transition penalty:
-            // Continuous vocal glissando (< 1.5 semitones): very low cost
-            // Leaps (1.5 - 6 semitones): moderate cost
-            // Octave jumps (> 8 semitones): heavy penalty!
-            let transCost = deltaMidi * 0.8;
-            if (deltaMidi > 7.5 && deltaMidi < 14) {
-              transCost += 20.0; // Octave jump penalty!
-            } else if (deltaMidi >= 14) {
-              transCost += 35.0; // Huge leap penalty!
+            // 1. Changing octave hypothesis (sPrev != sCurr) incurs a switching penalty
+            const switchCost = sPrev === sCurr ? 0 : 5.0;
+
+            // 2. Melodic distance: Normal singing leaps (minor 3rd, 5th, 6th, 7th) are smooth and bounded
+            let melodicCost = Math.min(5.5, deltaMidi * 0.45);
+
+            // 3. Octave jumps (specifically ~12 or ~24 semitones) are penalized heavily as likely pitch-detector glitches
+            const isOctaveJump = Math.abs(deltaMidi - 12.0) <= 1.2 || Math.abs(deltaMidi - 24.0) <= 1.2;
+            if (isOctaveJump) {
+              melodicCost += 16.0;
             }
 
-            const totalCost = dp[t - 1][sPrev] + transCost;
+            const totalCost = dp[t - 1][sPrev] + switchCost + melodicCost;
             if (totalCost < minCost) {
               minCost = totalCost;
               bestPrevState = sPrev;
@@ -767,6 +805,18 @@ class VocalFileAnalysisService {
       optimalStates[T - 1] = bestFinalState;
       for (let t = T - 1; t > 0; t--) {
         optimalStates[t - 1] = backpointer[t][optimalStates[t]];
+      }
+
+      // Safety Guard: Check how many frames in this segment chose state 1 or 2
+      let shiftedCount = 0;
+      for (let t = 0; t < T; t++) {
+        if (optimalStates[t] !== 0) shiftedCount++;
+      }
+
+      // If more than 40% of frames were shifted away from MPM despite clear singing,
+      // it is a false octave capture. Revert entire segment to state 0.
+      if (shiftedCount / T > 0.40 && avgSegClarity >= 0.50) {
+        continue;
       }
 
       // Apply optimal states
@@ -829,7 +879,7 @@ class VocalFileAnalysisService {
     let barIndex = 1;
 
     const flushCluster = () => {
-      if (currentCluster.length < 3) { // Ignore artifacts < ~70ms
+      if (currentCluster.length < 2) {
         currentCluster = [];
         return;
       }
@@ -838,16 +888,23 @@ class VocalFileAnalysisService {
       const endTimeMs = currentCluster[currentCluster.length - 1].timeMs;
       const durationMs = endTimeMs - startTimeMs;
 
-      if (durationMs < 70) {
+      let claritySum = 0;
+      let weightedMidiSum = 0;
+      for (const pt of currentCluster) {
+        const c = Math.max(0.1, pt.clarity);
+        claritySum += c;
+        weightedMidiSum += pt.midi * c;
+      }
+      const avgClarity = claritySum / currentCluster.length;
+
+      // Allow short note bars (e.g. initial syllable or quick pickup A#4) if clarity is high
+      const minDuration = avgClarity >= 0.45 ? 45 : 65;
+      if (durationMs < minDuration) {
         currentCluster = [];
         return;
       }
 
-      let midiSum = 0;
-      for (const pt of currentCluster) {
-        midiSum += pt.midi;
-      }
-      const exactMidi = midiSum / currentCluster.length;
+      const exactMidi = weightedMidiSum / claritySum;
       const nominalMidi = Math.round(exactMidi);
       const noteInfo = this.midiToNoteInfo(nominalMidi);
       const avgCentsDiff = Math.round((exactMidi - nominalMidi) * 100);
@@ -988,34 +1045,56 @@ class VocalFileAnalysisService {
 
   /**
    * Krumhansl-Schmuckler Key-Finding Algorithm
+   * Enhanced with note duration weighting, parallel/relative key pairing, and top 3 candidates.
    */
-  private estimateKeyAndScale(vocalPoints: IReferencePitchPoint[]): {
-    key: string;
-    root: string;
-    mode: 'major' | 'minor';
-    confidence: number;
-    scaleNotes: string[];
+  private estimateKeyAndScale(
+    vocalPoints: IReferencePitchPoint[],
+    noteBars?: IVocalNoteBar[]
+  ): {
+    estimatedKey: IKeyCandidate;
+    topCandidates: IKeyCandidate[];
   } {
+    const defaultMajorKey: IKeyCandidate = {
+      key: 'Đô Trưởng (C Major)',
+      root: 'C',
+      mode: 'major',
+      confidence: 0.85,
+      scaleNotes: ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+      relativeKey: 'La Thứ (A Minor)',
+    };
+
     if (vocalPoints.length === 0) {
       return {
-        key: 'Đô Trưởng (C Major)',
-        root: 'C',
-        mode: 'major',
-        confidence: 0.85,
-        scaleNotes: ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+        estimatedKey: defaultMajorKey,
+        topCandidates: [defaultMajorKey],
       };
     }
 
     // 12 Pitch Classes
     const chromaWeights = new Array(12).fill(0);
+
+    // Frame-level clarity weights
     vocalPoints.forEach((p) => {
       const pitchClass = Math.round(p.midi) % 12;
       chromaWeights[pitchClass] += p.clarity;
     });
 
-    let bestCorrelation = -999;
-    let bestRootIndex = 0;
-    let bestMode: 'major' | 'minor' = 'major';
+    // Note bar duration weighting (longer sustained notes heavily reinforce the tonic)
+    if (noteBars && noteBars.length > 0) {
+      for (const bar of noteBars) {
+        const pc = bar.midi % 12;
+        const durSec = bar.durationMs / 1000;
+        chromaWeights[pc] += durSec * 4.0;
+      }
+    }
+
+    interface CandidateScore {
+      rootIdx: number;
+      mode: 'major' | 'minor';
+      correlation: number;
+    }
+
+    const candidateScores: CandidateScore[] = [];
 
     for (let root = 0; root < 12; root++) {
       // Rotate profiles
@@ -1029,38 +1108,53 @@ class VocalFileAnalysisService {
       const majorCorr = this.pearsonCorrelation(chromaWeights, majorRotated);
       const minorCorr = this.pearsonCorrelation(chromaWeights, minorRotated);
 
-      if (majorCorr > bestCorrelation) {
-        bestCorrelation = majorCorr;
-        bestRootIndex = root;
-        bestMode = 'major';
-      }
-      if (minorCorr > bestCorrelation) {
-        bestCorrelation = minorCorr;
-        bestRootIndex = root;
-        bestMode = 'minor';
-      }
+      candidateScores.push({ rootIdx: root, mode: 'major', correlation: majorCorr });
+      candidateScores.push({ rootIdx: root, mode: 'minor', correlation: minorCorr });
     }
 
-    const rootName = NOTE_NAMES[bestRootIndex];
-    const solfegeRoot = SOLFEGE_NAMES[bestRootIndex];
-    const keyNameVi = bestMode === 'major' 
-      ? `${solfegeRoot} Trưởng (${rootName} Major)` 
-      : `${solfegeRoot} Thứ (${rootName} Minor)`;
+    // Sort descending by correlation
+    candidateScores.sort((a, b) => b.correlation - a.correlation);
 
     const majorIntervals = [0, 2, 4, 5, 7, 9, 11];
     const minorIntervals = [0, 2, 3, 5, 7, 8, 10];
-    const intervals = bestMode === 'major' ? majorIntervals : minorIntervals;
-    const scaleNotes = intervals.map((int) => NOTE_NAMES[(bestRootIndex + int) % 12]);
 
-    // Statistical confidence based on correlation strength
-    const confidence = Math.max(0.40, Math.min(0.98, (bestCorrelation + 1) * 0.45));
+    const toKeyCandidate = (sc: CandidateScore): IKeyCandidate => {
+      const rootName = NOTE_NAMES[sc.rootIdx];
+      const solfegeRoot = SOLFEGE_NAMES[sc.rootIdx];
+      const keyNameVi = sc.mode === 'major'
+        ? `${solfegeRoot} Trưởng (${rootName} Major)`
+        : `${solfegeRoot} Thứ (${rootName} Minor)`;
+
+      const intervals = sc.mode === 'major' ? majorIntervals : minorIntervals;
+      const scaleNotes = intervals.map((int) => NOTE_NAMES[(sc.rootIdx + int) % 12]);
+      const confidence = Math.max(0.40, Math.min(0.98, (sc.correlation + 1) * 0.45));
+
+      // Calculate relative key
+      let relativeKey = '';
+      if (sc.mode === 'major') {
+        const relMinorIdx = (sc.rootIdx + 9) % 12; // 3 semitones down
+        relativeKey = `${SOLFEGE_NAMES[relMinorIdx]} Thứ (${NOTE_NAMES[relMinorIdx]} Minor)`;
+      } else {
+        const relMajorIdx = (sc.rootIdx + 3) % 12; // 3 semitones up
+        relativeKey = `${SOLFEGE_NAMES[relMajorIdx]} Trưởng (${NOTE_NAMES[relMajorIdx]} Major)`;
+      }
+
+      return {
+        key: keyNameVi,
+        root: rootName,
+        mode: sc.mode,
+        confidence: Math.round(confidence * 100) / 100,
+        scaleNotes,
+        relativeKey,
+      };
+    };
+
+    const topCandidates = candidateScores.slice(0, 3).map(toKeyCandidate);
+    const estimatedKey = topCandidates[0] || defaultMajorKey;
 
     return {
-      key: keyNameVi,
-      root: rootName,
-      mode: bestMode,
-      confidence: Math.round(confidence * 100) / 100,
-      scaleNotes,
+      estimatedKey,
+      topCandidates,
     };
   }
 

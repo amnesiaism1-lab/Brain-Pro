@@ -200,12 +200,18 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
               <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
                 Giọng / Âm Giai (Key)
               </span>
-              <div className="text-sm sm:text-base font-black text-sky-400 mt-0.5 truncate">
+              <div className="text-sm sm:text-base font-black text-sky-400 mt-0.5 truncate" title={analysisResult.estimatedKey.key}>
                 {analysisResult.estimatedKey.key}
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">
-                Độ tin cậy: {Math.round(analysisResult.estimatedKey.confidence * 100)}%
+              <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                Tin cậy: {Math.round(analysisResult.estimatedKey.confidence * 100)}%
+                {analysisResult.estimatedKey.relativeKey ? ` · ${analysisResult.estimatedKey.relativeKey.split(' (')[0]}` : ''}
               </div>
+              {analysisResult.topKeyCandidates && analysisResult.topKeyCandidates.length > 1 && (
+                <div className="text-[9px] text-slate-500 mt-1 truncate" title={analysisResult.topKeyCandidates.map((c) => c.key).join(' | ')}>
+                  Gợi ý: {analysisResult.topKeyCandidates.slice(0, 3).map((c) => `${c.root} ${c.mode === 'major' ? 'Trưởng' : 'Thứ'}`).join(' · ')}
+                </div>
+              )}
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">

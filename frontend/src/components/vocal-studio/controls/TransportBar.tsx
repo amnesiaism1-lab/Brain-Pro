@@ -12,7 +12,10 @@ import {
 } from 'lucide-react';
 import { SpeedControl } from './SpeedControl';
 import { SingOptionsPopover } from './SingOptionsPopover';
+import { ScaleSelectorPopover } from './ScaleSelectorPopover';
 import { TuningTolerance, TargetPitchMode } from '../types';
+import { ISelectedKeyOverride } from '../../../store/vocalStudioStore';
+import { IKeyCandidate } from '../../../services/vocalFileAnalysisService';
 
 interface TransportBarProps {
   isPlaying: boolean;
@@ -30,6 +33,16 @@ interface TransportBarProps {
   isLoopingActive: boolean;
   onToggleLoop: () => void;
   onViewReport: () => void;
+
+  // Scale and Transpose
+  selectedKeyOverride: ISelectedKeyOverride | null;
+  onSelectKeyOverride: (key: ISelectedKeyOverride | null) => void;
+  estimatedKey?: IKeyCandidate;
+  topKeyCandidates?: IKeyCandidate[];
+  snapToScale: boolean;
+  onToggleSnapToScale: (val: boolean) => void;
+  transposeSemitones: number;
+  onChangeTranspose: (semitones: number) => void;
 
   // Options popover props
   toleranceCents: TuningTolerance;
@@ -72,6 +85,14 @@ export const TransportBar: React.FC<TransportBarProps> = ({
   isLoopingActive,
   onToggleLoop,
   onViewReport,
+  selectedKeyOverride,
+  onSelectKeyOverride,
+  estimatedKey,
+  topKeyCandidates,
+  snapToScale,
+  onToggleSnapToScale,
+  transposeSemitones,
+  onChangeTranspose,
   toleranceCents,
   onChangeTolerance,
   targetMode,
@@ -209,6 +230,18 @@ export const TransportBar: React.FC<TransportBarProps> = ({
               title="Âm lượng nhạc mẫu"
             />
           </div>
+
+          {/* Scale & Transpose Selector (FL Studio NewTone) */}
+          <ScaleSelectorPopover
+            selectedKeyOverride={selectedKeyOverride}
+            onSelectKeyOverride={onSelectKeyOverride}
+            estimatedKey={estimatedKey}
+            topKeyCandidates={topKeyCandidates}
+            snapToScale={snapToScale}
+            onToggleSnapToScale={onToggleSnapToScale}
+            transposeSemitones={transposeSemitones}
+            onChangeTranspose={onChangeTranspose}
+          />
 
           {/* Sing Options Popover */}
           <SingOptionsPopover
