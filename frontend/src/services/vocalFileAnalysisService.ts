@@ -204,7 +204,8 @@ class VocalFileAnalysisService {
     let frameCount = 0;
 
     while (sampleCursor + bufferSize <= totalSamples) {
-      const timeMs = Math.round((sampleCursor / sampleRate) * 1000);
+      // Window center timestamping (+bufferSize/2) to align exact acoustic physical center with audio playback
+      const timeMs = Math.round(((sampleCursor + bufferSize / 2) / sampleRate) * 1000);
 
       // Extract window from bandpassed signal
       let sumSquares = 0;
@@ -264,24 +265,29 @@ class VocalFileAnalysisService {
       frameCount++;
 
       if (frameCount % 30 === 0 && totalFrames > 0) {
-        const pct = Math.min(84, 15 + Math.round((frameCount / totalFrames) * 70));
-        notify(pct, `Giai đoạn 2/4: Quét phổ cao độ vi mô (${Math.round((timeMs / 1000))}s / ${Math.round(durationMs / 1000)}s)...`);
+        const pct = Math.min(74, 15 + Math.round((frameCount / totalFrames) * 60));
+        notify(pct, `Giai đoạn 2/5: Quét phổ cao độ MPM độ phân giải cao (${Math.round((timeMs / 1000))}s / ${Math.round(durationMs / 1000)}s)...`);
         // Real async yield to ensure browser repaints progress bar smoothly!
-        await new Promise((resolve) => setTimeout(resolve, 6));
+        await new Promise((resolve) => setTimeout(resolve, 8));
       }
     }
 
-    notify(86, 'Giai đoạn 3/4: Giải mã Viterbi HMM & khử lỗi quãng 8...');
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    notify(76, 'Giai đoạn 3/5: Cầu nối phụ âm & Triệt tiêu nhiễu kích âm...');
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    this.pruneTransientSpikes(pitchTrack);
+    this.bridgeMicroGaps(pitchTrack);
+
+    notify(85, 'Giai đoạn 4/5: Giải mã toàn cục Viterbi HMM & khử lỗi quãng 8...');
+    await new Promise((resolve) => setTimeout(resolve, 120));
     this.applyViterbiSmoothing(pitchTrack);
     this.smoothPitchTrack(pitchTrack);
 
-    notify(92, 'Giai đoạn 4/4: Phân đoạn Khối Nốt Nhạc NewTone (Note Blocks)...');
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    notify(93, 'Giai đoạn 5/5: Phân đoạn Khối Nốt Nhạc NewTone (Note Blocks)...');
+    await new Promise((resolve) => setTimeout(resolve, 100));
     const noteBars = this.segmentNoteBars(pitchTrack);
 
-    notify(96, 'Đang xác định âm giai và tối ưu lộ trình luyện tập...');
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    notify(97, 'Đang xác định âm giai và tối ưu lộ trình luyện tập...');
+    await new Promise((resolve) => setTimeout(resolve, 80));
 
     // 4. Robust Vocal Range & Statistics via 5th-95th percentile filtering
     const vocalPoints = pitchTrack.filter((p) => p.isVocal && p.freqHz > 0);
@@ -528,6 +534,83 @@ class VocalFileAnalysisService {
   }
 
   /**
+   * Prune isolated percussive transients (drum bleed, hi-hat bleed, mouth clicks)
+   * Voiced micro-bursts of fewer than 4 frames (~45ms) that are isolated from
+   * surrounding vocal material are acoustic percussion noise and are removed.
+   */
+  public pruneTransientSpikes(pitchTrack: IReferencePitchPoint[]): void {
+    let islandStart = -1;
+
+    for (let i = 0; i <= pitchTrack.length; i++) {
+      const isVoiced = i < pitchTrack.length && pitchTrack[i].isVocal && pitchTrack[i].freqHz > 0;
+
+      if (isVoiced && islandStart === -1) {
+        islandStart = i;
+      } else if (!isVoiced && islandStart !== -1) {
+        const islandLength = i - islandStart;
+
+        // An isolated burst under 4 frames (< ~45ms) is not human sustained singing
+        if (islandLength < 4) {
+          for (let k = islandStart; k < i; k++) {
+            pitchTrack[k].isVocal = false;
+            pitchTrack[k].freqHz = 0;
+            pitchTrack[k].midi = 0;
+            pitchTrack[k].noteName = '';
+            pitchTrack[k].solfegeName = '';
+          }
+        }
+        islandStart = -1;
+      }
+    }
+  }
+
+  /**
+   * Consonant & Voicing Continuity (FL Studio NewTone / Melodyne gap bridging)
+   * In human singing, plosive and fricative consonants (t, p, k, s, ch) cause
+   * autocorrelation clarity to drop for 30-130ms, breaking the melodic contour.
+   * If an unvoiced gap is <= 140ms between two voiced points within 3.5 semitones,
+   * we bridge the gap via linear pitch interpolation to ensure unbroken musical phrases.
+   */
+  public bridgeMicroGaps(pitchTrack: IReferencePitchPoint[]): void {
+    let lastVoicedIdx = -1;
+
+    for (let i = 0; i < pitchTrack.length; i++) {
+      if (pitchTrack[i].isVocal && pitchTrack[i].freqHz > 0) {
+        if (lastVoicedIdx !== -1) {
+          const gapFrames = i - lastVoicedIdx - 1;
+          if (gapFrames > 0) {
+            const startTime = pitchTrack[lastVoicedIdx].timeMs;
+            const endTime = pitchTrack[i].timeMs;
+            const gapDurationMs = endTime - startTime;
+
+            const startMidi = pitchTrack[lastVoicedIdx].midi;
+            const endMidi = pitchTrack[i].midi;
+            const midiDiff = Math.abs(endMidi - startMidi);
+
+            // Bridge gap if duration <= 140ms and pitch change is continuous (<= 3.5 semitones)
+            if (gapDurationMs <= 140 && midiDiff <= 3.5) {
+              for (let k = lastVoicedIdx + 1; k < i; k++) {
+                const alpha = (k - lastVoicedIdx) / (i - lastVoicedIdx);
+                const interpMidi = startMidi + alpha * (endMidi - startMidi);
+                const interpHz = 440 * Math.pow(2, (interpMidi - 69) / 12);
+                const noteInfo = this.midiToNoteInfo(interpMidi);
+
+                pitchTrack[k].isVocal = true;
+                pitchTrack[k].midi = Math.round(interpMidi * 100) / 100;
+                pitchTrack[k].freqHz = Math.round(interpHz * 10) / 10;
+                pitchTrack[k].noteName = noteInfo.noteName;
+                pitchTrack[k].solfegeName = noteInfo.solfegeName;
+                pitchTrack[k].clarity = 0.65; // Synthesized bridged confidence
+              }
+            }
+          }
+        }
+        lastVoicedIdx = i;
+      }
+    }
+  }
+
+  /**
    * Global Viterbi Path Decoder (Hidden Markov Model)
    * Solves the optimal pitch trajectory across all voiced frames to eliminate octave-jumping artifacts (doubling / halving).
    */
@@ -730,7 +813,7 @@ class VocalFileAnalysisService {
       const endTimeMs = currentCluster[currentCluster.length - 1].timeMs;
       const durationMs = endTimeMs - startTimeMs;
 
-      if (durationMs < 75) {
+      if (durationMs < 70) {
         currentCluster = [];
         return;
       }
@@ -768,9 +851,14 @@ class VocalFileAnalysisService {
           currentCluster.push(pt);
           currentAnchorMidi = Math.round(pt.midi);
         } else {
-          // If pitch drifts away from current anchor note by >= 0.85 semitone, create note boundary
+          // If pitch drifts away from current anchor note by >= 0.85 semitone, check if sustained
           const diff = Math.abs(pt.midi - currentAnchorMidi);
-          if (diff >= 0.85) {
+          const nextPt = i + 1 < pitchTrack.length ? pitchTrack[i + 1] : null;
+          const isSustainedShift = nextPt && nextPt.isVocal && nextPt.midi > 0
+            ? Math.abs(nextPt.midi - currentAnchorMidi) >= 0.75
+            : true;
+
+          if (diff >= 0.85 && isSustainedShift) {
             flushCluster();
             currentCluster.push(pt);
             currentAnchorMidi = Math.round(pt.midi);
@@ -789,7 +877,7 @@ class VocalFileAnalysisService {
       flushCluster();
     }
 
-    // Merge adjacent note bars that share the same nominal MIDI separated by micro-gap < 120ms
+    // Merge adjacent note bars that share the same nominal MIDI separated by micro-gap <= 140ms
     const mergedBars: IVocalNoteBar[] = [];
     for (let i = 0; i < rawNoteBars.length; i++) {
       const current = rawNoteBars[i];
@@ -801,7 +889,7 @@ class VocalFileAnalysisService {
       const prev = mergedBars[mergedBars.length - 1];
       const gapMs = current.startTimeMs - prev.endTimeMs;
 
-      if (prev.midi === current.midi && gapMs <= 120) {
+      if (prev.midi === current.midi && gapMs <= 140) {
         prev.endTimeMs = current.endTimeMs;
         prev.durationMs = prev.endTimeMs - prev.startTimeMs;
         prev.pointsCount += current.pointsCount;
@@ -809,6 +897,64 @@ class VocalFileAnalysisService {
         prev.avgCentsDiff = Math.round((prev.exactMidi - prev.midi) * 100);
       } else {
         mergedBars.push(current);
+      }
+    }
+
+    // Guaranteed fallback: If no discrete note bars formed but voiced content exists, synthesize from runs
+    if (mergedBars.length === 0 && pitchTrack.some((p) => p.isVocal && p.midi > 0)) {
+      let run: IReferencePitchPoint[] = [];
+      for (const p of pitchTrack) {
+        if (p.isVocal && p.midi > 0) {
+          run.push(p);
+        } else if (run.length >= 3) {
+          const sTime = run[0].timeMs;
+          const eTime = run[run.length - 1].timeMs;
+          if (eTime - sTime >= 65) {
+            let sum = 0;
+            run.forEach((r) => { sum += r.midi; });
+            const avg = sum / run.length;
+            const nom = Math.round(avg);
+            const info = this.midiToNoteInfo(nom);
+            mergedBars.push({
+              id: `fallback-bar-${mergedBars.length + 1}`,
+              startTimeMs: sTime,
+              endTimeMs: eTime,
+              durationMs: eTime - sTime,
+              midi: nom,
+              exactMidi: Math.round(avg * 100) / 100,
+              noteName: info.noteName,
+              solfegeName: info.solfegeName,
+              avgCentsDiff: Math.round((avg - nom) * 100),
+              pointsCount: run.length,
+            });
+          }
+          run = [];
+        } else {
+          run = [];
+        }
+      }
+      if (run.length >= 3) {
+        const sTime = run[0].timeMs;
+        const eTime = run[run.length - 1].timeMs;
+        if (eTime - sTime >= 65) {
+          let sum = 0;
+          run.forEach((r) => { sum += r.midi; });
+          const avg = sum / run.length;
+          const nom = Math.round(avg);
+          const info = this.midiToNoteInfo(nom);
+          mergedBars.push({
+            id: `fallback-bar-${mergedBars.length + 1}`,
+            startTimeMs: sTime,
+            endTimeMs: eTime,
+            durationMs: eTime - sTime,
+            midi: nom,
+            exactMidi: Math.round(avg * 100) / 100,
+            noteName: info.noteName,
+            solfegeName: info.solfegeName,
+            avgCentsDiff: Math.round((avg - nom) * 100),
+            pointsCount: run.length,
+          });
+        }
       }
     }
 

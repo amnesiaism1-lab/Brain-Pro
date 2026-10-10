@@ -177,10 +177,12 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
   const handlePitchUpdate = useCallback(
     (reading: IVocalPitchReading) => {
       const now = performance.now();
-      const currentMs = renderStateRef.current.currentTimeMs;
+      const latencyOffsetMs = renderStateRef.current.latencyOffsetMs ?? 45;
+      // Effective acoustic time: aligns user ear sound with visual playhead
+      const effectiveMs = Math.max(0, renderStateRef.current.currentTimeMs - latencyOffsetMs);
       const refPt = findClosestPitchPoint(
         renderStateRef.current.pitchTrack,
-        currentMs
+        effectiveMs
       );
 
       // Compute cents diff with smart octave fold
@@ -204,7 +206,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
       let activePhraseIdx: number | null = null;
       if (store.analysisResult?.phrases) {
         const p = store.analysisResult.phrases.find(
-          (ph) => currentMs >= ph.startMs && currentMs <= ph.endMs
+          (ph) => effectiveMs >= ph.startMs && effectiveMs <= ph.endMs
         );
         if (p) activePhraseIdx = p.phraseIndex;
       }
@@ -221,10 +223,10 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
 
       const scorePct = calculateScorePercentage(accumulatorRef.current);
 
-      // Record pitch trail point
+      // Record pitch trail point aligned with acoustic playhead
       if (reading.isSinging && reading.freqHz > 0) {
         userPitchTrailRef.current.push({
-          timeMs: currentMs,
+          timeMs: effectiveMs,
           midi: reading.midiNumber,
           freqHz: reading.freqHz,
           centsDiff: cents,

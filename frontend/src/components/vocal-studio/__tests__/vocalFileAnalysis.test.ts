@@ -212,4 +212,92 @@ describe('Vocal File Analysis & Range Extraction', () => {
     expect(points[5].midi).toBe(60);
     expect(points[5].noteName).toBe('C4');
   });
+
+  it('TC-19: Consonant gap bridging connects fragmented syllables across micro-unvoiced gaps (<= 140ms)', () => {
+    // Vocal singing on A4 (MIDI 69), with a 75ms voiceless consonant gap (t, p, s) at frames 3 and 4
+    const points: any[] = [];
+    for (let i = 0; i < 8; i++) {
+      const isConsonantGap = i === 3 || i === 4;
+      points.push({
+        timeMs: i * 25,
+        freqHz: isConsonantGap ? 0 : 440.0,
+        midi: isConsonantGap ? 0 : 69.0,
+        noteName: isConsonantGap ? '' : 'A4',
+        solfegeName: isConsonantGap ? '' : 'La 4',
+        clarity: isConsonantGap ? 0.2 : 0.9,
+        volumeDb: -14,
+        isVocal: !isConsonantGap,
+      });
+    }
+
+    vocalFileAnalysisService.bridgeMicroGaps(points);
+
+    // Frames 3 and 4 should now be bridged as continuous vocal singing
+    expect(points[3].isVocal).toBe(true);
+    expect(points[3].noteName).toBe('A4');
+    expect(points[3].midi).toBe(69);
+
+    expect(points[4].isVocal).toBe(true);
+    expect(points[4].noteName).toBe('A4');
+    expect(points[4].midi).toBe(69);
+  });
+
+  it('TC-20: Transient spike pruning removes isolated percussive clicks and hi-hat bleed (< 45ms)', () => {
+    const points: any[] = [];
+    // 5 frames silence
+    for (let i = 0; i < 5; i++) {
+      points.push({
+        timeMs: i * 25,
+        freqHz: 0,
+        midi: 0,
+        noteName: '',
+        solfegeName: '',
+        clarity: 0,
+        volumeDb: -60,
+        isVocal: false,
+      });
+    }
+    // 2 frames transient noise click (50ms)
+    points.push({
+      timeMs: 125,
+      freqHz: 350.0,
+      midi: 65.0,
+      noteName: 'F4',
+      solfegeName: 'Fa 4',
+      clarity: 0.75,
+      volumeDb: -10,
+      isVocal: true,
+    });
+    points.push({
+      timeMs: 150,
+      freqHz: 350.0,
+      midi: 65.0,
+      noteName: 'F4',
+      solfegeName: 'Fa 4',
+      clarity: 0.75,
+      volumeDb: -10,
+      isVocal: true,
+    });
+    // 5 frames silence
+    for (let i = 7; i < 12; i++) {
+      points.push({
+        timeMs: i * 25,
+        freqHz: 0,
+        midi: 0,
+        noteName: '',
+        solfegeName: '',
+        clarity: 0,
+        volumeDb: -60,
+        isVocal: false,
+      });
+    }
+
+    vocalFileAnalysisService.pruneTransientSpikes(points);
+
+    // Transient click at indices 5 and 6 must be wiped out
+    expect(points[5].isVocal).toBe(false);
+    expect(points[5].freqHz).toBe(0);
+    expect(points[6].isVocal).toBe(false);
+    expect(points[6].freqHz).toBe(0);
+  });
 });

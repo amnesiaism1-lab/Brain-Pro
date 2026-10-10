@@ -50,6 +50,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       const state = renderStateRef.current;
       const {
         currentTimeMs,
+        latencyOffsetMs: rawLatencyOffsetMs,
         pitchTrack,
         noteBars,
         userPitchTrail,
@@ -67,12 +68,17 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         isWindowLocked,
       } = state;
 
+      // Zero-latency acoustic alignment:
+      // Compensate for hardware/OS audio output buffer lag so playhead matches exact sound heard in ears
+      const latencyOffsetMs = rawLatencyOffsetMs ?? 45;
+      const effectiveTimeMs = Math.max(0, currentTimeMs - latencyOffsetMs);
+
       const pastWindowMs = 1500;
       const futureWindowMs = 3500;
       const totalWindowMs = pastWindowMs + futureWindowMs;
       const playheadX = (pastWindowMs / totalWindowMs) * width;
-      const windowStartMs = currentTimeMs - pastWindowMs;
-      const windowEndMs = currentTimeMs + futureWindowMs;
+      const windowStartMs = effectiveTimeMs - pastWindowMs;
+      const windowEndMs = effectiveTimeMs + futureWindowMs;
 
       // 1. Dynamic Pitch Window (14–18 semitones, smooth tracking)
       const targetMin = Math.max(36, (lowestMidi || 48) - 2);
@@ -133,8 +139,8 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
 
       // 4. A-B Loop Overlay
       if (isLoopingActive && loopStartMs !== null && loopEndMs !== null) {
-        const lx1 = Math.max(0, playheadX + ((loopStartMs - currentTimeMs) / totalWindowMs) * width);
-        const lx2 = Math.min(width, playheadX + ((loopEndMs - currentTimeMs) / totalWindowMs) * width);
+        const lx1 = Math.max(0, playheadX + ((loopStartMs - effectiveTimeMs) / totalWindowMs) * width);
+        const lx2 = Math.min(width, playheadX + ((loopEndMs - effectiveTimeMs) / totalWindowMs) * width);
         if (lx2 > lx1) {
           ctx.fillStyle = 'rgba(99, 102, 241, 0.12)';
           ctx.fillRect(lx1, 0, lx2 - lx1, height);
@@ -145,44 +151,44 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         }
       }
 
-      // 5. Reference Vocal Track: NewTone-Style Note Blocks & Micro-Pitch Ribbon
-      // A. Render Note Blocks (Discrete rectangular note bars on piano roll)
+      // 5. Reference Vocal Track: FL Studio NewTone-Style Note Blocks & Pitch Ribbon
+      // A. Render Note Blocks (Solid rectangular semitone blocks on piano roll)
       if (noteBars && noteBars.length > 0) {
         for (let i = 0; i < noteBars.length; i++) {
           const bar = noteBars[i];
           if (bar.endTimeMs < windowStartMs || bar.startTimeMs > windowEndMs) continue;
 
-          const x1 = playheadX + ((bar.startTimeMs - currentTimeMs) / totalWindowMs) * width;
-          const x2 = playheadX + ((bar.endTimeMs - currentTimeMs) / totalWindowMs) * width;
-          const barW = Math.max(12, x2 - x1);
+          const x1 = playheadX + ((bar.startTimeMs - effectiveTimeMs) / totalWindowMs) * width;
+          const x2 = playheadX + ((bar.endTimeMs - effectiveTimeMs) / totalWindowMs) * width;
+          const barW = Math.max(14, x2 - x1);
           const barY = midiToY(bar.midi);
-          const barH = Math.min(24, Math.max(16, (height / midiSpan) * 0.85));
+          const barH = Math.min(26, Math.max(16, (height / midiSpan) * 0.88));
           const topY = barY - barH / 2;
 
-          const isActive = currentTimeMs >= bar.startTimeMs && currentTimeMs <= bar.endTimeMs;
+          const isActive = effectiveTimeMs >= bar.startTimeMs && effectiveTimeMs <= bar.endTimeMs;
 
           ctx.save();
           if (isActive && isInTuneNow) {
             // Hit effect: glowing neon emerald
-            ctx.shadowBlur = 16;
+            ctx.shadowBlur = 18;
             ctx.shadowColor = '#10b981';
-            ctx.fillStyle = 'rgba(16, 185, 129, 0.4)';
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.5)';
             ctx.strokeStyle = '#34d399';
             ctx.lineWidth = 2.5;
           } else if (isActive) {
-            // Active current note
-            ctx.shadowBlur = 14;
-            ctx.shadowColor = '#818cf8';
-            ctx.fillStyle = 'rgba(99, 102, 241, 0.45)';
-            ctx.strokeStyle = '#c7d2fe';
-            ctx.lineWidth = 2;
+            // Active current note block: vibrant NewTone amber-gold illumination
+            ctx.shadowBlur = 16;
+            ctx.shadowColor = '#f59e0b';
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.45)';
+            ctx.strokeStyle = '#fde68a';
+            ctx.lineWidth = 2.2;
           } else {
-            // Inactive (past/future) note block
-            ctx.shadowBlur = 4;
-            ctx.shadowColor = 'rgba(99, 102, 241, 0.25)';
-            ctx.fillStyle = 'rgba(79, 70, 229, 0.22)';
-            ctx.strokeStyle = 'rgba(129, 140, 248, 0.65)';
-            ctx.lineWidth = 1.2;
+            // Inactive (past/future) NewTone note block: warm translucent amber glass with crisp border
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = 'rgba(249, 115, 22, 0.35)';
+            ctx.fillStyle = 'rgba(234, 88, 12, 0.22)';
+            ctx.strokeStyle = 'rgba(251, 146, 60, 0.75)';
+            ctx.lineWidth = 1.4;
           }
 
           ctx.beginPath();
@@ -194,9 +200,13 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           ctx.fill();
           ctx.stroke();
 
+          // Top highlight accent stripe (NewTone 3D glass look)
+          ctx.fillStyle = isActive ? 'rgba(255, 255, 255, 0.45)' : 'rgba(253, 186, 116, 0.4)';
+          ctx.fillRect(x1 + 2, topY + 1.5, Math.max(2, barW - 4), 2.5);
+
           // Note text badge on the block
-          if (barW >= 24) {
-            ctx.fillStyle = isActive ? '#ffffff' : 'rgba(224, 231, 255, 0.85)';
+          if (barW >= 22) {
+            ctx.fillStyle = isActive ? '#ffffff' : 'rgba(254, 243, 199, 0.9)';
             ctx.font = 'bold 10px monospace';
             ctx.textAlign = 'left';
             ctx.fillText(bar.noteName, x1 + 5, barY + 3.5);
@@ -205,13 +215,13 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         }
       }
 
-      // B. Render Micro-Pitch Contour Ribbon (Amber / Gold curve showing singer vibrato & slides inside note blocks)
+      // B. Render Micro-Pitch Contour Ribbon (Amber / Gold continuous curve through note blocks)
       if (pitchTrack && pitchTrack.length > 0) {
         ctx.save();
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2.8;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 10;
         ctx.shadowColor = '#f59e0b';
         ctx.strokeStyle = '#fbbf24';
 
@@ -220,7 +230,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         for (let i = 0; i < pitchTrack.length; i++) {
           const pt = pitchTrack[i];
           if (pt.timeMs < windowStartMs || pt.timeMs > windowEndMs) continue;
-          const x = playheadX + ((pt.timeMs - currentTimeMs) / totalWindowMs) * width;
+          const x = playheadX + ((pt.timeMs - effectiveTimeMs) / totalWindowMs) * width;
           if (pt.isVocal && pt.midi > 0) {
             const y = midiToY(pt.midi);
             if (!drawing) {
@@ -244,7 +254,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         for (let i = 1; i < userPitchTrail.length; i++) {
           const pt = userPitchTrail[i];
           if (pt.timeMs < windowStartMs || pt.timeMs > windowEndMs) continue;
-          const x = playheadX + ((pt.timeMs - currentTimeMs) / totalWindowMs) * width;
+          const x = playheadX + ((pt.timeMs - effectiveTimeMs) / totalWindowMs) * width;
           const y = midiToY(pt.midi);
 
           const color = pt.inTune ? '#10b981' : pt.centsDiff < 0 ? '#f59e0b' : '#ef4444';
@@ -279,9 +289,9 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         const targetY = midiToY(currentRefPoint.midi);
         ctx.save();
         ctx.shadowBlur = 12;
-        ctx.shadowColor = isInTuneNow ? '#10b981' : '#6366f1';
-        ctx.fillStyle = isInTuneNow ? 'rgba(16, 185, 129, 0.4)' : 'rgba(99, 102, 241, 0.35)';
-        ctx.strokeStyle = isInTuneNow ? '#34d399' : '#818cf8';
+        ctx.shadowColor = isInTuneNow ? '#10b981' : '#f59e0b';
+        ctx.fillStyle = isInTuneNow ? 'rgba(16, 185, 129, 0.45)' : 'rgba(245, 158, 11, 0.4)';
+        ctx.strokeStyle = isInTuneNow ? '#34d399' : '#fde68a';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.roundRect(playheadX - 44, targetY - 13, 88, 26, 6);
@@ -359,7 +369,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       }
 
       // 9. Playhead Guide Line
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
       ctx.lineWidth = 2;
       ctx.setLineDash([3, 4]);
       ctx.beginPath();
@@ -367,6 +377,32 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       ctx.lineTo(playheadX, height);
       ctx.stroke();
       ctx.setLineDash([]);
+
+      // 10. FL Studio NewTone Visual Legend (Top Right)
+      ctx.save();
+      ctx.font = '10px monospace';
+      const legendY = 16;
+      // A. Reference Note Block Icon
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1;
+      ctx.fillRect(width - 230, legendY - 8, 14, 10);
+      ctx.strokeRect(width - 230, legendY - 8, 14, 10);
+      ctx.fillStyle = '#fef08a';
+      ctx.fillText('Nốt NewTone', width - 212, legendY);
+
+      // B. User Singing Icon
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.arc(width - 132, legendY - 3, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#6ee7b7';
+      ctx.fillText('Giọng bạn', width - 124, legendY);
+
+      // C. Zero Latency Indicator
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('⚡ 0ms', width - 58, legendY);
+      ctx.restore();
 
       ctx.restore();
       animId = requestAnimationFrame(render);
