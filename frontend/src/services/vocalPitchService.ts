@@ -9,7 +9,13 @@
 import { PitchDetector } from 'pitchy';
 import { auditoryEngine } from './auditoryEngine';
 import { getNoteFrequency } from './musicTheoryService';
-import { VocalRangePreference } from '@brain-exercises/shared';
+import { 
+  VocalRangePreference, 
+  NOTE_NAMES, 
+  SOLFEGE_NAMES, 
+  freqToNote, 
+  evaluateCentsDeviation 
+} from '@brain-exercises/shared';
 
 export interface IVocalPitchReading {
   freqHz: number;
@@ -32,9 +38,6 @@ export interface IVocalPitchMatchEvaluation {
   inTolerance: boolean;
   stabilityScore: number;      // 0..1
 }
-
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const SOLFEGE_NAMES = ['Đô', 'Đô#', 'Rê', 'Rê#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
 
 class VocalPitchService {
   private mediaStream: MediaStream | null = null;
@@ -121,7 +124,8 @@ class VocalPitchService {
     if (this.highPassFilterNode) {
       const ctx = auditoryEngine.initContext();
       if (ctx) {
-        this.highPassFilterNode.frequency.setValueAtTime(enabled ? 100 : 80, ctx.currentTime);
+        const isBass = this.userRange === 'bass-baritone' || this.userRange === 'auto';
+        this.highPassFilterNode.frequency.setValueAtTime(enabled ? (isBass ? 70 : 95) : (isBass ? 60 : 75), ctx.currentTime);
       }
     }
   }
@@ -131,7 +135,7 @@ class VocalPitchService {
   }
 
   /**
-   * Dynamic minimum frequency based on vocal range to eliminate low-frequency electrical hum (50Hz - 78Hz)
+   * Dynamic minimum frequency based on vocal range to eliminate low-frequency electrical hum (50Hz - 70Hz)
    */
   public getEffectiveMinFreq(): number {
     switch (this.userRange) {
@@ -140,10 +144,10 @@ class VocalPitchService {
       case 'tenor-alto':
         return 98;  // G2 (98.0 Hz)
       case 'bass-baritone':
-        return 80;  // E2 (82.4 Hz)
+        return 78;  // E2 (82.4 Hz) with headroom
       case 'auto':
       default:
-        return 80;  // 80 Hz blocks 50Hz/60Hz AC hum and 77.8Hz (D#2) noise!
+        return 78;  // Headroom for E2 while cutting 50Hz/60Hz AC mains hum
     }
   }
 
@@ -441,7 +445,8 @@ class VocalPitchService {
       // Eliminates 50Hz/60Hz AC electrical hum, ground loops, door slams (<100Hz), and key clicks (>3600Hz)
       this.highPassFilterNode = ctx.createBiquadFilter();
       this.highPassFilterNode.type = 'highpass';
-      this.highPassFilterNode.frequency.setValueAtTime(this.voiceFocusEnabled ? 100 : 80, ctx.currentTime);
+      const isBassInitial = this.userRange === 'bass-baritone' || this.userRange === 'auto';
+      this.highPassFilterNode.frequency.setValueAtTime(this.voiceFocusEnabled ? (isBassInitial ? 70 : 95) : (isBassInitial ? 60 : 75), ctx.currentTime);
       this.highPassFilterNode.Q.setValueAtTime(0.707, ctx.currentTime);
 
       this.lowPassFilterNode = ctx.createBiquadFilter();
@@ -763,7 +768,10 @@ class VocalPitchService {
       ? (isVeryLoud ? 0.52 : 0.60) 
       : (this.voiceFocusEnabled ? (isVeryLoud ? 0.56 : 0.65) : 0.62);
 
-    const effectiveMinFreq = this.voiceFocusEnabled ? Math.max(90, this.getEffectiveMinFreq()) : this.getEffectiveMinFreq();
+    const isBass = this.userRange === 'bass-baritone' || this.userRange === 'auto';
+    const effectiveMinFreq = this.voiceFocusEnabled
+      ? (isBass ? 78 : Math.max(90, this.getEffectiveMinFreq()))
+      : this.getEffectiveMinFreq();
     const isValidPitch = 
       clarity >= effectiveMinClarity && 
       rawPitch >= effectiveMinFreq && 
@@ -819,10 +827,30 @@ class VocalPitchService {
         (ratio > 0.47 && ratio < 0.53);     // ~-12 semitones (sub-harmonic halving)
 
       if (isOctaveJump) {
-        // Reject: snap back to current sustained frequency
-        pitchToUse = this.smoothedFreq;
-        this.pendingJumpFreq = 0;
-        this.pendingJumpFrames = 0;
+        // Multi-frame confirmation: require 4 consecutive confirmation frames (~40ms)
+        // to filter random 1-frame spikes while allowing genuine sung octave transitions
+        const candidateCentsDiff = this.pendingJumpFreq > 0
+          ? Math.abs(1200 * Math.log2(rawPitch / this.pendingJumpFreq))
+          : 999;
+
+        if (candidateCentsDiff < 60) {
+          this.pendingJumpFrames++;
+        } else {
+          this.pendingJumpFreq = rawPitch;
+          this.pendingJumpFrames = 1;
+        }
+
+        if (this.pendingJumpFrames >= 4) {
+          // Confirmed genuine octave transition
+          this.smoothedFreq = rawPitch;
+          this.pitchHistory = [rawPitch];
+          this.pendingJumpFreq = 0;
+          this.pendingJumpFrames = 0;
+          pitchToUse = rawPitch;
+        } else {
+          // Hold sustained pitch to reject single-frame octave glitch
+          pitchToUse = this.smoothedFreq;
+        }
       }
     }
 
@@ -955,44 +983,19 @@ class VocalPitchService {
       return { noteName: '', solfegeName: '', midiNumber: 0, centsDeviation: 0, nearestFreqHz: 0 };
     }
 
-    // MIDI 69 = A4 (440 Hz)
-    const exactMidi = 12 * Math.log2(freqHz / 440) + 69;
-    let chosenMidi = Math.round(exactMidi);
-
-    // Micro-deadband (±0.04 semitones / 4 cents) ONLY at the exact knife-edge boundary (e.g. 59.48 vs 59.52)
-    // to prevent rapid 1-cent flickering when singing directly on the line between two notes.
-    if (applyHysteresis && this.lockedMidi > 0) {
-      const diffFromLocked = exactMidi - this.lockedMidi;
-      if (Math.abs(diffFromLocked) <= 0.54) {
-        chosenMidi = this.lockedMidi;
-      } else {
-        // Singer transitioned to a new note -> switch immediately with zero lag!
-        this.lockedMidi = chosenMidi;
-      }
-    } else {
-      this.lockedMidi = chosenMidi;
-    }
-
-    // Cents deviation against the chosen note
-    const centsDeviation = Math.round((exactMidi - chosenMidi) * 100);
-
-    const noteIndex = ((chosenMidi % 12) + 12) % 12;
-    const octave = Math.floor(chosenMidi / 12) - 1;
-
-    const baseName = NOTE_NAMES[noteIndex];
-    const solfege = SOLFEGE_NAMES[noteIndex];
-    const noteName = `${baseName}${octave}`;
-    const solfegeName = `${solfege} ${octave}`;
-
-    // Standard frequency of the chromatic note
-    const nearestFreqHz = 440 * Math.pow(2, (chosenMidi - 69) / 12);
+    const info = freqToNote(freqHz, {
+      lockedMidi: this.lockedMidi,
+      applyHysteresis,
+      hysteresisMargin: 0.54,
+    });
+    this.lockedMidi = info.midiNumber;
 
     return {
-      noteName,
-      solfegeName,
-      midiNumber: chosenMidi,
-      centsDeviation,
-      nearestFreqHz: Math.round(nearestFreqHz * 100) / 100,
+      noteName: info.noteName,
+      solfegeName: info.solfegeName,
+      midiNumber: info.midiNumber,
+      centsDeviation: info.centsDeviation,
+      nearestFreqHz: info.nearestFreqHz,
     };
   }
 

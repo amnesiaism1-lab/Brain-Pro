@@ -30,7 +30,7 @@ frontend/dist/
 dist/
 qa-automation/videos/
 qa-automation/screenshots/
-qa-automation/reports/html-report/
+qa-automation/reports/
 coverage/
 *.tsbuildinfo
 .vercel/

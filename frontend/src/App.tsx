@@ -17,6 +17,8 @@ import { useOfflineSync } from './hooks/useOfflineSync';
 
 import { MusicTheoryView } from './components/learn/MusicTheoryView';
 import { WrongAnswerHistoryView } from './components/wrong-answers/WrongAnswerHistoryView';
+import { VocalStudio } from './components/vocal-studio/VocalStudio';
+import { useVocalStudioStore } from './store/vocalStudioStore';
 
 export const App: React.FC = () => {
   const { 
@@ -28,6 +30,21 @@ export const App: React.FC = () => {
     setActiveDebriefEvents
   } = useAppStore();
   useOfflineSync();
+
+  const isVocalStudioOpen = useVocalStudioStore((s) => s.isOpen);
+  const openVocalStudio = useVocalStudioStore((s) => s.openStudio);
+  const closeVocalStudio = useVocalStudioStore((s) => s.closeStudio);
+
+  useEffect(() => {
+    const handleHash = () => {
+      if (window.location.hash === '#/vocal-studio') {
+        openVocalStudio();
+      }
+    };
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, [openVocalStudio]);
 
   useEffect(() => {
     if (darkMode) {
@@ -81,6 +98,12 @@ export const App: React.FC = () => {
             onClose={() => setActiveDebriefEvents(null)}
           />
         )}
+
+        {/* Global Fullscreen Vocal Studio */}
+        <VocalStudio
+          isOpen={isVocalStudioOpen}
+          onClose={closeVocalStudio}
+        />
       </div>
     </ErrorBoundary>
   );

@@ -10,6 +10,7 @@
 import { PitchDetector } from 'pitchy';
 import { auditoryEngine } from './auditoryEngine';
 import { getNoteFrequency } from './musicTheoryService';
+import { NOTE_NAMES, SOLFEGE_NAMES, midiToNoteInfo } from '@brain-exercises/shared';
 
 export interface IReferencePitchPoint {
   timeMs: number;
@@ -95,9 +96,6 @@ export interface IVocalAnalysisResult {
 
   practicePlan: IVocalPracticePlan;
 }
-
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const SOLFEGE_NAMES = ['Đô', 'Đô#', 'Rê', 'Rê#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
 
 // Krumhansl-Kessler key profile weights for key determination
 const MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
@@ -244,36 +242,33 @@ class VocalFileAnalysisService {
 
     notify(85, 'Đang phân đoạn câu hát và xác định giọng điệu (Key & Scale)...');
 
-    // 4. Vocal Range & Statistics
+    // 4. Robust Vocal Range & Statistics via 5th-95th percentile filtering
     const vocalPoints = pitchTrack.filter((p) => p.isVocal && p.freqHz > 0);
-    let lowestMidi = 999;
-    let highestMidi = -999;
-    let lowestPoint = vocalPoints[0];
-    let highestPoint = vocalPoints[0];
+    let lowestPoint: IReferencePitchPoint;
+    let highestPoint: IReferencePitchPoint;
+    let spanSemitones = 0;
     let claritySum = 0;
     let rmsDbSum = 0;
 
-    vocalPoints.forEach((p) => {
-      claritySum += p.clarity;
-      rmsDbSum += p.volumeDb;
-      if (p.midi < lowestMidi) {
-        lowestMidi = p.midi;
-        lowestPoint = p;
-      }
-      if (p.midi > highestMidi) {
-        highestMidi = p.midi;
-        highestPoint = p;
-      }
-    });
-
     if (vocalPoints.length === 0) {
-      lowestMidi = 60;
-      highestMidi = 67;
       lowestPoint = { timeMs: 0, freqHz: 261.63, midi: 60, noteName: 'C4', solfegeName: 'Đô 4', clarity: 1, volumeDb: -20, isVocal: true };
       highestPoint = { timeMs: 1000, freqHz: 392.00, midi: 67, noteName: 'G4', solfegeName: 'Sol 4', clarity: 1, volumeDb: -20, isVocal: true };
+      spanSemitones = 7;
+    } else {
+      vocalPoints.forEach((p) => {
+        claritySum += p.clarity;
+        rmsDbSum += p.volumeDb;
+      });
+
+      // Sort by MIDI to eliminate transient cough/mic clicks at boundaries
+      const sorted = [...vocalPoints].sort((a, b) => a.midi - b.midi);
+      const p5Index = Math.min(sorted.length - 1, Math.max(sorted.length > 10 ? 1 : 0, Math.floor(sorted.length * 0.05)));
+      const p95Index = Math.max(0, Math.min(sorted.length > 10 ? sorted.length - 2 : sorted.length - 1, Math.ceil(sorted.length * 0.95)));
+      lowestPoint = sorted[p5Index];
+      highestPoint = sorted[p95Index];
+      spanSemitones = Math.max(1, Math.round(highestPoint.midi - lowestPoint.midi));
     }
 
-    const spanSemitones = Math.round(highestMidi - lowestMidi);
     const recommendedVoiceType = this.classifyVoiceType(lowestPoint.freqHz, highestPoint.freqHz);
 
     // 5. Key & Scale Estimation using Pitch Class Chroma Histogram
@@ -291,11 +286,16 @@ class VocalFileAnalysisService {
     const avgRmsDb = vocalPoints.length > 0 ? Math.round(rmsDbSum / vocalPoints.length) : -25;
     const densityNotesPerSec = durationMs > 0 ? Math.round((vocalPoints.length / (durationMs / 1000)) * 10) / 10 : 0;
 
+    // Calculate musical leaps between sustained note events (not micro-frames 23ms apart)
     let maxIntervalSemitones = 0;
+    let lastStableMidi = vocalPoints.length > 0 ? vocalPoints[0].midi : 0;
     for (let i = 1; i < vocalPoints.length; i++) {
-      const semitonesDiff = Math.abs(vocalPoints[i].midi - vocalPoints[i - 1].midi);
-      if (semitonesDiff > maxIntervalSemitones && semitonesDiff < 24) {
-        maxIntervalSemitones = Math.round(semitonesDiff);
+      const semitonesDiff = Math.abs(vocalPoints[i].midi - lastStableMidi);
+      if (semitonesDiff >= 1.0 && semitonesDiff < 24) {
+        if (semitonesDiff > maxIntervalSemitones) {
+          maxIntervalSemitones = Math.round(semitonesDiff);
+        }
+        lastStableMidi = vocalPoints[i].midi;
       }
     }
 
@@ -514,7 +514,8 @@ class VocalFileAnalysisService {
     const intervals = bestMode === 'major' ? majorIntervals : minorIntervals;
     const scaleNotes = intervals.map((int) => NOTE_NAMES[(bestRootIndex + int) % 12]);
 
-    const confidence = Math.max(0.65, Math.min(0.98, (bestCorrelation + 1) / 2));
+    // Statistical confidence based on correlation strength
+    const confidence = Math.max(0.40, Math.min(0.98, (bestCorrelation + 1) * 0.45));
 
     return {
       key: keyNameVi,
@@ -589,20 +590,24 @@ class VocalFileAnalysisService {
       focusNotes: keyInfo.scaleNotes.slice(0, 5),
     });
 
-    // Step 2: Practice Challenging Phrases
+    // Step 2: Practice Challenging Phrases (only if song has multiple phrases or a difficult segment)
     const challengingPhrases = phrases.filter((p) => p.difficulty === 'Thử thách');
     const moderatePhrases = phrases.filter((p) => p.difficulty === 'Trung bình');
-    const priorityPhrase = challengingPhrases[0] || moderatePhrases[0] || phrases[0];
+    const priorityPhrase = challengingPhrases[0] || moderatePhrases[0] || (phrases.length > 1 ? phrases[0] : null);
 
     if (priorityPhrase) {
+      // Filter focus notes to scale notes to eliminate octave-glitch artifacts
+      const validNotes = priorityPhrase.notes.filter((n) => keyInfo.scaleNotes.some((sn) => n.startsWith(sn)));
+      const cleanNotes = validNotes.length > 0 ? validNotes : priorityPhrase.notes;
+
       steps.push({
         stepNumber: stepNum++,
-        title: `Bước 2: Luyện Tách Câu Khó (Câu ${priorityPhrase.phraseIndex}) Chậm 0.8x`,
+        title: `Bước 2: Luyện Tách Câu Khó (Câu ${priorityPhrase.phraseIndex}) Chậm 0.75x`,
         type: 'phrase_loop',
         targetPhraseIndex: priorityPhrase.phraseIndex,
-        targetTempo: 0.80,
-        description: `Câu ${priorityPhrase.phraseIndex} (${priorityPhrase.lowestNote} đến ${priorityPhrase.highestNote}) có bước nhảy cao độ ${priorityPhrase.pitchJumpSemitones} bán âm. Bật chế độ A-B Loop và tập chậm với tốc độ 0.8x để nắm chắc cao độ.`,
-        focusNotes: priorityPhrase.notes,
+        targetTempo: 0.75,
+        description: `Câu ${priorityPhrase.phraseIndex} (${priorityPhrase.lowestNote} đến ${priorityPhrase.highestNote}) có bước nhảy cao độ ${priorityPhrase.pitchJumpSemitones} bán âm. Bật chế độ A-B Loop và tập chậm với tốc độ 0.75x để nắm chắc cao độ.`,
+        focusNotes: cleanNotes,
       });
     }
 
@@ -718,11 +723,11 @@ class VocalFileAnalysisService {
         const vibrato = Math.sin(2 * Math.PI * 5.5 * t) * (freq * 0.015) * vibratoDelay;
         const modulatedFreq = freq + vibrato;
 
-        // Harmonics with vocal vocal-tract filter simulation
+        // Harmonics with balanced formant profile
         const fundamental = Math.sin(2 * Math.PI * modulatedFreq * t);
-        const secondHarmonic = Math.sin(2 * Math.PI * (modulatedFreq * 2) * t) * 0.55;
-        const thirdHarmonic = Math.sin(2 * Math.PI * (modulatedFreq * 3) * t) * 0.28;
-        const fourthHarmonic = Math.sin(2 * Math.PI * (modulatedFreq * 4) * t) * 0.12;
+        const secondHarmonic = Math.sin(2 * Math.PI * (modulatedFreq * 2) * t) * 0.35;
+        const thirdHarmonic = Math.sin(2 * Math.PI * (modulatedFreq * 3) * t) * 0.18;
+        const fourthHarmonic = Math.sin(2 * Math.PI * (modulatedFreq * 4) * t) * 0.08;
 
         const sampleVal = (fundamental + secondHarmonic + thirdHarmonic + fourthHarmonic) * 0.35 * env;
         if (currentFrame + f < totalFrames) {
@@ -730,7 +735,7 @@ class VocalFileAnalysisService {
         }
       }
 
-      currentFrame += noteFrames + Math.floor(0.15 * sampleRate); // breath pause
+      currentFrame += noteFrames + Math.floor(0.25 * sampleRate); // breath pause (250ms)
     });
 
     // Convert AudioBuffer to WAV Blob

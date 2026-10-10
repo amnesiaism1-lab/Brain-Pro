@@ -29,9 +29,8 @@ export const LivePitchMonitorBar: React.FC<LivePitchMonitorBarProps> = ({
     : null;
 
   let userPitchClass: number | null = null;
-  if (isSinging && userReading) {
-    const rawMidi = 12 * Math.log2(userReading.freqHz / 440) + 69;
-    userPitchClass = Math.round(rawMidi) % 12;
+  if (isSinging && userReading && userReading.midiNumber > 0) {
+    userPitchClass = ((userReading.midiNumber % 12) + 12) % 12;
   }
 
   // Calculate gauge needle percentage (-50 cents to +50 cents mapped to 0..100%)

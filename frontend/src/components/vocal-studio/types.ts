@@ -5,7 +5,21 @@ export type StudioTab = 'analysis' | 'sing_along' | 'report';
 
 export type MicStatus = 'idle' | 'connecting' | 'listening' | 'error' | 'permission_denied';
 
-export type TuningTolerance = 20 | 35 | 50;
+/**
+ * Tuning tolerance in cents:
+ * 50: Dễ (Easy)
+ * 35: Chuẩn (Standard)
+ * 20: Khó (Hard)
+ * 10: Chuyên gia (Expert)
+ */
+export type TuningTolerance = 10 | 20 | 35 | 50;
+
+/**
+ * Target note guidance mode:
+ * 'quantized': Snaps target to exact equal-tempered semitone (Standard Note)
+ * 'original': Follows raw micro-pitch bend of the audio file (Original Track)
+ */
+export type TargetPitchMode = 'quantized' | 'original';
 
 export type PhraseViewMode = 'grid' | 'timeline_minutes' | 'needs_practice';
 
@@ -21,9 +35,19 @@ export interface SingSessionStats {
 export interface IUserPitchPoint {
   timeMs: number;
   midi: number;
+  rawMidi?: number;
   freqHz: number;
   centsDiff: number;
   inTune: boolean;
+  trend?: 'in_tune' | 'sharp' | 'flat';
+}
+
+export interface IVocalNoteBar {
+  startTimeMs: number;
+  endTimeMs: number;
+  midi: number;
+  noteName: string;
+  solfegeName: string;
 }
 
 export interface RunwayRenderState {
@@ -42,4 +66,8 @@ export interface RunwayRenderState {
   lowestMidi: number;
   highestMidi: number;
   toleranceCents: number;
+  targetMode?: TargetPitchMode;
+  isWindowLocked?: boolean;
+  noteBars?: IVocalNoteBar[];
+  latencyOffsetMs?: number;
 }

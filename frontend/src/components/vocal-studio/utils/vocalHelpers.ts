@@ -1,7 +1,5 @@
 import { IReferencePitchPoint } from '../../../services/vocalFileAnalysisService';
-
-export const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-export const SOLFEGE_NAMES = ['Đô', 'Đô#', 'Rê', 'Rê#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
+export { NOTE_NAMES, SOLFEGE_NAMES } from '@brain-exercises/shared';
 
 /**
  * Mathematically exact binary search to find the closest reference pitch frame
@@ -53,6 +51,7 @@ export function formatTimeMs(timeMs: number): string {
 
 /**
  * Human-friendly feedback for pitch deviation (Nielsen Heuristic H2)
+ * Fixes DEF-01: Does not falsely claim 'Chuẩn cao độ!' when there is no target note playing
  */
 export interface PitchFeedbackDetail {
   status: 'in_tune' | 'flat' | 'sharp' | 'silence';
@@ -64,7 +63,8 @@ export interface PitchFeedbackDetail {
 export function getPitchFeedback(
   centsDiff: number,
   toleranceCents: number,
-  isSinging: boolean
+  isSinging: boolean,
+  isTargetActive = true
 ): PitchFeedbackDetail {
   if (!isSinging) {
     return {
@@ -75,30 +75,37 @@ export function getPitchFeedback(
     };
   }
 
+  if (!isTargetActive) {
+    return {
+      status: 'silence',
+      text: 'Đoạn nghỉ / Đệm nhạc',
+      subText: 'Chuẩn bị vào câu tiếp theo',
+      badgeClass: 'text-slate-400 bg-slate-800/80 border-slate-700',
+    };
+  }
+
   const absDiff = Math.abs(centsDiff);
   if (absDiff <= toleranceCents) {
     return {
       status: 'in_tune',
       text: 'Chuẩn cao độ!',
-      subText: `Khớp ${Math.abs(centsDiff) === 0 ? 'tuyệt đối' : `${absDiff} cents`}`,
+      subText: `Khớp ${absDiff === 0 ? 'tuyệt đối' : `${absDiff} cents`}`,
       badgeClass: 'text-emerald-300 bg-emerald-950/80 border-emerald-500/50 shadow-emerald-500/20 shadow-sm',
     };
   }
 
   if (centsDiff < -toleranceCents) {
-    const severity = centsDiff < -45 ? 'rất non' : 'hơi non';
     return {
       status: 'flat',
-      text: `Bị non (${severity})`,
+      text: absDiff > 45 ? 'Hơi thấp (nâng nhẹ lên ↗)' : 'Hơi thấp ↗',
       subText: `${centsDiff} cents — Hãy đẩy giọng cao hơn ↗`,
       badgeClass: 'text-amber-300 bg-amber-950/80 border-amber-500/50',
     };
   }
 
-  const severity = centsDiff > 45 ? 'rất gắt' : 'hơi gắt';
   return {
     status: 'sharp',
-    text: `Bị gắt (${severity})`,
+    text: absDiff > 45 ? 'Hơi cao (hạ nhẹ giọng ↘)' : 'Hơi cao ↘',
     subText: `+${centsDiff} cents — Hãy hạ giọng nhẹ lại ↘`,
     badgeClass: 'text-rose-300 bg-rose-950/80 border-rose-500/50',
   };
