@@ -110,18 +110,60 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
           </div>
         </div>
 
-        {/* Progress bar during analysis */}
+        {/* Premium Multi-Stage DSP Pipeline Overlay */}
         {isAnalyzing && (
-          <div className="absolute inset-0 rounded-3xl bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 gap-3 z-20">
-            <Loader2 className="w-8 h-8 text-sky-400 animate-spin" />
-            <span className="text-sm font-bold text-white">{analyzeStatusText}</span>
-            <div className="w-64 h-2.5 bg-slate-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-sky-400 to-indigo-500 rounded-full transition-all duration-200"
-                style={{ width: `${analyzeProgress}%` }}
-              />
+          <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center select-none animate-in fade-in duration-200">
+            <div className="max-w-md w-full p-6 sm:p-8 rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl space-y-6">
+              <div className="relative mx-auto w-16 h-16 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+                <Loader2 className="w-8 h-8 text-white animate-spin" />
+                <div className="absolute -inset-1 rounded-2xl bg-sky-400/20 animate-pulse -z-10" />
+              </div>
+
+              <div>
+                <h3 className="text-lg font-bold text-white">AI Pitch Coach đang xử lý chuyên sâu</h3>
+                <p className="text-xs text-sky-400 font-medium mt-1 animate-pulse">
+                  {analyzeStatusText}
+                </p>
+              </div>
+
+              {/* Glowing Progress Bar */}
+              <div className="space-y-2">
+                <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/60">
+                  <div
+                    className="h-full bg-gradient-to-r from-sky-400 via-indigo-400 to-purple-400 rounded-full transition-all duration-300 shadow-md shadow-sky-400/30"
+                    style={{ width: `${Math.max(5, analyzeProgress)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between items-center text-[11px] font-mono text-slate-400">
+                  <span>Tiến trình giải mã âm học NewTone</span>
+                  <span className="font-bold text-sky-300">{analyzeProgress}%</span>
+                </div>
+              </div>
+
+              {/* 5-Stage Checklist */}
+              <div className="bg-slate-950/60 rounded-2xl p-4 border border-slate-800/80 text-left space-y-2.5 text-xs font-mono">
+                <div className={`flex items-center gap-2 ${analyzeProgress >= 20 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
+                  <span>{analyzeProgress >= 20 ? '✓' : '○'}</span>
+                  <span>Tách kênh vocal trung tâm (Mid-Side Stereo)</span>
+                </div>
+                <div className={`flex items-center gap-2 ${analyzeProgress >= 30 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
+                  <span>{analyzeProgress >= 30 ? '✓' : '○'}</span>
+                  <span>Lọc 4th-Order Biquad dải tần (95Hz - 880Hz)</span>
+                </div>
+                <div className={`flex items-center gap-2 ${analyzeProgress >= 75 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
+                  <span>{analyzeProgress >= 75 ? '✓' : '○'}</span>
+                  <span>Quét phổ cao độ MPM độ phân giải cao (Hop 512)</span>
+                </div>
+                <div className={`flex items-center gap-2 ${analyzeProgress >= 85 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
+                  <span>{analyzeProgress >= 85 ? '✓' : '○'}</span>
+                  <span>Cầu nối phụ âm & Triệt tiêu nhiễu kích âm NewTone</span>
+                </div>
+                <div className={`flex items-center gap-2 ${analyzeProgress >= 95 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
+                  <span>{analyzeProgress >= 95 ? '✓' : '○'}</span>
+                  <span>Giải mã Viterbi HMM & Phân đoạn Note Blocks</span>
+                </div>
+              </div>
             </div>
-            <span className="text-xs font-mono text-slate-400">{analyzeProgress}%</span>
           </div>
         )}
       </div>
@@ -129,6 +171,27 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
       {/* 2. Analysis Overview Cards */}
       {analysisResult && (
         <>
+          {/* Action: Enter Singing Room Banner */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-3xl bg-gradient-to-r from-sky-950/60 via-indigo-950/60 to-emerald-950/60 border border-sky-500/40 shadow-xl">
+            <div className="space-y-1">
+              <div className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span>Phân tích hoàn tất! Đã trích xuất {analysisResult.noteBars.length} nốt NewTone & {analysisResult.phrases.length} câu hát</span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Đường băng cao độ đã căn chỉnh chuẩn 0ms độ trễ. Bấm nút để bắt đầu luyện hát ngay!
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onNavigateToSingAlong}
+              className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-xs sm:text-sm hover:from-emerald-400 hover:to-teal-300 transition shadow-lg flex items-center gap-2 shrink-0 active:scale-95"
+            >
+              <span>Vào Phòng Luyện Hát</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
               <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">

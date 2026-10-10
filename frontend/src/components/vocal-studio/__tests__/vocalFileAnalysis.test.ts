@@ -300,4 +300,56 @@ describe('Vocal File Analysis & Range Extraction', () => {
     expect(points[6].isVocal).toBe(false);
     expect(points[6].freqHz).toBe(0);
   });
+
+  it('TC-21: Expanded consonant gap bridging connects phrases across 200ms unvoiced dips', () => {
+    const points: any[] = [];
+    // Voiced singing on C4 (MIDI 60)
+    for (let i = 0; i < 4; i++) {
+      points.push({
+        timeMs: i * 25,
+        freqHz: 261.63,
+        midi: 60.0,
+        noteName: 'C4',
+        solfegeName: 'Đô 4',
+        clarity: 0.85,
+        volumeDb: -14,
+        isVocal: true,
+      });
+    }
+    // Consonant gap: 7 frames (175ms dip) with voiceless consonants
+    for (let i = 4; i < 11; i++) {
+      points.push({
+        timeMs: i * 25,
+        freqHz: 0,
+        midi: 0,
+        noteName: '',
+        solfegeName: '',
+        clarity: 0.2,
+        volumeDb: -25,
+        isVocal: false,
+      });
+    }
+    // Sustained singing continues on D4 (MIDI 62, 2 semitones diff)
+    for (let i = 11; i < 15; i++) {
+      points.push({
+        timeMs: i * 25,
+        freqHz: 293.66,
+        midi: 62.0,
+        noteName: 'D4',
+        solfegeName: 'Rê 4',
+        clarity: 0.88,
+        volumeDb: -12,
+        isVocal: true,
+      });
+    }
+
+    vocalFileAnalysisService.bridgeMicroGaps(points);
+
+    // All frames between 4 and 10 must now be bridged seamlessly as vocal singing!
+    for (let i = 4; i < 11; i++) {
+      expect(points[i].isVocal).toBe(true);
+      expect(points[i].midi).toBeGreaterThanOrEqual(59.9);
+      expect(points[i].midi).toBeLessThanOrEqual(62.1);
+    }
+  });
 });

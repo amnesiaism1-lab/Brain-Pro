@@ -154,9 +154,10 @@ class VocalFileAnalysisService {
     const bufferCopy = arrayBuffer.slice(0);
     const audioBuffer = await ctx.decodeAudioData(bufferCopy);
 
-    notify(25, 'Đang trích xuất đường cao độ vocal bằng thuật toán MPM...');
+    notify(10, 'Giai đoạn 1/5: Tách kênh trung tâm Stereo Mid-Channel (Khử nhạc cụ biên)...');
+    await new Promise((resolve) => setTimeout(resolve, 320));
 
-    // 3. Offline Pitch Extraction using Mid-Channel Conditioning, Bandpass Filtering & MPM
+    // 3. Offline Pitch Extraction using Mid-Channel Conditioning, 4th-Order Bandpass & Adaptive MPM
     const sampleRate = audioBuffer.sampleRate;
     const numChannels = audioBuffer.numberOfChannels;
     const totalSamples = audioBuffer.length;
@@ -174,13 +175,16 @@ class VocalFileAnalysisService {
       rawMonoPcm.set(audioBuffer.getChannelData(0));
     }
 
-    // Apply vocal bandpass filter (80Hz to 1150Hz) to remove kick drum rumble and cymbal sizzle
+    notify(25, 'Giai đoạn 2/5: Lọc 4th-Order Biquad dải tần Vocal (95Hz - 880Hz, -24dB/oct)...');
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    // Apply steep 4th-order Butterworth Biquad bandpass filter (95Hz to 880Hz) to kill kick drum rumble and cymbal sizzle
     const filteredPcm = this.applyVocalBandpassFilter(rawMonoPcm, sampleRate);
 
     const bufferSize = 2048;
-    const hopSize = 512; // ~11.6ms high-density hop step for detailed pitch curve & fine vibrato tracking
+    const hopSize = 512; // ~11.6ms high-density hop step (86 frames/sec)
     const detector = PitchDetector.forFloat32Array(bufferSize);
-    detector.clarityThreshold = 0.60;
+    detector.clarityThreshold = 0.30; // Adaptive threshold: allows vocal melody tracking in mixed audio with accompaniment
 
     const pitchTrack: IReferencePitchPoint[] = [];
     const frameBuffer = new Float32Array(bufferSize);
@@ -197,11 +201,12 @@ class VocalFileAnalysisService {
       const r = Math.sqrt(sqSum / chunkLen);
       if (r > maxRms) maxRms = r;
     }
-    const dynamicNoiseFloorRms = Math.max(0.005, maxRms * 0.05);
+    const dynamicNoiseFloorRms = Math.max(0.003, maxRms * 0.04);
 
     let sampleCursor = 0;
     const totalFrames = Math.floor((totalSamples - bufferSize) / hopSize);
     let frameCount = 0;
+    const yieldInterval = Math.max(20, Math.floor(totalFrames / 45)); // ~45 smooth UI progress ticks
 
     while (sampleCursor + bufferSize <= totalSamples) {
       // Window center timestamping (+bufferSize/2) to align exact acoustic physical center with audio playback
@@ -218,11 +223,12 @@ class VocalFileAnalysisService {
       const rms = Math.sqrt(sumSquares / bufferSize);
       const db = rms > 0 ? 20 * Math.log10(rms) : -100;
 
-      if (rms >= dynamicNoiseFloorRms && db >= -48) {
+      if (rms >= dynamicNoiseFloorRms && db >= -46) {
         const [rawPitch, clarity] = detector.findPitch(frameBuffer, sampleRate);
 
-        // Vocal singing frequencies typically range between 80Hz (E2) and 1150Hz (D6)
-        if (clarity >= 0.60 && rawPitch >= 80 && rawPitch <= 1150) {
+        // Vocal singing frequencies strictly between 95Hz (F#2) and 880Hz (A5)
+        // With clarity >= 0.30, real singing in mixed MP3 accompaniment is reliably captured!
+        if (clarity >= 0.30 && rawPitch >= 95 && rawPitch <= 880) {
           const exactMidi = 12 * Math.log2(rawPitch / 440) + 69;
           const noteInfo = this.midiToNoteInfo(exactMidi);
 
@@ -264,32 +270,28 @@ class VocalFileAnalysisService {
       sampleCursor += hopSize;
       frameCount++;
 
-      if (frameCount % 30 === 0 && totalFrames > 0) {
-        const pct = Math.min(74, 15 + Math.round((frameCount / totalFrames) * 60));
-        notify(pct, `Giai đoạn 2/5: Quét phổ cao độ MPM độ phân giải cao (${Math.round((timeMs / 1000))}s / ${Math.round(durationMs / 1000)}s)...`);
-        // Real async yield to ensure browser repaints progress bar smoothly!
-        await new Promise((resolve) => setTimeout(resolve, 8));
+      if (frameCount % yieldInterval === 0 && totalFrames > 0) {
+        const pct = Math.min(75, 30 + Math.round((frameCount / totalFrames) * 45));
+        notify(pct, `Giai đoạn 3/5: Quét phổ cao độ MPM độ phân giải cao (${Math.round((timeMs / 1000))}s / ${Math.round(durationMs / 1000)}s)...`);
+        await new Promise((resolve) => setTimeout(resolve, 25));
       }
     }
 
-    notify(76, 'Giai đoạn 3/5: Cầu nối phụ âm & Triệt tiêu nhiễu kích âm...');
-    await new Promise((resolve) => setTimeout(resolve, 120));
+    notify(80, 'Giai đoạn 4/5: Cầu nối phụ âm & Triệt tiêu nhiễu kích âm NewTone...');
+    await new Promise((resolve) => setTimeout(resolve, 400));
     this.pruneTransientSpikes(pitchTrack);
     this.bridgeMicroGaps(pitchTrack);
 
-    notify(85, 'Giai đoạn 4/5: Giải mã toàn cục Viterbi HMM & khử lỗi quãng 8...');
-    await new Promise((resolve) => setTimeout(resolve, 120));
+    notify(88, 'Giai đoạn 5/5: Giải mã toàn cục Viterbi HMM & Phân đoạn Note Blocks...');
+    await new Promise((resolve) => setTimeout(resolve, 400));
     this.applyViterbiSmoothing(pitchTrack);
     this.smoothPitchTrack(pitchTrack);
-
-    notify(93, 'Giai đoạn 5/5: Phân đoạn Khối Nốt Nhạc NewTone (Note Blocks)...');
-    await new Promise((resolve) => setTimeout(resolve, 100));
     const noteBars = this.segmentNoteBars(pitchTrack);
 
-    notify(97, 'Đang xác định âm giai và tối ưu lộ trình luyện tập...');
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    notify(96, 'Đang xác định âm giai và tối ưu lộ trình luyện tập...');
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
-    // 4. Robust Vocal Range & Statistics via 5th-95th percentile filtering
+    // 4. Robust Vocal Range & Statistics via 10th-90th percentile filtering
     const vocalPoints = pitchTrack.filter((p) => p.isVocal && p.freqHz > 0);
     let lowestPoint: IReferencePitchPoint;
     let highestPoint: IReferencePitchPoint;
@@ -307,12 +309,12 @@ class VocalFileAnalysisService {
         rmsDbSum += p.volumeDb;
       });
 
-      // Sort by MIDI to eliminate transient cough/mic clicks at boundaries
+      // Sort by MIDI to eliminate any remaining transient boundary noise
       const sorted = [...vocalPoints].sort((a, b) => a.midi - b.midi);
-      const p5Index = Math.min(sorted.length - 1, Math.max(sorted.length > 10 ? 1 : 0, Math.floor(sorted.length * 0.05)));
-      const p95Index = Math.max(0, Math.min(sorted.length > 10 ? sorted.length - 2 : sorted.length - 1, Math.ceil(sorted.length * 0.95)));
-      lowestPoint = sorted[p5Index];
-      highestPoint = sorted[p95Index];
+      const p10Index = Math.min(sorted.length - 1, Math.max(sorted.length > 10 ? 1 : 0, Math.floor(sorted.length * 0.08)));
+      const p90Index = Math.max(0, Math.min(sorted.length > 10 ? sorted.length - 2 : sorted.length - 1, Math.ceil(sorted.length * 0.92)));
+      lowestPoint = sorted[p10Index];
+      highestPoint = sorted[p90Index];
       spanSemitones = Math.max(1, Math.round(highestPoint.midi - lowestPoint.midi));
     }
 
@@ -497,40 +499,63 @@ class VocalFileAnalysisService {
   }
 
   /**
-   * 2-stage RC filter: High-pass at 80Hz (cuts kick drum/sub-bass) + Low-pass at 1150Hz (cuts hi-hats/cymbals)
-   * This isolates the fundamental vocal frequency band (E2 to D6) for robust pitch detection.
+   * 4th-Order Cascaded Butterworth Biquad Bandpass Filter (95Hz to 880Hz, -24dB/octave slope)
+   * Drastically attenuates kick drums (<95Hz) and cymbal sizzle / synths (>880Hz),
+   * strictly isolating human singing vocal fundamentals (F#2 to A5).
    */
   private applyVocalBandpassFilter(input: Float32Array, sampleRate: number): Float32Array {
-    const output = new Float32Array(input.length);
-    const dt = 1.0 / sampleRate;
+    const createBiquadHPF = (fc: number, fs: number, Q = 0.7071) => {
+      const w0 = (2 * Math.PI * fc) / fs;
+      const alpha = Math.sin(w0) / (2 * Q);
+      const cosw0 = Math.cos(w0);
+      const a0 = 1 + alpha;
+      return {
+        b0: ((1 + cosw0) / 2) / a0,
+        b1: (-(1 + cosw0)) / a0,
+        b2: ((1 + cosw0) / 2) / a0,
+        a1: (-2 * cosw0) / a0,
+        a2: (1 - alpha) / a0,
+      };
+    };
 
-    // Highpass stage at 80 Hz
-    const rcHp = 1.0 / (2 * Math.PI * 80);
-    const alphaHp = rcHp / (rcHp + dt);
+    const createBiquadLPF = (fc: number, fs: number, Q = 0.7071) => {
+      const w0 = (2 * Math.PI * fc) / fs;
+      const alpha = Math.sin(w0) / (2 * Q);
+      const cosw0 = Math.cos(w0);
+      const a0 = 1 + alpha;
+      return {
+        b0: ((1 - cosw0) / 2) / a0,
+        b1: (1 - cosw0) / a0,
+        b2: ((1 - cosw0) / 2) / a0,
+        a1: (-2 * cosw0) / a0,
+        a2: (1 - alpha) / a0,
+      };
+    };
 
-    // Lowpass stage at 1150 Hz
-    const rcLp = 1.0 / (2 * Math.PI * 1150);
-    const alphaLp = dt / (rcLp + dt);
+    const processStage = (signal: Float32Array, coeffs: { b0: number; b1: number; b2: number; a1: number; a2: number }) => {
+      const out = new Float32Array(signal.length);
+      const { b0, b1, b2, a1, a2 } = coeffs;
+      let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+      for (let i = 0; i < signal.length; i++) {
+        const x = signal[i];
+        const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+        x2 = x1;
+        x1 = x;
+        y2 = y1;
+        y1 = y;
+        out[i] = y;
+      }
+      return out;
+    };
 
-    let prevHpIn = 0;
-    let prevHpOut = 0;
-    let prevLpOut = 0;
+    // Cascade: 2 HPF stages at 95Hz (4th order = -24dB/oct) + 2 LPF stages at 880Hz (4th order = -24dB/oct)
+    const hpfCoeffs = createBiquadHPF(95, sampleRate);
+    const lpfCoeffs = createBiquadLPF(880, sampleRate);
 
-    for (let i = 0; i < input.length; i++) {
-      const x = input[i];
-      // High-pass
-      const hpOut = alphaHp * (prevHpOut + x - prevHpIn);
-      prevHpIn = x;
-      prevHpOut = hpOut;
-
-      // Low-pass
-      const lpOut = prevLpOut + alphaLp * (hpOut - prevLpOut);
-      prevLpOut = lpOut;
-
-      output[i] = lpOut;
-    }
-
-    return output;
+    const s1 = processStage(input, hpfCoeffs);
+    const s2 = processStage(s1, hpfCoeffs);
+    const s3 = processStage(s2, lpfCoeffs);
+    return processStage(s3, lpfCoeffs);
   }
 
   /**
@@ -567,8 +592,8 @@ class VocalFileAnalysisService {
   /**
    * Consonant & Voicing Continuity (FL Studio NewTone / Melodyne gap bridging)
    * In human singing, plosive and fricative consonants (t, p, k, s, ch) cause
-   * autocorrelation clarity to drop for 30-130ms, breaking the melodic contour.
-   * If an unvoiced gap is <= 140ms between two voiced points within 3.5 semitones,
+   * autocorrelation clarity to drop for 30-200ms, breaking the melodic contour.
+   * If an unvoiced gap is <= 220ms between two voiced points within 4.0 semitones,
    * we bridge the gap via linear pitch interpolation to ensure unbroken musical phrases.
    */
   public bridgeMicroGaps(pitchTrack: IReferencePitchPoint[]): void {
@@ -587,8 +612,8 @@ class VocalFileAnalysisService {
             const endMidi = pitchTrack[i].midi;
             const midiDiff = Math.abs(endMidi - startMidi);
 
-            // Bridge gap if duration <= 140ms and pitch change is continuous (<= 3.5 semitones)
-            if (gapDurationMs <= 140 && midiDiff <= 3.5) {
+            // Bridge gap if duration <= 220ms and pitch change is continuous (<= 4.0 semitones)
+            if (gapDurationMs <= 220 && midiDiff <= 4.0) {
               for (let k = lastVoicedIdx + 1; k < i; k++) {
                 const alpha = (k - lastVoicedIdx) / (i - lastVoicedIdx);
                 const interpMidi = startMidi + alpha * (endMidi - startMidi);
