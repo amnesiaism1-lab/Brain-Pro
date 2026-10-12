@@ -597,4 +597,103 @@ describe('Vocal File Analysis & Range Extraction', () => {
     expect(points[3].midi).toBeGreaterThan(points[2].midi);
     expect(points[3].midi).toBeLessThanOrEqual(67);
   });
+
+  it('TC-38: Enhanced Viterbi HMM corrects 3rd harmonic glitch (660Hz E5 pulled down to 220Hz A3 fundamental)', () => {
+    // Sustained singing on A3 (220 Hz, MIDI 57), where frames 4 & 5 had a 3rd harmonic glitch at E5 (660 Hz, MIDI 76)
+    const points: any[] = [];
+    for (let i = 0; i < 12; i++) {
+      const isHarmonicGlitch = i === 4 || i === 5;
+      points.push({
+        timeMs: i * 20,
+        freqHz: isHarmonicGlitch ? 660.0 : 220.0,
+        midi: isHarmonicGlitch ? 76.0 : 57.0,
+        noteName: isHarmonicGlitch ? 'E5' : 'A3',
+        solfegeName: '',
+        clarity: 0.85,
+        volumeDb: -14,
+        isVocal: true,
+      });
+    }
+
+    vocalFileAnalysisService.applyViterbiSmoothing(points);
+
+    // Glitch frames 4 & 5 must be pulled down to A3 (MIDI 57), eliminating the false E5 jump
+    expect(points[4].midi).toBe(57);
+    expect(points[4].noteName).toBe('A3');
+    expect(points[5].midi).toBe(57);
+    expect(points[5].noteName).toBe('A3');
+
+    const bars = vocalFileAnalysisService.segmentNoteBars(points);
+    expect(bars.length).toBe(1);
+    expect(bars[0].midi).toBe(57);
+    expect(bars[0].noteName).toBe('A3');
+  });
+
+  it('TC-39: Note bar segmentation preserves separate syllables on repeated pitch with consonant gaps (>= 80ms)', () => {
+    // 3 separate syllables sung on A3 (MIDI 57), separated by 90ms consonant gaps (like "Anh... em... say...")
+    const points: any[] = [];
+    let t = 0;
+    for (let syl = 0; syl < 3; syl++) {
+      // 200ms voiced syllable
+      for (let f = 0; f < 10; f++) {
+        points.push({
+          timeMs: t,
+          freqHz: 220.0,
+          midi: 57.0,
+          noteName: 'A3',
+          solfegeName: 'La 3',
+          clarity: 0.90,
+          volumeDb: -14,
+          isVocal: true,
+        });
+        t += 20;
+      }
+      // 90ms unvoiced consonant gap (except after last syllable)
+      if (syl < 2) {
+        for (let g = 0; g < 4; g++) {
+          points.push({
+            timeMs: t,
+            freqHz: 0,
+            midi: 0,
+            noteName: '',
+            solfegeName: '',
+            clarity: 0,
+            volumeDb: -60,
+            isVocal: false,
+          });
+          t += 22;
+        }
+      }
+    }
+
+    const bars = vocalFileAnalysisService.segmentNoteBars(points);
+
+    // Must yield 3 distinct note bars matching FL Studio NewTone (NOT merged into 1 continuous bar)
+    expect(bars.length).toBe(3);
+    expect(bars[0].noteName).toBe('A3');
+    expect(bars[1].noteName).toBe('A3');
+    expect(bars[2].noteName).toBe('A3');
+  });
+
+  it('TC-40: Transient spike pruning wipes isolated micro-bursts (< 50ms) from percussive clicks', () => {
+    const points: any[] = [];
+    // 4 frames silence
+    for (let i = 0; i < 4; i++) {
+      points.push({ timeMs: i * 20, freqHz: 0, midi: 0, noteName: '', solfegeName: '', clarity: 0, volumeDb: -60, isVocal: false });
+    }
+    // 2 frames (40ms) high click burst at 840Hz (G#5)
+    points.push({ timeMs: 80, freqHz: 840.0, midi: 80.0, noteName: 'G#5', solfegeName: '', clarity: 0.70, volumeDb: -12, isVocal: true });
+    points.push({ timeMs: 100, freqHz: 840.0, midi: 80.0, noteName: 'G#5', solfegeName: '', clarity: 0.70, volumeDb: -12, isVocal: true });
+    // 4 frames silence
+    for (let i = 6; i < 10; i++) {
+      points.push({ timeMs: i * 20, freqHz: 0, midi: 0, noteName: '', solfegeName: '', clarity: 0, volumeDb: -60, isVocal: false });
+    }
+
+    vocalFileAnalysisService.pruneTransientSpikes(points);
+
+    expect(points[4].isVocal).toBe(false);
+    expect(points[4].freqHz).toBe(0);
+    expect(points[5].isVocal).toBe(false);
+    expect(points[5].freqHz).toBe(0);
+  });
 });

@@ -252,8 +252,14 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
 
       if (!isManualControl) {
         if (notesInWindow > 0) {
-          const center = (localMin + localMax) / 2;
-          const desiredSpan = Math.max(14, (localMax - localMin) + 6);
+          const activeRefMidi =
+            currentRefPoint && currentRefPoint.isVocal && currentRefPoint.midi > 0
+              ? currentRefPoint.midi + transposeSemitones
+              : null;
+          const melodyCenter = (localMin + localMax) / 2;
+          const center = activeRefMidi !== null ? activeRefMidi * 0.4 + melodyCenter * 0.6 : melodyCenter;
+          const rawSpan = localMax - localMin + 6;
+          const desiredSpan = Math.min(22, Math.max(14, rawSpan));
           targetMin = Math.max(36, Math.floor(center - desiredSpan / 2));
           targetMax = Math.min(96, targetMin + desiredSpan);
         } else {
@@ -261,7 +267,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           const songMin = (lowestMidi || 48) + transposeSemitones;
           const songMax = (highestMidi || 72) + transposeSemitones;
           const center = (songMin + songMax) / 2;
-          const desiredSpan = Math.max(16, (songMax - songMin) + 4);
+          const desiredSpan = Math.min(22, Math.max(14, songMax - songMin + 4));
           targetMin = Math.max(36, Math.floor(center - desiredSpan / 2));
           targetMax = Math.min(96, targetMin + desiredSpan);
         }

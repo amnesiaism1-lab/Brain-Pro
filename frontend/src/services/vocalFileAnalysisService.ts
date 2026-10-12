@@ -187,9 +187,9 @@ class VocalFileAnalysisService {
     const filteredPcm = this.applyVocalBandpassFilter(rawMonoPcm, sampleRate);
 
     const bufferSize = 2048;
-    const hopSize = 512; // ~11.6ms high-density hop step (86 frames/sec)
+    const hopSize = 512; // ~11.6ms high-density hop step (86 frames/sec at 44.1kHz, 10.7ms at 48kHz)
     const detector = PitchDetector.forFloat32Array(bufferSize);
-    detector.clarityThreshold = 0.30; // Adaptive threshold: allows vocal melody tracking in mixed audio with accompaniment
+    detector.clarityThreshold = 0.85; // Standard MPM clarity threshold k (0.80 - 0.95): selects true fundamental period lag instead of subharmonics/3rd harmonic
 
     const pitchTrack: IReferencePitchPoint[] = [];
     const frameBuffer = new Float32Array(bufferSize);
@@ -338,20 +338,16 @@ class VocalFileAnalysisService {
     // 7. Calculate Vocal Complexity Metrics
     const singingTimeMs = vocalPoints.length * (hopSize / sampleRate) * 1000;
     const singingRatioPercent = durationMs > 0 ? Math.round((singingTimeMs / durationMs) * 100) : 0;
+    const densityNotesPerSec = singingTimeMs > 0 ? Math.round((noteBars.length / (singingTimeMs / 1000)) * 10) / 10 : 0;
     const avgClarity = vocalPoints.length > 0 ? Math.round((claritySum / vocalPoints.length) * 100) / 100 : 0.75;
     const avgRmsDb = vocalPoints.length > 0 ? Math.round(rmsDbSum / vocalPoints.length) : -25;
-    const densityNotesPerSec = durationMs > 0 ? Math.round((vocalPoints.length / (durationMs / 1000)) * 10) / 10 : 0;
 
-    // Calculate musical leaps between sustained note events (not micro-frames 23ms apart)
+    // Calculate musical leaps between discrete note bars (musical phrasing, not micro-frames)
     let maxIntervalSemitones = 0;
-    let lastStableMidi = vocalPoints.length > 0 ? vocalPoints[0].midi : 0;
-    for (let i = 1; i < vocalPoints.length; i++) {
-      const semitonesDiff = Math.abs(vocalPoints[i].midi - lastStableMidi);
-      if (semitonesDiff >= 1.0 && semitonesDiff < 24) {
-        if (semitonesDiff > maxIntervalSemitones) {
-          maxIntervalSemitones = Math.round(semitonesDiff);
-        }
-        lastStableMidi = vocalPoints[i].midi;
+    for (let i = 1; i < noteBars.length; i++) {
+      const semitonesDiff = Math.abs(noteBars[i].midi - noteBars[i - 1].midi);
+      if (semitonesDiff > maxIntervalSemitones && semitonesDiff < 24) {
+        maxIntervalSemitones = Math.round(semitonesDiff);
       }
     }
 
@@ -585,9 +581,12 @@ class VocalFileAnalysisService {
         islandStart = i;
       } else if (!isVoiced && islandStart !== -1) {
         const islandLength = i - islandStart;
+        const startMs = pitchTrack[islandStart].timeMs;
+        const endMs = pitchTrack[i - 1].timeMs;
+        const burstDurMs = endMs - startMs;
 
-        // An isolated burst under 4 frames (< ~45ms) is not human sustained singing
-        if (islandLength < 4) {
+        // An isolated burst under 4 frames or under 50ms is acoustic percussion noise / click
+        if (islandLength < 4 || burstDurMs < 50) {
           for (let k = islandStart; k < i; k++) {
             pitchTrack[k].isVocal = false;
             pitchTrack[k].freqHz = 0;
@@ -604,8 +603,8 @@ class VocalFileAnalysisService {
   /**
    * Consonant & Voicing Continuity (FL Studio NewTone / Melodyne gap bridging)
    * In human singing, plosive and fricative consonants (t, p, k, s, ch) cause
-   * autocorrelation clarity to drop for 30-200ms, breaking the melodic contour.
-   * If an unvoiced gap is <= 220ms between two voiced points within 4.0 semitones,
+   * autocorrelation clarity to drop for 30-180ms, breaking the melodic contour.
+   * If an unvoiced gap is <= 220ms between two voiced points within 8.0 semitones,
    * we bridge the gap via linear pitch interpolation to ensure unbroken musical phrases.
    */
   public bridgeMicroGaps(pitchTrack: IReferencePitchPoint[]): void {
@@ -624,8 +623,8 @@ class VocalFileAnalysisService {
             const endMidi = pitchTrack[i].midi;
             const midiDiff = Math.abs(endMidi - startMidi);
 
-            // Bridge gap if duration <= 280ms and pitch change is continuous (<= 14.0 semitones for smooth legato leaps like C5 -> G5)
-            if (gapDurationMs <= 280 && midiDiff <= 14.0) {
+            // Bridge gap if duration <= 220ms and pitch change is continuous (<= 8.0 semitones for smooth legato leaps like C4 -> G4)
+            if (gapDurationMs <= 220 && midiDiff <= 8.0) {
               for (let k = lastVoicedIdx + 1; k < i; k++) {
                 const alpha = (k - lastVoicedIdx) / (i - lastVoicedIdx);
                 const interpMidi = startMidi + alpha * (endMidi - startMidi);
@@ -694,28 +693,24 @@ class VocalFileAnalysisService {
 
     for (const seg of segments) {
       const T = seg.length;
-      // For each frame t, generate 3 pitch candidate states:
-      // State 0: nominal f0
-      // State 1: f0 / 2 (octave down, if >= 70 Hz)
-      // State 2: f0 * 2 (octave up, if <= 1250 Hz)
-      const numStates = 3;
+      // For each frame t, generate candidate harmonic states:
+      // State 0: nominal f0 (MPM fundamental)
+      // State 1: f0 / 2 (candidate octave doubling error, -12 semitones)
+      // State 2: f0 / 3 (candidate 3rd harmonic error, -19.02 semitones, e.g. E5 detected instead of A3)
+      // State 3: f0 / 4 (candidate 4th harmonic error, -24 semitones)
+      // State 4: f0 * 2 (candidate octave halving error, +12 semitones)
+      const multipliers = [1.0, 0.5, 1 / 3, 0.25, 2.0];
+      const numStates = multipliers.length;
       const dp = Array.from({ length: T }, () => new Float64Array(numStates).fill(Infinity));
       const backpointer = Array.from({ length: T }, () => new Int32Array(numStates).fill(0));
 
-      const getCandidateMidi = (frameIdx: number, state: number): number => {
-        const baseMidi = pitchTrack[frameIdx].midi;
-        if (state === 0) return baseMidi;
-        if (state === 1) return baseMidi - 12; // Octave down
-        if (state === 2) return baseMidi + 12; // Octave up
-        return baseMidi;
+      const getCandidateHz = (frameIdx: number, state: number): number => {
+        return pitchTrack[frameIdx].freqHz * multipliers[state];
       };
 
-      const getCandidateHz = (frameIdx: number, state: number): number => {
-        const baseHz = pitchTrack[frameIdx].freqHz;
-        if (state === 0) return baseHz;
-        if (state === 1) return baseHz / 2;
-        if (state === 2) return baseHz * 2;
-        return baseHz;
+      const getCandidateMidi = (frameIdx: number, state: number): number => {
+        const hz = getCandidateHz(frameIdx, state);
+        return 12 * Math.log2(hz / 440) + 69;
       };
 
       // Calculate segment average clarity
@@ -733,11 +728,11 @@ class VocalFileAnalysisService {
           dp[0][s] = Infinity;
           continue;
         }
-        // Strong prior toward state 0 (measured MPM fundamental)
-        const priorCost = s === 0 ? 0 : 6.0;
+        // Prior toward state 0 (measured MPM fundamental)
+        const priorCost = s === 0 ? 0 : s === 1 ? 4.5 : s === 2 ? 6.0 : s === 3 ? 7.5 : 5.5;
         const emissionCost = s === 0
           ? (1 - clarity0) * 3.0
-          : 2.5 + (1 - clarity0) * 3.0;
+          : 2.2 + (1 - clarity0) * 3.0;
         dp[0][s] = priorCost + emissionCost;
       }
 
@@ -753,10 +748,10 @@ class VocalFileAnalysisService {
             continue;
           }
 
-          // Active per-frame emission penalty on states 1 and 2 to strictly prevent lingering in an octave shift
+          // Active per-frame emission penalty on harmonic states to prevent unwarranted octave shift
           const emissionCost = sCurr === 0
             ? (1 - clarity) * 3.0
-            : 2.5 + (1 - clarity) * 3.0;
+            : 2.2 + (1 - clarity) * 3.0;
 
           const midiCurr = getCandidateMidi(currFrameIdx, sCurr);
           let minCost = Infinity;
@@ -768,16 +763,19 @@ class VocalFileAnalysisService {
             const deltaMidi = Math.abs(midiCurr - midiPrev);
 
             // Transition penalty:
-            // 1. Changing octave hypothesis (sPrev != sCurr) incurs a switching penalty
-            const switchCost = sPrev === sCurr ? 0 : 5.0;
+            // 1. Changing harmonic hypothesis (sPrev != sCurr) incurs a switching penalty
+            const switchCost = sPrev === sCurr ? 0 : 4.5;
 
             // 2. Melodic distance: Normal singing leaps (minor 3rd, 5th, 6th, 7th) are smooth and bounded
             let melodicCost = Math.min(5.5, deltaMidi * 0.45);
 
-            // 3. Octave jumps (specifically ~12 or ~24 semitones) are penalized heavily as likely pitch-detector glitches
-            const isOctaveJump = Math.abs(deltaMidi - 12.0) <= 1.2 || Math.abs(deltaMidi - 24.0) <= 1.2;
-            if (isOctaveJump) {
-              melodicCost += 16.0;
+            // 3. Octave & harmonic jumps (specifically ~12, ~19.02, or ~24 semitones) are penalized heavily as pitch-detector glitches
+            const isHarmonicJump =
+              Math.abs(deltaMidi - 12.0) <= 1.2 ||
+              Math.abs(deltaMidi - 19.02) <= 1.2 ||
+              Math.abs(deltaMidi - 24.0) <= 1.2;
+            if (isHarmonicJump) {
+              melodicCost += 18.0;
             }
 
             const totalCost = dp[t - 1][sPrev] + switchCost + melodicCost;
@@ -808,15 +806,14 @@ class VocalFileAnalysisService {
         optimalStates[t - 1] = backpointer[t][optimalStates[t]];
       }
 
-      // Safety Guard: Check how many frames in this segment chose state 1 or 2
+      // Safety Guard: Check how many frames in this segment chose non-state 0
       let shiftedCount = 0;
       for (let t = 0; t < T; t++) {
         if (optimalStates[t] !== 0) shiftedCount++;
       }
 
-      // If more than 40% of frames were shifted away from MPM despite clear singing,
-      // it is a false octave capture. Revert entire segment to state 0.
-      if (shiftedCount / T > 0.40 && avgSegClarity >= 0.50) {
+      // If more than 45% of frames were shifted away from MPM despite high clarity, revert entire segment
+      if (shiftedCount / T > 0.45 && avgSegClarity >= 0.55) {
         continue;
       }
 
@@ -991,6 +988,11 @@ class VocalFileAnalysisService {
             currentAnchorMidi = Math.round(pt.midi);
           } else {
             currentCluster.push(pt);
+            // Adapt anchor to median of initial cluster frames to avoid attack scoops locking wrong accidental
+            if (currentCluster.length >= 3 && currentCluster.length <= 6) {
+              const sortedM = currentCluster.map((p) => p.midi).sort((a, b) => a - b);
+              currentAnchorMidi = Math.round(sortedM[Math.floor(sortedM.length / 2)]);
+            }
           }
         }
       } else {
@@ -1004,7 +1006,8 @@ class VocalFileAnalysisService {
       flushCluster();
     }
 
-    // Merge adjacent note bars that share the same nominal MIDI separated by micro-gap <= 140ms
+    // Merge adjacent note bars that share the same nominal MIDI only across micro-flickers (<= 45ms)
+    // Preserves distinct musical syllables/words (e.g. repeated same-pitch notes in FL Studio NewTone)
     const mergedBars: IVocalNoteBar[] = [];
     for (let i = 0; i < rawNoteBars.length; i++) {
       const current = rawNoteBars[i];
@@ -1016,7 +1019,7 @@ class VocalFileAnalysisService {
       const prev = mergedBars[mergedBars.length - 1];
       const gapMs = current.startTimeMs - prev.endTimeMs;
 
-      if (prev.midi === current.midi && gapMs <= 140) {
+      if (prev.midi === current.midi && gapMs <= 70) {
         prev.endTimeMs = current.endTimeMs;
         prev.durationMs = prev.endTimeMs - prev.startTimeMs;
         prev.pointsCount += current.pointsCount;
