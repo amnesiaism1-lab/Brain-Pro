@@ -399,7 +399,7 @@ export const RhythmRecallGame: React.FC = () => {
           className="px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30 font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
         >
           <BookOpen className="w-3.5 h-3.5" />
-          <span>Mở bài học: 4. Tiết Tấu & Nhịp Điệu</span>
+          <span>Mở bài học: 5. Nhịp Điệu & Phách</span>
         </button>
       </div>
 

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { IWrongAnswer } from '@brain-exercises/shared';
 import { auditoryEngine } from '../../services/auditoryEngine';
+import { useAppStore } from '../../store/useAppStore';
+import { getTheoryModuleForWrongAnswer, THEORY_MODULE_MAP } from '../learn/theoryExerciseMap';
 import { 
   Volume2, 
   RotateCcw, 
@@ -10,7 +12,8 @@ import {
   GraduationCap, 
   AlertCircle,
   HelpCircle,
-  Play
+  Play,
+  BookOpen
 } from 'lucide-react';
 
 interface WrongAnswerCardProps {
@@ -24,6 +27,7 @@ export const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
   onStartReview,
   className = ''
 }) => {
+  const { navigateToTheory } = useAppStore();
   const [isPlayingCorrect, setIsPlayingCorrect] = useState(false);
   const [isPlayingUser, setIsPlayingUser] = useState(false);
 
@@ -39,6 +43,10 @@ export const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
     timestamp,
     questionContext
   } = wrongAnswer;
+
+  const isAuditory = ['pitch-recall', 'interval-identify', 'chord-identify', 'rhythm-recall', 'timbre-match', 'sound-localization', 'voice-track', 'vocal-pitch-match'].includes(exerciseSlug);
+  const theoryModuleId = isAuditory ? getTheoryModuleForWrongAnswer(exerciseSlug as any, questionContext) : null;
+  const theoryMeta = theoryModuleId ? THEORY_MODULE_MAP[theoryModuleId] : null;
 
   // Format exercise name in Vietnamese
   const getExerciseTitle = (slug: string): string => {
@@ -333,17 +341,28 @@ export const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
       )}
 
       {/* Bottom Action Footer */}
-      {onStartReview && (
-        <div className="flex justify-end pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+      <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex-wrap gap-2">
+        {theoryMeta ? (
+          <button
+            onClick={() => navigateToTheory(theoryModuleId!, correctAnswer.label || exerciseSlug)}
+            className="px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+            title={`Xem cẩm nang lý thuyết ${theoryMeta.title}`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Học lại lý thuyết: {theoryMeta.shortTitle}</span>
+          </button>
+        ) : <div />}
+
+        {onStartReview && (
           <button
             onClick={() => onStartReview(wrongAnswer)}
-            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold shadow-md shadow-cyan-900/20 active:scale-95 transition-all flex items-center gap-1.5"
+            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold shadow-md shadow-cyan-900/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Play className="w-3.5 h-3.5" />
-            <span>Ôn tập cặp này</span>
+            <span>Ôn tập câu này</span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

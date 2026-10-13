@@ -9,7 +9,7 @@ import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
 import { EarTrainingLearningCard } from '../ui/EarTrainingLearningCard';
-import { Sliders, Volume2, RotateCcw, CheckCircle2, XCircle, Play, GraduationCap, Zap, Anchor, Radio, Sparkles } from 'lucide-react';
+import { Sliders, Volume2, RotateCcw, CheckCircle2, XCircle, Play, GraduationCap, Zap, Anchor, Radio, Sparkles, BookOpen } from 'lucide-react';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 
 
@@ -18,6 +18,7 @@ export const IntervalIdentifyGame: React.FC = () => {
     currentLevel, 
     getExerciseLevel, 
     setActiveGameSlug,
+    navigateToTheory,
     enableTonicAnchor,
     setEnableTonicAnchor,
     enableAmbientDrone,
@@ -595,6 +596,21 @@ export const IntervalIdentifyGame: React.FC = () => {
           }))}
         />
       )}
+
+      {/* Educational Link Footer */}
+      <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <p className="text-slate-600 dark:text-slate-400 text-xs italic">
+          💡 Quãng âm là khoảng cách giữa 2 cao độ, định hình toàn bộ cảm xúc căng thẳng (Dissonance) hay thuận tai (Consonance) trong âm nhạc.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigateToTheory('intervals')}
+          className="px-3.5 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>Mở bài học: 2. Quãng Âm (Intervals)</span>
+        </button>
+      </div>
 
       {/* Result Modal */}
       {isFinished && (

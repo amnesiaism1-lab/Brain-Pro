@@ -6,10 +6,10 @@ import { useRelationSession } from '../../hooks/useRelationSession';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { SpatialRadar, ISpatialTarget } from '../ui/SpatialRadar';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
-import { Navigation, Volume2, Headphones, RotateCcw, Play, Sparkles } from 'lucide-react';
+import { Navigation, Volume2, Headphones, RotateCcw, Play, Sparkles, BookOpen } from 'lucide-react';
 
 export const SoundLocalizationGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const { trackWrongAnswer } = useWrongAnswerTracker('sound-localization');
   const sessionIdRef = useRef<string>(`session-sound-loc-${Date.now()}`);
@@ -277,6 +277,21 @@ export const SoundLocalizationGame: React.FC = () => {
       {/* Guidance info */}
       <div className="text-center text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 pb-2">
         Nhấp chọn vị trí trên màn hình radar nơi bạn nghe thấy âm thanh phát ra (hoặc rê chuột để nghe thử hiệu ứng 3D)
+      </div>
+
+      {/* Educational Link Footer */}
+      <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <p className="text-slate-600 dark:text-slate-400 text-xs italic">
+          💡 Não người định vị nguồn âm trong không gian 3D dựa trên độ lệch thời gian (ITD) và chênh lệch âm lượng (ILD) giữa hai tai.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigateToTheory('spatial')}
+          className="px-3.5 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>Mở bài học: 7. Âm Thanh 3D Không Gian</span>
+        </button>
       </div>
 
       {/* Result Modal */}

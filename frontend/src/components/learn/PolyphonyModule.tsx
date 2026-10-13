@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export const PolyphonyModule: React.FC = () => {
-  const { setActiveGameSlug, setActiveTab } = useAppStore();
+  const { setSelectedExerciseSlug, setActiveGameSlug, setActiveTab } = useAppStore();
 
   const [isPlayingStreams, setIsPlayingStreams] = useState(false);
   const [soloVoice, setSoloVoice] = useState<'soprano' | 'alto' | 'bass' | null>(null);
@@ -260,6 +260,34 @@ export const PolyphonyModule: React.FC = () => {
             );
           })}
         </div>
+      </div>
+
+      {/* Polyphony Practice CTA */}
+      <div className="p-6 bg-gradient-to-r from-violet-900/20 via-indigo-900/20 to-slate-900/20 border border-violet-500/30 rounded-3xl flex flex-wrap items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <h4 className="text-base font-black text-slate-900 dark:text-white">
+              Thử Thách Phân Tách Bè (Auditory Stream Segregation)
+            </h4>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-800">
+              TARGET_DISTRACTOR
+            </span>
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            Luyện khả năng khóa chặt sự chú ý vào một giọng hát/nhạc cụ duy nhất giữa đám đông phân tâm (Hiệu ứng Cocktail Party).
+          </p>
+        </div>
+
+        <button
+          onClick={() => {
+            setSelectedExerciseSlug('voice-track');
+            setActiveTab('exercises');
+          }}
+          className="px-5 py-3 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-violet-600/30 active:scale-95 transition-all cursor-pointer"
+        >
+          <span>Luyện Tập: Theo Dõi Bè Âm (Voice Track)</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

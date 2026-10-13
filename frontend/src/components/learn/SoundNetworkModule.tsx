@@ -304,17 +304,31 @@ export const SoundNetworkModule: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex justify-end">
-            <button
-              onClick={() => {
-                setSelectedExerciseSlug('relational-network');
-                setActiveTab('exercises');
-              }}
-              className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-purple-600/30 transition-all"
-            >
-              <span>Vào Game: Mạng Lưới Quan Hệ Động Học</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              💡 Liên kết 2 nốt trên đồ thị là thực thể <strong>Quãng âm & Hòa âm</strong> (ADR: <code>SIMILARITY_DIFF</code> / <code>PART_WHOLE</code>)
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => {
+                  setSelectedExerciseSlug('interval-identify');
+                  setActiveTab('exercises');
+                }}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
+              >
+                <span>Luyện Quãng Này Trong Game</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedExerciseSlug('chord-identify');
+                  setActiveTab('exercises');
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <span>Luyện Hợp Âm</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -403,6 +417,19 @@ export const SoundNetworkModule: React.FC = () => {
                 {overtoneChallenge.explanationVi}
               </p>
             )}
+
+            <div className="flex justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                onClick={() => {
+                  setSelectedExerciseSlug('timbre-match');
+                  setActiveTab('exercises');
+                }}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
+              >
+                <span>Vào Game: Luyện Nhận Diện Bồi Âm & Âm Sắc</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -518,6 +545,19 @@ export const SoundNetworkModule: React.FC = () => {
                 {articulationChallenge.explanationVi}
               </p>
             )}
+
+            <div className="flex justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                onClick={() => {
+                  setSelectedExerciseSlug('timbre-match');
+                  setActiveTab('exercises');
+                }}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
+              >
+                <span>Vào Game: Luyện Sắc Thái Phát Âm</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -607,6 +647,19 @@ export const SoundNetworkModule: React.FC = () => {
                 {cadenceChallenge.explanationVi}
               </p>
             )}
+
+            <div className="flex justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                onClick={() => {
+                  setSelectedExerciseSlug('chord-identify');
+                  setActiveTab('exercises');
+                }}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
+              >
+                <span>Vào Game: Luyện Tiến Trình Hợp Âm</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -695,6 +748,19 @@ export const SoundNetworkModule: React.FC = () => {
                 {contourChallenge.explanationVi}
               </p>
             )}
+
+            <div className="flex justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                onClick={() => {
+                  setSelectedExerciseSlug('pitch-recall');
+                  setActiveTab('exercises');
+                }}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
+              >
+                <span>Vào Game: Luyện Nhớ Chuỗi Đường Nét Cao Độ</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}

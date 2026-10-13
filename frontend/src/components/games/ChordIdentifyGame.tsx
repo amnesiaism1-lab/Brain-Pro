@@ -17,10 +17,10 @@ import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
 import { EarTrainingLearningCard } from '../ui/EarTrainingLearningCard';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
-import { Music, Volume2, RotateCcw, CheckCircle2, XCircle, Play, GraduationCap, Zap, Anchor, GitCommit } from 'lucide-react';
+import { Music, Volume2, RotateCcw, CheckCircle2, XCircle, Play, GraduationCap, Zap, Anchor, GitCommit, BookOpen } from 'lucide-react';
 
 export const ChordIdentifyGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, enableTonicAnchor, setEnableTonicAnchor } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory, enableTonicAnchor, setEnableTonicAnchor } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const { trackWrongAnswer } = useWrongAnswerTracker('chord-identify');
   const sessionIdRef = useRef<string>(`session-chord-${Date.now()}`);
@@ -662,6 +662,21 @@ export const ChordIdentifyGame: React.FC = () => {
           isLastRound={round >= maxRounds}
         />
       )}
+
+      {/* Educational Link Footer */}
+      <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <p className="text-slate-600 dark:text-slate-400 text-xs italic">
+          💡 Hợp âm (Chords) là sự hòa quyện của từ 3 nốt trở lên, định hình màu sắc và không gian cảm xúc của tác phẩm.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigateToTheory('chords')}
+          className="px-3.5 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30 font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>Mở bài học: 3. Hợp Âm (Chords)</span>
+        </button>
+      </div>
 
       {/* Result Modal */}
       {isFinished && (

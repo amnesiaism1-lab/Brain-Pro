@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Scale, Note } from 'tonal';
 import { auditoryEngine } from '../../services/auditoryEngine';
+import { useAppStore } from '../../store/useAppStore';
 import { PianoKeyboard } from '../ui/PianoKeyboard';
 import { 
   Play, 
@@ -19,7 +20,12 @@ import {
   Disc3,
   Sliders,
   RotateCcw,
-  Info
+  Info,
+  ArrowRight,
+  Brain,
+  Trophy,
+  HelpCircle,
+  XCircle
 } from 'lucide-react';
 
 export type ScaleCategory = 'CHURCH_MODES' | 'MINOR_VARIANTS' | 'PENTATONIC_BLUES' | 'EXOTIC';
@@ -293,12 +299,22 @@ export const COMPREHENSIVE_SCALES: IScaleDefinition[] = [
 export const ROOT_NOTES_ALL = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 export const ScalesModule: React.FC = () => {
+  const { setSelectedExerciseSlug, setActiveTab, markTheoryModuleMastered, masteredTheoryModules } = useAppStore();
   const [selectedScaleId, setSelectedScaleId] = useState<string>('major');
   const [root, setRoot] = useState<string>('C');
   const [activeNotes, setActiveNotes] = useState<string[]>([]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackSpeedMs, setPlaybackSpeedMs] = useState<number>(260); // 260ms normal
   const [categoryFilter, setCategoryFilter] = useState<ScaleCategory | 'ALL'>('ALL');
+
+  // Mini-Quiz State
+  const [quizStep, setQuizStep] = useState<number>(0);
+  const [quizSelectedOption, setQuizSelectedOption] = useState<string | null>(null);
+  const [quizScore, setQuizScore] = useState<number>(0);
+  const [quizFinished, setQuizFinished] = useState<boolean>(false);
+  const [isPlayingQuizAudio, setIsPlayingQuizAudio] = useState<boolean>(false);
+
+  const isMastered = masteredTheoryModules.includes('scales');
 
   const currentInfo = useMemo(() => {
     return COMPREHENSIVE_SCALES.find(s => s.id === selectedScaleId) || COMPREHENSIVE_SCALES[0];
@@ -794,6 +810,228 @@ export const ScalesModule: React.FC = () => {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* 3. INTERACTIVE ODDBALL MINI-QUIZ: LÀM CHỦ ĐIỆU THỨC */}
+      <div className="p-6 bg-gradient-to-br from-indigo-900/10 via-purple-900/10 to-emerald-900/10 border-2 border-indigo-500/30 rounded-3xl space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-600/30">
+              <Brain className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <span>Thử Thách: Bắt Nốt Lạc Điệu (In-Key Oddball Quiz)</span>
+                {isMastered && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Đã Làm Chủ
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Lắng nghe hoặc phân tích chuỗi nốt, phát hiện nốt ngoại điệu xâm nhập để mở khóa huy hiệu Làm Chủ chương Âm Giai!
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-mono font-bold px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+            <span>Tiến độ: {Math.min(3, quizStep + 1)}/3 câu</span>
+            <span className="text-emerald-500">· Đúng: {quizScore}</span>
+          </div>
+        </div>
+
+        {/* Quiz Body */}
+        {!quizFinished ? (
+          (() => {
+            const currentQ = [
+              {
+                id: 1,
+                title: 'Câu 1: Điệu C Trưởng (C Major: C - D - E - F - G - A - B)',
+                contextNotes: ['C4', 'E4', 'G4', 'B4', 'C5'],
+                intruderNote: 'F#4',
+                options: [
+                  { id: 'opt-d', label: 'D4 (Rê - Bậc 2 chuẩn)', isCorrect: false },
+                  { id: 'opt-fsharp', label: 'F#4 (Fa thăng - Tritone ngoại điệu)', isCorrect: true },
+                  { id: 'opt-g', label: 'G4 (Sol - Bậc 5 chuẩn)', isCorrect: false },
+                  { id: 'opt-a', label: 'A4 (La - Bậc 6 chuẩn)', isCorrect: false }
+                ],
+                explanation: 'Chính xác! Trong C Major chỉ có F tự nhiên (4P). F#4 là nốt tăng nửa cung tạo thành Tritone ngoại điệu.'
+              },
+              {
+                id: 2,
+                title: 'Câu 2: Điệu D Dorian (D - E - F - G - A - B - C)',
+                contextNotes: ['D4', 'F4', 'A4', 'B4', 'D5'],
+                intruderNote: 'Bb4',
+                options: [
+                  { id: 'opt-e', label: 'E4 (Mi - Bậc 2)', isCorrect: false },
+                  { id: 'opt-g', label: 'G4 (Sol - Bậc 4)', isCorrect: false },
+                  { id: 'opt-bflat', label: 'Bb4 (Si giáng - Khiến nó biến thành Thứ thường)', isCorrect: true },
+                  { id: 'opt-c', label: 'C5 (Đô - Bậc 7)', isCorrect: false }
+                ],
+                explanation: 'Chính xác! Điệu Dorian có Bậc 6 Trưởng (nốt B tự nhiên). Nốt Bb4 là Bậc 6 giáng của Thứ tự nhiên, phá vỡ điệu Dorian!'
+              },
+              {
+                id: 3,
+                title: 'Câu 3: Điệu F Lydian (F - G - A - B - C - D - E)',
+                contextNotes: ['F4', 'A4', 'C5', 'E5'],
+                intruderNote: 'B4',
+                options: [
+                  { id: 'opt-b', label: 'B4 (Si tự nhiên - Nốt Bậc #4 linh hồn Lydian)', isCorrect: true },
+                  { id: 'opt-bb', label: 'Bb4 (Si giáng - Khiến nó thành Major thông thường)', isCorrect: false },
+                  { id: 'opt-g', label: 'G4 (Sol - Bậc 2)', isCorrect: false },
+                  { id: 'opt-d', label: 'D5 (Rê - Bậc 6)', isCorrect: false }
+                ],
+                explanation: 'Xuất sắc! F Major thông thường có nốt Bb. Lydian nâng bậc 4 lên thành B tự nhiên (#4 / Tritone) tạo nét bay bổng siêu thực.'
+              }
+            ][quizStep];
+
+            const handlePlayQuizNotes = async () => {
+              if (isPlayingQuizAudio) return;
+              setIsPlayingQuizAudio(true);
+              try {
+                await auditoryEngine.resumeAudioContext();
+                for (const n of currentQ.contextNotes) {
+                  auditoryEngine.playNote(n, 0.4, { volume: 0.5 });
+                  await new Promise(r => setTimeout(r, 280));
+                }
+                await new Promise(r => setTimeout(r, 200));
+                // Play intruder with distinct timbre
+                auditoryEngine.playNote(currentQ.intruderNote, 0.6, { volume: 0.65, waveform: 'sawtooth' });
+              } finally {
+                setIsPlayingQuizAudio(false);
+              }
+            };
+
+            const handleSelectOption = (opt: { id: string; label: string; isCorrect: boolean }) => {
+              if (quizSelectedOption) return;
+              setQuizSelectedOption(opt.id);
+              if (opt.isCorrect) {
+                auditoryEngine.playFeedback(true);
+                const nextScore = quizScore + 1;
+                setQuizScore(nextScore);
+              } else {
+                auditoryEngine.playFeedback(false);
+              }
+
+              setTimeout(() => {
+                if (quizStep < 2) {
+                  setQuizStep(prev => prev + 1);
+                  setQuizSelectedOption(null);
+                } else {
+                  setQuizFinished(true);
+                  if (quizScore + (opt.isCorrect ? 1 : 0) >= 2) {
+                    markTheoryModuleMastered('scales');
+                  }
+                }
+              }, 1600);
+            };
+
+            return (
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold text-sm text-slate-900 dark:text-white">
+                      {currentQ.title}
+                    </span>
+                    <button
+                      onClick={handlePlayQuizNotes}
+                      disabled={isPlayingQuizAudio}
+                      className="px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>{isPlayingQuizAudio ? 'Đang phát...' : 'Nghe chuỗi nốt & nốt thử'}</span>
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Hãy chỉ ra nốt nào mang tính chất quyết định sự khác biệt của điệu thức này:
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    {currentQ.options.map(opt => {
+                      const isSelected = quizSelectedOption === opt.id;
+                      let btnStyle = 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-indigo-400';
+                      if (quizSelectedOption) {
+                        if (opt.isCorrect) btnStyle = 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-800 dark:text-emerald-200 font-bold';
+                        else if (isSelected) btnStyle = 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-800 dark:text-rose-200';
+                      }
+
+                      return (
+                        <button
+                          key={opt.id}
+                          disabled={quizSelectedOption !== null}
+                          onClick={() => handleSelectOption(opt)}
+                          className={`p-3 rounded-xl border text-xs font-medium text-left transition-all flex items-center justify-between cursor-pointer active:scale-98 ${btnStyle}`}
+                        >
+                          <span>{opt.label}</span>
+                          {quizSelectedOption && opt.isCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 ml-1" />}
+                          {quizSelectedOption && isSelected && !opt.isCorrect && <XCircle className="w-4 h-4 text-rose-500 shrink-0 ml-1" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {quizSelectedOption && (
+                    <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-900 dark:text-indigo-200 animate-fadeIn">
+                      {currentQ.explanation}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()
+        ) : (
+          <div className="p-6 rounded-2xl bg-white/90 dark:bg-slate-900/90 border border-emerald-500/30 text-center space-y-3">
+            <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center">
+              <Trophy className="w-6 h-6" />
+            </div>
+            <h4 className="text-base font-black text-slate-900 dark:text-white">
+              {quizScore >= 2 ? '🎉 Xuất sắc! Bạn đã làm chủ kiến thức Âm Giai' : 'Hãy thử lại để nắm chắc kiến thức nhé!'}
+            </h4>
+            <p className="text-xs text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+              Bạn đạt kết quả <strong>{quizScore}/3 câu đúng</strong>. Huy hiệu làm chủ chương 4 đã được cập nhật vào tiến độ học viện của bạn.
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button
+                onClick={() => {
+                  setQuizStep(0);
+                  setQuizScore(0);
+                  setQuizSelectedOption(null);
+                  setQuizFinished(false);
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+              >
+                Làm lại thử thách
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 4. ACTION BAR / PRACTICE CTAS */}
+      <div className="p-6 bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h4 className="text-base font-black text-slate-900 dark:text-white">
+            Sẵn sàng thử thách thính giác với Âm Giai & Điệu Thức?
+          </h4>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Luyện tập phân biệt các chuỗi nốt trong bài tập thực chiến hoặc hát theo điệu thức trong Vocal Studio.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => {
+              setSelectedExerciseSlug('pitch-recall');
+              setActiveTab('exercises');
+            }}
+            className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-95 transition-all cursor-pointer"
+          >
+            <Brain className="w-4 h-4" />
+            <span>Luyện Tập: Nhớ Cao Độ & Điệu Thức</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>

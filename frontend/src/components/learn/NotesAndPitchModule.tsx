@@ -3,7 +3,7 @@ import { PianoKeyboard } from '../ui/PianoKeyboard';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { InteractiveOscilloscope } from '../ui/InteractiveOscilloscope';
-import { Play, Volume2, ArrowRight, TrendingUp, RotateCcw, Compass, Layers } from 'lucide-react';
+import { Play, Volume2, ArrowRight, TrendingUp, RotateCcw, Compass, Layers, Sparkles } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 
 const NOTE_TABLE = [
@@ -21,14 +21,48 @@ const NOTE_TABLE = [
   { note: 'B', vi: 'Si', alt: 'Si', freq4: 493.88, freq5: 987.77 },
 ];
 
+const SEMITONES_MAP: Record<string, number> = {
+  'C': 0, 'C#': 1, 'DB': 1, 'D': 2, 'D#': 3, 'EB': 3,
+  'E': 4, 'F': 5, 'F#': 6, 'GB': 6, 'G': 7, 'G#': 8, 'AB': 8,
+  'A': 9, 'A#': 10, 'BB': 10, 'B': 11
+};
+
+function getNoteMeta(noteStr: string) {
+  const match = noteStr.match(/^([A-Ga-g][#b]?)([0-9])?$/);
+  if (!match) return { note: noteStr, midi: 69, freq: 440, solfege: 'La (La)', octave: 4 };
+  const pitchName = match[1].toUpperCase();
+  const octave = match[2] ? parseInt(match[2], 10) : 4;
+  const semitone = SEMITONES_MAP[pitchName] ?? 9;
+  const midi = (octave + 1) * 12 + semitone;
+  const freq = 440 * Math.pow(2, (midi - 69) / 12);
+  const solfegeMap: Record<string, string> = {
+    'C': 'Đô (Do)', 'C#': 'Đô thăng (Do#)', 'DB': 'Rê giáng (Reb)',
+    'D': 'Rê (Re)', 'D#': 'Rê thăng (Re#)', 'EB': 'Mi giáng (Mib)',
+    'E': 'Mi (Mi)', 'F': 'Fa (Fa)', 'F#': 'Fa thăng (Fa#)', 'GB': 'Sol giáng (Solb)',
+    'G': 'Sol (Sol)', 'G#': 'Sol thăng (Sol#)', 'AB': 'La giáng (Lab)',
+    'A': 'La (La)', 'A#': 'La thăng (La#)', 'BB': 'Si giáng (Sib)', 'B': 'Si (Ti)'
+  };
+  return {
+    note: noteStr,
+    midi,
+    freq: parseFloat(freq.toFixed(2)),
+    solfege: solfegeMap[pitchName] || pitchName,
+    octave
+  };
+}
+
 export const NotesAndPitchModule: React.FC = () => {
   const { setActiveTab, setSelectedExerciseSlug } = useAppStore();
   const [activeNote, setActiveNote] = useState<string | null>(null);
+  const [inspectorNote, setInspectorNote] = useState<string>('A4');
   const [activeContourPreview, setActiveContourPreview] = useState<string | null>(null);
   const [isPlayingDemo, setIsPlayingDemo] = useState(false);
 
+  const activeMeta = getNoteMeta(inspectorNote);
+
   const handlePlayNote = (note: string) => {
     setActiveNote(note);
+    setInspectorNote(note);
     auditoryEngine.resumeAudioContext().catch(() => {});
     auditoryEngine.playNote(note, 0.6, { volume: 0.5 });
     setTimeout(() => setActiveNote(null), 350);
@@ -132,6 +166,58 @@ export const NotesAndPitchModule: React.FC = () => {
             showLabels={true}
             enableMidiHighlight={true}
           />
+        </div>
+
+        {/* Live Note & Physical Attribute Inspector Deck */}
+        <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="text-slate-400 font-bold flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Bảng Thuộc Tính Thực Thể Sống (Live Inspector):</span>
+            </span>
+            <span className="font-mono text-cyan-400 font-bold">
+              Đang chọn: {activeMeta.note}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
+              <span className="text-[10px] text-slate-400 block">Tên Nốt & Solfege</span>
+              <span className="text-sm font-black text-cyan-300">{activeMeta.solfege}</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
+              <span className="text-[10px] text-slate-400 block">Tần Số Dao Động</span>
+              <span className="text-sm font-black text-amber-400 font-mono">{activeMeta.freq} Hz</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
+              <span className="text-[10px] text-slate-400 block">Mã Số Chuẩn MIDI</span>
+              <span className="text-sm font-black text-emerald-400 font-mono">#{activeMeta.midi}</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
+              <span className="text-[10px] text-slate-400 block">Phân Vùng Octave</span>
+              <span className="text-sm font-black text-purple-400">Quãng 8 thứ {activeMeta.octave}</span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/10 text-xs">
+            <span className="text-slate-400 text-[11px]">
+              Quy luật Quãng 8: Tần số gấp đôi (×2) hoặc chia đôi (/2) giữ nguyên phẩm chất nốt.
+            </span>
+            <button
+              onClick={async () => {
+                await auditoryEngine.resumeAudioContext();
+                auditoryEngine.playNote('A3', 0.5, { volume: 0.5 });
+                await new Promise(r => setTimeout(r, 400));
+                auditoryEngine.playNote('A4', 0.5, { volume: 0.5 });
+                await new Promise(r => setTimeout(r, 400));
+                auditoryEngine.playNote('A5', 0.5, { volume: 0.5 });
+              }}
+              className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/40 font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer text-xs"
+            >
+              <Volume2 className="w-3.5 h-3.5" />
+              <span>Nghe Chuỗi Quãng 8: A3 (220Hz) ➔ A4 (440Hz) ➔ A5 (880Hz)</span>
+            </button>
+          </div>
         </div>
       </div>
 

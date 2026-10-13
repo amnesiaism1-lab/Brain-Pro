@@ -9,6 +9,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { EXERCISES_METADATA, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
 import { infinityApiService, shuffleArray } from '../../services/infinityApiService';
 import { auditoryEngine } from '../../services/auditoryEngine';
+import { getTheoryModuleForSlug, THEORY_MODULE_MAP } from '../learn/theoryExerciseMap';
 
 export const ExerciseDetailModal: React.FC = () => {
   const { 
@@ -16,6 +17,7 @@ export const ExerciseDetailModal: React.FC = () => {
     setSelectedExerciseSlug, 
     setActiveGameSlug,
     setActiveTab: setStoreActiveTab,
+    navigateToTheory,
     getExerciseLevel,
     setExerciseLevel,
     autoDifficulty, 
@@ -792,19 +794,24 @@ export const ExerciseDetailModal: React.FC = () => {
           </div>
 
           {/* Theory Learning Shortcut for Auditory Exercises */}
-          {['pitch-recall', 'interval-identify', 'chord-identify', 'rhythm-recall', 'timbre-match', 'sound-localization', 'voice-track'].includes(exercise.slug) && (
-            <button
-              onClick={() => {
-                playSound('click');
-                setSelectedExerciseSlug(null);
-                setStoreActiveTab('learn');
-              }}
-              className="w-full py-3.5 px-4 rounded-2xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-cyan-500/30 transition-all btn-press shadow-sm"
-            >
-              <BookOpen className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-              <span>Học lý thuyết & nghe thử khuôn hình âm thanh trước</span>
-            </button>
-          )}
+          {(() => {
+            const theoryModuleId = getTheoryModuleForSlug(exercise.slug as any);
+            const theoryMeta = theoryModuleId ? THEORY_MODULE_MAP[theoryModuleId] : null;
+            if (!theoryMeta) return null;
+
+            return (
+              <button
+                onClick={() => {
+                  playSound('click');
+                  navigateToTheory(theoryModuleId!);
+                }}
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand-500/10 via-indigo-500/10 to-brand-500/10 hover:from-brand-500/20 hover:to-indigo-500/20 text-brand-700 dark:text-brand-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-brand-500/30 transition-all btn-press shadow-sm cursor-pointer"
+              >
+                <BookOpen className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <span>Xem lý thuyết & khuôn hình: {theoryMeta.title}</span>
+              </button>
+            );
+          })()}
 
           {/* Big Action CTA Button */}
           <div className="pt-2">

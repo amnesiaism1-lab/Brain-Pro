@@ -35,7 +35,11 @@ interface AppState extends WrongAnswerSliceState {
   setActiveGameSlug: (slug: ExerciseSlug | null) => void;
   activeTheoryModuleId: string | null;
   setActiveTheoryModuleId: (id: string | null) => void;
-  navigateToTheory: (moduleId: string) => void;
+  theoryHighlightEntity: string | null;
+  setTheoryHighlightEntity: (entity: string | null) => void;
+  masteredTheoryModules: string[];
+  markTheoryModuleMastered: (moduleId: string) => void;
+  navigateToTheory: (moduleId: string, highlightEntity?: string) => void;
   
   isHowToTrainOpen: boolean;
   setIsHowToTrainOpen: (open: boolean) => void;
@@ -421,12 +425,33 @@ export const useAppStore = create<AppState>((set, get) => {
     setActiveGameSlug: (slug) => set({ activeGameSlug: slug }),
     activeTheoryModuleId: null,
     setActiveTheoryModuleId: (id) => set({ activeTheoryModuleId: id }),
-    navigateToTheory: (moduleId) => {
+    theoryHighlightEntity: null,
+    setTheoryHighlightEntity: (entity) => set({ theoryHighlightEntity: entity }),
+    masteredTheoryModules: (() => {
+      try {
+        const saved = localStorage.getItem('be_mastered_theory_modules');
+        return saved ? JSON.parse(saved) : [];
+      } catch {
+        return [];
+      }
+    })(),
+    markTheoryModuleMastered: (moduleId) => {
+      set((state) => {
+        if (state.masteredTheoryModules.includes(moduleId)) return state;
+        const next = [...state.masteredTheoryModules, moduleId];
+        try {
+          localStorage.setItem('be_mastered_theory_modules', JSON.stringify(next));
+        } catch {}
+        return { masteredTheoryModules: next };
+      });
+    },
+    navigateToTheory: (moduleId, highlightEntity) => {
       try {
         localStorage.setItem('be_last_theory_module', moduleId);
       } catch {}
       set({
         activeTheoryModuleId: moduleId,
+        theoryHighlightEntity: highlightEntity || null,
         activeGameSlug: null,
         selectedExerciseSlug: null,
         activeTab: 'learn'
