@@ -1,0 +1,129 @@
+Dựa trên 9 ảnh chụp màn hình phân khu **Lý Thuyết & Khuôn Hình Âm Thanh (Interactive Ear Academy)** thuộc hệ thống **Brain Pro**, dự án của bạn đã vượt xa một trang nhạc lý thông thường khi kết hợp được **Vật lý âm thanh (Acoustics)**, **Khoa học thần kinh thính giác (Auditory Neuroscience)** và **Lý thuyết Khung Quan Hệ Nhận Thức (Relational Frame Theory - RFT)** vào cùng một hệ sinh thái.
+
+Để chuyển hóa phân khu này từ nơi "đọc và nghe thử" thành một **Phòng huấn luyện năng lực nhận thức - thính giác thực thụ**, dưới đây là phân tích chi tiết toàn bộ chức năng hiện tại, các lỗi hiển thị cần xử lý ngay, định hướng nâng cấp chiều sâu và lộ trình triển khai từng bước.
+
+### 1. Phân Tích Toàn Diện Hệ Thống 9 Chương Lý Thuyết Hiện Tại
+
+Hệ thống hiện được thiết kế theo mô hình đồng nhất: **Banner định hướng nhận thức (Cognitive Focus Tag) $\rightarrow$ Khái niệm nền tảng $\rightarrow$ Công cụ tương tác trực quan (Interactive Sandbox) $\rightarrow$ Từ điển/Bản đồ tra cứu $\rightarrow$ Nút dẫn sang Bài tập (Game CTA)**.
+
+| Chương | Trọng Tâm Nhận Thức (Tag) | Công Cụ Tương Tác & Nội Dung Hiện Có | Đánh Giá Năng Lực Đầu Ra & Hạn Chế Hiện Tại |
+| --- | --- | --- | --- |
+| **1. Nốt & Cao Độ (Pitch)** | `COMPARISON_HIGHER` (So sánh Cao - Thấp) | Piano Octave 4–5 (hiển thị Hz, MIDI), Oscilloscope, Bảng tần số 12 bán âm, 4 mục nâng cao (Melodic Contour cấp 10, Chroma vs Height/Shepard Tone cấp 8, Memory Decay cấp 9, Chromatic Deviant cấp 10) và Bản đồ 10 cấp độ | **Rất dày nội dung** nhưng đang nhồi nhét cả kiến thức nhập môn (Hz, 12-TET) lẫn các khái niệm thần kinh học cấp 8–10 vào cùng một trang cuộn quá dài |
+| **2. Quãng Âm (Intervals)** | `SIMILARITY_DIFF` (So sánh xa gần) | Khám phá quãng trên phím đàn (chọn nốt gốc `C4–G4`, phát Đi lên / Đi xuống / Hòa âm), Bảng 13 quãng âm kèm bài hát neo trí nhớ (Song Anchors) và mô tả tâm lý | **Trực quan tốt**, có tách bạch `4A` và `5d` (Tritone), nhưng các bài hát mẫu mới chỉ là văn bản tĩnh, chưa phát trực tiếp câu giai điệu mẫu của bài hát đó |
+| **3. Hợp Âm (Chords)** | `IDENTITY_MATCH` (Mẫu đồng nhất) | Piano hợp âm (Block vs Arpeggio), Phòng thí nghiệm so sánh A/B, Danh mục 12 hợp âm phổ biến, 4 tiến trình Kết đoạn (Cadences), Hòa âm ngầm (Implied Harmony) | **Có tính năng A/B Testing rất đắt giá**, nhưng phần Implied Harmony và Cadences chưa hiển thị sơ đồ nốt dẫn dắt bè (voice resolution) trên khuông hoặc phím đàn |
+| **4. Âm Giai & Điệu Thức** | `HIERARCHY_CONTAIN` (Hệ thống bao hàm) | Piano khám phá 12 chủ âm, 7 thẻ bậc âm giai (`I–VII`), Cẩm nang 16 âm giai (có bộ lọc 5 nhóm: Hy Lạp, Ngũ cung, Á Đông...), Mini-game **Bắt Nốt Lạc Điệu (In-Key Oddball)** | **Chương duy nhất có Mini-game chấm điểm trực tiếp** ngay trong trang lý thuyết, tạo phản xạ kiểm tra tức thì rất hiệu quả |
+| **5. Nhịp Điệu & Phách** | `TEMPORAL_ORDER` (Trình tự thời gian) | 16-Step Drum Sequencer (Kick, Snare, Hi-Hat), Máy đếm nhịp Metronome Pro (Tap Tempo, `4/4`, `3/4`, `6/8`), Mô phỏng Dấu nghỉ (Negative Space) và Điểm nhấn phách mạnh | **Đầy đủ công cụ nhịp điệu**, nhưng lưới 16-Step Sequencer đang bị lỗi vỡ layout nghiêm trọng và người dùng chưa thể tự gõ phím kiểm tra độ lệch nhịp (timing offset ms) |
+| **6. Âm Sắc (Timbre)** | `SIMILARITY_DIFF` (Sắc thái & Bội âm) | So sánh 4 dạng sóng (Sine, Triangle, Square, Sawtooth) trên Oscilloscope, Studio chỉnh ADSR & Lowpass Filter (200Hz–8000Hz), 5 thẻ Bội âm tự nhiên (`1f–5f`), 4 thẻ Articulations | **Giống một Synthesizer thu nhỏ**, nhưng khi kéo thanh trượt ADSR hoặc Filter Cutoff chưa có đồ thị bao hình (Envelope Curve) và phổ tần (EQ Curve) biến đổi theo thời gian thực |
+| **7. 3D Không Gian** | `TARGET_POSITION` (Vị trí mục tiêu) | Giải thích sinh học (ITD < 0.7ms, ILD, HRTF), Radar tương tác 360° (8 góc hướng, khoảng cách 2.5m), Thanh trượt Stereo Panning (Trái $\leftrightarrow$ Phải) | **Rất sát với huấn luyện não bộ**, nhưng mới chỉ dừng ở 1 khoảng cách cố định (2.5m), chưa cho phép điều chỉnh khoảng cách gần/xa hoặc mô phỏng nguồn âm chuyển động |
+| **8. Đa Thanh & Bè Phối** | `TARGET_DISTRACTOR` (Bè mục tiêu & Nhiễu) | Giải thích Auditory Scene Analysis (Bregman), Cocktail Party Effect, 3 kiểu Counterpoint; Bàn trộn 3 bè (Soprano, Alto, Bass) có nút phát chung hoặc cô lập từng bè | **Đánh trúng kỹ năng chú ý chọn lọc**, nhưng chưa có thanh trượt âm lượng (Fader) để làm mờ dần bè chính nhằm tăng dần độ khó khi luyện nghe bè phụ |
+| **9. Mạng Hòa Âm & Cảm Âm** | `RULE_ACTION` (Quy luật mạng lưới) | 5 sub-tabs chuyên sâu, Đồ thị **Mạng Lưới Nơ-ron Hòa Âm (Interactive Synesthetic Graph)** cho phép nối 2 nút nốt bất kỳ để phân tích độ thuận/nghịch | **Ý tưởng đồ thị nơ-ron rất sáng tạo**, nhưng 4 sub-tabs bên cạnh (`Bội Âm Học`, `Articulation`, `Cadence`, `Contour`) đang bị trùng lặp nội dung đã xuất hiện ở Chương 1, 3 và 6 |
+
+### 2. Chẩn Đoán Các Lỗi Hiển Thị (UI Bugs) & Điểm Nghẽn UX Trên 9 Ảnh
+
+Quan sát trực tiếp từ 9 ảnh chụp màn hình, giao diện hiện có **6 lỗi kỹ thuật và trải nghiệm** đang làm giảm đáng kể tính chuyên nghiệp của sản phẩm:
+
+| Vị Trí Phát Hiện | Mô Tả Lỗi Hiển Thị Thực Tế Trên Ảnh | Nguyên Nhân Kỹ Thuật & Cách Khắc Phục |
+| --- | --- | --- |
+| **Chương 5 (Ảnh 11) — Bàn Phối Nhịp 16-Step Sequencer** | Các ô bước nhịp (steps) của `Kick` (cam), `Snare` (đỏ), `Hi-Hat` (xanh cyan) bị xếp chồng dọc thành 48 thanh ngang khổng lồ kéo dài suốt màn hình thay vì nằm trên 3 hàng ngang $\times$ 16 cột | Thiếu `grid-template-columns: repeat(16, minmax(0, 1fr))` hoặc `display: flex; flex-direction: row` trên container của từng track nhạc cụ, khiến mỗi step chiếm `width: 100%` |
+| **Chương 1, 3, 5, 6, 8 — Các thẻ nền trắng (Light Cards)** | Hàng loạt thẻ con ở phần mở rộng (như *Melodic Contour* và *10 Cấp độ* ở Ch.1; *Cadences* và *Implied Harmony* ở Ch.3; *Meter Feel* ở Ch.5; *Bội âm* và *Articulations* ở Ch.6; *3 Bè Soprano/Alto/Bass* ở Ch.8) có nền màu trắng tinh (`#FFFFFF`) nhưng chữ tiêu đề và mô tả bên trong lại dùng màu trắng/xám nhạt, khiến chữ gần như **tàng hình** | Xung đột class theme (dùng biến màu chữ của Dark Mode trên thẻ có background Light Mode). Cần chuyển toàn bộ nền các thẻ này về Dark Surface (`bg-slate-900/80 border-slate-800`) đồng bộ với toàn trang |
+| **Chương 9 (Ảnh 15) — Mạng Lưới Nơ-ron Hòa Âm** | Thanh thông báo hướng dẫn `Click vào nốt đầu tiên (ví dụ C4)...` ở đáy khung đồ thị bị đặt `position: absolute` đè trực tiếp lên hàng nút `D4`, `F#4`, `F4`, `C5`, che khuất một nửa diện tích bấm của các nút này | Tách thanh hướng dẫn ra ngoài container SVG/Canvas của đồ thị hoặc tăng `padding-bottom` của vùng vẽ đồ thị thêm `64px` |
+| **Chương 1 & Chương 6 — Màn hình Oscilloscope** | Khung máy hiện sóng (Oscilloscope) chiếm diện tích lớn nhưng khi chưa phát âm thanh chỉ hiển thị một đường kẻ ngang màu xanh tĩnh lặng, tạo cảm giác "chết" (dead space) | Bổ sung sóng preview mờ (ghost waveform) của dạng sóng/tần số đang chọn ngay ở trạng thái nghỉ, kèm lưới tọa độ chia độ (ms / dB) chuẩn thiết bị phòng lab |
+| **Thanh điều hướng 9 Chương (Top Chapter Tabs)** | Dãy 9 tab chương nằm trên 1 hàng ngang bị tràn lề phải (tab Chương 8 và 9 bị cắt khuất ở các ảnh 1–7), người dùng không nhìn thấy tổng thể 9 chương cùng lúc | Chuyển thành thanh điều hướng dạng **Segmented Stepper** co giãn linh hoạt hoặc hiển thị dạng lưới 2 hàng / thanh cuộn có nút mũi tên chỉ báo rõ ràng |
+| **Chiều dài trang ở Chương 1 & Chương 4** | Trang kéo dài quá mức (hơn 4–5 lần chiều cao màn hình), khi người dùng cuộn xuống đọc bảng tần số hoặc danh mục 16 âm giai thì bàn phím Piano và Oscilloscope ở trên đã khuất khỏi tầm mắt | Ghim cố định (Sticky/Floating Dock) cụm **Piano + Oscilloscope thu gọn** ở góc dưới hoặc chia bố cục 2 cột (Trái: Lý thuyết & Danh mục cuộn; Phải: Phòng Lab tương tác cố định) |
+
+### 3. Đề Xuất Phát Triển Nội Dung & Chất Lượng Để Tối Đa Hóa Năng Lực Người Dùng
+
+Để dự án thực sự tập trung vào **phát triển năng lực não bộ và thính giác (Cognitive & Auditory Capacity)** thay vì chỉ dạy nhạc lý thụ động, bạn có thể nâng cấp theo 4 trụ cột sau:
+
+#### A. Chuẩn Hóa Kiến Trúc Nội Dung: Tách "Nền Tảng Vật Lý" và "Nhận Thức Thần Kinh Cấp Cao"
+
+* **Tái cấu trúc sự chồng chéo giữa Chương 1, 3, 6 và Chương 9**: Hiện tại Chương 1 đang gánh thêm 4 mục nâng cao (Contour, Chroma/Height, Memory Decay, Chromatic Deviant) và Chương 9 lại lặp lại các tab Bội âm, Articulation, Cadence, Contour. Hãy gom các phần cơ bản về đúng chương của nó, và biến **Chương 9 (Sound Network Lab)** thành nơi **kết hợp đa biến (Multi-dimensional Synthesis)** — ví dụ: vừa nhận diện Quãng âm, vừa biến đổi Âm sắc, vừa đặt trong Không gian 3D.
+* **Làm nổi bật cơ chế "12 Quan Hệ Nhận Thức" (RFT) thành công cụ học tập thực tế**: Hiện tại các nhãn như `COMPARISON_HIGHER`, `HIERARCHY_CONTAIN`, `TARGET_DISTRACTOR` mới chỉ là một dòng badge nhỏ trên header. Hãy thêm một hộp **"Cơ Chế Não Bộ Đang Kích Hoạt"** ở đầu mỗi chương giải thích ngắn gọn:
+* **Vùng não/Cơ chế tham gia**: Ví dụ ở Chương 8 là *Auditory Cortex + Prefrontal Executive Attention* (mạng lưới kiểm soát chú ý trước trán).
+* **Lợi ích ngoài âm nhạc (Far-Transfer Cognitive Benefit)**: Giải thích rõ việc luyện chương này giúp ích gì cho đời sống và đọc nhanh/luyện não (ví dụ: Chương 5 *Nhịp điệu* giúp đồng bộ nhịp vận nhãn khi đọc nhanh; Chương 8 *Tách bè* giúp tăng khả năng tập trung sâu giữa môi trường ồn ào; Chương 1 *Memory Decay* giúp mở rộng dung lượng Trí nhớ làm việc - Working Memory Span).
+
+
+
+#### B. Nâng Tầm Chất Lượng Âm Thanh (Audio Engine & DSP)
+
+* **Bổ sung chế độ đối chiếu "Sóng Thuần (Pure Synth) vs Nhạc Cụ Thực Tế (Acoustic Samples)"**: Não bộ xử lý sóng điện tử (Web Audio Oscillator) rất khác với âm thanh tự nhiên giàu bội âm động (Piano gỗ, Guitar, Strings, Giọng người). Việc cho phép chuyển đổi nhanh giữa `Synth Lab` và `Acoustic Instrument` ngay trên thanh công cụ sẽ giúp người dùng không bị "học vẹt" trên âm thanh điện tử mà áp dụng được ngay ra đời thực.
+* **Tích hợp Audio Mẫu Cho "Song Anchors" (Chương 2)**: Trong bảng 13 Quãng âm, bên cạnh việc phát 2 nốt khô khan (ví dụ `C4 -> G4`), hãy thêm nút phát 3–4 nốt đầu tiên của chính giai điệu bài hát neo trí nhớ đó (ví dụ phát câu mở đầu *Star Wars* hoặc *Kìa Con Bướm Vàng*) để não bộ tạo liên kết ngữ nghĩa (Semantic Associative Memory) ngay lập tức.
+* **Nâng cấp mô phỏng Không gian 3D & Nhiễu môi trường (Chương 7 & 8)**:
+* **Tại Chương 7 (3D Audio)**: Thêm thanh trượt **Khoảng cách (Distance: 0.5m $\rightarrow$ 10m)** kết hợp hiệu ứng suy hao tần số cao (Air Absorption) và độ vang phòng (Reverb Wet/Dry), cùng chế độ **Quỹ đạo chuyển động (Moving Source Trajectory)** để người dùng luyện mắt thần kinh theo dõi vật thể âm thanh di chuyển.
+* **Tại Chương 8 (Đa thanh)**: Thêm thanh trượt **Mức nhiễu nền (SNR - Signal-to-Noise Ratio)** mô phỏng tiếng ồn quán cà phê/đám đông (Babble Noise) để rèn luyện đúng bản chất hiệu ứng *Cocktail Party*.
+
+
+
+#### C. Chuyển Đổi Từ "Đọc Lý Thuyết" Sang "Vi Thực Hành Tức Thì" (Micro-Drills & Active Recall)
+
+* **Nhân rộng mô hình Mini-Game của Chương 4 sang tất cả 9 chương**: Chương 4 đang làm rất tốt nhờ có mục *Thử Thách Bắt Nốt Lạc Điệu* ngay cuối bài. Hãy gắn **1 thử thách tương tác 3 câu (Quick Mastery Check)** vào cuối mỗi chương trước khi mở khóa trạng thái `Đã làm chủ` (thay vì chỉ bấm nút chuyển trang là được tính hoàn thành):
+* **Chương 1**: Nghe 2 tần số gần nhau (cách nhau 50 cents / 25 cents) và đoán nốt nào cao hơn (đo ngưỡng phân giải cao độ - *Pitch Discrimination Threshold*).
+* **Chương 2**: Nghe 1 quãng bất kỳ và bấm phím nốt thứ 2 còn thiếu trên đàn Piano.
+* **Chương 3**: Thử thách mù A/B/X (nghe Hợp âm X và chọn xem X giống A hay giống B).
+* **Chương 5**: Nghe 4 phách mẫu rồi bấm phím `Spacebar` tiếp nối 4 phách sau khi tiếng Metronome tắt đi (đo sai số nội nhịp bằng mili-giây `±ms`).
+* **Chương 6**: Nghe 1 âm thanh mục tiêu và kéo 2 thanh trượt ADSR / Filter Cutoff sao cho âm thanh khớp với mẫu.
+
+
+* **Khai thác triệt để nút `Kết nối MIDI` và Microphone**:
+* Khi người dùng kết nối đàn MIDI hoặc dùng bàn phím máy tính, cho phép chế độ **"Play-Along / Echo Back"**: Hệ thống phát 1 quãng/hợp âm/câu giai điệu 3 nốt, người dùng đánh trả lại ngay trên phím đàn để học qua phản xạ vận động - thính giác (Sensory-Motor Loop).
+* Liên kết trực tiếp tính năng **Vocal Pitch Trainer** (đã có nút ở cuối Chương 1) vào các chương Quãng và Âm giai: cho phép người dùng ngân giọng (hát) đúng quãng 3 Trưởng hoặc quãng 5 Đúng với kim đo cao độ thời gian thực (Real-time Pitch Tuner).
+
+
+
+### 4. Chiến Lược Nâng Tầm UI/UX: Thiết Kế "Interactive Cognitive Studio"
+
+Để giao diện xứng tầm một sản phẩm EdTech/NeuroTech cao cấp, bạn nên tinh chỉnh UI/UX theo 4 hướng chính:
+
+* **Chuyển sang Bố Cục Split-View (2 Cột) trên Desktop**:
+* **Cột Trái (55% chiều rộng)**: Luồng nội dung kiến thức được chia thành các bước ngắn gọn (Accordion hoặc Stepper Card), bảng tra cứu và câu hỏi kiểm tra nhanh.
+* **Cột Phải (45% chiều rộng — Sticky Interactive Lab)**: Ghim cố định cụm **Bàn phím Piano + Màn hình Đa năng (Oscilloscope / Spectrum Analyzer / 3D Radar) + Bộ điều khiển âm thanh**. Khi người dùng cuộn đọc đến bất kỳ thẻ quãng, hợp âm, hay âm giai nào ở cột trái và bấm `Nghe`, họ sẽ nhìn thấy ngay phím đàn sáng lên và sóng âm dao động ở cột phải mà không bao giờ phải cuộn ngược lên đầu trang.
+
+
+* **Đồng bộ hóa Hệ Thống Màu Sắc Cảm Quan (Synesthetic Color System)**:
+* Sửa toàn bộ các thẻ nền trắng (`#FFFFFF`) bị lỗi chữ mờ thành giao diện **Dark Glassmorphism** (`background: rgba(15, 23, 42, 0.75)`, `backdrop-filter: blur(12px)`, viền sáng mỏng theo màu đặc trưng của chương).
+* Áp dụng quy tắc màu sắc nhất quán cho 12 bậc âm/quãng xuyên suốt cả 9 chương (ví dụ: Chủ âm `1P` luôn mang màu Xanh lục bảo, Quãng 5 `5P` màu Xanh dương sáng, Quãng 3 Trưởng `3M` màu Vàng ấm, Tritone `4A/5d` màu Đỏ cam cảnh báo) để hỗ trợ trí nhớ thị giác - thính giác (Synesthesia).
+
+
+* **Nâng cấp Trực Quan Hóa Âm Thanh Đa Tầng (Multi-Mode Visualizer)**:
+* Cho phép chuyển đổi màn hình Oscilloscope giữa 3 chế độ xem: **Sóng thời gian (Waveform)** (xem chu kỳ Hz), **Phổ tần số (FFT Spectrum)** (nhìn thấy tận mắt các cột bội âm `1f, 2f, 3f` nhô lên ở Chương 6), và **Đường lăn cao độ (Pitch Roll / Spectrogram)** (nhìn thấy đường nét đi lên/đi xuống của *Melodic Contour* ở Chương 1 và 3 bè chuyển động độc lập ở Chương 8).
+
+
+* **Cá Nhân Hóa Thanh Tiến Độ Theo "Chỉ Số Làm Chủ Thực Tế" (True Mastery Metrics)**:
+* Thay vì chỉ hiển thị `Tiến độ làm chủ: 5/9 chương (56%)` dựa trên việc đã xem qua bài học, hãy hiển thị **Biểu đồ Radar Năng Lực Thính Giác 9 Trục** (Cao độ, Quãng, Hợp âm, Âm giai, Nhịp điệu, Âm sắc, Không gian 3D, Tách bè, Mạng hòa âm) kết hợp dữ liệu từ mục `Lịch sử sai` (trên menu trái).
+* Tự động gắn nhãn **"Cần ôn lại"** (màu cam) ngay trên thẻ của những quãng hoặc hợp âm mà người dùng hay trả lời sai nhất trong phần Bài tập (ví dụ: hiển thị tag *`Hay nhầm với Quãng 6 Trưởng — Tỷ lệ đúng: 42%`* ngay trên thẻ `Quãng 6 Thứ` ở Chương 2).
+
+
+
+### 5. Kế Hoạch Triển Khai Chi Tiết Theo 4 Giai Đoạn (Actionable Roadmap)
+
+| Giai Đoạn | Mục Tiêu Trọng Tâm | Hạng Mục Công Việc Chi Tiết (Action Items) | Tiêu Chí Nghiệm Thu (Deliverables & KPIs) |
+| --- | --- | --- | --- |
+| **Giai đoạn 1: Hotfix UI/UX & Chuẩn Hóa Giao Diện (Tuần 1)** | Xử lý triệt để các lỗi hiển thị trên 9 chương và đồng bộ Dark Mode | 1. Sửa CSS Grid/Flexbox cho **16-Step Sequencer** (Chương 5) về chuẩn 3 hàng $\times$ 16 cột.<br>
+
+<br>2. Chuyển toàn bộ các thẻ nền trắng (`#FFFFFF`) ở Chương 1, 3, 5, 6, 8 sang theme Dark Card để khắc phục lỗi mất chữ.<br>
+
+<br>3. Đẩy hộp hướng dẫn ở **Chương 9** xuống dưới vùng vẽ SVG để không che các nút `D4, F#4, F4, C5`.<br>
+
+<br>4. Thiết kế lại thanh **9 Chapter Tabs** dạng wrap hoặc stepper hiển thị trọn vẹn không bị cắt lề. | 100% thành phần tương tác hiển thị rõ nét, đạt chuẩn tương phản chữ WCAG $\ge 4.5:1$, chiều dài trang Chương 5 giảm 60%. |
+| **Giai đoạn 2: Tái Cấu Trúc Layout & Nâng Cấp Visualizer (Tuần 2 – 3)** | Giảm tải cuộn trang và nâng cấp trải nghiệm phòng Lab trực quan | 1. Triển khai bố cục **Split-Screen / Sticky Audio Dock** để Piano và Visualizer luôn hiển thị khi người dùng cuộn đọc.<br>
+
+<br>2. Nâng cấp **Oscilloscope** thành 3 chế độ: *Waveform*, *FFT Harmonic Spectrum* (cho Ch.6) và *Pitch Contour Roll* (cho Ch.1 & Ch.8).<br>
+
+<br>3. Vẽ đồ thị **ADSR Envelope Curve** và **Filter Frequency Response** động khi kéo thanh trượt ở Chương 6.<br>
+
+<br>4. Bổ sung fader điều chỉnh âm lượng từng bè ở **Bàn trộn 3 bè (Chương 8)**. | Người dùng tương tác nghe - nhìn đồng thời ở mọi vị trí cuộn trang; nhìn thấy trực quan bội âm và đường bao ADSR biến đổi theo thời gian thực. |
+| **Giai đoạn 3: Micro-Drills & Nâng Cấp Audio Engine (Tuần 4 – 5)** | Chuyển từ học thụ động sang rèn luyện phản xạ chủ động | 1. Tích hợp bộ âm sắc nhạc cụ thực (Piano/Strings/Guitar samples nhẹ) song song với Synth Oscillator.<br>
+
+<br>2. Bổ sung **Mini-Game kiểm tra nhanh (3 câu)** ở cuối mỗi chương (giống mô hình Oddball Game của Chương 4) làm điều kiện mở khóa `Đã làm chủ`.<br>
+
+<br>3. Thêm tính năng gõ phím đo độ lệch nhịp (`±ms` timing accuracy) vào Chương 5 và điều chỉnh khoảng cách + nhiễu nền vào Chương 7, 8.<br>
+
+<br>4. Bổ sung đoạn giai điệu mẫu (2 giây) cho 13 bài hát neo trí nhớ ở Chương 2. | Mỗi chương đều có bài kiểm tra phản xạ tại chỗ; tỷ lệ người dùng chuyển tiếp từ trang Lý thuyết sang trang Bài tập tăng mạnh. |
+| **Giai đoạn 4: Liên Kết Dữ Liệu Năng Lực & Cá Nhân Hóa (Tuần 6 – 8)** | Đồng bộ hóa `Lý thuyết` $\leftrightarrow$ `Bài tập` $\leftrightarrow$ `Lịch sử sai` | 1. Kết nối dữ liệu từ mục `Lịch sử sai` ngược về trang Lý thuyết để highlight các khái niệm/quãng/hợp âm người dùng đang yếu.<br>
+
+<br>2. Thêm nút **"So sánh nhanh 2 khái niệm hay nhầm"** (mở rộng Phòng thí nghiệm A/B của Chương 3 sang Chương 2, 4, 6).<br>
+
+<br>3. Xây dựng hộp giải thích **Liên kết Năng lực Nhận thức (RFT & Brain Benefit)** ở đầu mỗi chương.<br>
+
+<br>4. Hoàn thiện chế độ **MIDI / Mic Echo-Back** (nghe và đánh/hát nhại lại tức thì). | Hệ thống tự động đề xuất chương lý thuyết cần ôn tập dựa trên lỗi sai khi làm bài; hình thành vòng lặp huấn luyện khép kín (Closed-loop Learning). |
+

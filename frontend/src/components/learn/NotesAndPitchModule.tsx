@@ -3,7 +3,7 @@ import { PianoKeyboard } from '../ui/PianoKeyboard';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { InteractiveOscilloscope } from '../ui/InteractiveOscilloscope';
-import { Play, Volume2, ArrowRight, TrendingUp, RotateCcw, Compass, Layers, Sparkles } from 'lucide-react';
+import { Play, Volume2, ArrowRight, TrendingUp, RotateCcw, Compass, Layers, Sparkles, Trophy, CheckCircle2, XCircle } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 
 const NOTE_TABLE = [
@@ -52,11 +52,17 @@ function getNoteMeta(noteStr: string) {
 }
 
 export const NotesAndPitchModule: React.FC = () => {
-  const { setActiveTab, setSelectedExerciseSlug } = useAppStore();
+  const { setActiveTab, setSelectedExerciseSlug, markTheoryModuleMastered, masteredTheoryModules } = useAppStore();
   const [activeNote, setActiveNote] = useState<string | null>(null);
   const [inspectorNote, setInspectorNote] = useState<string>('A4');
   const [activeContourPreview, setActiveContourPreview] = useState<string | null>(null);
   const [isPlayingDemo, setIsPlayingDemo] = useState(false);
+
+  // Chapter 1 Mastery Quiz State
+  const [quizStep, setQuizStep] = useState(0);
+  const [quizSelectedOption, setQuizSelectedOption] = useState<string | null>(null);
+  const [quizScore, setQuizScore] = useState(0);
+  const [quizFinished, setQuizFinished] = useState(false);
 
   const activeMeta = getNoteMeta(inspectorNote);
 
@@ -364,7 +370,7 @@ export const NotesAndPitchModule: React.FC = () => {
                 className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 ${
                   isPlaying 
                     ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/40 shadow-md' 
-                    : 'bg-slate-50 dark:bg-slate-850/60 border-slate-200 dark:border-slate-800'
+                    : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80'
                 }`}
               >
                 <div>
@@ -616,7 +622,7 @@ export const NotesAndPitchModule: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 space-y-3">
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 space-y-3">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-700 dark:text-blue-300">
                 Chặng 1 (Cấp 1 - 3)
@@ -628,7 +634,7 @@ export const NotesAndPitchModule: React.FC = () => {
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 space-y-3">
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 space-y-3">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
                 Chặng 2 (Cấp 4 - 8)
@@ -640,7 +646,7 @@ export const NotesAndPitchModule: React.FC = () => {
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 space-y-3">
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 space-y-3">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-500/20 text-purple-700 dark:text-purple-300">
                 Chặng 3 (Cấp 9 - 10)
@@ -652,7 +658,7 @@ export const NotesAndPitchModule: React.FC = () => {
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 space-y-3">
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 space-y-3">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-700 dark:text-amber-300">
                 Chặng 4 (Cấp 11 - 12)
@@ -664,6 +670,147 @@ export const NotesAndPitchModule: React.FC = () => {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* QUICK MASTERY CHECK (Mini-Game 3 Câu Chương 1) */}
+      <div className="p-6 bg-gradient-to-r from-blue-500/10 via-brand-500/10 to-indigo-500/10 border border-brand-500/30 rounded-3xl space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-brand-500" />
+            <h3 className="text-base font-black text-slate-900 dark:text-white">
+              Thử Thách Nhanh: Làm Chủ Nốt & Cao Độ (3 Câu)
+            </h3>
+          </div>
+          <span className="text-xs font-mono font-bold text-brand-600 dark:text-brand-400">
+            {masteredTheoryModules.includes('notes') ? '✅ Đã làm chủ chương 1' : `Câu ${quizStep + 1} / 3`}
+          </span>
+        </div>
+
+        {!quizFinished ? (
+          (() => {
+            const NOTE_QUESTIONS = [
+              {
+                id: 'qn1',
+                title: 'Câu 1: Tần số dao động Hertz (Hz) của sóng âm có mối quan hệ như thế nào với cao độ nốt nhạc?',
+                options: [
+                  { id: 'a', label: 'Tần số càng cao thì nốt nhạc nghe càng bổng; tần số càng thấp thì nốt nghe càng trầm', isCorrect: true },
+                  { id: 'b', label: 'Tần số càng cao thì nốt nhạc nghe càng trầm', isCorrect: false },
+                  { id: 'c', label: 'Tần số chỉ quyết định âm lượng to hay nhỏ', isCorrect: false },
+                  { id: 'd', label: 'Tần số không liên quan gì đến âm nhạc', isCorrect: false }
+                ],
+                explanation: 'Chính xác! Tần số Hertz đo số lần màng loa rung trong 1 giây. Dao động càng nhanh thì tai ta cảm nhận cao độ càng bổng.'
+              },
+              {
+                id: 'qn2',
+                title: 'Câu 2: Trong hệ thống 12-TET, khi nhảy lên một quãng tám (Octave - ví dụ C4 lên C5), tần số thay đổi như thế nào?',
+                options: [
+                  { id: 'a', label: 'Tần số tăng gấp đôi đúng theo tỷ lệ 2:1 (C4 = 261.6Hz → C5 = 523.25Hz)', isCorrect: true },
+                  { id: 'b', label: 'Tần số tăng thêm 100 Hz', isCorrect: false },
+                  { id: 'c', label: 'Tần số giảm đi một nửa', isCorrect: false },
+                  { id: 'd', label: 'Tần số giữ nguyên không đổi', isCorrect: false }
+                ],
+                explanation: 'Chính xác! Bát độ (Octave) có tỷ lệ họa âm hoàn mỹ 2:1, khiến nốt C5 có cùng sắc tính âm (Chroma) với nốt C4 nhưng ở tầng cao độ gấp đôi.'
+              },
+              {
+                id: 'qn3',
+                title: 'Câu 3: Mô hình xoắn ốc Shepard (The Pitch Spiral) phân tích cảm nhận cao độ thành 2 trục nào?',
+                options: [
+                  { id: 'a', label: 'Pitch Chroma (Sắc tính âm trên vòng tròn 12 cung) và Pitch Height (Độ cao tần số tuyến tính)', isCorrect: true },
+                  { id: 'b', label: 'Âm lượng to nhỏ và Độ dài trường độ', isCorrect: false },
+                  { id: 'c', label: 'Tốc độ nhịp điệu và Màu sắc hợp âm', isCorrect: false },
+                  { id: 'd', label: 'Dạng sóng và Bộ lọc âm thanh', isCorrect: false }
+                ],
+                explanation: 'Chính xác! Mô hình xoắn ốc Shepard giải mã tại sao nốt C3, C4, C5 cùng tên Đô (cùng Chroma) nhưng lại nằm ở các tầng không gian khác nhau (Height).'
+              }
+            ];
+
+            const currentQ = NOTE_QUESTIONS[quizStep];
+
+            const handleSelectOption = (opt: { id: string; label: string; isCorrect: boolean }) => {
+              if (quizSelectedOption) return;
+              setQuizSelectedOption(opt.id);
+              if (opt.isCorrect) {
+                auditoryEngine.playFeedback(true);
+                setQuizScore(prev => prev + 1);
+              } else {
+                auditoryEngine.playFeedback(false);
+              }
+
+              setTimeout(() => {
+                if (quizStep < 2) {
+                  setQuizStep(prev => prev + 1);
+                  setQuizSelectedOption(null);
+                } else {
+                  setQuizFinished(true);
+                  if (quizScore + (opt.isCorrect ? 1 : 0) >= 2) {
+                    markTheoryModuleMastered('notes');
+                  }
+                }
+              }, 1500);
+            };
+
+            return (
+              <div className="p-4 rounded-2xl bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700 space-y-3">
+                <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white block">
+                  {currentQ.title}
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {currentQ.options.map(opt => {
+                    const isSelected = quizSelectedOption === opt.id;
+                    let btnStyle = 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-brand-400';
+                    if (quizSelectedOption) {
+                      if (opt.isCorrect) btnStyle = 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-800 dark:text-emerald-200 font-bold';
+                      else if (isSelected) btnStyle = 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-800 dark:text-rose-200';
+                    }
+
+                    return (
+                      <button
+                        key={opt.id}
+                        disabled={quizSelectedOption !== null}
+                        onClick={() => handleSelectOption(opt)}
+                        className={`p-3 rounded-xl border text-xs font-medium text-left transition-all flex items-center justify-between cursor-pointer active:scale-98 ${btnStyle}`}
+                      >
+                        <span>{opt.label}</span>
+                        {quizSelectedOption && opt.isCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 ml-1" />}
+                        {quizSelectedOption && isSelected && !opt.isCorrect && <XCircle className="w-4 h-4 text-rose-500 shrink-0 ml-1" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {quizSelectedOption && (
+                  <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 animate-fadeIn">
+                    {currentQ.explanation}
+                  </div>
+                )}
+              </div>
+            );
+          })()
+        ) : (
+          <div className="p-5 rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-emerald-500/30 text-center space-y-3">
+            <div className="w-10 h-10 mx-auto rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center">
+              <Trophy className="w-5 h-5" />
+            </div>
+            <h4 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+              {quizScore >= 2 ? '🎉 Xuất sắc! Bạn đã làm chủ chương Nốt Nhạc & Cao Độ' : 'Hãy thử lại để đạt chuẩn làm chủ nhé!'}
+            </h4>
+            <p className="text-xs text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+              Bạn đạt <strong>{quizScore}/3 câu đúng</strong>. Huy hiệu làm chủ chương 1 đã được cập nhật thành công!
+            </p>
+            <button
+              onClick={() => {
+                setQuizStep(0);
+                setQuizScore(0);
+                setQuizSelectedOption(null);
+                setQuizFinished(false);
+              }}
+              className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+            >
+              Làm lại bài kiểm tra
+            </button>
+          </div>
+        )}
       </div>
 
       {/* CTA to Practice */}

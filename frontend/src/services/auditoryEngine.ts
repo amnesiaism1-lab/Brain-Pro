@@ -1340,6 +1340,40 @@ class AuditoryEngine {
       this.playNote(baseFreq, 0.12, { volume: 0.28, waveform: 'triangle', adsr: { attack: 0.005, decay: 0.05, sustain: 0.2, release: 0.04 } });
     }
   }
+
+  /**
+   * Play cocktail party babble noise distractor
+   */
+  public playBabbleNoise(durationSec = 3.5, volume = 0.15): void {
+    const ctx = this.initContext();
+    if (!ctx || !this.masterGain || !this.noiseBuffer) return;
+
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = this.noiseBuffer;
+      src.loop = true;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1000, ctx.currentTime);
+      filter.Q.setValueAtTime(0.8, ctx.currentTime);
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.3);
+      gain.gain.setValueAtTime(volume, ctx.currentTime + Math.max(0.4, durationSec - 0.4));
+      gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + durationSec);
+
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+
+      src.start(ctx.currentTime);
+      src.stop(ctx.currentTime + durationSec + 0.1);
+    } catch (e) {
+      console.warn('Babble noise error:', e);
+    }
+  }
   public playFeedback(isCorrect: boolean): void {
     if (isCorrect) {
       this.playNote('E5', 0.12, { volume: 0.25, waveform: 'sine' });

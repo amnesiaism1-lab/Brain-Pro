@@ -42,21 +42,27 @@ interface INodePoint {
 }
 
 const NETWORK_NODES: INodePoint[] = [
-  { id: 'n-c4', note: 'C4', freq: 261.63, label: 'Đô (Tonic)', role: 'Chủ âm', x: 80, y: 150 },
-  { id: 'n-e4', note: 'E4', freq: 329.63, label: 'Mi (3M)', role: 'Quãng 3 Trưởng', x: 200, y: 80 },
-  { id: 'n-g4', note: 'G4', freq: 392.00, label: 'Sol (5P)', role: 'Quãng 5 Đúng', x: 320, y: 80 },
-  { id: 'n-b4', note: 'B4', freq: 493.88, label: 'Si (7M)', role: 'Dẫn âm (Leading)', x: 440, y: 150 },
-  { id: 'n-c5', note: 'C5', freq: 523.25, label: 'Đô 5 (8P)', role: 'Bát độ hoàn mỹ', x: 440, y: 270 },
-  { id: 'n-f4', note: 'F4', freq: 349.23, label: 'Fa (4P)', role: 'Hạ át (Subdominant)', x: 320, y: 270 },
-  { id: 'n-fsharp', note: 'F#4', freq: 369.99, label: 'Fa Thăng (Tritone)', role: 'Nghịch ma mị', x: 200, y: 270 },
-  { id: 'n-d4', note: 'D4', freq: 293.66, label: 'Rê (2M)', role: 'Bậc 2 liền bậc', x: 80, y: 270 }
+  { id: 'n-c4', note: 'C4', freq: 261.63, label: 'Đô (Tonic)', role: 'Chủ âm', x: 25, y: 110 },
+  { id: 'n-d4', note: 'D4', freq: 293.66, label: 'Rê (2M)', role: 'Bậc 2', x: 100, y: 35 },
+  { id: 'n-e4', note: 'E4', freq: 329.63, label: 'Mi (3M)', role: 'Quãng 3 Trưởng', x: 235, y: 25 },
+  { id: 'n-f4', note: 'F4', freq: 349.23, label: 'Fa (4P)', role: 'Hạ át', x: 370, y: 35 },
+  { id: 'n-fsharp', note: 'F#4', freq: 369.99, label: 'Fa Thăng (Tritone)', role: 'Nghịch ma mị', x: 445, y: 110 },
+  { id: 'n-g4', note: 'G4', freq: 392.00, label: 'Sol (5P)', role: 'Quãng 5 Đúng', x: 370, y: 190 },
+  { id: 'n-b4', note: 'B4', freq: 493.88, label: 'Si (7M)', role: 'Dẫn âm', x: 235, y: 200 },
+  { id: 'n-c5', note: 'C5', freq: 523.25, label: 'Đô 5 (8P)', role: 'Bát độ hoàn mỹ', x: 100, y: 190 }
 ];
 
 export const SoundNetworkModule: React.FC = () => {
-  const { setSelectedExerciseSlug, setActiveTab } = useAppStore();
+  const { setSelectedExerciseSlug, setActiveTab, markTheoryModuleMastered, masteredTheoryModules } = useAppStore();
 
   // Active Tab within this module
   const [activeSubTab, setActiveSubTab] = useState<'network' | 'overtone' | 'articulation' | 'cadence' | 'contour'>('network');
+
+  // Chapter 9 Mastery Quiz State
+  const [quizStep, setQuizStep] = useState(0);
+  const [quizSelectedOption, setQuizSelectedOption] = useState<string | null>(null);
+  const [quizScore, setQuizScore] = useState(0);
+  const [quizFinished, setQuizFinished] = useState(false);
 
   // Network State
   const [selectedNodeA, setSelectedNodeA] = useState<INodePoint | null>(null);
@@ -251,57 +257,72 @@ export const SoundNetworkModule: React.FC = () => {
           </div>
 
           {/* Interactive Graph Canvas Area */}
-          <div className="relative w-full h-[360px] bg-slate-950 rounded-2xl border border-purple-500/30 overflow-hidden shadow-inner flex flex-col justify-between p-4">
-            {/* SVG Connecting Line */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none">
-              {selectedNodeA && selectedNodeB && (
-                <line
-                  x1={selectedNodeA.x + 35}
-                  y1={selectedNodeA.y + 20}
-                  x2={selectedNodeB.x + 35}
-                  y2={selectedNodeB.y + 20}
-                  stroke="#c084fc"
-                  strokeWidth={3.5}
-                  strokeDasharray="6 4"
-                  className="animate-pulse"
-                />
-              )}
-            </svg>
+          <div className="relative w-full h-[280px] bg-slate-950 rounded-2xl border border-purple-500/30 overflow-x-auto shadow-inner p-4 flex items-center justify-center">
+            <div className="relative w-[540px] h-full shrink-0">
+              {/* SVG Connecting Line */}
+              <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                {selectedNodeA && selectedNodeB && (
+                  <line
+                    x1={selectedNodeA.x + 35}
+                    y1={selectedNodeA.y + 20}
+                    x2={selectedNodeB.x + 35}
+                    y2={selectedNodeB.y + 20}
+                    stroke="#c084fc"
+                    strokeWidth={3.5}
+                    strokeDasharray="6 4"
+                    className="animate-pulse"
+                  />
+                )}
+              </svg>
 
-            {/* Nodes Grid */}
-            <div className="relative w-full h-full">
-              {NETWORK_NODES.map(node => {
-                const isSelectedA = selectedNodeA?.id === node.id;
-                const isSelectedB = selectedNodeB?.id === node.id;
-                const isHighlighted = isSelectedA || isSelectedB;
+              {/* Nodes Grid */}
+              <div className="relative w-full h-full">
+                {NETWORK_NODES.map(node => {
+                  const isSelectedA = selectedNodeA?.id === node.id;
+                  const isSelectedB = selectedNodeB?.id === node.id;
+                  const isHighlighted = isSelectedA || isSelectedB;
 
-                return (
-                  <button
-                    key={node.id}
-                    onClick={() => handleSelectNetworkNode(node)}
-                    style={{ left: `${node.x}px`, top: `${node.y}px` }}
-                    className={`absolute w-[70px] h-[45px] rounded-2xl border-2 flex flex-col items-center justify-center transition-all shadow-md active:scale-95 ${
-                      isHighlighted
-                        ? 'bg-purple-600 border-white text-white scale-110 shadow-[0_0_18px_rgba(192,132,252,0.6)] z-10'
-                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-purple-400 hover:text-white'
-                    }`}
-                  >
-                    <span className="text-xs font-extrabold tracking-wide">{node.note}</span>
-                    <span className="text-[9px] text-purple-200/80 font-mono truncate max-w-[62px]">
-                      {node.role}
-                    </span>
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={node.id}
+                      onClick={() => handleSelectNetworkNode(node)}
+                      style={{ left: `${node.x}px`, top: `${node.y}px` }}
+                      className={`absolute w-[70px] h-[45px] rounded-2xl border-2 flex flex-col items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer ${
+                        isHighlighted
+                          ? 'bg-purple-600 border-white text-white scale-110 shadow-[0_0_18px_rgba(192,132,252,0.6)] z-10'
+                          : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-purple-400 hover:text-white'
+                      }`}
+                    >
+                      <span className="text-xs font-extrabold tracking-wide">{node.note}</span>
+                      <span className="text-[9px] text-purple-200/80 font-mono truncate max-w-[62px]">
+                        {node.role}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+          </div>
 
-            {/* Bottom Analysis Pill */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-200 flex items-center justify-between z-20">
-              <span className="flex items-center gap-2">
-                <Volume2 className="w-4 h-4 text-purple-400 shrink-0" />
-                <span>{lastIntervalDescription || 'Click vào nốt đầu tiên (ví dụ C4) rồi click nốt thứ hai (ví dụ G4).'}</span>
-              </span>
-            </div>
+          {/* Dedicated Analysis & Instruction Box - Cleanly Placed Outside Canvas */}
+          <div className="bg-slate-900 border border-purple-500/30 rounded-2xl p-4 text-xs text-slate-200 flex flex-wrap items-center justify-between gap-3 shadow-md">
+            <span className="flex items-center gap-2">
+              <Volume2 className="w-4 h-4 text-purple-400 shrink-0" />
+              <span className="font-medium">{lastIntervalDescription || 'Click vào nốt đầu tiên (ví dụ C4) rồi click nốt thứ hai (ví dụ G4) để khám phá tương quan hòa âm.'}</span>
+            </span>
+            {selectedNodeA && selectedNodeB && (
+              <button
+                onClick={() => {
+                  if (selectedNodeA && selectedNodeB) {
+                    auditoryEngine.playRelationalConnection(selectedNodeA.freq, selectedNodeB.freq, 'SOUND_HARMONIZE');
+                  }
+                }}
+                className="px-3 py-1.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-white font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+              >
+                <Play className="w-3 h-3 fill-current" />
+                <span>Nghe Lại</span>
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -764,6 +785,146 @@ export const SoundNetworkModule: React.FC = () => {
           </div>
         </div>
       )}
+      {/* QUICK MASTERY CHECK (Mini-Game 3 Câu Chương 9) */}
+      <div className="p-6 bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-violet-500/10 border border-purple-500/30 rounded-3xl space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-purple-400" />
+            <h3 className="text-base font-black text-slate-900 dark:text-white">
+              Thử Thách Nhanh: Làm Chủ Mạng Lưới Hòa Âm (3 Câu)
+            </h3>
+          </div>
+          <span className="text-xs font-mono font-bold text-purple-600 dark:text-purple-400">
+            {masteredTheoryModules.includes('sound-network') ? '✅ Đã làm chủ chương 9' : `Câu ${quizStep + 1} / 3`}
+          </span>
+        </div>
+
+        {!quizFinished ? (
+          (() => {
+            const NETWORK_QUESTIONS = [
+              {
+                id: 'qn1',
+                title: 'Câu 1: Quãng nào sở hữu độ nghịch (dissonance) cao nhất và sức căng giải tỏa mạnh nhất trong mạng lưới hòa âm?',
+                options: [
+                  { id: 'a', label: 'Quãng Tritone (4 Tăng / 5 Giảm - 6 bán âm)', isCorrect: true },
+                  { id: 'b', label: 'Quãng 8 Đúng (8P - Bát độ hoàn mỹ)', isCorrect: false },
+                  { id: 'c', label: 'Quãng 5 Đúng (5P - 7 bán âm)', isCorrect: false },
+                  { id: 'd', label: 'Quãng Đồng âm (1P)', isCorrect: false }
+                ],
+                explanation: 'Chính xác! Quãng Tritone (Diabolus in Musica) chia đôi bát độ với tỷ lệ vô tỷ 45:32, tạo ra sự xung đột dao động mạnh nhất buộc phải hồi quy về quãng 3 hoặc 6.'
+              },
+              {
+                id: 'qn2',
+                title: 'Câu 2: Tiến trình Kết trọn (Authentic Cadence: V → I) đem lại hiệu ứng tâm lý nào?',
+                options: [
+                  { id: 'a', label: 'Viên mãn, trọn vẹn, giải tỏa hoàn toàn sức căng để hạ màn', isCorrect: true },
+                  { id: 'b', label: 'Lơ lửng chờ câu tiếp theo như dấu phẩy', isCorrect: false },
+                  { id: 'c', label: 'Bất ngờ hụt hẫng vì rơi vào hợp âm thứ', isCorrect: false },
+                  { id: 'd', label: 'Gây hoang mang mất phương hướng', isCorrect: false }
+                ],
+                explanation: 'Chính xác! Hợp âm Át (V) với nốt dẫn âm (Leading Tone) hút mãnh liệt về nốt chủ (I), tạo nên cảm giác trọn vẹn tuyệt đối.'
+              },
+              {
+                id: 'qn3',
+                title: 'Câu 3: Trong nhận thức hình thái giai điệu (Melodic Contour), não bộ ghi nhớ điều gì đầu tiên?',
+                options: [
+                  { id: 'a', label: 'Đường nét cử động tổng thể (Lên / Xuống / Ngang) trước khi tính toán số bán âm chính xác', isCorrect: true },
+                  { id: 'b', label: 'Tần số Hertz chính xác đến từng số lẻ', isCorrect: false },
+                  { id: 'c', label: 'Tên nốt nhạc bằng chữ cái La-tinh', isCorrect: false },
+                  { id: 'd', label: 'Số vạch nhịp trên bản phổ nhạc giấy', isCorrect: false }
+                ],
+                explanation: 'Chính xác! Thần kinh học thính giác Gestalt chỉ ra rằng não nhận diện "hình thể cao độ" (Contour Schema) như một bức tranh tổng quát trước khi phân tích vi mô.'
+              }
+            ];
+
+            const currentQ = NETWORK_QUESTIONS[quizStep];
+
+            const handleSelectOption = (opt: { id: string; label: string; isCorrect: boolean }) => {
+              if (quizSelectedOption) return;
+              setQuizSelectedOption(opt.id);
+              if (opt.isCorrect) {
+                auditoryEngine.playFeedback(true);
+                setQuizScore(prev => prev + 1);
+              } else {
+                auditoryEngine.playFeedback(false);
+              }
+
+              setTimeout(() => {
+                if (quizStep < 2) {
+                  setQuizStep(prev => prev + 1);
+                  setQuizSelectedOption(null);
+                } else {
+                  setQuizFinished(true);
+                  if (quizScore + (opt.isCorrect ? 1 : 0) >= 2) {
+                    markTheoryModuleMastered('sound-network');
+                  }
+                }
+              }, 1500);
+            };
+
+            return (
+              <div className="p-4 rounded-2xl bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700 space-y-3">
+                <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white block">
+                  {currentQ.title}
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {currentQ.options.map(opt => {
+                    const isSelected = quizSelectedOption === opt.id;
+                    let btnStyle = 'bg-slate-50 dark:bg-slate-850/60 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-purple-400';
+                    if (quizSelectedOption) {
+                      if (opt.isCorrect) btnStyle = 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-800 dark:text-emerald-200 font-bold';
+                      else if (isSelected) btnStyle = 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-800 dark:text-rose-200';
+                    }
+
+                    return (
+                      <button
+                        key={opt.id}
+                        disabled={quizSelectedOption !== null}
+                        onClick={() => handleSelectOption(opt)}
+                        className={`p-3 rounded-xl border text-xs font-medium text-left transition-all flex items-center justify-between cursor-pointer active:scale-98 ${btnStyle}`}
+                      >
+                        <span>{opt.label}</span>
+                        {quizSelectedOption && opt.isCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 ml-1" />}
+                        {quizSelectedOption && isSelected && !opt.isCorrect && <XCircle className="w-4 h-4 text-rose-500 shrink-0 ml-1" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {quizSelectedOption && (
+                  <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-xs text-purple-900 dark:text-purple-200 animate-fadeIn">
+                    {currentQ.explanation}
+                  </div>
+                )}
+              </div>
+            );
+          })()
+        ) : (
+          <div className="p-5 rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-emerald-500/30 text-center space-y-3">
+            <div className="w-10 h-10 mx-auto rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <h4 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+              {quizScore >= 2 ? '🎉 Xuất sắc! Bạn đã làm chủ chương Mạng Lưới Hòa Âm & Cảm Âm' : 'Hãy thử lại để đạt chuẩn làm chủ nhé!'}
+            </h4>
+            <p className="text-xs text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+              Bạn đạt <strong>{quizScore}/3 câu đúng</strong>. Huy hiệu làm chủ chương 9 đã được cập nhật thành công!
+            </p>
+            <button
+              onClick={() => {
+                setQuizStep(0);
+                setQuizScore(0);
+                setQuizSelectedOption(null);
+                setQuizFinished(false);
+              }}
+              className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+            >
+              Làm lại bài kiểm tra
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

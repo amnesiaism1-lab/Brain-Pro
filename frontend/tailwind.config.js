@@ -26,7 +26,13 @@ export default {
         canvasBg: {
           light: '#ECE5D8', // Light beige body background
           dark: '#0f172a',
+        },
+        slate: {
+          850: '#172033',
         }
+      },
+      gridTemplateColumns: {
+        '16': 'repeat(16, minmax(0, 1fr))',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
