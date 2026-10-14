@@ -8,6 +8,7 @@ export interface IPianoKeyboardProps {
   activeNotes?: string[];          // Notes currently glowing/sounding
   selectedNotes?: string[];        // Notes selected by user (or correct target notes)
   wrongNotes?: string[];           // Notes selected wrongly (rendered in rose/red for immediate visual contrast)
+  highlightNotes?: string[];       // Special focal notes (e.g. characteristic color notes in amber/gold glow)
   disabled?: boolean;
   showLabels?: boolean;
   octaveRange?: [number, number];  // e.g. [4, 4] for 1 octave, [4, 5] for 2 octaves
@@ -30,6 +31,7 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
   activeNotes = [],
   selectedNotes = [],
   wrongNotes = [],
+  highlightNotes = [],
   disabled = false,
   showLabels = true,
   octaveRange = [4, 4],
@@ -91,6 +93,7 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
           const isActive = isNoteInList(key.note, mergedActiveNotes);
           const isSelected = isNoteInList(key.note, selectedNotes);
           const isWrong = isNoteInList(key.note, wrongNotes);
+          const isHighlight = isNoteInList(key.note, highlightNotes);
 
           // Find exact label in selectedNotes if enharmonically matched
           const keyMidi = Note.midi(key.note);
@@ -108,6 +111,8 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
                   ? 'bg-amber-400 border-amber-500 shadow-lg shadow-amber-400/50 scale-[0.99] z-10'
                   : isWrong
                   ? 'bg-rose-500 border-rose-600 shadow-md shadow-rose-500/50 text-white z-10'
+                  : isHighlight
+                  ? 'bg-gradient-to-b from-amber-300 to-amber-400 border-amber-500 ring-2 ring-amber-400 text-slate-950 font-black shadow-md shadow-amber-400/40 z-10'
                   : isSelected
                   ? 'bg-emerald-400 border-emerald-500 shadow-md shadow-emerald-400/40 text-slate-950 font-black'
                   : 'bg-gradient-to-b from-slate-100 to-white hover:from-slate-200 hover:to-slate-100'
@@ -115,7 +120,7 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
             >
               {showLabels && (
                 <span className={`text-[11px] font-bold tracking-tight select-none ${
-                  isWrong ? 'text-white font-black' : (isActive || isSelected ? 'text-slate-950 font-black' : 'text-slate-600')
+                  isWrong ? 'text-white font-black' : (isActive || isSelected || isHighlight ? 'text-slate-950 font-black' : 'text-slate-600')
                 }`}>
                   {displayLabel}
                 </span>
@@ -138,6 +143,7 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
             const isBlackActive = isNoteInList(blackNoteName, mergedActiveNotes);
             const isBlackSelected = isNoteInList(blackNoteName, selectedNotes);
             const isBlackWrong = isNoteInList(blackNoteName, wrongNotes);
+            const isBlackHighlight = isNoteInList(blackNoteName, highlightNotes);
 
             if (!hasBlack) {
               return <div key={`spacer-${index}`} className="w-10 sm:w-12 pointer-events-none" />;
@@ -171,6 +177,8 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
                       ? 'bg-amber-400 border-amber-500 shadow-amber-400/60'
                       : isBlackWrong
                       ? 'bg-rose-600 border-rose-700 shadow-rose-600/60 text-white'
+                      : isBlackHighlight
+                      ? 'bg-gradient-to-b from-amber-400 to-amber-500 border-amber-600 ring-2 ring-amber-400 shadow-amber-400/60 text-slate-950 font-black'
                       : isBlackSelected
                       ? 'bg-emerald-400 border-emerald-500 shadow-emerald-400/50 text-slate-950 font-black'
                       : 'bg-gradient-to-b from-slate-950 via-slate-900 to-slate-800 border-slate-700 hover:from-slate-800 hover:to-slate-700'
@@ -178,7 +186,7 @@ export const PianoKeyboard: React.FC<IPianoKeyboardProps> = ({
                 >
                   {showLabels && (
                     <span className={`text-[8px] sm:text-[9px] font-bold leading-tight select-none text-center px-0.5 ${
-                      isBlackWrong ? 'text-white font-black' : (isBlackActive || isBlackSelected ? 'text-slate-950 font-black' : 'text-slate-300')
+                      isBlackWrong ? 'text-white font-black' : (isBlackActive || isBlackSelected || isBlackHighlight ? 'text-slate-950 font-black' : 'text-slate-300')
                     }`}>
                       {labelText}
                     </span>

@@ -1,0 +1,142 @@
+Trên ảnh chụp màn hình mới nhất của **Chương 4: Âm Giai & Điệu Thức**, việc bạn vừa bổ sung khung **"Cơ Chế Thần Kinh & Lợi Ích Nhận Thức Đang Kích Hoạt"** ở ngay đầu trang đã giúp định hình rất rõ mục tiêu rèn luyện não bộ trước khi người dùng đi vào nhạc lý.
+
+Tuy nhiên, nếu xét về **độ sâu học thuật** và **khả năng rèn luyện tai nghe thực chiến**, bộ **16 âm giai hiện tại** cùng cách trình bày trên từng thẻ vẫn đang dừng ở mức "liệt kê công thức lý thuyết" (`1-2-3-4-5-6-7` và `W-W-H...`). Để nâng tầm chất lượng nội dung của Chương 4 lên chuẩn học viện âm nhạc kết hợp khoa học nhận thức, bạn có thể mở rộng theo **4 chiều sâu kiến thức** và **bổ sung lên 32+ âm giai chuẩn hóa** dưới đây.
+
+### 1. Bổ Sung 4 Cơ Chế Nhận Thức Cốt Lõi Giúp Não Bộ "Nghe Ra" Âm Giai Tức Thì
+
+Người học không thể nhận diện một âm giai bằng cách ngồi đếm từng khoảng cách `W - W - H` khi nhạc đang chạy nhanh. Não bộ phân biệt các âm giai dựa trên **4 dấu hiệu nhận thức (Cognitive Acoustic Cues)** mà bạn nên tích hợp thẳng vào giao diện từng thẻ:
+
+* **Thay đổi thứ tự hiển thị theo "Quang Phổ Độ Sáng – Tối" (Modal Brightness Spectrum)**: Thay vì chỉ liệt kê 7 điệu thức Hy Lạp theo thứ tự bậc `I -> VII` (Ionian, Dorian, Phrygian...), hãy thêm bộ lọc hoặc thanh trượt **"Độ Sáng Khí Sắc (Brightness Continuum)"** sắp xếp từ Sáng nhất đến Tối nhất. Khi đi từ sáng xuống tối, mỗi điệu thức liền kề chỉ **hạ thấp đúng 1 nốt đi nửa cung**, giúp não bộ so sánh sự thay đổi màu sắc cực kỳ dễ dàng:
+
+$$\text{Lydian }(\sharp 4) \rightarrow \text{Ionian (Chuẩn)} \rightarrow \text{Mixolydian }(\flat 7) \rightarrow \text{Dorian }(\flat 3, \flat 7) \rightarrow \text{Aeolian }(\flat 3, \flat 6, \flat 7) \rightarrow \text{Phrygian }(\flat 2, \flat 3, \flat 6, \flat 7) \rightarrow \text{Locrian }(\flat 2, \flat 3, \flat 5, \flat 6, \flat 7)$$
+
+
+* **Tô sáng "Nốt Đặc Trưng" (Characteristic Color Note)**: Mỗi điệu thức có **1–2 nốt chìa khóa** tạo nên "hương vị" riêng biệt so với âm giai Trưởng/Thứ tự nhiên (ví dụ: nghe thấy màu Thứ nhưng có nốt bậc `6 Trưởng` sáng bừng lên thì chắc chắn 100% là **Dorian**; nghe màu Trưởng nhưng bậc `#4` bay bổng thì chắc chắn là **Lydian**). Trên phím đàn Piano và thẻ âm giai, nốt đặc trưng này cần được **tô màu Vàng Kim/Tím phát sáng** tách biệt với các nốt còn lại.
+* **Áp dụng phương pháp "Ghép Khối Tứ Âm" (Tetrachord Chunking)**: Trí nhớ làm việc (Working Memory) của con người nhớ các cụm 4 phần tử tốt hơn nhiều so với chuỗi 7–8 nốt rời rạc. Mọi âm giai 7 nốt đều được cấu tạo từ **Hạ Tứ Âm (4 nốt đầu)** + **Thượng Tứ Âm (4 nốt cuối)**. Chỉ với 5 khối tứ âm cơ bản (*Trưởng, Thứ, Phrygian, Hòa âm, Toàn cung*), người học có thể lắp ghép và nhớ hàng chục âm giai phức tạp trong vài giây.
+* **Bổ sung "Nền Hòa Âm Định Hình" (Drone & Modal Vamp)**: Nếu phát chuỗi nốt `D - E - F - G - A - B - C - D` mà không có nốt trầm `D` ngân vang ở dưới (Drone) hoặc cặp hợp âm đặc trưng (`Dm7 <-> G7`), tai người sẽ bị hút về cảm giác `C Trưởng`. Do đó, nút `Hợp Âm Nền` trên giao diện cần phát đúng **cặp hợp âm đặc trưng (Modal Vamp 2 hợp âm)** của điệu thức đó.
+
+### 2. Danh Mục Mở Rộng Toàn Diện 32 Âm Giai & Điệu Thức (Chi Tiết Đầy Đủ)
+
+Hiện tại cẩm nang của bạn có 16 âm giai. Dưới đây là bảng cấu trúc chi tiết nâng cấp lên **32 âm giai chia làm 6 nhóm chuyên sâu**, bổ sung đầy đủ **Nốt đặc trưng (Color Note)**, **Cấu trúc Tứ âm**, và **Tiến trình Hợp âm nền (Modal Vamp)** để bạn đưa vào cơ sở dữ liệu:
+
+#### Nhóm 1: 7 Điệu Thức Tự Nhiên (Xếp Theo Quang Phổ Sáng $\rightarrow$ Tối)
+
+| Tên Điệu Thức | Công Thức Bậc (So Với Trưởng) | Khoảng Cách Bán Âm | Nốt Đặc Trưng (Color Note) | Cặp Hợp Âm Nền (Modal Vamp) | Sắc Thái Tâm Lý & Nhận Thức |
+| --- | --- | --- | --- | --- | --- |
+| **1. Lydian** *(Độ sáng: +1)* | `1 - 2 - 3 - #4 - 5 - 6 - 7` | `W-W-W-H-W-W-H` | **`#4`** (Quãng 4 Tăng) | `Imaj7 <-> II/I` *(VD: Cmaj7 - D/C)* | Kỳ ảo, bay bổng, mở rộng không gian, thiếu trọng lực hút xuống (Nhạc phim Sci-Fi, Joe Satriani) |
+| **2. Ionian (Trưởng Tự Nhiên)** *(Độ sáng: 0)* | `1 - 2 - 3 - 4 - 5 - 6 - 7` | `W-W-H-W-W-W-H` | **`4`** & **`7`** (Bậc dẫn về 1) | `I <-> IV <-> V7` *(VD: C - F - G7)* | Trong sáng, cân bằng, ổn định tuyệt đối, giải tỏa căng thẳng hoàn toàn |
+| **3. Mixolydian** *(Độ sáng: -1)* | `1 - 2 - 3 - 4 - 5 - 6 - b7` | `W-W-H-W-W-H-W` | **`b7`** (Bậc 7 Thứ trên nền Trưởng) | `I7 <-> bVII <-> IV` *(VD: C7 - Bb - F)* | Phóng khoáng, bụi bặm, năng động, giảm sức ép của bậc dẫn (Classic Rock, Funk, Blues-Rock) |
+| **4. Dorian** *(Độ sáng: -2)* | `1 - 2 - b3 - 4 - 5 - 6 - b7` | `W-H-W-W-W-H-W` | **`6`** (Bậc 6 Trưởng trên nền Thứ) | `im7 <-> IV7` *(VD: Cm7 - F7)* | Thứ nhưng không bi lụy; ngầu, trí tuệ, pha trộn giữa nỗi buồn và hy vọng (Carlos Santana, Jazz Fusion) |
+| **5. Aeolian (Thứ Tự Nhiên)** *(Độ sáng: -3)* | `1 - 2 - b3 - 4 - 5 - b6 - b7` | `W-H-W-W-H-W-W` | **`b6`** (Nốt tạo chiều sâu trầm buồn) | `im <-> bVI <-> bVII` *(VD: Cm - Ab - Bb)* | Trầm buồn, tự sự, hoài niệm, mang tính kể chuyện sâu lắng (Pop/Rock Ballad, Nhạc cổ điển) |
+| **6. Phrygian** *(Độ sáng: -4)* | `1 - b2 - b3 - 4 - 5 - b6 - b7` | `H-W-W-W-H-W-W` | **`b2`** (Bán âm sát ngay trên chủ âm) | `im <-> bII` *(VD: Cm - Db)* | Huyền bí, căng thẳng, mang màu sắc Flamenco Tây Ban Nha và Metal hiện đại |
+| **7. Locrian** *(Độ sáng: -5)* | `1 - b2 - b3 - 4 - b5 - b6 - b7` | `H-W-W-H-W-W-W` | **`b5`** & **`b2`** (Mất quãng 5 Đúng ổn định) | `im7b5 <-> bIImaj7` *(VD: Cm7b5 - Dbmaj7)* | Bất ổn định cực độ, chông chênh, nghịch tai, kích thích cảnh giác cao độ trong não bộ |
+
+#### Nhóm 2: Họ Âm Giai Thứ Biến Thể & Điệu Thức Phái Sinh (Harmonic & Melodic Minor Family)
+
+*(Hiện tại bạn mới có Harmonic Minor và Melodic Minor; cần bổ sung 5 điệu thức phái sinh cực kỳ quan trọng trong Jazz, Giao hưởng và Điện ảnh)*
+
+| Tên Âm Giai / Điệu Thức | Nguồn Gốc Phái Sinh | Công Thức Bậc | Nốt Đặc Trưng | Cặp Hợp Âm Chuẩn | Ứng Dụng & Màu Sắc Thính Giác |
+| --- | --- | --- | --- | --- | --- |
+| **8. Thứ Hòa Âm (Harmonic Minor)** | Bậc I của Thứ Hòa Âm | `1 - 2 - b3 - 4 - 5 - b6 - 7` | **`b6 -> 7`** (Quãng 2 Tăng = 3 bán âm) | `im(maj7) <-> V7b9` | Kịch tính, cổ điển châu Âu (Bach, Mozart, Yngwie Malmsteen), lực hút mạnh từ bậc 7 về 1 |
+| **9. Phrygian Dominant (Spanish Gypsy)** | Bậc V của Thứ Hòa Âm | `1 - b2 - 3 - 4 - 5 - b6 - b7` | **`b2`** kết hợp **`3 Trưởng`** | `I7 <-> bII` *(VD: C7 - Db)* | Âm hưởng Trung Đông, Ai Cập, Flamenco rực lửa; vừa có hợp âm chủ Trưởng vừa có quãng 2 tăng |
+| **10. Thứ Giai Điệu (Melodic / Jazz Minor)** | Bậc I của Thứ Giai Điệu | `1 - 2 - b3 - 4 - 5 - 6 - 7` | **`b3`** ở dưới nhưng **`6 - 7 Trưởng`** ở trên | `im(maj7) <->im6` | Sự giao thoa giữa nửa dưới Thứ và nửa trên Trưởng; màu sắc trinh thám, tinh tế, hiện đại |
+| **11. Dorian b2 (Phrygian #6)** | Bậc II của Thứ Giai Điệu | `1 - b2 - b3 - 4 - 5 - 6 - b7` | **`b2`** kết hợp **`6 Trưởng`** | `Gsus4(b9)` hoặc `Cm7(b9)` | Màu sắc u tối của Phrygian nhưng đột ngột sáng lên ở bậc 6, rất phổ biến trong Modern Jazz |
+| **12. Lydian Augmented** | Bậc III của Thứ Giai Điệu | `1 - 2 - 3 - #4 - #5 - 6 - 7` | **`#4`** và **`#5`** (Quãng 5 Tăng) | `Cmaj7(#5)` | Cảm giác lơ lửng ngoài không gian, siêu thực, xóa nhòa điểm tựa trọng lực |
+| **13. Lydian Dominant (Acoustic / Overtone Scale)** | Bậc IV của Thứ Giai Điệu | `1 - 2 - 3 - #4 - 5 - 6 - b7` | **`#4`** kết hợp **`b7`** | `C7(#11)` | Trùng khớp với **Chuỗi Bội Âm Tự Nhiên** (từ bội âm 4 đến 11 ở Chương 6!); thông minh, dí dỏm (*The Simpsons*) |
+| **14. Mixolydian b6 (Aeolian Dominant / Hindu)** | Bậc V của Thứ Giai Điệu | `1 - 2 - 3 - 4 - 5 - b6 - b7` | **`3 Trưởng`** kết hợp **`b6 Thứ`** | `C7 <-> Fm/C` | Hùng tráng nhưng đượm buồn, sử thi điện ảnh (nhạc phim Hollywood, Hans Zimmer, John Williams) |
+| **15. Altered Scale (Super Locrian)** | Bậc VII của Thứ Giai Điệu | `1 - b2 - #2 - 3 - b5 - #5 - b7` | Bậc **`3`** và **`b7`** + toàn bộ nốt biến âm (`b9, #9, b5, #5`) | `C7alt -> Fm(maj7)` | Đỉnh cao của sức căng hòa âm Jazz trước khi giải tỏa về hợp âm Chủ |
+
+#### Nhóm 3: Hệ Ngũ Cung, Blues & Bebop (Pentatonic, Blues & Chromatic Passing)
+
+*(Bổ sung thêm Major Blues, Bebop Major và Bebop Dorian để hoàn chỉnh nhóm này)*
+
+| Tên Âm Giai | Số Nốt | Công Thức Bậc | Nốt Đặc Trưng | Đặc Điểm Nhận Thức Thính Giác |
+| --- | --- | --- | --- | --- |
+| **16. Ngũ Cung Trưởng (Major Pentatonic)** | 5 nốt | `1 - 2 - 3 - 5 - 6` | Loại bỏ bậc `4` và `7` (không có bán âm) | Hoàn toàn không có xung đột bán âm (Tritone-free), tươi sáng, dân gian toàn cầu |
+| **17. Ngũ Cung Thứ (Minor Pentatonic)** | 5 nốt | `1 - b3 - 4 - 5 - b7` | Khung xương sống **`1 - b3 - 4 - 5`** | Mạnh mẽ, gãy gọn, dễ ghi nhớ nhất trong trí nhớ ngắn hạn |
+| **18. Âm Giai Blues Thứ (Minor Blues)** | 6 nốt | `1 - b3 - 4 - b5 - 5 - b7` | **`b5` (Blue Note)** nằm giữa 4 và 5 | Nốt `b5` tạo hiệu ứng ma sát uốn lượn (microtonal bend), gai góc và giàu cảm xúc |
+| **19. Âm Giai Blues Trưởng (Major Blues)** *(Mới)* | 6 nốt | `1 - 2 - b3 - 3 - 5 - 6` | **`b3 -> 3`** (Trượt từ 3 Thứ lên 3 Trưởng) | Vui tươi, duyên dáng, đặc trưng của Soul, Gospel, Country và R&B |
+| **20. Bebop Dominant** | 8 nốt | `1 - 2 - 3 - 4 - 5 - 6 - b7 - 7` | Nốt lướt bán âm **`7 Trưởng`** giữa `b7` và `1` | Giúp các nốt trong hợp âm (`1, 3, 5, b7`) luôn rơi đúng vào phách mạnh khi chạy nốt móc đơn |
+| **21. Bebop Major** *(Mới)* | 8 nốt | `1 - 2 - 3 - 4 - 5 - #5 - 6 - 7` | Nốt lướt bán âm **`#5 (b6)`** giữa `5` và `6` | Tạo độ mượt đặc trưng của dàn kèn Big Band Jazz thập niên 1940–1950 |
+| **22. Bebop Dorian (Minor)** *(Mới)* | 8 nốt | `1 - 2 - b3 - 3 - 4 - 5 - 6 - b7` | Nốt lướt **`3 Trưởng`** giữa `b3` và `4` | Xóa ranh giới cứng nhắc giữa Thứ và Trưởng trong các câu solo Jazz tốc độ cao |
+
+#### Nhóm 4: Âm Giai Đối Xứng (Symmetric Scales — Thử Thách Nhận Thức Mất Trọng Lực)
+
+*(Rất quan trọng cho Brain Pro vì các âm giai đối xứng chia đều quãng 8, đánh lừa cơ chế tìm "Chủ âm" của não bộ)*
+
+| Tên Âm Giai | Quy Luật Đối Xứng Toán Học | Công Thức Bậc | Hiệu Ứng Thần Kinh (Cognitive Effect) |
+| --- | --- | --- | --- |
+| **23. Toàn Cung (Whole Tone)** | 6 nốt cách đều nhau `1 cung` (`W-W-W-W-W-W`) | `1 - 2 - 3 - #4 - #5 - b7` | **Triệt tiêu hoàn toàn chủ âm**: Mọi nốt đều bình đẳng, tạo cảm giác mơ màng, trôi nổi hoặc hồi tưởng (Debussy) |
+| **24. Giảm Nửa-Nguyên (Half-Whole Diminished)** | 8 nốt xen kẽ `H-W-H-W-H-W-H-W` | `1 - b2 - #2 - 3 - #4 - 5 - 6 - b7` | Có đúng 3 chuyển vị trên đàn; dùng cho hợp âm `Dominant 7b9/#9`, tạo cảm giác ma trận đối xứng |
+| **25. Giảm Nguyên-Nửa (Whole-Half Diminished)** *(Mới)* | 8 nốt xen kẽ `W-H-W-H-W-H-W-H` | `1 - 2 - b3 - 4 - b5 - b6 - 6 - 7` | Dùng cho hợp âm `dim7`; âm thanh bí ẩn, hồi hộp như bước đi trong mê cung |
+| **26. Âm Giai Tăng (Augmented / Hexatonic)** *(Mới)* | 6 nốt xen kẽ `1.5 cung (3H) - 0.5 cung (H)` | `1 - b3 - 3 - 5 - #5 - 7` | Ghép từ 2 hợp âm Tăng lệch nhau nửa cung (VD: `Caug + Baug`), chia quãng 8 thành 3 trục đối xứng |
+
+#### Nhóm 5: Hệ Thống Điệu Thức Ngũ Cung Việt Nam (Điểm Nhấn Độc Bản Cho Người Dùng Việt)
+
+*(Việc bổ sung nhóm này sẽ tạo ra giá trị văn hóa và khác biệt rất lớn cho Brain Pro tại Việt Nam, đồng thời rèn luyện khả năng cảm nhận "Hơi" và nốt nhấn tinh tế)*
+
+| Tên Điệu / Hơi (Qui Ước Trên Nền C) | Cấu Trúc 5 Bậc (Họ – Xự – Xang – Xê – Cống) | Công Thức Tương Đương (12-TET) | Nốt Rung / Nhấn Đặc Trưng | Cảm Xúc & Không Gian Văn Hóa |
+| --- | --- | --- | --- | --- |
+| **27. Điệu Bắc (Hơi Bắc)** *(Mới)* | `Họ (C) - Xự (D) - Xang (F) - Xê (G) - Cống (A)` | `1 - 2 - 4 - 5 - 6` | Rung nhẹ ở **Xang (`4`)** và **Cống (`6`)** | Trong sáng, rộn ràng, lễ hội, khỏe khoắn (*Lưu Thủy, Phú Lục, Lý Ngựa Ô*) |
+| **28. Điệu Nam (Hơi Xuân)** *(Mới)* | `Họ (C) - Xự (D) - Xang (F) - Xê (G) - Phan (Bb)` | `1 - 2 - 4 - 5 - b7` | Nhấn luyến mềm ở **Xự (`2`)** và **Phan (`b7`)** | Thanh thoát, lâng lâng, man mác, trữ tình (*Nam Xuân, Bèo Dạt Mây Trôi*) |
+| **29. Điệu Oán (Hơi Oán)** *(Mới)* | `Họ (C) - Xự (Eb) - Xang (F#) - Xê (G) - Liu (C)` *(hoặc `1 - b3 - 4 - 5 - b7` với Xang non/già)* | `1 - b3 - #4 (hoặc 4) - 5 - b7` | Nhấn sâu chữ **Xang già (`4 -> #4`)** và **Xự (`b3`)** | Ai oán, nghẹn ngào, khắc khoải đặc trưng của Vọng cổ và Tài tử Nam Bộ (*Dạ Cổ Hoài Lang*) |
+
+#### Nhóm 6: Âm Giai Thế Giới & Kỳ Ảo (World & Exotic Scales)
+
+| Tên Âm Giai | Xuất Xứ / Phong Cách | Công Thức Bậc | Cấu Trúc Đặc Biệt |
+| --- | --- | --- | --- |
+| **30. Double Harmonic Major (Byzantine / Arabic)** *(Mới)* | Ả Rập / Trung Đông / Nhạc phim *Pulp Fiction (Misirlou)* | `1 - b2 - 3 - 4 - 5 - b6 - 7` | Có tới **2 quãng 2 Tăng (3 bán âm)** ở cả hạ tứ âm (`b2 -> 3`) và thượng tứ âm (`b6 -> 7`) |
+| **31. Hungarian Minor (Gypsy Minor)** *(Mới)* | Đông Âu / Digan | `1 - 2 - b3 - #4 - 5 - b6 - 7` | Kết hợp bậc `#4` của Lydian với bậc `b6 - 7` của Thứ Hòa Âm |
+| **32. Hirajoshi & In Sen** | Nhật Bản (Đàn Koto / Shakuhachi) | Hirajoshi: `1 - 2 - b3 - 5 - b6`<br>
+
+<br>In Sen: `1 - b2 - 4 - 5 - b7` | Ngũ cung bán âm (Hemitonic Pentatonic): dùng các bước nhảy quãng 3 lớn xen kẽ bán âm hẹp tạo cảm giác Thiền (Zen) tĩnh lặng |
+
+### 3. Nâng Cấp Giao Diện & Chức Năng Cho Từng Thẻ Âm Giai (Scale Card UI 2.0)
+
+Để truyền tải hết lượng kiến thức chất lượng cao trên mà không làm rối giao diện, bạn nên nâng cấp khu vực **"Khám Phá Điệu Thức Trực Quan"** và **"Cẩm Nang Âm Giai"** ở Chương 4 với 4 tính năng sau:
+
+1. **Bổ sung "Bản Đồ 7 Hợp Âm Diatonic" (Diatonic Chord Harmonization) ngay dưới bàn phím Piano**:
+* Hiện tại bên dưới Piano của Chương 4 đã có 7 ô bậc `I, II, III, IV, V, VI, VII` hiển thị từng nốt đơn. Hãy nâng cấp 7 ô này để hiển thị luôn **Hợp âm 3 nốt / 4 nốt sinh ra trên từng bậc đó** (ví dụ ở Đô Trưởng: `I: Cmaj7`, `ii: Dm7`, `iii: Em7`, `IV: Fmaj7`, `V: G7`, `vi: Am7`, `vii°: Bm7b5`).
+* Khi người dùng bấm vào ô bậc `ii (Dm7)`, đàn Piano sẽ đánh hợp âm `Dm7` để họ hiểu ngay **mối quan hệ Hệ thống bao hàm (`HIERARCHY_CONTAIN`)**: *Âm giai là mẹ đẻ ra hệ thống Hợp âm (Chương 3) và Quãng (Chương 2)*.
+
+
+2. **Thêm nút "So Sánh Song Song (Parallel Mode Compare)"**:
+* Sai lầm phổ biến nhất của người học là so sánh `C Trưởng` với `D Dorian` (cùng toàn phím trắng nên tai không phân biệt được sự dịch chuyển trọng tâm).
+* Hãy thêm nút **"Đối chiếu với C Trưởng / C Thứ"** ngay trên bảng điều khiển: cho phép người dùng nghe xen kẽ `C Aeolian` (`C-D-Eb-F-G-Ab-Bb`) và `C Dorian` (`C-D-Eb-F-G-A-Bb`) trên **cùng một chủ âm C**, đồng thời nhấp nháy phím `Ab` vs `A` trên đàn để tai nhận ra ngay sự khác biệt của nốt bậc 6!
+
+
+3. **Chuẩn hóa Cấu trúc Dữ liệu (Data Schema) cho từng Âm giai trong Code**:
+Bạn có thể mở rộng object dữ liệu của từng scale trong source code theo cấu trúc chuẩn sau để render tự động lên UI:
+```typescript
+interface ScaleDefinition {
+  id: string;                    // vd: 'dorian'
+  nameVi: string;                // 'Điệu Thức Dorian'
+  nameEn: string;                // 'Dorian Mode'
+  category: 'diatonic' | 'minor_modes' | 'pentatonic_blues' | 'symmetric' | 'vietnamese_world';
+  formulaDegrees: string[];      // ['1', '2', 'b3', '4', '5', '6', 'b7']
+  semitoneSteps: number[];       // [2, 1, 2, 2, 2, 1, 2]
+  characteristicDegrees: string[]; // ['6'] -> Tô sáng màu vàng trên Piano & Card
+  avoidDegrees?: string[];       // Nốt kỵ khi giữ lâu trên hợp âm chủ
+  brightnessScore: number;       // -2 (trên thang từ -5 Locrian đến +1 Lydian)
+  tetrachords: {
+    lower: string;               // 'Minor Tetrachord (1 - 2 - b3 - 4)'
+    upper: string;               // 'Minor Tetrachord (5 - 6 - b7 - 8)'
+  };
+  modalVamp: {
+    label: string;               // 'im7 <-> IV7 (Cm7 <-> F7)'
+    chordsMidi: number[][];      // Dữ liệu nốt để nút "Hợp Âm Nền" phát đúng màu Mode
+  };
+  diatonicChords: string[];      // ['im7', 'iim7', 'bIIImaj7', 'IV7', 'vm7', 'vi°7', 'bVIImaj7']
+  emotionTags: string[];         // ['Trí tuệ', 'Ngầu (Cool)', 'Pha trộn buồn & hy vọng']
+  famousExamples: string[];      // ['Oye Como Va (Santana)', 'So What (Miles Davis)', 'Scarborough Fair']
+}
+
+```
+
+
+4. **Nâng cấp Mini-Game "Thử Thách Bắt Nốt Lạc Điệu" (In-Key Oddball Game) ở cuối Chương 4**:
+* Bên cạnh chế độ tìm 1 nốt sai (Oddball), hãy thêm Tab chế độ thứ 2: **"Đoán Khí Sắc Điệu Thức (Mood & Color Spotter)"**: Hệ thống phát 1 hợp âm nền (Drone) kèm 1 câu giai điệu ngắn nhấn mạnh vào **Nốt đặc trưng (`Characteristic Note`)**, người dùng chọn xem câu nhạc đó mang màu sắc của điệu thức nào (ví dụ: phân biệt *Lydian `#4*` vs *Ionian `4*`, hoặc *Harmonic Minor `7*` vs *Natural Minor `b7*`).
+
+
+
+Nếu bạn muốn tích hợp ngay bộ dữ liệu **32 Âm giai** này vào dự án, hãy cho mình biết bạn đang lưu danh sách âm giai dưới dạng file `.ts` hay `.json` để mình xuất toàn bộ mảng dữ liệu hoàn chỉnh (kèm mảng bán âm và mã MIDI) cho bạn copy vào code ngay.
