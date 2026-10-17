@@ -96,6 +96,7 @@ export const SchulteTableGame: React.FC = () => {
   const [mode, setMode] = useState<SchulteMode>(initialMode);
   const [gridSize, setGridSize] = useState<number>(initialSize);
   const [showCenterGuide, setShowCenterGuide] = useState<boolean>(true);
+  const [isClassicMode, setIsClassicMode] = useState<boolean>(false);
   const [hintActive, setHintActive] = useState<string | null>(null);
   const [hintCount, setHintCount] = useState<number>(0);
 
@@ -617,6 +618,20 @@ export const SchulteTableGame: React.FC = () => {
               </div>
             )}
 
+            {/* Classic Mode Toggle (Keeps all cells visible without dimming to maximize peripheral vision training) */}
+            <button
+              onClick={() => setIsClassicMode(prev => !prev)}
+              title={isClassicMode ? 'Đang bật Thử Thách Cổ Điển (Không làm mờ số đã bấm)' : 'Bật Thử Thách Cổ Điển (Giữ nguyên toàn bộ số để luyện tầm nhìn ngoại vi chuẩn)'}
+              className={`px-2.5 py-1.5 rounded-xl transition-all border text-xs font-bold flex items-center gap-1.5 ${
+                isClassicMode 
+                  ? 'bg-purple-600 text-white border-purple-500 shadow-sm shadow-purple-600/30' 
+                  : 'bg-slate-100 dark:bg-slate-800 border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Cổ Điển</span>
+            </button>
+
             {/* Center Focus Toggle */}
             <button
               onClick={() => setShowCenterGuide(prev => !prev)}
@@ -833,7 +848,11 @@ export const SchulteTableGame: React.FC = () => {
                     disabled={isFound}
                     className={`flex items-center justify-center font-black rounded-xl sm:rounded-2xl transition-all duration-150 relative text-sm sm:text-lg md:text-xl lg:text-2xl shadow-sm ${
                       isFound
-                        ? 'bg-slate-200/40 dark:bg-slate-700/20 text-slate-300 dark:text-slate-600 scale-95 cursor-default'
+                        ? isClassicMode
+                          ? cell.color === 'red'
+                            ? 'bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 border-2 border-red-200 dark:border-red-900/60 cursor-default opacity-90'
+                            : 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 border-2 border-slate-300 dark:border-slate-600 cursor-default opacity-90'
+                          : 'bg-slate-200/40 dark:bg-slate-700/20 text-slate-300 dark:text-slate-600 scale-95 cursor-default'
                         : cell.color === 'red'
                         ? 'bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 border-2 border-red-200 dark:border-red-900/60 hover:shadow-lg hover:scale-105 active:scale-95'
                         : 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 border-2 border-slate-300 dark:border-slate-600 hover:shadow-lg hover:scale-105 active:scale-95'
@@ -865,7 +884,9 @@ export const SchulteTableGame: React.FC = () => {
                       gridSize >= 6 ? 'text-sm sm:text-lg' : gridSize === 5 ? 'text-lg sm:text-2xl' : 'text-2xl sm:text-4xl'
                     } ${
                       isFound
-                        ? isFading
+                        ? isClassicMode
+                          ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 cursor-default opacity-90'
+                          : isFading
                           ? 'bg-slate-100/60 dark:bg-slate-800/40 text-slate-400/30 border border-dashed border-slate-300/40 scale-95 cursor-default'
                           : 'bg-slate-200/40 dark:bg-slate-700/20 text-slate-300 dark:text-slate-600 scale-95 cursor-default'
                         : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 hover:bg-brand-50 hover:border-brand-500 hover:shadow-lg hover:scale-105 active:scale-95'
@@ -903,7 +924,9 @@ export const SchulteTableGame: React.FC = () => {
                         : 'text-2xl sm:text-4xl md:text-5xl'
                     } ${
                       isFound
-                        ? isFading
+                        ? isClassicMode
+                          ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 cursor-default opacity-90'
+                          : isFading
                           ? 'bg-slate-100/60 dark:bg-slate-800/40 text-slate-400/30 border border-dashed border-slate-300/40 scale-95 cursor-default'
                           : 'bg-slate-200/40 dark:bg-slate-700/20 text-slate-300 dark:text-slate-600 scale-95 cursor-default'
                         : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 hover:bg-brand-50 hover:border-brand-500 hover:shadow-lg hover:scale-105 active:scale-95'

@@ -314,6 +314,17 @@ export const EXERCISE_RELATION_MAP: Record<ExerciseSlug, IExerciseRelationMappin
       9: ['SIMILARITY_DIFF', 'TEMPORAL_PREDICT'],
       13: ['SIMILARITY_DIFF', 'ORDER_SEQUENCE']
     }
+  },
+  'dual-nback': {
+    slug: 'dual-nback',
+    primaryRelation: 'IDENTITY_MATCH',
+    secondaryRelations: ['TEMPORAL_PREDICT', 'TARGET_POSITION'],
+    levelAffinity: {
+      1: ['IDENTITY_MATCH'],
+      3: ['IDENTITY_MATCH', 'TARGET_POSITION'],
+      7: ['IDENTITY_MATCH', 'TEMPORAL_PREDICT'],
+      13: ['IDENTITY_MATCH', 'TARGET_POSITION', 'TEMPORAL_PREDICT']
+    }
   }
 };
 

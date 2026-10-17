@@ -302,20 +302,28 @@ export const StroopClashGame: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!isDirectionalStroop || isFinished || !wordItem || flashFeedback) return;
+    if (isFinished || !wordItem || flashFeedback) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        handleSelectDirection('UP');
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        handleSelectDirection('DOWN');
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        handleSelectDirection('LEFT');
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        handleSelectDirection('RIGHT');
+      if (isDirectionalStroop) {
+        if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'w') {
+          e.preventDefault();
+          handleSelectDirection('UP');
+        } else if (e.key === 'ArrowDown' || e.key.toLowerCase() === 's') {
+          e.preventDefault();
+          handleSelectDirection('DOWN');
+        } else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') {
+          e.preventDefault();
+          handleSelectDirection('LEFT');
+        } else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') {
+          e.preventDefault();
+          handleSelectDirection('RIGHT');
+        }
+      } else {
+        const num = parseInt(e.key, 10);
+        if (num >= 1 && num <= COLOR_PALETTE.length) {
+          e.preventDefault();
+          handleSelectColor(COLOR_PALETTE[num - 1]);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -535,30 +543,43 @@ export const StroopClashGame: React.FC = () => {
       {/* Answer Buttons Grid: Direction Buttons (Level 21) or Color Buttons */}
       {isDirectionalStroop ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-2">
-          {DIRECTION_OPTIONS.map((dir) => (
-            <button
-              key={dir.id}
-              onClick={() => handleSelectDirection(dir.id)}
-              className="h-16 sm:h-20 rounded-2xl flex flex-col items-center justify-center gap-1 bg-gradient-to-br from-amber-500 to-orange-600 text-white border-2 border-amber-300 hover:scale-105 transition-all btn-press shadow-md"
-            >
-              <span className="text-xl sm:text-2xl font-black">
-                {dir.id === 'UP' ? '↑' : dir.id === 'DOWN' ? '↓' : dir.id === 'LEFT' ? '←' : '→'}
-              </span>
-              <span className="text-xs sm:text-sm font-black tracking-wider">
-                {dir.label} ({dir.en})
-              </span>
-            </button>
-          ))}
+          {DIRECTION_OPTIONS.map((dir) => {
+            const keyHint = dir.id === 'UP' ? 'W / ↑' : dir.id === 'DOWN' ? 'S / ↓' : dir.id === 'LEFT' ? 'A / ←' : 'D / →';
+            return (
+              <button
+                key={dir.id}
+                onClick={() => handleSelectDirection(dir.id)}
+                className="h-16 sm:h-20 rounded-2xl flex flex-col items-center justify-center gap-1 bg-gradient-to-br from-amber-500 to-orange-600 text-white border-2 border-amber-300 hover:scale-105 transition-all btn-press shadow-md"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xl sm:text-2xl font-black">
+                    {dir.id === 'UP' ? '↑' : dir.id === 'DOWN' ? '↓' : dir.id === 'LEFT' ? '←' : '→'}
+                  </span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/25 text-white font-black">
+                    [{keyHint}]
+                  </span>
+                </div>
+                <span className="text-xs sm:text-sm font-black tracking-wider">
+                  {dir.label} ({dir.en})
+                </span>
+              </button>
+            );
+          })}
         </div>
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 sm:gap-3 pt-2">
-          {COLOR_PALETTE.map((color) => (
+          {COLOR_PALETTE.map((color, idx) => (
             <button
               key={color.id}
               onClick={() => handleSelectColor(color)}
-              className="h-16 sm:h-20 rounded-2xl flex flex-col items-center justify-center gap-1.5 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all btn-press shadow-sm hover:shadow-md group"
+              className="h-16 sm:h-20 rounded-2xl flex flex-col items-center justify-center gap-1.5 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all btn-press shadow-sm hover:shadow-md group relative"
             >
-              <div className={`w-5 h-5 rounded-full ${color.twBg} shadow-sm group-hover:scale-110 transition-transform`} />
+              <div className="flex items-center gap-1.5">
+                <div className={`w-4 h-4 rounded-full ${color.twBg} shadow-sm group-hover:scale-110 transition-transform`} />
+                <span className="text-[10px] font-mono font-black px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+                  [{idx + 1}]
+                </span>
+              </div>
               <span className="text-[11px] sm:text-xs font-black text-slate-700 dark:text-slate-200 tracking-tight uppercase">
                 {useEnButtons ? color.nameEn : color.nameVi}
               </span>

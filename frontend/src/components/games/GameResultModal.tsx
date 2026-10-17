@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import confetti from 'canvas-confetti';
-import { Trophy, Award, Clock, ArrowRight, RotateCcw, Brain, Lightbulb, Sparkles } from 'lucide-react';
+import { Trophy, Award, Clock, ArrowRight, RotateCcw, Brain, Lightbulb, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 
 import { IRawMetricsJson, COGNITIVE_RELATIONS, EXERCISE_RELATION_MAP } from '@brain-exercises/shared';
@@ -40,6 +40,7 @@ export const GameResultModal: React.FC<GameResultProps> = ({
     setIsAuthModalOpen
   } = useAppStore();
 
+  const [showDetailedBreakdown, setShowDetailedBreakdown] = useState(false);
   const currentLevel = activeGameSlug ? getExerciseLevel(activeGameSlug) : 1;
 
   useEffect(() => {
@@ -70,7 +71,7 @@ export const GameResultModal: React.FC<GameResultProps> = ({
     }
   }, []);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     playSound('click');
     if (activeWorkoutRoutine) {
       nextWorkoutStep();
@@ -83,7 +84,24 @@ export const GameResultModal: React.FC<GameResultProps> = ({
         onClose();
       }
     }
-  };
+  }, [activeWorkoutRoutine, nextWorkoutStep, activeGameSlug, setActiveGameSlug, setSelectedExerciseSlug, onClose, playSound]);
+
+  // Keyboard navigation for post-game rapid loop (Space/Enter to replay or continue)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleNext();
+      } else if (e.key === ' ' || e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        playSound('click');
+        onRestart();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleNext, onRestart, playSound]);
 
   const handleBackToList = () => {
     playSound('click');
@@ -101,11 +119,11 @@ export const GameResultModal: React.FC<GameResultProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-[#FDFBF7] dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl space-y-5 animate-scale-up">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+      <div className="bg-[#FDFBF7] dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl space-y-4 animate-scale-up my-auto max-h-[92vh] overflow-y-auto">
         {/* Trophy Header */}
-        <div className="w-20 h-20 mx-auto rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-500 flex items-center justify-center shadow-inner">
-          <Trophy className="w-10 h-10 animate-bounce" />
+        <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-500 flex items-center justify-center shadow-inner">
+          <Trophy className="w-8 h-8 sm:w-10 sm:h-10 animate-bounce" />
         </div>
 
         <div>
@@ -145,51 +163,64 @@ export const GameResultModal: React.FC<GameResultProps> = ({
           const primaryDef = primaryRelId ? COGNITIVE_RELATIONS[primaryRelId] : null;
 
           return (
-            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-50/90 via-blue-50/60 to-cyan-50/90 dark:from-slate-800 dark:via-indigo-950/40 dark:to-slate-800 border border-indigo-200/80 dark:border-indigo-800/60 text-left space-y-2.5 shadow-sm">
-              <div className="flex items-center justify-between">
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-50/90 via-blue-50/60 to-cyan-50/90 dark:from-slate-800 dark:via-indigo-950/40 dark:to-slate-800 border border-indigo-200/80 dark:border-indigo-800/60 text-left space-y-2 shadow-sm transition-all">
+              <div 
+                onClick={() => setShowDetailedBreakdown(!showDetailedBreakdown)}
+                className="flex items-center justify-between cursor-pointer select-none"
+              >
                 <span className="flex items-center gap-1.5 text-xs font-black text-indigo-700 dark:text-indigo-300">
                   <Brain className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                   Chỉ Dẫn Phát Triển Nhận Thức
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700 flex items-center gap-1">
-                  <Sparkles className="w-2.5 h-2.5" />
-                  Tái Lập Synapse
-                </span>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700 hidden sm:inline-flex items-center gap-1">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    Synapse
+                  </span>
+                  {showDetailedBreakdown ? <ChevronUp className="w-4 h-4 text-indigo-500" /> : <ChevronDown className="w-4 h-4 text-indigo-500" />}
+                </div>
               </div>
 
               {primaryDef && (
                 <div className="text-xs text-slate-700 dark:text-slate-300">
-                  <span className="font-semibold text-slate-500 dark:text-slate-400">Trọng tâm rèn luyện: </span>
+                  <span className="font-semibold text-slate-500 dark:text-slate-400">Trọng tâm: </span>
                   <strong className="text-indigo-600 dark:text-indigo-400">{primaryDef.nameVi}</strong>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">{primaryDef.descriptionVi}</p>
                 </div>
               )}
 
-              {predEvent && predEvent.extra && (
-                <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-indigo-100 dark:border-indigo-900/60 flex items-center justify-between text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-500 font-medium">Độ khớp mô phỏng:</span>
-                    <p className="font-black text-slate-800 dark:text-white">
-                      {Math.max(0, Math.round((1 - (Number(predEvent.extra.predictionError) || 0)) * 100))}% chính xác
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-slate-500 font-medium">Tự tin hiệu chuẩn:</span>
-                    <p className="font-black text-cyan-600 dark:text-cyan-400">
-                      {Math.round((Number(predEvent.extra.confidence) || 0.8) * 100)}%
-                    </p>
+              {showDetailedBreakdown && (
+                <div className="space-y-2 pt-1 border-t border-indigo-100 dark:border-indigo-900/50 animate-fade-in text-xs">
+                  {primaryDef && (
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">{primaryDef.descriptionVi}</p>
+                  )}
+
+                  {predEvent && predEvent.extra && (
+                    <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-indigo-100 dark:border-indigo-900/60 flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-medium">Độ khớp mô phỏng:</span>
+                        <p className="font-black text-slate-800 dark:text-white">
+                          {Math.max(0, Math.round((1 - (Number(predEvent.extra.predictionError) || 0)) * 100))}% chính xác
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-500 font-medium">Tự tin hiệu chuẩn:</span>
+                        <p className="font-black text-cyan-600 dark:text-cyan-400">
+                          {Math.round((Number(predEvent.extra.confidence) || 0.8) * 100)}%
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-start gap-2 pt-1 text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                    <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <span>
+                      {accuracyRate >= 85
+                        ? 'Bạn đang nắm rất vững quy luật tương tác. Hãy duy trì sự tập trung để nâng cao độ ổn định và sẵn sàng cho các biến thể đảo quy tắc.'
+                        : 'Gợi ý phát triển: Dành 2 giây quan sát tổng thể trước khi thao tác. Trực giác não bộ cần dữ kiện sai số dự đoán để tự hiệu chỉnh chính xác hơn.'}
+                    </span>
                   </div>
                 </div>
               )}
-
-              <div className="flex items-start gap-2 pt-1 text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed border-t border-indigo-100 dark:border-indigo-900/50">
-                <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                <span>
-                  {accuracyRate >= 85
-                    ? 'Bạn đang nắm rất vững quy luật tương tác. Hãy duy trì sự tập trung để nâng cao độ ổn định và sẵn sàng cho các biến thể đảo quy tắc.'
-                    : 'Gợi ý phát triển: Dành 2 giây quan sát tổng thể trước khi thao tác. Trực giác não bộ cần dữ kiện sai số dự đoán để tự hiệu chỉnh chính xác hơn.'}
-                </span>
-              </div>
             </div>
           );
         })()}
@@ -265,6 +296,7 @@ export const GameResultModal: React.FC<GameResultProps> = ({
             className="w-full py-3.5 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-extrabold rounded-2xl shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 btn-press"
           >
             <span>{activeWorkoutRoutine ? 'Bài tiếp theo trong gói' : 'Về trang cấp độ & cài đặt'}</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/25 text-white hidden sm:inline-block">Enter ↵</span>
             <ArrowRight className="w-4 h-4" />
           </button>
 
@@ -277,7 +309,8 @@ export const GameResultModal: React.FC<GameResultProps> = ({
               className="py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              Luyện lại cấp này
+              <span>Luyện lại</span>
+              <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 hidden sm:inline-block">Space / R</span>
             </button>
 
             <button
@@ -292,3 +325,4 @@ export const GameResultModal: React.FC<GameResultProps> = ({
     </div>
   );
 };
+

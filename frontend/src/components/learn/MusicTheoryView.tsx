@@ -9,6 +9,7 @@ import { TimbreModule } from './TimbreModule';
 import { SpatialAudioModule } from './SpatialAudioModule';
 import { PolyphonyModule } from './PolyphonyModule';
 import { SoundNetworkModule } from './SoundNetworkModule';
+import { CognitiveTheoryAcademy } from './CognitiveTheoryAcademy';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import {
   THEORY_MODULE_MAP,
@@ -170,6 +171,8 @@ export const MusicTheoryView: React.FC = () => {
     masteredTheoryModules
   } = useAppStore();
 
+  const [academyMode, setAcademyMode] = useState<'cognitive' | 'music'>('cognitive');
+
   const [activeModuleId, setActiveModuleId] = useState<TheoryModuleId>(() => {
     try {
       const saved = localStorage.getItem('be_last_theory_module');
@@ -184,6 +187,7 @@ export const MusicTheoryView: React.FC = () => {
 
   useEffect(() => {
     if (activeTheoryModuleId && THEORY_TABS.some(t => t.id === activeTheoryModuleId)) {
+      setAcademyMode('music');
       setActiveModuleId(activeTheoryModuleId as TheoryModuleId);
       setActiveTheoryModuleId(null);
     }
@@ -248,27 +252,57 @@ export const MusicTheoryView: React.FC = () => {
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6 pb-24 md:pb-12">
-      {/* Highlight Banner if navigating from a wrong-answer remediation */}
-      {theoryHighlightEntity && (
-        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-xs sm:text-sm animate-pulse">
-          <div className="flex items-center gap-2.5">
-            <Sparkles className="w-5 h-5 text-amber-500 shrink-0" />
-            <span className="text-amber-900 dark:text-amber-200">
-              Đang xem cẩm nang ôn tập cho thực thể: <strong>{theoryHighlightEntity}</strong> — Hãy thử tương tác núm vặn bên dưới để nhận biết rõ sự khác biệt!
-            </span>
-          </div>
-          <button
-            onClick={() => setTheoryHighlightEntity(null)}
-            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-200 text-xs font-bold shrink-0 transition-colors cursor-pointer"
-          >
-            Đóng
-          </button>
-        </div>
-      )}
+      {/* High-Level Academy Switcher */}
+      <div className="flex items-center justify-center p-1.5 rounded-3xl bg-slate-200/80 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 max-w-xl mx-auto shadow-sm">
+        <button
+          onClick={() => setAcademyMode('cognitive')}
+          className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            academyMode === 'cognitive'
+              ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
+              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Brain className="w-4 h-4" />
+          <span>6 Trục Nhận Thức Khoa Học</span>
+        </button>
+        <button
+          onClick={() => setAcademyMode('music')}
+          className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            academyMode === 'music'
+              ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
+              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          <span>Nhạc Lý & Cảm Âm (9 Chương)</span>
+        </button>
+      </div>
 
-      {/* Page Header */}
-      <div className="p-6 bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      {academyMode === 'cognitive' ? (
+        <CognitiveTheoryAcademy />
+      ) : (
+        <>
+          {/* Highlight Banner if navigating from a wrong-answer remediation */}
+          {theoryHighlightEntity && (
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-xs sm:text-sm animate-pulse">
+              <div className="flex items-center gap-2.5">
+                <Sparkles className="w-5 h-5 text-amber-500 shrink-0" />
+                <span className="text-amber-900 dark:text-amber-200">
+                  Đang xem cẩm nang ôn tập cho thực thể: <strong>{theoryHighlightEntity}</strong> — Hãy thử tương tác núm vặn bên dưới để nhận biết rõ sự khác biệt!
+                </span>
+              </div>
+              <button
+                onClick={() => setTheoryHighlightEntity(null)}
+                className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-200 text-xs font-bold shrink-0 transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          )}
+
+          {/* Page Header */}
+          <div className="p-6 bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl shadow-sm space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
               <BookOpen className="w-6 h-6" />
@@ -488,6 +522,8 @@ export const MusicTheoryView: React.FC = () => {
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
+        </>
+      )}
     </div>
   );
 };

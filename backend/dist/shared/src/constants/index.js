@@ -997,6 +997,36 @@ exports.EXERCISES_METADATA = [
             { level: 11, timeLimitSec: 55, targetItemCount: 5, variantCode: 'VOCAL_OCTAVE_SWITCH', variantName: 'Bước Nhảy Quãng Tám Thanh Quản', parametersJson: { noteCount: 4, centsTolerance: 15, holdDurationMs: 1500, octaveJump: true } },
             { level: 12, timeLimitSec: 50, targetItemCount: 5, variantCode: 'VOCAL_MICROTONE_MASTERY', variantName: 'Bậc Thầy Vi Sai Cao Độ Phòng Thu', parametersJson: { noteCount: 5, centsTolerance: 12, holdDurationMs: 2000, microtoneStrict: true } }
         ]
+    },
+    {
+        id: 'ex-dual-nback',
+        categoryId: 'cat-4',
+        categoryCode: 'MEMORY',
+        categoryName: 'Trí Nhớ Làm Việc',
+        slug: 'dual-nback',
+        title: 'Dual N-Back',
+        subtitle: 'Rèn luyện trí nhớ làm việc kép: Đồng bộ vị trí không gian và âm thanh chữ cái',
+        iconName: 'Brain',
+        scientificBasis: 'Tiêu chuẩn vàng (Gold Standard) của khoa học thần kinh nhận thức chứng minh khả năng mở rộng dung lượng bộ nhớ làm việc (Working Memory Capacity) và trí thông minh lưu chất (Fluid Intelligence - Gf) của Jaeggi et al. Đồng bộ kích hoạt vỏ não trước trán lưng bên (dlPFC) và vùng đỉnh.',
+        instructions: 'Quan sát ô vuông sáng trên lưới 3x3 và lắng nghe chữ cái phát ra. Bấm [A] nếu VỊ TRÍ trùng với N lượt trước. Bấm [L] nếu ÂM THANH trùng với N lượt trước. Nếu cả 2 đều trùng, bấm cả hai phím.',
+        rulesSummary: 'Theo dõi đồng thời 2 luồng giác quan. Cấp độ N tăng dần khi đạt độ chính xác >85%. Hỗ trợ phím tắt A (Vị trí) và L (Âm thanh).',
+        maxDifficultyLevel: 12,
+        defaultDurationSec: 60,
+        isFeatured: true,
+        levelConfigs: [
+            { level: 1, timeLimitSec: 45, targetItemCount: 12, parametersJson: { nBack: 1, stimulusDurationMs: 2600, trials: 14 } },
+            { level: 2, timeLimitSec: 45, targetItemCount: 14, parametersJson: { nBack: 1, stimulusDurationMs: 2200, trials: 16 } },
+            { level: 3, timeLimitSec: 50, targetItemCount: 15, parametersJson: { nBack: 2, stimulusDurationMs: 2800, trials: 18 } },
+            { level: 4, timeLimitSec: 50, targetItemCount: 16, parametersJson: { nBack: 2, stimulusDurationMs: 2500, trials: 18 } },
+            { level: 5, timeLimitSec: 55, targetItemCount: 18, parametersJson: { nBack: 2, stimulusDurationMs: 2200, trials: 20 } },
+            { level: 6, timeLimitSec: 55, targetItemCount: 18, parametersJson: { nBack: 2, stimulusDurationMs: 1900, trials: 20 } },
+            { level: 7, timeLimitSec: 60, targetItemCount: 20, parametersJson: { nBack: 3, stimulusDurationMs: 2600, trials: 22 } },
+            { level: 8, timeLimitSec: 60, targetItemCount: 20, parametersJson: { nBack: 3, stimulusDurationMs: 2300, trials: 22 } },
+            { level: 9, timeLimitSec: 60, targetItemCount: 22, variantCode: 'DUAL_NBACK_TONAL', variantName: 'Dual N-Back Âm Sắc Nốt Nhạc', parametersJson: { nBack: 3, stimulusDurationMs: 2100, trials: 24, audioMode: 'tones' } },
+            { level: 10, timeLimitSec: 60, targetItemCount: 22, variantCode: 'DUAL_NBACK_INTERFERENCE', variantName: 'Dual N-Back Nhiễu Thị Giác', parametersJson: { nBack: 3, stimulusDurationMs: 1900, trials: 24, visualDistractors: true } },
+            { level: 11, timeLimitSec: 55, targetItemCount: 24, variantCode: 'DUAL_NBACK_4_PRE', variantName: 'Dual 4-Back Siêu Trí Nhớ', parametersJson: { nBack: 4, stimulusDurationMs: 2400, trials: 26 } },
+            { level: 12, timeLimitSec: 50, targetItemCount: 25, variantCode: 'DUAL_NBACK_EXTREME', variantName: 'Bậc Thầy Dual N-Back Thần Tốc', parametersJson: { nBack: 4, stimulusDurationMs: 2000, trials: 28 } }
+        ]
     }
 ];
 exports.EXERCISES_METADATA.forEach(ex => {

@@ -93,6 +93,8 @@ interface AppState extends WrongAnswerSliceState {
   setSoundEnabled: (enabled: boolean) => void;
   darkMode: boolean;
   setDarkMode: (enabled: boolean) => void;
+  language: 'vi' | 'en';
+  setLanguage: (lang: 'vi' | 'en') => void;
 
   // Ear Training & Auditory Cognitive Settings
   enableTonicAnchor: boolean;
@@ -223,6 +225,7 @@ export const useAppStore = create<AppState>((set, get) => {
   const savedLevel = Math.floor(Math.sqrt(savedXp / 100)) + 1;
   const savedSound = localStorage.getItem('be_sound') !== 'false';
   const savedDark = localStorage.getItem('be_dark') === 'true';
+  const savedLang = (localStorage.getItem('be_lang') as 'vi' | 'en') || 'vi';
   const savedTonicAnchor = localStorage.getItem('be_tonic_anchor') !== 'false';
   const savedAmbientDrone = localStorage.getItem('be_ambient_drone') === 'true';
 
@@ -585,6 +588,11 @@ export const useAppStore = create<AppState>((set, get) => {
         document.documentElement.classList.remove('dark');
       }
       set({ darkMode: enabled });
+    },
+    language: savedLang,
+    setLanguage: (lang) => {
+      localStorage.setItem('be_lang', lang);
+      set({ language: lang });
     },
 
     // Ear Training & Auditory Cognitive Settings

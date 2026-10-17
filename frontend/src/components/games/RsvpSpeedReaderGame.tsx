@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Play, Pause, RotateCcw, BookOpen, ChevronDown, ChevronUp, Infinity as InfinityIcon, Sparkles } from 'lucide-react';
-import { calculateOptimalRecognitionPoint, calculateEffectiveWpm, IReadingText, SAMPLE_READING_TEXTS, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
+import { Play, Pause, RotateCcw, BookOpen, ChevronDown, ChevronUp, Infinity as InfinityIcon, Sparkles, ClipboardPaste, CheckCircle2, HelpCircle } from 'lucide-react';
+import { calculateOptimalRecognitionPoint, calculateEffectiveWpm, IReadingText, IReadingQuestion, SAMPLE_READING_TEXTS, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { useRelationSession } from '../../hooks/useRelationSession';
@@ -22,14 +22,28 @@ export const RsvpSpeedReaderGame: React.FC = () => {
   const isEmojiMode = effectiveLevel === 17;
 
   const allTexts = readingContentService.getAllTexts();
+  const vietnameseTexts = useMemo(() => {
+    return allTexts.filter(t => !t.id.startsWith('text-inf-') && !t.category.includes('(EN)'));
+  }, [allTexts]);
+
   const [currentArticle, setCurrentArticle] = useState<IReadingText>(() => {
     if (effectiveLevel >= 13) {
       return readingContentService.getInfinityText(effectiveLevel);
     }
-    return allTexts[Math.floor(Math.random() * allTexts.length)] || SAMPLE_READING_TEXTS[0];
+    return vietnameseTexts.length > 0 
+      ? vietnameseTexts[0] 
+      : SAMPLE_READING_TEXTS[0];
   });
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
   const [showFullContext, setShowFullContext] = useState(true);
+
+  // User adjustable chunk size (1: Single word, 2: Dual word, 3: Phrase chunk)
+  const [userChunkSize, setUserChunkSize] = useState<1 | 2 | 3>(isChunked ? 3 : isDualWord ? 2 : 1);
+
+  // Post-RSVP Comprehension Check Quiz
+  const [showComprehensionQuiz, setShowComprehensionQuiz] = useState(false);
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
+  const [quizScore, setQuizScore] = useState<number | null>(null);
 
   const words = currentArticle.content.split(/\s+/).filter(Boolean);
 
@@ -86,7 +100,7 @@ export const RsvpSpeedReaderGame: React.FC = () => {
     }
 
     const intervalMs = Math.round(60000 / wpm);
-    const step = isChunked ? 3 : isDualWord ? 2 : 1;
+    const step = userChunkSize;
     timerRef.current = setInterval(() => {
       setWordIndex((prev) => {
         if (prev % 6 === 0 && words[prev]) {
@@ -105,7 +119,11 @@ export const RsvpSpeedReaderGame: React.FC = () => {
 
         if (prev >= words.length - step) {
           setIsPlaying(false);
-          setIsFinished(true);
+          if (currentArticle.questions && currentArticle.questions.length > 0) {
+            setShowComprehensionQuiz(true);
+          } else {
+            setIsFinished(true);
+          }
           return prev;
         }
         return prev + step;
@@ -116,13 +134,13 @@ export const RsvpSpeedReaderGame: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, wpm, words.length, isDualWord, isChunked, effectiveLevel, currentArticle.title, emitTrialEvent]);
+  }, [isPlaying, wpm, words.length, userChunkSize, effectiveLevel, currentArticle.title, currentArticle.questions, emitTrialEvent]);
 
   // Handle words to display
   const rawWord = words[wordIndex] || 'START';
-  const chunkWords = isChunked 
+  const chunkWords = userChunkSize === 3 
     ? words.slice(wordIndex, wordIndex + 3).join(' ')
-    : isDualWord && wordIndex + 1 < words.length 
+    : userChunkSize === 2 && wordIndex + 1 < words.length 
     ? `${words[wordIndex]} ${words[wordIndex + 1]}`
     : rawWord;
 
@@ -136,12 +154,12 @@ export const RsvpSpeedReaderGame: React.FC = () => {
         .replace(/light/gi, '💡')
         .replace(/mind/gi, '🧘');
     }
-    if (!isMasked || rawWord.length < 4) return isChunked ? chunkWords : rawWord;
+    if (!isMasked || rawWord.length < 4) return userChunkSize > 1 ? chunkWords : rawWord;
     const chars = rawWord.split('');
     const maskIdx = Math.floor(chars.length / 2);
     chars[maskIdx] = '•';
     return chars.join('');
-  }, [rawWord, isMasked, isEmojiMode, isChunked, chunkWords]);
+  }, [rawWord, isMasked, isEmojiMode, userChunkSize, chunkWords]);
 
   const orpIndex = calculateOptimalRecognitionPoint(displayWord);
   const partLeft = displayWord.slice(0, orpIndex);
@@ -168,6 +186,9 @@ export const RsvpSpeedReaderGame: React.FC = () => {
     setWordIndex(0);
     setElapsedSec(0);
     setIsFinished(false);
+    setShowComprehensionQuiz(false);
+    setQuizAnswers({});
+    setQuizScore(null);
   };
 
   const handleSelectNewArticle = (article: IReadingText) => {
@@ -176,6 +197,9 @@ export const RsvpSpeedReaderGame: React.FC = () => {
     setElapsedSec(0);
     setIsPlaying(false);
     setIsFinished(false);
+    setShowComprehensionQuiz(false);
+    setQuizAnswers({});
+    setQuizScore(null);
   };
 
   const effectiveWpm = calculateEffectiveWpm(wpm, 90);
@@ -228,13 +252,23 @@ export const RsvpSpeedReaderGame: React.FC = () => {
           </h3>
         </div>
 
-        <button
-          onClick={() => setIsSourceModalOpen(true)}
-          className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors"
-        >
-          <BookOpen className="w-3.5 h-3.5" />
-          <span>Đổi văn bản khác</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsSourceModalOpen(true)}
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+          >
+            <ClipboardPaste className="w-3.5 h-3.5" />
+            <span>Tự dán bài</span>
+          </button>
+
+          <button
+            onClick={() => setIsSourceModalOpen(true)}
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Đổi bài khác</span>
+          </button>
+        </div>
       </div>
 
       {/* RSVP Main Flash Stage */}
@@ -243,17 +277,23 @@ export const RsvpSpeedReaderGame: React.FC = () => {
         <div className="absolute top-4 w-4 h-2 border-t-2 border-r-2 border-l-2 border-rose-500/40 pointer-events-none" />
         <div className="absolute bottom-4 w-4 h-2 border-b-2 border-r-2 border-l-2 border-rose-500/40 pointer-events-none" />
 
-        {/* Center ORP Aligned Word Container */}
+        {/* Center ORP Aligned Word Container - Mathematically Balanced at 50% Horizontal Center */}
         <div className={`w-full flex items-center ${peripheralPositionClass}`}>
-          {isChunked ? (
-            <div className="font-mono text-2xl sm:text-4xl md:text-5xl font-black text-center text-purple-600 dark:text-purple-400 tracking-wide px-4">
-              {displayWord}
+          {userChunkSize > 1 ? (
+            <div className="w-full font-mono text-2xl sm:text-4xl md:text-5xl font-black text-center text-purple-600 dark:text-purple-400 tracking-wide px-4">
+              {chunkWords}
             </div>
           ) : (
-            <div className="font-mono text-3xl sm:text-5xl md:text-6xl font-black flex items-center justify-center tracking-tight">
-              <span className="text-slate-800 dark:text-white text-right">{partLeft}</span>
-              <span className="text-rose-500 dark:text-rose-400 px-0.5">{orpChar}</span>
-              <span className="text-slate-800 dark:text-white text-left">{partRight}</span>
+            <div className="w-full max-w-xl mx-auto flex items-center justify-center font-mono text-3xl sm:text-5xl md:text-6xl font-black tracking-tight select-none">
+              <div className="flex-1 text-right text-slate-800 dark:text-white truncate pr-1">
+                {partLeft}
+              </div>
+              <div className="w-10 sm:w-14 text-center text-rose-500 dark:text-rose-400 shrink-0 font-black">
+                {orpChar}
+              </div>
+              <div className="flex-1 text-left text-slate-800 dark:text-white truncate pl-1">
+                {partRight}
+              </div>
             </div>
           )}
         </div>
@@ -261,7 +301,7 @@ export const RsvpSpeedReaderGame: React.FC = () => {
         {/* Fixation Anchor Reticle */}
         <div className="absolute bottom-6 flex items-center gap-1 opacity-40">
           <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-          <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Điểm Neo ORP</span>
+          <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Điểm Neo ORP (Tâm Hội Tụ)</span>
           <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
         </div>
       </div>
@@ -283,6 +323,45 @@ export const RsvpSpeedReaderGame: React.FC = () => {
             onChange={(e) => setWpm(parseInt(e.target.value, 10))}
             className="w-full accent-brand-500 h-2 bg-slate-100 dark:bg-slate-700 rounded-lg cursor-pointer"
           />
+        </div>
+
+        {/* Chunk Size Selector (1, 2, 3 words) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+            <span>Độ dài nhịp đọc (Chunk size):</span>
+          </div>
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/60 p-1 rounded-xl">
+            <button
+              onClick={() => { playSound('click'); setUserChunkSize(1); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                userChunkSize === 1
+                  ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              1 Từ (Neo ORP)
+            </button>
+            <button
+              onClick={() => { playSound('click'); setUserChunkSize(2); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                userChunkSize === 2
+                  ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              2 Từ (Cụm ghép)
+            </button>
+            <button
+              onClick={() => { playSound('click'); setUserChunkSize(3); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                userChunkSize === 3
+                  ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              3 Từ (Cụm ngữ nghĩa)
+            </button>
+          </div>
         </div>
 
         {/* Play / Pause / Reset Actions */}
@@ -360,10 +439,89 @@ export const RsvpSpeedReaderGame: React.FC = () => {
         onSelectText={handleSelectNewArticle}
       />
 
+      {/* Comprehension Quiz Modal after RSVP completion */}
+      {showComprehensionQuiz && currentArticle.questions && currentArticle.questions.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-md animate-fade-in">
+          <div className="bg-[#FDFBF7] dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-scale-up max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center shrink-0">
+                <HelpCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">Kiểm Tra Đọc Hiểu Nhanh</h3>
+                <p className="text-xs text-slate-500">Đánh giá khả năng thu nạp ngữ nghĩa sau khi đọc ở tốc độ {wpm} WPM</p>
+              </div>
+            </div>
+
+            <div className="space-y-4 text-left">
+              {currentArticle.questions.slice(0, 2).map((q: IReadingQuestion, qIdx: number) => {
+                const selected = quizAnswers[q.id];
+                const isAnsweredQ = !!selected;
+                return (
+                  <div key={q.id} className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-3">
+                    <p className="text-xs sm:text-sm font-extrabold text-slate-800 dark:text-white">
+                      Câu {qIdx + 1}: {q.questionText}
+                    </p>
+                    <div className="space-y-1.5">
+                      {[
+                        { opt: 'A', text: q.optionA },
+                        { opt: 'B', text: q.optionB },
+                        { opt: 'C', text: q.optionC },
+                        { opt: 'D', text: q.optionD }
+                      ].map((item) => (
+                        <button
+                          key={item.opt}
+                          disabled={isAnsweredQ}
+                          onClick={() => {
+                            playSound('click');
+                            setQuizAnswers(prev => ({ ...prev, [q.id]: item.opt }));
+                          }}
+                          className={`w-full text-left p-2.5 rounded-xl text-xs font-semibold border transition-all flex items-center justify-between ${
+                            selected === item.opt
+                              ? item.opt === q.correctOption
+                                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-800 dark:text-emerald-200 font-bold'
+                                : 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-800 dark:text-rose-200 font-bold'
+                              : isAnsweredQ && item.opt === q.correctOption
+                              ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-400 text-emerald-700 dark:text-emerald-300'
+                              : 'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span><strong>{item.opt}.</strong> {item.text}</span>
+                          {selected === item.opt && (
+                            item.opt === q.correctOption 
+                              ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                              : <span className="text-rose-500 font-bold text-xs">Sai</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => {
+                playSound('victory');
+                const questions = currentArticle.questions?.slice(0, 2) || [];
+                const correctCount = questions.filter(q => quizAnswers[q.id] === q.correctOption).length;
+                const calculatedRate = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 95;
+                setQuizScore(calculatedRate);
+                setShowComprehensionQuiz(false);
+                setIsFinished(true);
+              }}
+              className="w-full py-3.5 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-extrabold rounded-2xl shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 btn-press"
+            >
+              <span>Xem Tổng Kết & Nhận XP</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {isFinished && (
         <GameResultModal
-          score={Math.round((words.length * (wpm / 100)) + 300)}
-          accuracyRate={95}
+          score={Math.round((words.length * (wpm / 100)) + 300 + ((quizScore ?? 90) * 2))}
+          accuracyRate={quizScore ?? 95}
           timeSpentSec={Math.round(elapsedSec)}
           effectiveWpm={effectiveWpm}
           rawMetricsJson={getRawMetricsJson()}

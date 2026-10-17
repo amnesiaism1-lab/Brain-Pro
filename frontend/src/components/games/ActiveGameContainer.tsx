@@ -31,6 +31,7 @@ import { CausalCascadeGame } from './CausalCascadeGame';
 import { GraphMemoryMatrixGame } from './GraphMemoryMatrixGame';
 import { RuleMutationClashGame } from './RuleMutationClashGame';
 import { VocalPitchMatchGame } from './VocalPitchMatchGame';
+import { DualNBackGame } from './DualNBackGame';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { EXERCISES_METADATA } from '@brain-exercises/shared';
 import { Sparkles, Zap, Flame, ArrowRight, X } from 'lucide-react';
@@ -123,6 +124,8 @@ export const ActiveGameContainer: React.FC = () => {
         return <RuleMutationClashGame />;
       case 'vocal-pitch-match':
         return <VocalPitchMatchGame />;
+      case 'dual-nback':
+        return <DualNBackGame />;
       default:
         return <SchulteTableGame />;
     }

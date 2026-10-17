@@ -94,6 +94,7 @@ export const RelationalNetworkGame: React.FC = () => {
   // Prediction Phase State
   const [predictionEvaluation, setPredictionEvaluation] = useState<IPredictionEvaluation | null>(null);
   const [showPredictionGate, setShowPredictionGate] = useState<boolean>(!!challenge.predictionPrompt);
+  const [showOnboardingTutorial, setShowOnboardingTutorial] = useState<boolean>(false);
 
   // Telemetry & References
   const relationEventsRef = useRef<IRelationEvent[]>([]);
@@ -714,6 +715,19 @@ export const RelationalNetworkGame: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* 15s Interactive Onboarding Tutorial Button */}
+          <button
+            onClick={() => {
+              setShowOnboardingTutorial(true);
+              playSound('click');
+            }}
+            className="px-3 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+            title="Xem hướng dẫn nhanh 15 giây cách nối và cắt dây"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+            <span>Hướng dẫn 15s</span>
+          </button>
+
           {/* Sound Network Mode Button */}
           <button
             onClick={() => {
@@ -1084,6 +1098,82 @@ export const RelationalNetworkGame: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* 15s Interactive Onboarding Tutorial Modal */}
+      {showOnboardingTutorial && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 text-left shadow-2xl space-y-4 animate-scale-up text-white">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black">
+                  💡
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Hướng Dẫn Nhanh 15 Giây: Mạng Quan Hệ</h3>
+                  <p className="text-[11px] text-slate-400">Cách tương tác điều khiển động học nơ-ron</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowOnboardingTutorial(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              {/* Step 1 */}
+              <div className="p-3 rounded-2xl bg-slate-800/80 border border-cyan-500/30 flex items-start gap-3">
+                <div className="w-7 h-7 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-black shrink-0 mt-0.5">
+                  1
+                </div>
+                <div>
+                  <strong className="text-cyan-300 font-bold block mb-0.5">Kéo Dây Nối Năng Lượng (Connect)</strong>
+                  <p className="text-slate-300 leading-relaxed text-[11px]">
+                    Chạm giữ vào nút <span className="text-cyan-400 font-bold">Xanh Cyan (Phe Bạn)</span>, kéo chuột/ngón tay sang nút <span className="text-amber-400 font-bold">Vàng (Trung lập)</span> hoặc <span className="text-rose-400 font-bold">Đỏ (Đối thủ)</span> để thiết lập luồng truyền năng lượng.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="p-3 rounded-2xl bg-slate-800/80 border border-rose-500/30 flex items-start gap-3">
+                <div className="w-7 h-7 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center font-black shrink-0 mt-0.5">
+                  2
+                </div>
+                <div>
+                  <strong className="text-rose-300 font-bold block mb-0.5">Quẹt Cắt Dây Đối Thủ (Laser Cut)</strong>
+                  <p className="text-slate-300 leading-relaxed text-[11px]">
+                    Quẹt một đường cắt ngang qua dây nối màu đỏ của đối thủ ở vùng trống để chém đứt liên kết, ngăn địch tiếp viện HP.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="p-3 rounded-2xl bg-slate-800/80 border border-amber-500/30 flex items-start gap-3">
+                <div className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-black shrink-0 mt-0.5">
+                  3
+                </div>
+                <div>
+                  <strong className="text-amber-300 font-bold block mb-0.5">Bảo Vệ Nút Lõi [👑 CORE]</strong>
+                  <p className="text-slate-300 leading-relaxed text-[11px]">
+                    Nút có vương miện 👑 là trung tâm thần kinh của bạn. Luôn tiếp tế HP và tiêu diệt Nút Lõi của đối thủ để giành thắng lợi!
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowOnboardingTutorial(false);
+                playSound('click');
+              }}
+              className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-2xl shadow-lg shadow-cyan-500/20 transition-all text-xs btn-press"
+            >
+              Đã Nắm Rõ — Bắt Đầu Thao Tác Ngay!
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Game Result Modal */}
       {isGameOver && (

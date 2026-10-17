@@ -37,7 +37,8 @@ export type ExerciseSlug =
   | 'causal-cascade'       // Hiệu Ứng Domino Nhân Quả (Causal Cascade)
   | 'graph-memory-matrix'  // Trí Nhớ Ma Trận Đồ Thị (Graph Working Memory)
   | 'rule-mutation-clash'  // Xung Đột Quy Tắc Biến Dị (Rule Mutation & Flexibility)
-  | 'vocal-pitch-match';   // Cảm Âm & Dò Cao Độ Giọng Hát Thời Gian Thực (Vocal Pitch Training)
+  | 'vocal-pitch-match'   // Cảm Âm & Dò Cao Độ Giọng Hát Thời Gian Thực (Vocal Pitch Training)
+  | 'dual-nback';          // Trí Nhớ Kép Dual N-Back (Vị Trí + Âm Thanh)
 
 export type ArticulationType = 'legato' | 'staccato' | 'tenuto' | 'accent';
 export type MelodicContourCode = 'UP' | 'DOWN' | 'REPEAT' | 'ARCH' | 'INVERTED_ARCH';

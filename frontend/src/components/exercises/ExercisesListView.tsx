@@ -285,6 +285,23 @@ function renderExerciseIcon(slug: string) {
           <span className="text-[8px] font-black text-emerald-300 tracking-wider">VOCAL</span>
         </div>
       );
+    case 'dual-nback':
+      return (
+        <div className="flex flex-col items-center justify-center text-white w-full h-full">
+          <div className="grid grid-cols-3 gap-0.5 w-7 h-7 p-0.5 border border-white/40 rounded-lg mb-0.5 bg-black/20">
+            <span className="w-1.5 h-1.5 rounded-sm bg-white/20" />
+            <span className="w-1.5 h-1.5 rounded-sm bg-amber-400 animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-sm bg-white/20" />
+            <span className="w-1.5 h-1.5 rounded-sm bg-white/20" />
+            <span className="w-1.5 h-1.5 rounded-sm bg-cyan-400" />
+            <span className="w-1.5 h-1.5 rounded-sm bg-white/20" />
+            <span className="w-1.5 h-1.5 rounded-sm bg-white/20" />
+            <span className="w-1.5 h-1.5 rounded-sm bg-white/20" />
+            <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400" />
+          </div>
+          <span className="text-[7.5px] font-black text-amber-300 tracking-wider">2-BACK</span>
+        </div>
+      );
     default:
       return <Grid className="w-6 h-6 text-white" />;
   }
@@ -400,7 +417,10 @@ export const ExercisesListView: React.FC = () => {
               {/* Right Title & Subtitle */}
               <div className="flex-1 min-w-0 pr-1 space-y-1">
                 <div className="flex items-center justify-between gap-1.5">
-                  <h3 className="text-base sm:text-lg font-black text-slate-800 dark:text-white truncate">
+                  <h3 
+                    className="text-base sm:text-lg font-black text-slate-800 dark:text-white line-clamp-2 leading-snug group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors"
+                    title={exercise.title}
+                  >
                     {exercise.title}
                   </h3>
                   {activeSynergy && (

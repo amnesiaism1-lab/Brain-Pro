@@ -48,6 +48,7 @@ export const EvenOddGame: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
   const [answersCount, setAnswersCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
+  const [isSpamWarning, setIsSpamWarning] = useState(false);
 
   const nextNumber = () => {
     let num = Math.floor(Math.random() * 899) + 10;
@@ -125,8 +126,44 @@ export const EvenOddGame: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Keyboard navigation
+  useEffect(() => {
+    if (isFinished) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (e.key === 'ArrowLeft' || key === 'a' || e.key === '1') {
+        e.preventDefault();
+        handleAnswer('EVEN');
+      } else if (e.key === 'ArrowRight' || key === 'd' || e.key === '2') {
+        e.preventDefault();
+        handleAnswer('ODD');
+      } else if (isTripleRule && (e.key === 'ArrowDown' || key === 'w' || key === 's' || e.key === '3' || e.key === ' ')) {
+        e.preventDefault();
+        handleAnswer('DIV3');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFinished, currentNumber, displayText, isInverted, isTripleRule]);
+
   const handleAnswer = (choice: 'EVEN' | 'ODD' | 'DIV3') => {
     if (isFinished) return;
+
+    const now = Date.now();
+    const timeSinceLast = now - lastAnsTimeRef.current;
+
+    // Anti-spam detection: Human biological visual-motor reflex minimum is ~160ms.
+    // Answering in <150ms on binary trials triggers anti-spam penalty and 400ms debounce.
+    if (timeSinceLast < 150 && answersCount > 0) {
+      setIsSpamWarning(true);
+      playSound('wrong');
+      setScore(s => Math.max(0, s - 30));
+      setCombo(0);
+      lastAnsTimeRef.current = now + 400;
+      setTimeout(() => setIsSpamWarning(false), 1400);
+      return;
+    }
+
     setAnswersCount(c => c + 1);
 
     const absNum = Math.abs(currentNumber);
@@ -143,7 +180,6 @@ export const EvenOddGame: React.FC = () => {
     }
 
     const isCorrect = choice === expected;
-    const now = Date.now();
     const respMs = Math.min(10000, Math.max(50, now - lastAnsTimeRef.current));
     lastAnsTimeRef.current = now;
 
@@ -298,30 +334,46 @@ export const EvenOddGame: React.FC = () => {
         </div>
       )}
 
+      {/* Anti-spam Rapid Click Alert */}
+      {isSpamWarning && (
+        <div className="p-3 rounded-2xl bg-amber-500/20 border-2 border-amber-500 text-amber-800 dark:text-amber-200 text-center font-bold text-xs sm:text-sm shadow-md animate-shake">
+          ⚡ Phát hiện phản hồi quá nhanh (&lt;150ms)! Hãy quan sát và đánh giá logic cẩn thận để tránh mất độ chính xác.
+        </div>
+      )}
+
       {/* Action Buttons Grid */}
       <div className={`grid ${isTripleRule ? 'grid-cols-3' : 'grid-cols-2'} gap-3 sm:gap-4`}>
         <button
           onClick={() => handleAnswer('EVEN')}
-          className="h-20 sm:h-24 rounded-3xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xl sm:text-2xl shadow-lg shadow-emerald-600/30 flex flex-col items-center justify-center transition-all btn-press"
+          className="h-20 sm:h-24 rounded-3xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xl sm:text-2xl shadow-lg shadow-emerald-600/30 flex flex-col items-center justify-center transition-all btn-press relative group"
         >
-          <span>CHẴN</span>
+          <span className="flex items-center gap-1.5">
+            CHẴN
+            <span className="text-[10px] tracking-normal font-mono px-1.5 py-0.5 rounded bg-black/25 text-emerald-100 hidden sm:inline-block">← / A / 1</span>
+          </span>
           <span className="text-[10px] sm:text-xs opacity-75 font-semibold">Even Number</span>
         </button>
 
         <button
           onClick={() => handleAnswer('ODD')}
-          className="h-20 sm:h-24 rounded-3xl bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-black text-xl sm:text-2xl shadow-lg shadow-brand-600/30 flex flex-col items-center justify-center transition-all btn-press"
+          className="h-20 sm:h-24 rounded-3xl bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-black text-xl sm:text-2xl shadow-lg shadow-brand-600/30 flex flex-col items-center justify-center transition-all btn-press relative group"
         >
-          <span>LẺ</span>
+          <span className="flex items-center gap-1.5">
+            LẺ
+            <span className="text-[10px] tracking-normal font-mono px-1.5 py-0.5 rounded bg-black/25 text-blue-100 hidden sm:inline-block">→ / D / 2</span>
+          </span>
           <span className="text-[10px] sm:text-xs opacity-75 font-semibold">Odd Number</span>
         </button>
 
         {isTripleRule && (
           <button
             onClick={() => handleAnswer('DIV3')}
-            className="h-20 sm:h-24 rounded-3xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-black text-lg sm:text-xl shadow-lg shadow-purple-600/30 flex flex-col items-center justify-center transition-all btn-press"
+            className="h-20 sm:h-24 rounded-3xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-black text-lg sm:text-xl shadow-lg shadow-purple-600/30 flex flex-col items-center justify-center transition-all btn-press relative group"
           >
-            <span>CHIA 3</span>
+            <span className="flex items-center gap-1.5">
+              CHIA 3
+              <span className="text-[10px] tracking-normal font-mono px-1.5 py-0.5 rounded bg-black/25 text-purple-100 hidden sm:inline-block">↓ / 3 / Space</span>
+            </span>
             <span className="text-[10px] sm:text-xs opacity-75 font-semibold">Divisible by 3</span>
           </button>
         )}

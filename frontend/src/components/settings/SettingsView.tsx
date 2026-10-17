@@ -10,6 +10,8 @@ export const SettingsView: React.FC = () => {
     setDarkMode, 
     autoDifficulty, 
     setAutoDifficulty,
+    language,
+    setLanguage,
     playSound 
   } = useAppStore();
 
@@ -102,7 +104,7 @@ export const SettingsView: React.FC = () => {
           </button>
         </div>
 
-        {/* Language selector */}
+        {/* Interactive Language selector */}
         <div className="flex items-center justify-between py-2">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600">
@@ -110,12 +112,39 @@ export const SettingsView: React.FC = () => {
             </div>
             <div>
               <span className="text-sm font-bold text-slate-800 dark:text-white block">Ngôn ngữ hiển thị</span>
-              <span className="text-xs text-slate-500">Tiếng Việt (Mặc định)</span>
+              <span className="text-xs text-slate-500">
+                {language === 'vi' ? 'Tiếng Việt (Giao diện chuẩn)' : 'English (Song ngữ / Cognitive Dual)'}
+              </span>
             </div>
           </div>
-          <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
-            Tiếng Việt
-          </span>
+          <div className="flex items-center p-1 rounded-2xl bg-slate-200/80 dark:bg-slate-700/80 border border-slate-300 dark:border-slate-600">
+            <button
+              onClick={() => {
+                playSound('click');
+                setLanguage('vi');
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                language === 'vi'
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Tiếng Việt
+            </button>
+            <button
+              onClick={() => {
+                playSound('click');
+                setLanguage('en');
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                language === 'en'
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              English
+            </button>
+          </div>
         </div>
       </div>
 

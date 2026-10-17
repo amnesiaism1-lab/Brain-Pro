@@ -44,6 +44,7 @@ export const FindLetterGame: React.FC = () => {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [missCount, setMissCount] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [errorCellId, setErrorCellId] = useState<number | null>(null);
 
   const MATH_SYMBOLS = ['∑', 'π', 'Ω', 'δ', '∞', 'λ', 'θ', 'ψ', 'Δ', 'β', '≈', '≠', '√', '∫'];
   const FONTS = ['sans-serif', 'serif', 'monospace', 'cursive'];
@@ -166,6 +167,8 @@ export const FindLetterGame: React.FC = () => {
     } else {
       playSound('wrong');
       setMissCount(m => m + 1);
+      setErrorCellId(cellId);
+      setTimeout(() => setErrorCellId(null), 400);
     }
   };
 
@@ -288,6 +291,8 @@ export const FindLetterGame: React.FC = () => {
             } ${
               cell.found
                 ? 'bg-emerald-500 !text-white shadow scale-95 cursor-default'
+                : errorCellId === cell.id
+                ? 'bg-rose-500/25 border-2 border-rose-500 ring-4 ring-rose-500/40 animate-shake !text-rose-600 dark:!text-rose-400'
                 : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-brand-50 shadow-sm'
             }`}
           >

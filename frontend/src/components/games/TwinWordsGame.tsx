@@ -55,6 +55,7 @@ export const TwinWordsGame: React.FC = () => {
   const [correctCount, setCorrectCount] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [isErrorFlash, setIsErrorFlash] = useState(false);
 
   const nextPair = (dict = combinedDict) => {
     const shouldMatch = Math.random() < 0.5;
@@ -256,6 +257,8 @@ export const TwinWordsGame: React.FC = () => {
       setCorrectCount(c => c + 1);
     } else {
       playSound('wrong');
+      setIsErrorFlash(true);
+      setTimeout(() => setIsErrorFlash(false), 450);
     }
 
     if (round >= maxRounds) {
@@ -265,6 +268,25 @@ export const TwinWordsGame: React.FC = () => {
       nextPair(combinedDict);
     }
   };
+
+  // Keyboard navigation (← / 1 / A for Match, → / 2 / D for Different)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isFinished) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key === 'ArrowLeft' || e.key === '1' || e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        handleChoice(true);
+      } else if (e.key === 'ArrowRight' || e.key === '2' || e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        handleChoice(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFinished, pair, round, maxRounds, combinedDict]);
 
   const accuracy = Math.round((correctCount / maxRounds) * 100);
   const score = (correctCount * 30 * currentLevel) + Math.max(0, (35 - elapsedSec) * 5);
@@ -312,10 +334,14 @@ export const TwinWordsGame: React.FC = () => {
         )}
       </div>
 
-      {/* Comparison Area */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4 sm:py-6">
+      {/* Comparison Area with Micro-shake & Red Flash on Wrong Choice */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 py-4 sm:py-6 transition-all duration-150 ${isErrorFlash ? 'animate-shake' : ''}`}>
         {/* Word 1 */}
-        <div className="h-36 sm:h-44 rounded-3xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center p-4 shadow-md transition-all select-none">
+        <div className={`h-36 sm:h-44 rounded-3xl border-2 flex flex-col items-center justify-center p-4 shadow-md transition-all select-none ${
+          isErrorFlash 
+            ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 ring-4 ring-rose-500/30' 
+            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+        }`}>
           {subLabels.labelA && (
             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
               {subLabels.labelA}
@@ -327,7 +353,11 @@ export const TwinWordsGame: React.FC = () => {
         </div>
 
         {/* Word 2 */}
-        <div className="h-36 sm:h-44 rounded-3xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center p-4 shadow-md transition-all select-none">
+        <div className={`h-36 sm:h-44 rounded-3xl border-2 flex flex-col items-center justify-center p-4 shadow-md transition-all select-none ${
+          isErrorFlash 
+            ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 ring-4 ring-rose-500/30' 
+            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+        }`}>
           {subLabels.labelB && (
             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
               {subLabels.labelB}
@@ -343,17 +373,23 @@ export const TwinWordsGame: React.FC = () => {
       <div className="grid grid-cols-2 gap-4 pt-2">
         <button
           onClick={() => handleChoice(true)}
-          className="h-20 sm:h-24 rounded-3xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xl sm:text-2xl shadow-lg shadow-emerald-600/30 flex flex-col items-center justify-center transition-all btn-press"
+          className="h-20 sm:h-24 rounded-3xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xl sm:text-2xl shadow-lg shadow-emerald-600/30 flex flex-col items-center justify-center transition-all btn-press relative"
         >
-          <span>GIỐNG NHAU</span>
+          <span className="flex items-center gap-1.5">
+            GIỐNG NHAU
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/20 text-emerald-100 hidden sm:inline-block">← / 1</span>
+          </span>
           <span className="text-xs opacity-75 font-semibold">Match</span>
         </button>
 
         <button
           onClick={() => handleChoice(false)}
-          className="h-20 sm:h-24 rounded-3xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black text-xl sm:text-2xl shadow-lg shadow-rose-600/30 flex flex-col items-center justify-center transition-all btn-press"
+          className="h-20 sm:h-24 rounded-3xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black text-xl sm:text-2xl shadow-lg shadow-rose-600/30 flex flex-col items-center justify-center transition-all btn-press relative"
         >
-          <span>KHÁC NHAU</span>
+          <span className="flex items-center gap-1.5">
+            KHÁC NHAU
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/20 text-rose-100 hidden sm:inline-block">→ / 2</span>
+          </span>
           <span className="text-xs opacity-75 font-semibold">Different</span>
         </button>
       </div>

@@ -41,6 +41,8 @@ export const SoundLocalizationGame: React.FC = () => {
   const [correctCount, setCorrectCount] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [showPreflightModal, setShowPreflightModal] = useState(false);
+  const [testingEar, setTestingEar] = useState<'left' | 'right' | null>(null);
 
   const startTimeRef = useRef<number>(Date.now());
   const trialStartTimeRef = useRef<number>(Date.now());
@@ -130,6 +132,18 @@ export const SoundLocalizationGame: React.FC = () => {
     await auditoryEngine.resumeAudioContext();
     const dist = distanceTier === 'near' ? 1.5 : distanceTier === 'far' ? 8.0 : 3.5;
     auditoryEngine.play3DSpatialTone('C5', azimuthDeg, 0, dist, 0.45);
+  }, []);
+
+  // Preflight stereo check for Left/Right headphone orientation
+  const testEar = useCallback(async (ear: 'left' | 'right') => {
+    setTestingEar(ear);
+    try {
+      await auditoryEngine.resumeAudioContext();
+      const azimuth = ear === 'left' ? 270 : 90;
+      auditoryEngine.play3DSpatialTone('A4', azimuth, 0, 1.5, 0.8);
+    } finally {
+      setTimeout(() => setTestingEar(null), 750);
+    }
   }, []);
 
   const handleSelectTarget = (target: ISpatialTarget) => {
@@ -231,7 +245,7 @@ export const SoundLocalizationGame: React.FC = () => {
         </div>
       </div>
 
-      {/* Notice / Replay button */}
+      {/* Notice / Replay button & Preflight Check */}
       <div className="my-4 flex flex-wrap items-center justify-center gap-3">
         <button
           type="button"
@@ -259,6 +273,15 @@ export const SoundLocalizationGame: React.FC = () => {
               <span>Bắt đầu nghe âm thanh 3D (Nhấn để phát)</span>
             </>
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowPreflightModal(true)}
+          className="px-5 py-3 rounded-full bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-2 border-slate-200 dark:border-slate-700 font-bold text-sm flex items-center gap-2 transition-all shadow-sm active:scale-95"
+        >
+          <Headphones className="w-4 h-4 text-cyan-500" />
+          <span>Kiểm tra Tai Nghe Trái / Phải</span>
         </button>
       </div>
 
@@ -293,6 +316,76 @@ export const SoundLocalizationGame: React.FC = () => {
           <span>Mở bài học: 7. Âm Thanh 3D Không Gian</span>
         </button>
       </div>
+
+      {/* Preflight Headphone Check Modal */}
+      {showPreflightModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
+          <div className="bg-[#FDFBF7] dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 rounded-3xl max-w-md w-full p-6 text-center shadow-2xl space-y-5 animate-scale-up">
+            <div className="w-16 h-16 mx-auto rounded-full bg-cyan-100 dark:bg-cyan-950/60 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shadow-inner">
+              <Headphones className="w-8 h-8" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-black text-slate-800 dark:text-white">
+                Kiểm Tra Định Hướng Tai Nghe L/R
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                Đeo tai nghe của bạn vào và nhấn các nút bên dưới để xác nhận đúng tai Trái và Phải trước khi bước vào radar 3D.
+              </p>
+            </div>
+
+            {/* Interactive L / R Testers */}
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => testEar('left')}
+                className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer ${
+                  testingEar === 'left'
+                    ? 'bg-cyan-500 text-white border-cyan-400 ring-4 ring-cyan-500/30 scale-105'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-cyan-400'
+                }`}
+              >
+                <div className="w-10 h-10 rounded-full bg-cyan-100 dark:bg-cyan-900/40 text-cyan-600 dark:text-cyan-300 flex items-center justify-center font-black text-base">
+                  L
+                </div>
+                <span className="font-extrabold text-xs">Thử Tai Trái (Left)</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400">Âm thanh chỉ vang tai trái</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => testEar('right')}
+                className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer ${
+                  testingEar === 'right'
+                    ? 'bg-cyan-500 text-white border-cyan-400 ring-4 ring-cyan-500/30 scale-105'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-cyan-400'
+                }`}
+              >
+                <div className="w-10 h-10 rounded-full bg-cyan-100 dark:bg-cyan-900/40 text-cyan-600 dark:text-cyan-300 flex items-center justify-center font-black text-base">
+                  R
+                </div>
+                <span className="font-extrabold text-xs">Thử Tai Phải (Right)</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400">Âm thanh chỉ vang tai phải</span>
+              </button>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800 text-[11px] text-cyan-800 dark:text-cyan-200 text-left">
+              💡 <strong>Lưu ý:</strong> Nếu bấm "Thử Tai Trái" mà tai phải phát ra tiếng, vui lòng đảo ngược chiều đeo tai nghe để kết quả tập luyện không gian đạt chuẩn xác tuyệt đối.
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowPreflightModal(false);
+                playSpatialSound();
+              }}
+              className="w-full py-3.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-2xl shadow-lg shadow-cyan-500/25 transition-all cursor-pointer btn-press"
+            >
+              Đã Đúng Chiều — Bắt Đầu Ngay!
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Result Modal */}
       {isFinished && (

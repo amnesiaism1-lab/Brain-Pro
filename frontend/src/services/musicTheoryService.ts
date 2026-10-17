@@ -39,7 +39,7 @@ export const INTERVAL_CATALOG: Record<string, IIntervalInfo> = {
     semitones: 2, 
     ratioDescription: 'Bước đi liền bậc, bước sóng nhẹ', 
     inversionCode: '7m',
-    mnemonicSongVi: 'Happy Birthday ("Háp-pi"), Đêm Thánh Vô Cùng (Silent Night)',
+    mnemonicSongVi: 'Bắc Kim Thang ("Bắc-kim"), Happy Birthday ("Háp-pi"), Đêm Thánh Vô Cùng',
     tipVi: 'Bước đi liền bậc cơ bản nhất trong âm giai (1 cung = 2 phím đàn liền kề có phím đen ở giữa).'
   },
   '3m': { 
@@ -49,7 +49,7 @@ export const INTERVAL_CATALOG: Record<string, IIntervalInfo> = {
     semitones: 3, 
     ratioDescription: 'U buồn, lắng đọng, trữ tình', 
     inversionCode: '6M',
-    mnemonicSongVi: 'Greensleeves (2 nốt đầu), Bài hát ru Lullaby (Brahms)',
+    mnemonicSongVi: 'Lullaby (Brahms ru con), Greensleeves, Dân ca Đi cấy',
     tipVi: 'Cốt lõi tạo nên hợp âm Thứ và điệu thức Thứ, mang màu sắc nội tâm, trầm buồn lắng đọng.'
   },
   '3M': { 
@@ -99,7 +99,7 @@ export const INTERVAL_CATALOG: Record<string, IIntervalInfo> = {
     semitones: 7, 
     ratioDescription: 'Hùng tráng, mở rộng, không gian vũ trụ', 
     inversionCode: '4P',
-    mnemonicSongVi: 'Star Wars (Theme hùng tráng), Twinkle Twinkle Little Star',
+    mnemonicSongVi: 'Một con vịt ("Một-con"), Twinkle Twinkle Little Star, Star Wars Theme',
     tipVi: 'Quãng thuận tuyệt đối (tỉ lệ 3:2), mang lại cảm giác bao la, hùng vĩ và cân bằng hoàn hảo.'
   },
   '6m': { 
@@ -119,7 +119,7 @@ export const INTERVAL_CATALOG: Record<string, IIntervalInfo> = {
     semitones: 9, 
     ratioDescription: 'Ấm áp, êm đềm, du dương', 
     inversionCode: '3m',
-    mnemonicSongVi: 'Jingle Bells ("Dash-ing through the snow"), My Bonnie Lies Over the Ocean',
+    mnemonicSongVi: 'Lòng mẹ ("Lòng-mẹ"), Jingle Bells ("Dash-ing through the snow"), Dân ca Quan họ',
     tipVi: 'Quãng thuận êm dịu, ấm áp, rực rỡ và thân quen trong các khúc hát dân ca.'
   },
   '7m': { 

@@ -205,7 +205,13 @@ export const AnagramGame: React.FC = () => {
     // Check if word formation complete
     if (nextSelected.length === targetWord.length) {
       const formedWord = nextSelected.join('');
-      const isCorrect = formedWord === targetWord;
+      // Accept exact target OR any valid dictionary isomer that uses the exact same letter set
+      const isSameMultiset = (a: string, b: string) => a.split('').sort().join('') === b.split('').sort().join('');
+      const matchedDictWord = combinedDict.find(w => {
+        const cleanW = w.replace(/\s+/g, '');
+        return cleanW === formedWord && isSameMultiset(cleanW, targetWord);
+      });
+      const isCorrect = formedWord === targetWord || Boolean(matchedDictWord);
       const now = Date.now();
       const respMs = Math.min(15000, Math.max(100, now - lastWordTimeRef.current));
       lastWordTimeRef.current = now;
@@ -218,6 +224,7 @@ export const AnagramGame: React.FC = () => {
         entities: {
           target: targetWord,
           formed: formedWord,
+          isIsomer: Boolean(matchedDictWord && formedWord !== targetWord),
           theme: selectedTheme
         },
         stateBefore: `round:${round}`,
@@ -336,6 +343,11 @@ export const AnagramGame: React.FC = () => {
           <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
             {isInfinity ? 'TỪ VỰNG TIẾNG ANH ĐANG GHÉP' : 'TỪ ĐANG GHÉP'}
           </span>
+          {rawTarget.includes(' ') && (
+            <span className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/40 px-2.5 py-0.5 rounded-full border border-brand-200 dark:border-brand-800">
+              Từ ghép đa âm tiết ({rawTarget.split(' ').map(s => `${s.length} chữ`).join(' + ')})
+            </span>
+          )}
           {isInfinity && targetWord.length >= 6 && (
             <div className="flex items-center gap-2 text-xs font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/50 px-3.5 py-1 rounded-full border border-brand-200 dark:border-brand-800 shadow-sm animate-fade-in">
               <Sparkles className="w-3.5 h-3.5 text-brand-500" />

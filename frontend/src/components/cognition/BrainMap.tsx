@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   COGNITIVE_RELATIONS, 
   RelationId, 
@@ -13,7 +13,12 @@ import {
   Target,
   Layers,
   HelpCircle,
-  Play
+  Play,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Move,
+  Eye
 } from 'lucide-react';
 
 interface NodeLayout {
@@ -63,6 +68,47 @@ export const BrainMap: React.FC = () => {
   } = useAppStore();
   const [selectedNodeId, setSelectedNodeId] = useState<RelationId>('TARGET_POSITION');
   const [hoveredNodeId, setHoveredNodeId] = useState<RelationId | null>(null);
+  const [zoom, setZoom] = useState<number>(1);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [labelMode, setLabelMode] = useState<'smart' | 'all'>('smart');
+
+  const handleZoomIn = () => {
+    playSound('click');
+    setZoom(z => Math.min(2.4, +(z + 0.25).toFixed(2)));
+  };
+
+  const handleZoomOut = () => {
+    playSound('click');
+    setZoom(z => Math.max(0.65, +(z - 0.25).toFixed(2)));
+  };
+
+  const handleResetView = () => {
+    playSound('click');
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only pan if not clicking directly on a node
+    if ((e.target as HTMLElement).tagName === 'svg' || (e.target as HTMLElement).id === 'network-canvas-bg') {
+      setIsPanning(true);
+      panStartRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isPanning) return;
+    setPan({
+      x: e.clientX - panStartRef.current.x,
+      y: e.clientY - panStartRef.current.y
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsPanning(false);
+  };
 
   const rawMastery = relationshipMasteries[selectedNodeId];
   const hasData = rawMastery && rawMastery.exposureCount > 0;
@@ -141,156 +187,229 @@ export const BrainMap: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* SVG Network Graph (Left 2 Columns) */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md relative overflow-hidden flex items-center justify-center min-h-[480px]">
+        <div 
+          className="lg:col-span-2 bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md relative overflow-hidden flex flex-col items-center justify-center min-h-[480px]"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
+          {/* Zoom & Pan Floating Controls Toolbar */}
+          <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+            <button
+              onClick={handleZoomIn}
+              title="Phóng to"
+              className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors btn-press"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            <span className="text-[11px] font-mono font-bold text-slate-500 px-1 min-w-[36px] text-center">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              onClick={handleZoomOut}
+              title="Thu nhỏ"
+              className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors btn-press"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleResetView}
+              title="Căn giữa mặc định"
+              className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors btn-press"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+            <div className="w-[1px] h-4 bg-slate-200 dark:bg-slate-700 mx-0.5" />
+            <button
+              onClick={() => {
+                playSound('click');
+                setLabelMode(m => m === 'smart' ? 'all' : 'smart');
+              }}
+              title="Chuyển đổi kiểu hiển thị nhãn"
+              className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-colors ${
+                labelMode === 'smart'
+                  ? 'bg-brand-50 text-brand-600 dark:bg-brand-950/40 dark:text-brand-300'
+                  : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+              }`}
+            >
+              {labelMode === 'smart' ? 'Nhãn thông minh' : 'Tất cả nhãn'}
+            </button>
+          </div>
+
           <svg 
+            id="network-canvas-bg"
             viewBox="100 15 560 480" 
-            className="w-full h-auto max-h-[520px] select-none"
+            className={`w-full h-auto max-h-[520px] select-none ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
           >
-            {/* Draw Connecting Edges */}
-            {NETWORK_CONNECTIONS.map((conn, idx) => {
-              const fromNode = NETWORK_POSITIONS.find(p => p.id === conn.from);
-              const toNode = NETWORK_POSITIONS.find(p => p.id === conn.to);
-              if (!fromNode || !toNode) return null;
+            <g 
+              transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}
+              style={{ 
+                transformOrigin: '380px 250px',
+                transition: isPanning ? 'none' : 'transform 0.15s ease-out'
+              }}
+            >
+              {/* Draw Connecting Edges */}
+              {NETWORK_CONNECTIONS.map((conn, idx) => {
+                const fromNode = NETWORK_POSITIONS.find(p => p.id === conn.from);
+                const toNode = NETWORK_POSITIONS.find(p => p.id === conn.to);
+                if (!fromNode || !toNode) return null;
 
-              const isConnectedToSelected = selectedNodeId === conn.from || selectedNodeId === conn.to;
-              const isConnectedToHovered = hoveredNodeId === conn.from || hoveredNodeId === conn.to;
-              const isHighlighted = isConnectedToSelected || isConnectedToHovered;
+                const isConnectedToSelected = selectedNodeId === conn.from || selectedNodeId === conn.to;
+                const isConnectedToHovered = hoveredNodeId === conn.from || hoveredNodeId === conn.to;
+                const isHighlighted = isConnectedToSelected || isConnectedToHovered;
 
-              return (
-                <line
-                  key={`edge-${idx}`}
-                  x1={fromNode.x}
-                  y1={fromNode.y}
-                  x2={toNode.x}
-                  y2={toNode.y}
-                  stroke={isConnectedToSelected ? '#6366F1' : (isConnectedToHovered ? '#3B82F6' : '#CBD5E1')}
-                  strokeWidth={isHighlighted ? 3 : 1.5}
-                  strokeDasharray={isHighlighted ? undefined : '4 4'}
-                  opacity={isHighlighted ? 1 : 0.45}
-                  style={{ transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s' }}
-                />
-              );
-            })}
+                return (
+                  <line
+                    key={`edge-${idx}`}
+                    x1={fromNode.x}
+                    y1={fromNode.y}
+                    x2={toNode.x}
+                    y2={toNode.y}
+                    stroke={isConnectedToSelected ? '#6366F1' : (isConnectedToHovered ? '#3B82F6' : '#CBD5E1')}
+                    strokeWidth={isHighlighted ? 3 : 1.5}
+                    strokeDasharray={isHighlighted ? undefined : '4 4'}
+                    opacity={isHighlighted ? 1 : 0.45}
+                    style={{ transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s' }}
+                  />
+                );
+              })}
 
-            {/* Draw Nodes */}
-            {NETWORK_POSITIONS.map(pos => {
-              const mastery = relationshipMasteries[pos.id];
-              const isSelected = selectedNodeId === pos.id;
-              const isHovered = hoveredNodeId === pos.id;
-              const nodeColor = getNodeColor(mastery);
-              const def = COGNITIVE_RELATIONS[pos.id];
-              const nodeAcc = mastery && mastery.exposureCount > 0 ? Math.round(mastery.accuracy * 100) : null;
+              {/* Draw Nodes */}
+              {NETWORK_POSITIONS.map(pos => {
+                const mastery = relationshipMasteries[pos.id];
+                const isSelected = selectedNodeId === pos.id;
+                const isHovered = hoveredNodeId === pos.id;
+                const nodeColor = getNodeColor(mastery);
+                const def = COGNITIVE_RELATIONS[pos.id];
+                const nodeAcc = mastery && mastery.exposureCount > 0 ? Math.round(mastery.accuracy * 100) : null;
+                const displayName = def ? def.nameVi : pos.id;
 
-              return (
-                <g 
-                  key={pos.id}
-                  onClick={() => {
-                    playSound('click');
-                    setSelectedNodeId(pos.id);
-                  }}
-                  onMouseEnter={() => setHoveredNodeId(pos.id)}
-                  onMouseLeave={() => setHoveredNodeId(null)}
-                  className="cursor-pointer"
-                >
-                  {/* Selection Ring (outer spinning dashed ring) */}
-                  {isSelected && (
+                return (
+                  <g 
+                    key={pos.id}
+                    onClick={() => {
+                      playSound('click');
+                      setSelectedNodeId(pos.id);
+                    }}
+                    onMouseEnter={() => setHoveredNodeId(pos.id)}
+                    onMouseLeave={() => setHoveredNodeId(null)}
+                    className="cursor-pointer"
+                  >
+                    {/* Selection Ring (outer spinning dashed ring) */}
+                    {isSelected && (
+                      <circle
+                        cx={pos.x}
+                        cy={pos.y}
+                        r={35}
+                        fill="rgba(99, 102, 241, 0.08)"
+                        stroke="#6366F1"
+                        strokeWidth={2.5}
+                        strokeDasharray="4 4"
+                        className="animate-spin"
+                        style={{ 
+                          animationDuration: '10s', 
+                          transformOrigin: `${pos.x}px ${pos.y}px` 
+                        }}
+                      />
+                    )}
+
+                    {/* Hover Highlight Ring */}
+                    {isHovered && !isSelected && (
+                      <circle
+                        cx={pos.x}
+                        cy={pos.y}
+                        r={33}
+                        fill="rgba(59, 130, 246, 0.1)"
+                        stroke="#3B82F6"
+                        strokeWidth={2}
+                        style={{ transition: 'all 0.15s ease-out' }}
+                      />
+                    )}
+
+                    {/* Main Node Circle */}
                     <circle
                       cx={pos.x}
                       cy={pos.y}
-                      r={35}
-                      fill="rgba(99, 102, 241, 0.08)"
-                      stroke="#6366F1"
-                      strokeWidth={2.5}
-                      strokeDasharray="4 4"
-                      className="animate-spin"
+                      r={isSelected ? 27 : (isHovered ? 28 : 24)}
+                      fill={nodeColor}
+                      stroke="#FFFFFF"
+                      strokeWidth={isSelected || isHovered ? 3.5 : 2.5}
                       style={{ 
-                        animationDuration: '10s', 
-                        transformOrigin: `${pos.x}px ${pos.y}px` 
+                        transition: 'r 0.18s ease-out, stroke-width 0.18s ease-out',
+                        filter: isHovered || isSelected ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))' : 'drop-shadow(0 2px 3px rgba(0,0,0,0.08))'
                       }}
                     />
-                  )}
 
-                  {/* Hover Highlight Ring */}
-                  {isHovered && !isSelected && (
-                    <circle
-                      cx={pos.x}
-                      cy={pos.y}
-                      r={33}
-                      fill="rgba(59, 130, 246, 0.1)"
-                      stroke="#3B82F6"
-                      strokeWidth={2}
-                      style={{ transition: 'all 0.15s ease-out' }}
-                    />
-                  )}
+                    {/* Tier Badge inside circle */}
+                    <text
+                      x={pos.x}
+                      y={pos.y + 4}
+                      textAnchor="middle"
+                      fill="#FFFFFF"
+                      fontSize={11}
+                      fontWeight="900"
+                      fontFamily="monospace"
+                      className="pointer-events-none select-none"
+                    >
+                      T{mastery ? mastery.currentTier : 1}
+                    </text>
 
-                  {/* Main Node Circle - Native SVG radius expansion, NO CSS scale displacement bug! */}
-                  <circle
-                    cx={pos.x}
-                    cy={pos.y}
-                    r={isSelected ? 27 : (isHovered ? 28 : 24)}
-                    fill={nodeColor}
-                    stroke="#FFFFFF"
-                    strokeWidth={isSelected || isHovered ? 3.5 : 2.5}
-                    style={{ 
-                      transition: 'r 0.18s ease-out, stroke-width 0.18s ease-out',
-                      filter: isHovered || isSelected ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))' : 'drop-shadow(0 2px 3px rgba(0,0,0,0.08))'
-                    }}
-                  />
+                    {/* Smart Label with Pill Backdrop on Selected / Hovered or when All Labels mode is active */}
+                    {(labelMode === 'all' || isSelected || isHovered) && (
+                      <g className="pointer-events-none select-none">
+                        <rect
+                          x={pos.x - (displayName.length * 3.8 + 8)}
+                          y={pos.y + 30}
+                          width={displayName.length * 7.6 + 16}
+                          height={18}
+                          rx={9}
+                          fill={isSelected ? '#4F46E5' : isHovered ? '#0F172A' : '#F1F5F9'}
+                          opacity={isSelected || isHovered ? 0.95 : 0.85}
+                        />
+                        <text
+                          x={pos.x}
+                          y={pos.y + 42}
+                          textAnchor="middle"
+                          fill={isSelected || isHovered ? '#FFFFFF' : '#334155'}
+                          fontSize={9.5}
+                          fontWeight={isSelected || isHovered ? '800' : '700'}
+                          className="transition-colors duration-150"
+                        >
+                          {displayName}
+                        </text>
+                      </g>
+                    )}
 
-                  {/* Tier Badge inside circle */}
-                  <text
-                    x={pos.x}
-                    y={pos.y + 4}
-                    textAnchor="middle"
-                    fill="#FFFFFF"
-                    fontSize={11}
-                    fontWeight="900"
-                    fontFamily="monospace"
-                    className="pointer-events-none select-none"
-                  >
-                    T{mastery ? mastery.currentTier : 1}
-                  </text>
-
-                  {/* Label below node */}
-                  <text
-                    x={pos.x}
-                    y={pos.y + 40}
-                    textAnchor="middle"
-                    fill={isSelected ? '#4F46E5' : (isHovered ? '#0F172A' : '#64748B')}
-                    fontSize={10.5}
-                    fontWeight={isSelected || isHovered ? '800' : '600'}
-                    className="pointer-events-none select-none transition-colors duration-150"
-                  >
-                    {def ? def.nameVi : pos.id}
-                  </text>
-
-                  {/* Floating Mini Tooltip on Hover */}
-                  {isHovered && (
-                    <g className="pointer-events-none select-none animate-fade-in">
-                      <rect
-                        x={pos.x - 56}
-                        y={pos.y - 48}
-                        width={112}
-                        height={24}
-                        rx={12}
-                        fill="#0F172A"
-                        opacity={0.92}
-                      />
-                      <text
-                        x={pos.x}
-                        y={pos.y - 32}
-                        textAnchor="middle"
-                        fill="#FFFFFF"
-                        fontSize={10}
-                        fontWeight="700"
-                      >
-                        {nodeAcc !== null ? `${nodeAcc}% chính xác` : 'Chưa có dữ liệu'}
-                      </text>
-                    </g>
-                  )}
-                </g>
-              );
-            })}
+                    {/* Floating Detailed Tooltip on Hover */}
+                    {isHovered && (
+                      <g className="pointer-events-none select-none animate-fade-in z-30">
+                        <rect
+                          x={pos.x - 70}
+                          y={pos.y - 52}
+                          width={140}
+                          height={28}
+                          rx={14}
+                          fill="#0F172A"
+                          opacity={0.95}
+                          filter="drop-shadow(0 4px 6px rgba(0,0,0,0.3))"
+                        />
+                        <text
+                          x={pos.x}
+                          y={pos.y - 34}
+                          textAnchor="middle"
+                          fill="#FFFFFF"
+                          fontSize={10}
+                          fontWeight="800"
+                        >
+                          {nodeAcc !== null ? `${displayName} · ${nodeAcc}%` : `${displayName} · Chưa mở`}
+                        </text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
           </svg>
         </div>
 
