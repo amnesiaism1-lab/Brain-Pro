@@ -17,6 +17,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CONTENT_POOLS = exports.WEEKLY_CHALLENGES = exports.EXERCISE_SYNERGIES = exports.EXERCISE_VARIANTS = exports.ENGLISH_WORDS_DICTIONARY = exports.VIETNAMESE_WORDS_DICTIONARY = exports.SAMPLE_READING_TEXTS = exports.WORKOUT_ROUTINES = exports.EXERCISES_METADATA = exports.COGNITIVE_CATEGORIES = void 0;
 const infinityConfigs_1 = require("./infinityConfigs");
 __exportStar(require("./infinityConfigs"), exports);
+__exportStar(require("./hanoiMapData"), exports);
 exports.COGNITIVE_CATEGORIES = [
     {
         id: 'cat-1',
@@ -65,6 +66,14 @@ exports.COGNITIVE_CATEGORIES = [
         description: 'Rèn luyện cảm âm, trí nhớ chuỗi thính giác, nhận diện hợp âm và định vị âm thanh 3D.',
         iconName: 'Headphones',
         sortOrder: 6
+    },
+    {
+        id: 'cat-7',
+        code: 'SPATIAL_NAVIGATION',
+        name: 'Định Hướng Không Gian',
+        description: 'Xây dựng bản đồ nhận thức (Cognitive Map), giải mã cấu trúc đô thị, ma trận ô bàn cờ và định vị 3D.',
+        iconName: 'Compass',
+        sortOrder: 7
     }
 ];
 exports.EXERCISES_METADATA = [
@@ -1026,6 +1035,36 @@ exports.EXERCISES_METADATA = [
             { level: 10, timeLimitSec: 60, targetItemCount: 22, variantCode: 'DUAL_NBACK_INTERFERENCE', variantName: 'Dual N-Back Nhiễu Thị Giác', parametersJson: { nBack: 3, stimulusDurationMs: 1900, trials: 24, visualDistractors: true } },
             { level: 11, timeLimitSec: 55, targetItemCount: 24, variantCode: 'DUAL_NBACK_4_PRE', variantName: 'Dual 4-Back Siêu Trí Nhớ', parametersJson: { nBack: 4, stimulusDurationMs: 2400, trials: 26 } },
             { level: 12, timeLimitSec: 50, targetItemCount: 25, variantCode: 'DUAL_NBACK_EXTREME', variantName: 'Bậc Thầy Dual N-Back Thần Tốc', parametersJson: { nBack: 4, stimulusDurationMs: 2000, trials: 28 } }
+        ]
+    },
+    {
+        id: 'ex-hanoi-navigation',
+        categoryId: 'cat-7',
+        categoryCode: 'SPATIAL_NAVIGATION',
+        categoryName: 'Định Hướng Không Gian',
+        slug: 'hanoi-navigation',
+        title: 'Bản Đồ Nhận Thức Hà Nội',
+        subtitle: 'Huấn luyện bản đồ nhận thức đô thị: 3 Vành đai, 8 Trục hướng tâm, Phố Pháp và Định vị Mặt Trời',
+        iconName: 'Compass',
+        scientificBasis: 'Dựa trên mô hình 5 thành phần đô thị của Kevin Lynch (Paths, Edges, Districts, Nodes, Landmarks) kết hợp cơ chế tế bào lưới (Grid Cells) và tế bào địa điểm (Place Cells) của vùng hồi hải mã (Hippocampus). Rèn luyện chuyển đổi linh hoạt giữa hệ quy chiếu bản đồ (Allocentric) và góc nhìn thực tế tay lái (Egocentric).',
+        instructions: 'Trải qua 5 chế độ tương tác: (1) Khung xương đô thị & Vành đai, (2) Phản xạ song song // & vuông góc ⟂, (3) Định vị điểm neo & Hướng mặt trời, (4) Thả dù mù & Dẫn đường trong đầu, (5) Radar la bàn 360°. Quan sát bản đồ hoặc góc nhìn định hướng để trả lời chính xác.',
+        rulesSummary: 'Chấm điểm dựa trên độ chính xác quan hệ không gian, phản xạ xử lý ngã tư và tránh bẫy đường một chiều. Cấp cao sẽ kích hoạt xoay bản đồ ngẫu nhiên (Rotated Map).',
+        maxDifficultyLevel: 12,
+        defaultDurationSec: 60,
+        isFeatured: true,
+        levelConfigs: [
+            { level: 1, timeLimitSec: 45, targetItemCount: 4, variantCode: 'STAGE1_MACRO_ANCHORS', variantName: 'Cấp 1: Sông Hồng & Hồ Lớn', parametersJson: { mode: 'skeleton', stage: 1, allowHints: true, northUp: true } },
+            { level: 2, timeLimitSec: 45, targetItemCount: 4, variantCode: 'STAGE1_BRIDGES_SEQUENCE', variantName: 'Cấp 2: Chuỗi Cầu Sông Hồng', parametersJson: { mode: 'skeleton', stage: 1, bridgesSequence: true, northUp: true } },
+            { level: 3, timeLimitSec: 50, targetItemCount: 5, variantCode: 'STAGE1_RING_ROADS', variantName: 'Cấp 3: 3 Tuyến Vành Đai', parametersJson: { mode: 'skeleton', stage: 1, ringBuilder: true, northUp: true } },
+            { level: 4, timeLimitSec: 50, targetItemCount: 5, variantCode: 'STAGE1_RADIAL_CORRIDORS', variantName: 'Cấp 4: 8 Trục Hướng Tâm', parametersJson: { mode: 'skeleton', stage: 1, collinearSeries: true, northUp: true } },
+            { level: 5, timeLimitSec: 50, targetItemCount: 5, variantCode: 'STAGE2_FRENCH_GRID_PARALLEL', variantName: 'Cấp 5: Lưới Phố Pháp Song Song //', parametersJson: { mode: 'grid_topology', stage: 2, subType: 'parallel', rotateAngle: 0 } },
+            { level: 6, timeLimitSec: 55, targetItemCount: 6, variantCode: 'STAGE2_FRENCH_GRID_PERP', variantName: 'Cấp 6: Ngã Tư Phố Pháp Vuông Góc ⟂', parametersJson: { mode: 'grid_topology', stage: 2, subType: 'perpendicular', rotateAngle: 45 } },
+            { level: 7, timeLimitSec: 55, targetItemCount: 6, variantCode: 'STAGE2_INTERSECTIONS_HUBS', variantName: 'Cấp 7: Nút Giao & Giao Điểm Trọng Yếu', parametersJson: { mode: 'grid_topology', stage: 2, subType: 'intersections', rotateAngle: 90 } },
+            { level: 8, timeLimitSec: 55, targetItemCount: 6, variantCode: 'STAGE2_ONEWAY_PAIRS', variantName: 'Cấp 8: Cặp Đường Một Chiều Đối Xứng', parametersJson: { mode: 'grid_topology', stage: 2, subType: 'oneway', rotateAngle: 180 } },
+            { level: 9, timeLimitSec: 60, targetItemCount: 6, variantCode: 'STAGE3_SOLAR_BEARING', variantName: 'Cấp 9: La Bàn Mặt Trời Theo Giờ', parametersJson: { mode: 'sun_triangulation', stage: 3, solarAzimuth: true, timePressure: true } },
+            { level: 10, timeLimitSec: 60, targetItemCount: 6, variantCode: 'STAGE3_SKYLINE_TRIANGULATION', variantName: 'Cấp 10: Tam Giác Điểm Neo Chân Trời', parametersJson: { mode: 'sun_triangulation', stage: 3, skylineAnchor: true } },
+            { level: 11, timeLimitSec: 55, targetItemCount: 6, variantCode: 'STAGE3_BLIND_DROP_SPOTTING', variantName: 'Cấp 11: Thả Dù Mù Xác Định Tọa Độ', parametersJson: { mode: 'blind_drop', stage: 3, maskedRatio: 0.7 } },
+            { level: 12, timeLimitSec: 50, targetItemCount: 6, variantCode: 'STAGE3_MENTAL_ROUTING_MASTERY', variantName: 'Cấp 12: Dẫn Đường Trong Đầu Né Bẫy', parametersJson: { mode: 'blind_drop', stage: 3, fullRouting: true, strictOneWay: true } }
         ]
     }
 ];
@@ -2038,6 +2077,24 @@ exports.EXERCISE_SYNERGIES = [
         title: 'Xướng Âm Quãng Nhạc Thực Chiến',
         description: 'Nhận diện khoảng cách cao độ kết hợp hát xướng âm tức thì theo thang âm tương đối chuẩn phòng thu.',
         bonusXpPercent: 35
+    },
+    {
+        id: 'syn-hanoi-spatial',
+        exerciseASlug: 'hanoi-navigation',
+        exerciseBSlug: 'spatial-memory',
+        synergyType: 'COMPLEMENTARY',
+        title: 'Không Gian Kép: Khối Lưới & Bản Đồ Nhận Thức',
+        description: 'Kết hợp trí nhớ vị trí khối không gian Corsi với khả năng định vị các trục đường và điểm neo Hà Nội.',
+        bonusXpPercent: 25
+    },
+    {
+        id: 'syn-hanoi-peripheral',
+        exerciseASlug: 'hanoi-navigation',
+        exerciseBSlug: 'peripheral-vision',
+        synergyType: 'PROGRESSIVE',
+        title: 'Tầm Nhìn Toàn Cảnh: Bản Đồ & Thị Giác Ngoại Vi',
+        description: 'Bao quát toàn cảnh mạng lưới giao thông và các tòa nhà chân trời bằng tầm nhìn ngoại vi mở rộng.',
+        bonusXpPercent: 20
     }
 ];
 exports.WEEKLY_CHALLENGES = [

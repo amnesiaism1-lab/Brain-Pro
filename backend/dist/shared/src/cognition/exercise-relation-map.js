@@ -319,6 +319,18 @@ exports.EXERCISE_RELATION_MAP = {
             7: ['IDENTITY_MATCH', 'TEMPORAL_PREDICT'],
             13: ['IDENTITY_MATCH', 'TARGET_POSITION', 'TEMPORAL_PREDICT']
         }
+    },
+    'hanoi-navigation': {
+        slug: 'hanoi-navigation',
+        primaryRelation: 'TARGET_POSITION',
+        secondaryRelations: ['SIMILARITY_DIFF', 'ORDER_SEQUENCE', 'RULE_ACTION'],
+        levelAffinity: {
+            1: ['TARGET_POSITION'],
+            4: ['TARGET_POSITION', 'ORDER_SEQUENCE'],
+            7: ['TARGET_POSITION', 'SIMILARITY_DIFF'],
+            10: ['TARGET_POSITION', 'RULE_ACTION'],
+            13: ['TARGET_POSITION', 'SIMILARITY_DIFF', 'ORDER_SEQUENCE']
+        }
     }
 };
 function getRelationsForExercise(slug, level) {

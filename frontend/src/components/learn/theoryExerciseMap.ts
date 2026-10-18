@@ -9,7 +9,8 @@ export type TheoryModuleId =
   | 'timbre'
   | 'spatial'
   | 'polyphony'
-  | 'sound-network';
+  | 'sound-network'
+  | 'hanoi-map';
 
 export interface ITheoryModuleMeta {
   id: TheoryModuleId;
@@ -176,6 +177,22 @@ export const THEORY_MODULE_MAP: Record<TheoryModuleId, ITheoryModuleMeta> = {
     relationBadgeVi: 'RULE_ACTION · Quy luật mạng lưới hòa âm',
     descriptionVi: 'Tương tác giữa các thực thể âm nhạc: Overtone Lab, Cadence Flow và Parsons Contour.',
     remediateTagVi: 'Mạng lưới hòa âm & Cảm âm nâng cao'
+  },
+  'hanoi-map': {
+    id: 'hanoi-map',
+    order: 10,
+    title: '10. Bản Đồ Nhận Thức Hà Nội',
+    shortTitle: 'Bản Đồ Hà Nội',
+    icon: '🗺️',
+    primaryEntity: 'Mạng lưới đô thị: 3 Vành đai, 8 Trục hướng tâm, Phố Pháp & Điểm neo',
+    taughtAttributes: ['ringTier', 'bearingDeg', 'collinearChain', 'sunAzimuth', 'oneWayRule'],
+    primaryRelation: 'TARGET_POSITION',
+    secondaryRelations: ['SIMILARITY_DIFF', 'ORDER_SEQUENCE', 'RULE_ACTION'],
+    primarySlug: 'hanoi-navigation',
+    ctaLabelVi: 'Vào Luyện Tập Bản Đồ Hà Nội',
+    relationBadgeVi: 'TARGET_POSITION · Định vị không gian đô thị',
+    descriptionVi: 'Mô hình 5 thành phần Kevin Lynch, hệ quy chiếu kép Allocentric/Egocentric, la bàn mặt trời và chiến thuật tránh bẫy 1 chiều.',
+    remediateTagVi: 'Bản đồ nhận thức, Vành đai & Hướng mặt trời'
   }
 };
 
@@ -204,6 +221,8 @@ export function getTheoryModuleForSlug(slug: ExerciseSlug): TheoryModuleId | und
       return 'spatial';
     case 'voice-track':
       return 'polyphony';
+    case 'hanoi-navigation':
+      return 'hanoi-map';
     default:
       return undefined;
   }
@@ -216,6 +235,9 @@ export function getTheoryModuleForWrongAnswer(
   slug: ExerciseSlug,
   questionContext?: Record<string, any>
 ): TheoryModuleId {
+  if (slug === 'hanoi-navigation') {
+    return 'hanoi-map';
+  }
   // If the wrong answer has explicit scale/mode context
   if (questionContext?.mode || questionContext?.scale) {
     return 'scales';

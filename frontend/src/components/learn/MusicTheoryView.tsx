@@ -9,6 +9,7 @@ import { TimbreModule } from './TimbreModule';
 import { SpatialAudioModule } from './SpatialAudioModule';
 import { PolyphonyModule } from './PolyphonyModule';
 import { SoundNetworkModule } from './SoundNetworkModule';
+import { HanoiMapTheoryModule } from './HanoiMapTheoryModule';
 import { CognitiveTheoryAcademy } from './CognitiveTheoryAcademy';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import {
@@ -144,6 +145,17 @@ const NEURAL_INSIGHTS_MAP: Record<TheoryModuleId, INeuralInsight> = {
       "Nâng tầm nhận thức thính giác lên mức cảm âm tuyệt đối / tương đối chuyên sâu"
     ],
     cognitivePill: "Systems Thinking & Synesthetic Cross-Mapping"
+  },
+  'hanoi-map': {
+    brainRegion: "Hồi Hải Mã (Hippocampus - Place Cells), Vỏ Não Khứu Trong (Entorhinal Cortex - Grid Cells) & Thùy Đỉnh (Parietal Cortex)",
+    neuralMechanism: "Mã hóa bản đồ nhận thức không gian (Cognitive Mapping) đa hệ quy chiếu (Allocentric vs Egocentric) và xoay trục tâm tưởng (Mental Rotation).",
+    rftRule: "TARGET_POSITION · Định vị tọa độ mục tiêu & Quan hệ hình học topo",
+    farTransferBenefits: [
+      "Khắc phục hoàn toàn chứng mù đường, định hướng tự nhiên không phụ thuộc GPS",
+      "Nâng cao năng lực tư duy kiến trúc không gian 3 chiều và lập kế hoạch lộ trình",
+      "Rèn luyện phản xạ phán đoán hướng nắng và điểm neo chân trời để đưa ra quyết định nhanh"
+    ],
+    cognitivePill: "Cognitive Urban Mapping & Solar Compass Triangulation"
   }
 };
 
@@ -157,6 +169,7 @@ const THEORY_TABS: ITheoryTabItem[] = [
   { id: 'spatial', title: '7. Âm Thanh 3D Không Gian', shortTitle: '7. 3D Không Gian', icon: '🔊', component: SpatialAudioModule },
   { id: 'polyphony', title: '8. Đa Thanh & Bè Phối', shortTitle: '8. Đa Thanh & Bè', icon: '🪈', component: PolyphonyModule },
   { id: 'sound-network', title: '9. Mạng Lưới Hòa Âm & Cảm Âm Nâng Cao', shortTitle: '9. Mạng Hòa Âm & Cảm Âm', icon: '⚡', component: SoundNetworkModule },
+  { id: 'hanoi-map', title: '10. Bản Đồ Nhận Thức Hà Nội', shortTitle: '10. Bản Đồ Hà Nội', icon: '🗺️', component: HanoiMapTheoryModule },
 ];
 
 export const MusicTheoryView: React.FC = () => {

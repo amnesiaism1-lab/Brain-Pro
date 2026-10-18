@@ -1,6 +1,6 @@
 import { ExerciseSlug } from './index';
 /** Danh mục lỗi thính giác (Auditory Error Taxonomy) */
-export type AuditoryErrorCategory = 'INTERVAL_CONFUSION' | 'CHORD_MISIDENTIFY' | 'PITCH_DRIFT' | 'TIMBRE_CONFUSION' | 'RHYTHM_TIMING_ERROR' | 'RHYTHM_PATTERN_ERROR' | 'SPATIAL_DIRECTION_ERROR' | 'VOCAL_INTONATION_ERROR';
+export type AuditoryErrorCategory = 'INTERVAL_CONFUSION' | 'CHORD_MISIDENTIFY' | 'PITCH_DRIFT' | 'TIMBRE_CONFUSION' | 'RHYTHM_TIMING_ERROR' | 'RHYTHM_PATTERN_ERROR' | 'SPATIAL_DIRECTION_ERROR' | 'VOCAL_INTONATION_ERROR' | 'MAP_ORIENTATION_ERROR' | 'RING_SKELETON_ERROR' | 'GRID_TOPOLOGY_ERROR' | 'ROUTING_ONEWAY_TRAP' | 'LANDMARK_TRIANGULATION_ERROR' | 'BEARING_DISTANCE_ERROR';
 /** Mức độ nghiêm trọng của lỗi */
 export type ErrorSeverity = 'minor' | 'moderate' | 'critical';
 /** Chi tiết một đáp án (đáp án đúng hoặc lựa chọn của người dùng) */
@@ -47,6 +47,15 @@ export interface IQuestionContext {
     targetPitchHz?: number;
     targetNoteName?: string;
     centsTolerance?: number;
+    hanoiMode?: 'skeleton' | 'grid_topology' | 'sun_triangulation' | 'blind_drop' | 'mental_compass';
+    sunHour?: number;
+    originNode?: string;
+    targetNode?: string;
+    landmarkNeo?: string;
+    streetA?: string;
+    streetB?: string;
+    bearingDeg?: number;
+    distanceKm?: number;
 }
 /** Bản ghi một câu làm sai */
 export interface IWrongAnswer {

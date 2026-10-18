@@ -6,7 +6,8 @@ import {
   Award, 
   Gauge, 
   FileSearch,
-  Mic
+  Mic,
+  Compass
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { EXERCISES_METADATA, CognitiveCategoryCode, INFINITY_ROMAN_NUMERALS, getInfinityLabel, EXERCISE_SYNERGIES } from '@brain-exercises/shared';
@@ -300,6 +301,13 @@ function renderExerciseIcon(slug: string) {
             <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400" />
           </div>
           <span className="text-[7.5px] font-black text-amber-300 tracking-wider">2-BACK</span>
+        </div>
+      );
+    case 'hanoi-navigation':
+      return (
+        <div className="flex flex-col items-center justify-center text-white w-full h-full">
+          <Compass className="w-5 h-5 text-amber-300 mb-0.5 animate-spin-slow" />
+          <span className="text-[7.5px] font-black text-amber-300 tracking-wider">HÀ NỘI</span>
         </div>
       );
     default:

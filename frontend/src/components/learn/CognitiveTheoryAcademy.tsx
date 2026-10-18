@@ -13,7 +13,8 @@ import {
   CheckCircle2, 
   Award,
   BookOpen,
-  Lightbulb
+  Lightbulb,
+  Compass
 } from 'lucide-react';
 
 interface ICognitiveAxisTheory {
@@ -210,6 +211,36 @@ const COGNITIVE_AXES_THEORY: ICognitiveAxisTheory[] = [
       { slug: 'sound-localization', name: 'Định Vị Âm Thanh 3D' },
       { slug: 'interval-identify', name: 'Nhận Diện Quãng Âm' }
     ]
+  },
+  {
+    id: 'spatial-navigation',
+    code: 'SPATIAL_NAVIGATION',
+    title: '7. Định Hướng Không Gian & Bản Đồ Nhận Thức (Cognitive Navigation)',
+    subtitle: 'Khung Lynch 5 Thành Phần • Hệ Quy Chiếu Kép Allocentric / Egocentric • Tế Bào Lưới (Grid Cells)',
+    icon: Compass,
+    color: 'from-amber-500 to-orange-600',
+    brainRegions: ['Hồi Hải Mã (Hippocampus - Place Cells)', 'Vỏ Não Khứu Trong (Entorhinal Cortex - Grid Cells)', 'Vỏ Não Đỉnh Sau (Posterior Parietal)'],
+    coreMechanism: 'Hình thành mạng lưới nơ-ron không gian trừu tượng, chuyển đổi liên tục giữa bản đồ từ trên xuống (Allocentric) và góc nhìn thực tế tay lái (Egocentric) dưới ánh nắng mặt trời.',
+    scientificInsight: 'Nghiên cứu về tài xế taxi London của Maguire et al. chứng minh việc ghi nhớ bản đồ nhận thức thành phố phức tạp làm tăng sinh thể tích chất xám hồi hải mã sau, giúp não bộ chống lại sự teo thoái và cải thiện trí nhớ không gian dài hạn.',
+    techniques: [
+      {
+        name: 'Khung Xương Vành Đai & Trục Xuyên Tâm',
+        desc: 'Quy nạp đô thị thành hệ mạng nhện đồng tâm (Ring-Radial) để định vị nhanh qua thứ tự giao cắt thay vì nhớ rời rạc.'
+      },
+      {
+        name: 'La Bàn Mặt Trời Theo Giờ (Solar Compass)',
+        desc: 'Đọc hướng nắng sớm (Đông) và chiều (Tây) tại vĩ độ 21.03°N để biết ngay hướng di chuyển mà không cần mở điện thoại.'
+      },
+      {
+        name: 'Tam Giác Điểm Neo Chân Trời',
+        desc: 'Dùng Keangnam Landmark 72 (phía Tây) và Lotte Center (Ba Đình) làm mốc ngắm chân trời (Skyline Triangulation).'
+      }
+    ],
+    recommendedExercises: [
+      { slug: 'hanoi-navigation', name: 'Bản Đồ Nhận Thức Hà Nội' },
+      { slug: 'spatial-memory', name: 'Nhớ Khối Không Gian Corsi' },
+      { slug: 'sound-localization', name: 'Định Vị Âm Thanh 3D' }
+    ]
   }
 ];
 
@@ -228,7 +259,7 @@ export const CognitiveTheoryAcademy: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Academy Navigation Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
         {COGNITIVE_AXES_THEORY.map((axis) => {
           const AxisIcon = axis.icon;
           const isSelected = axis.id === selectedAxisId;

@@ -17,7 +17,8 @@ const EXERCISE_OPTIONS: Array<{ slug: ExerciseSlug | 'ALL'; label: string }> = [
   { slug: 'timbre-match', label: 'Phân Biệt Âm Sắc' },
   { slug: 'rhythm-recall', label: 'Nhớ Nhịp Điệu' },
   { slug: 'sound-localization', label: 'Định Vị 3D' },
-  { slug: 'vocal-pitch-match', label: 'Dò Cao Độ Giọng Hát' }
+  { slug: 'vocal-pitch-match', label: 'Dò Cao Độ Giọng Hát' },
+  { slug: 'hanoi-navigation', label: 'Bản Đồ Hà Nội' }
 ];
 
 export const WrongAnswerFilters: React.FC<WrongAnswerFiltersProps> = ({

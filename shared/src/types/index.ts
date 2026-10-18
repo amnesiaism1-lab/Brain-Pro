@@ -4,7 +4,8 @@ export type CognitiveCategoryCode =
   | 'MEMORY'
   | 'ATTENTION'
   | 'REACTION'
-  | 'AUDITORY_MEMORY';
+  | 'AUDITORY_MEMORY'
+  | 'SPATIAL_NAVIGATION';
 
 export type ExerciseSlug =
   | 'anagram'              // Đảo ngữ
@@ -38,7 +39,8 @@ export type ExerciseSlug =
   | 'graph-memory-matrix'  // Trí Nhớ Ma Trận Đồ Thị (Graph Working Memory)
   | 'rule-mutation-clash'  // Xung Đột Quy Tắc Biến Dị (Rule Mutation & Flexibility)
   | 'vocal-pitch-match'   // Cảm Âm & Dò Cao Độ Giọng Hát Thời Gian Thực (Vocal Pitch Training)
-  | 'dual-nback';          // Trí Nhớ Kép Dual N-Back (Vị Trí + Âm Thanh)
+  | 'dual-nback'          // Trí Nhớ Kép Dual N-Back (Vị Trí + Âm Thanh)
+  | 'hanoi-navigation';    // Bản Đồ Nhận Thức & Định Vị Hà Nội (Hanoi Cognitive Navigation)
 
 export type ArticulationType = 'legato' | 'staccato' | 'tenuto' | 'accent';
 export type MelodicContourCode = 'UP' | 'DOWN' | 'REPEAT' | 'ARCH' | 'INVERTED_ARCH';

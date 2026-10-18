@@ -9,7 +9,13 @@ export type AuditoryErrorCategory =
   | 'RHYTHM_TIMING_ERROR'     // Lệch nhịp (VD: tap lệch beat)
   | 'RHYTHM_PATTERN_ERROR'    // Sai pattern (VD: sót phách, gõ thừa)
   | 'SPATIAL_DIRECTION_ERROR' // Sai hướng không gian 3D (VD: trái ↔ phải)
-  | 'VOCAL_INTONATION_ERROR'; // Hát sai cao độ (VD: lệch >50 cents)
+  | 'VOCAL_INTONATION_ERROR'  // Hát sai cao độ (VD: lệch >50 cents)
+  | 'MAP_ORIENTATION_ERROR'   // Sai phương hướng Đông - Tây - Nam - Bắc
+  | 'RING_SKELETON_ERROR'     // Sai thứ tự đoạn vành đai / chuỗi cầu sông Hồng
+  | 'GRID_TOPOLOGY_ERROR'     // Sai quan hệ song song //, vuông góc ⟂, giao điểm
+  | 'ROUTING_ONEWAY_TRAP'     // Đi vào đường một chiều / cấm rẽ giờ cao điểm
+  | 'LANDMARK_TRIANGULATION_ERROR' // Định vị sai điểm neo tòa nhà / mốc chân trời
+  | 'BEARING_DISTANCE_ERROR'; // Ước lượng sai góc la bàn 360° hoặc cự ly km
 
 /** Mức độ nghiêm trọng của lỗi */
 export type ErrorSeverity = 'minor' | 'moderate' | 'critical';
@@ -76,6 +82,17 @@ export interface IQuestionContext {
   targetPitchHz?: number;
   targetNoteName?: string;              // VD: 'A4'
   centsTolerance?: number;
+
+  // Hanoi Cognitive Navigation
+  hanoiMode?: 'skeleton' | 'grid_topology' | 'sun_triangulation' | 'blind_drop' | 'mental_compass';
+  sunHour?: number;
+  originNode?: string;
+  targetNode?: string;
+  landmarkNeo?: string;
+  streetA?: string;
+  streetB?: string;
+  bearingDeg?: number;
+  distanceKm?: number;
 }
 
 /** Bản ghi một câu làm sai */

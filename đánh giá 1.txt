@@ -1,1889 +1,298 @@
-phân tích toàn bộ game play các thực thể từ ảnh và phân tích xem làm sao lấy ý tưởng từ cái này phát triển nó với dự án brain pro của tôi để đầy đủ để phát triển não bộ cho tôi đầy đủ ý tưởng về xác định đầy đủ các thực thể sẽ như thế nào quan hệ như nào để luyện cho não thích nghi ghim vào não đầy đủ
+Thiết kế bài tập “Bản đồ Hà Nội”
 
-Đúng — bộ ảnh này rất đáng để lấy làm một “mẫu kiến trúc nhận thức” cho Brain Pro, nhưng không nên bê nguyên game vào. Điểm giá trị nhất của Cell Expansion Wars không nằm ở tế bào, mà nằm ở việc nó biến một mạng lưới thực thể + quan hệ + trạng thái + hành động + hậu quả thành một bài toán mà não phải liên tục cập nhật.
+Bài tập này nên huấn luyện bản đồ nhận thức (cognitive map), không phải học thuộc tên đường. Kevin Lynch (The Image of the City) chia bản đồ trong đầu thành 5 loại thành phần: Paths, Edges, Districts, Nodes, Landmarks. Mô hình này khớp với cách bạn định xây dựng, nên nên lấy làm xương sống.
 
-Và điều này khớp cực mạnh với hướng Brain Pro hiện tại của bạn: dự án đã có 25 bài tập, telemetry theo từng trial, DDA và 12 quan hệ nhận thức như ORDER_SEQUENCE, RULE_ACTION, INHIBITION, PART_WHOLE, SPATIAL_TRANSFORM, TEMPORAL_PREDICT...
+1. Hà Nội “có hình dạng” thế nào? (khung neo cấp cao nhất)
 
-1. Trước hết: bản chất của game này là gì?
+Trước khi nhớ từng phố, người học cần nắm khung xương, vì khung này cho phép suy luận vị trí thay vì nhớ rời rạc:
 
-Nhìn bề ngoài:
+Sông Hồng chạy chéo theo hướng Tây Bắc → Đông Nam. Đây là trục tham chiếu lớn nhất và là ranh giới (Edge) chính.
+Hồ Gươm là tâm của phố cổ và phố Pháp. Hồ Tây là mốc lớn ở phía Tây Bắc.
+Cấu trúc xuyên tâm + vành đai: các trục hướng tâm đi ra (Giải Phóng, Nguyễn Trãi, Láng–Hòa Lạc, Nguyễn Văn Cừ, QL5…) bị cắt bởi các vành đai 1, 2, 3, 4 (đồng tâm).
+Ba “ngôn ngữ lưới” khác nhau:
+Phố cổ: lưới dày, đường ngắn, nhiều phố chuyên ngành.
+Phố Pháp: ô bàn cờ, vuông góc rõ.
+Khu mới (Cầu Giấy, Mỹ Đình, Hà Đông…): đường lớn, ô to.
 
-🟢 tế bào xanh → nối → đánh tế bào đỏ → cắt xúc tu → chiếm bàn chơi.
+Chuỗi thứ tự cũng là dạng nhớ rất mạnh. Ví dụ các cầu bắc qua sông Hồng từ Bắc xuống Nam: Nhật Tân → Thăng Long → Long Biên → Chương Dương → Vĩnh Tuy → Thanh Trì.
 
-Nhưng nhìn dưới góc độ nhận thức:
+2. Thực thể chính
+Loại (Lynch)	Thực thể	Thuộc tính cần lưu
+Path	phố, đại lộ, vành đai, đường trên cao, đường sắt, tuyến metro	tên, cấp đường, hình học (polyline), hướng chính (bearing), một chiều, thứ tự các nút dọc theo nó
+Node	ngã tư, ngã năm, bùng binh, chân cầu, hầm, ga	tọa độ, danh sách đường giao nhau, loại
+Edge	sông, hồ, đê, đường sắt, vành đai (như ranh giới)	hình học, có vượt được không (chỉ qua cầu)
+District	quận/khu vực theo “cảm nhận” (Phố cổ, Phố Pháp, Tây Hồ…)	polygon, đặc trưng
+Landmark	Nhà hát Lớn, Lăng Bác, Văn Miếu, Ga Hà Nội, Keangnam, Lotte, Mỹ Đình…	tọa độ, độ nổi bật (để chọn neo), nhìn thấy từ xa không
+Hướng	Bắc, Đông (mặt trời mọc), Tây (lặn), chiều chảy sông Hồng	góc phương vị
+Giao thông công cộng	metro 2A, 3, BRT, bến xe	tuyến, ga
 
-Não quan sát một hệ thống đang có trạng thái → nhận ra các quan hệ → dự đoán nếu hành động X thì trạng thái Y xảy ra → hành động → quan sát trạng thái mới → cập nhật mô hình.
+Lưu ý: nên dùng khu vực theo cảm nhận và địa lý, đừng dựa vào ranh giới phường/quận. Địa giới hành chính Hà Nội mới thay đổi và có thể đổi tiếp, còn sông, hồ, trục đường thì ổn định.
 
-Đây mới là thứ cực kỳ đáng lấy cho Brain Pro.
+3. Mối quan hệ (phần quan trọng nhất)
 
-Có thể biểu diễn:
+Mỗi quan hệ là một “thẻ học” riêng, và đây là thứ phân biệt bài này với “học thuộc bản đồ” thông thường.
 
-             QUAN SÁT
-                ↓
-        ┌────────────────┐
-        │  STATE hiện tại│
-        └───────┬────────┘
-                ↓
-       nhận diện QUAN HỆ
-                ↓
-       dự đoán hậu quả
-                ↓
-          CHỌN HÀNH ĐỘNG
-                ↓
-        STATE thay đổi
-                ↓
-          FEEDBACK
-                ↓
-       cập nhật mô hình não
-                ↺
+Đường ↔ đường
 
-Đây chính là Dynamics State → State mà bạn đang theo đuổi.
+Vuông góc (⟂), song song (∥), chéo, hội tụ về một nút
+Đồng tâm (vành đai bao quanh vành đai)
+Cắt nhau hay không (và cắt ở nút nào)
+Thứ tự giao cắt dọc một trục (đi trên A, gặp lần lượt B, C, D…)
 
-2. Tách toàn bộ game thành các thực thể
+Đường ↔ landmark
 
-Ta không nên bắt đầu bằng "Cell".
+Nằm trên, ở góc ngã tư, đối diện
+Bên trái/phải khi đi theo hướng X
 
-Hãy bắt đầu bằng Entity Model.
+Landmark ↔ landmark
 
-2.1. GameBoard
+Phương vị tương đối (A ở Đông Bắc của B)
+Khoảng cách tương đối (gần/xa hơn)
 
-Không gian chứa toàn bộ hệ thống.
+Đường/landmark ↔ hướng tuyệt đối
 
-GameBoard
-├── dimensions
-├── cells
-├── connections
-├── obstacles
-├── items
-├── objective
-├── turn/time
-└── environment rules
+Phố này chạy hướng nào (Bắc–Nam, Đông–Tây, chéo)
+Mặt trời mọc/lặn nhìn từ đâu thì ra hướng nào
 
-State:
+Edge ↔ Path
 
-BoardState
-- width
-- height
-- visibleArea
-- time
-- phase
-- activePlayer
-- remainingResources
-3. Cell — thực thể trung tâm
+Qua sông chỉ bằng cầu nào, hầm nào
+Mô hình dữ liệu gợi ý
+entities(id, type, name, geom, props)
+relations(a_id, b_id, type, props)
+  type ∈ {perpendicular, parallel, crosses_at, adjacent,
+          inside, bearing_from, ordered_along, concentric}
+cards(user_id, relation_or_entity_id, ease, due, streak)  -- spaced repetition
 
-Một Cell không chỉ có HP.
-
-Nó là:
-
-Cell
-├── identity
-├── faction
-├── position
-├── health
-├── role
-├── connections
-├── abilities
-├── statusEffects
-├── movementState
-└── controlState
-
-Ví dụ:
-
-Cell A
+Phần lớn quan hệ tự tính được từ hình học, không cần nhập tay: dùng Turf.js để tính bearing, giao điểm, chênh lệch góc. Ví dụ, chênh bearing < 10° là song song, 80–100° là vuông góc.
 
-identity = A
-faction = PLAYER
-position = (100, 300)
-health = 32
-role = NORMAL
-connections = [A-B, A-C]
-status = NORMAL
+4. Dữ liệu và API: dùng cái nào?
 
-Một Cell vì thế có State.
+Nguồn chính: OpenStreetMap (miễn phí, hợp pháp để lưu và chỉnh)
 
-4. Nhưng cái quan trọng hơn Cell là CONNECTION
+Overpass API: truy vấn đường, landmark, sông, hồ theo vùng Hà Nội.
+Geofabrik extract Việt Nam: tải dữ liệu thô nếu muốn xử lý offline.
+Nominatim: geocode, nhưng giới hạn ~1 request/giây, chỉ dùng trong script xử lý, không gọi lúc chạy.
+Phải ghi nguồn OSM (giấy phép ODbL).
 
-Đây là điểm tôi nghĩ Brain Pro nên học rất nhiều từ game này.
+Nên tiền xử lý rồi “bake” thành GeoJSON tĩnh, không gọi API lúc người dùng chơi. Lý do:
 
-Game thực chất không phải:
+Vercel serverless và các API công cộng không hợp để gọi nặng.
+Bạn cần chọn lọc: bài tập cần ~200–400 thực thể đã chọn kỹ, không phải toàn bộ OSM.
+Bạn cần kiểm soát lớp nào được ẩn hay hiện.
 
-Cell vs Cell
+Hiển thị
 
-mà là:
+Ưu tiên tự vẽ SVG/Canvas bằng d3-geo (hoặc MapLibre GL với style tự làm). Bài tập cần ẩn tên, ẩn từng lớp, xoay bản đồ, vẽ đè đáp án, mà tile có sẵn không làm được những việc này.
+Không dùng tile của openstreetmap.org cho ứng dụng thật vì vi phạm chính sách sử dụng.
+Nếu cần nền thật: OpenFreeMap, Protomaps (PMTiles tự host) hoặc MapTiler (gói free).
+Google Maps: tốn phí và điều khoản hạn chế việc lưu và biến đổi dữ liệu, không phù hợp.
 
-Cell
-  ↕
-Connection
-  ↕
-Cell
+Mặt trời: thư viện suncalc (offline) cho ra azimuth mặt trời tại Hà Nội (≈21.03°N, 105.85°E) theo ngày và giờ, không cần API.
 
-Ví dụ:
+Lưu trữ: Supabase đã có sẵn Postgres và hỗ trợ PostGIS, nên bạn lưu hình học và truy vấn quan hệ không gian ngay trong DB hiện tại.
 
-A ───────── B
+Cảnh báo thực tế: dữ liệu OSM Việt Nam có chỗ thiếu hoặc sai (tên, đường một chiều). Cần kiểm tra thủ công các thực thể cốt lõi. Quy tắc cấm rẽ và đường một chiều thay đổi theo thời gian, nên bài tập nên tập trung vào cấu trúc ổn định.
 
-Có một relation entity nằm giữa A và B.
+5. Các dạng bài (mode)
+Đặt vào bản đồ trống: kéo landmark, sông, cầu vào đúng vị trí trên nền mờ. Chấm bằng sai số khoảng cách (m) và sai số góc.
+Quiz quan hệ: “Nguyễn Trãi so với Vành đai 3: ⟂ / ∥ / cắt chéo / không cắt?” Câu hỏi tự sinh từ bảng relations.
+Tam giác định vị: cho 2–3 neo kèm hướng/khoảng cách tương đối (“cách Hồ Gươm ~1 km về phía Nam, nằm phía Tây Ga Hà Nội”) rồi người học click vị trí.
+Nhớ chuỗi dọc trục: điền thứ tự các giao lộ hoặc cầu theo một tuyến.
+Đi mù trong đầu (blindfold): “Bạn đứng ở nút X, quay mặt về Đông, rẽ trái, đi qua 2 giao lộ. Bạn đang ở đâu?”
+La bàn mặt trời: “6h sáng mùa đông bạn đứng bờ Hồ Tây, mặt trời mọc ở phía nào so với Hồ Gươm?”
+Dẫn đường A → B: chọn chuỗi các trục và nút đi qua, chấm theo tính hợp lý và độ dài lộ trình.
 
-Trong Brain Pro:
+Cơ chế chống “nhớ hình ảnh”: ở cấp cao, xoay bản đồ (Bắc không còn ở trên), ẩn tên, thay đổi tỷ lệ. Người học phải dùng quan hệ chứ không dùng thuộc lòng bức ảnh.
 
-Connection {
-    sourceCell
-    targetCell
-    length
-    direction
-    healthTransfer
-    attackPower
-    status
-    cuttable
-    createdAt
-}
+6. Cấp độ (khớp hệ Khởi Động → Bứt Phá → Siêu Phàm → Vô Cực)
+Cấp	Nội dung
+1–3 (Khởi Động)	Khung xương: sông Hồng, hồ, các cầu, vành đai, vài landmark neo
+4–6	Các trục xuyên tâm và thứ tự giao cắt với vành đai
+7–9 (Bứt Phá)	Quan hệ landmark ↔ đường, tam giác định vị
+10–12 (Siêu Phàm)	Phố cổ và phố Pháp (lưới dày), đi mù, hướng mặt trời
+Vô Cực	Sinh ngẫu nhiên, xoay bản đồ, giới hạn thời gian, dẫn đường A → B
 
-Tức là:
+Phạm vi “đầy đủ Hà Nội” nên chia thành các gói vùng để không quá tải: Lõi nội thành, Phố cổ, Phố Pháp, Tây Hồ–Bắc, Cầu Giấy–Tây, Hà Đông–Nam, Long Biên–Đông. Mỗi gói có tầng thực thể riêng (thành phố → khu → phố).
 
-Quan hệ không chỉ là một đường nối vô hình. Quan hệ bản thân nó cũng có State.
+7. Chấm điểm và ôn tập
+Mỗi thực thể và mỗi quan hệ là một thẻ trong hệ ôn tập ngắt quãng (SM-2 hoặc FSRS), lưu ở Supabase.
+Hiển thị bản đồ nhiệt điểm yếu (khu vực/quan hệ hay sai) và độ méo bản đồ nhận thức: vị trí người học đặt so với vị trí thật, để thấy mình lệch hướng hay lệch khoảng cách.
+Điểm gồm 3 phần: chính xác vị trí, chính xác quan hệ, tốc độ.
+8. Quy trình xây dựng (MVP trước)
+Chọn phạm vi MVP, ví dụ Lõi nội thành: 1 sông, 3 hồ, 6 cầu, 4 vành đai, ~8 trục chính, ~30 landmark.
+Overpass → script lấy dữ liệu → làm sạch và chọn lọc → xuất GeoJSON.
+Script tự tính quan hệ bằng Turf.js, sau đó kiểm tra thủ công.
+Viết bộ sinh câu hỏi từ relations.
+Làm 3 mode đầu: đặt vào bản đồ, quiz quan hệ, tam giác định vị.
+Thêm ôn tập ngắt quãng, rồi mở rộng sang các gói vùng khác.
 
-Đây là một bước rất quan trọng.
+Bạn muốn mình viết thành file .md kế hoạch chi tiết, hay đi sâu trước vào schema dữ liệu + câu truy vấn Overpass cho gói Lõi nội thành?
+Để xây dựng bài tập **"Thuộc lòng & Định vị Bản đồ Hà Nội" (Hanoi Cognitive Navigation)** tích hợp vào hệ sinh thái 6 trục nhận thức và SRS (SM-2) của [Brain Pro](https://brain-pro-psi.vercel.app/), bạn không nên thiết kế theo kiểu học vẹt tên đường đơn thuần, mà cần xây dựng dựa trên cơ chế **Bản đồ nhận thức không gian (Cognitive Map – Hippocampus)** kết hợp **Định hướng quy chiếu kép**:
 
-5. Vì vậy ta có 3 tầng
+1. **Hệ quy chiếu Bản đồ (Allocentric Frame):** Nhìn từ trên xuống — nắm cấu trúc Vành đai, trục hướng tâm, quan hệ song song (`//`), vuông góc ($\perp$), cắt nhau ($\times$) và phương hướng Đông – Tây – Nam – Bắc.
+2. **Hệ quy chiếu Góc nhìn thứ nhất (Egocentric Frame):** Đứng dưới mặt đất tại một ngã tư — nhìn tòa nhà điểm neo (Landmark), đoán hướng thông qua vị trí Mặt Trời/bóng nắng, nhận diện biển cấm/đường một chiều để quyết định rẽ trái hay rẽ phải.
 
-Đây chính là cách tôi sẽ thiết kế Brain Pro.
+### 1. Mô hình Hóa Thực thể Chính (Core Entities) của Giao thông Hà Nội
 
-Tầng 1 — Entity
-Cell
-Player
-Enemy
-Wall
-Item
-Core
-Board
-Tầng 2 — Relation
-CONNECT
-ATTACK
-HEAL
-CONTROL
-BLOCK
-CUT
-SUPPORT
-TRANSFORM
-TARGET
-CONTAIN
-DEPEND
-Tầng 3 — Dynamics
-Cell A attacks B
-        ↓
-B.HP -= damage
-        ↓
-B.state = damaged
-        ↓
-connection may break
-        ↓
-network changes
-        ↓
-other cells lose/gain effects
+Đặc trưng đô thị Hà Nội không phải là mạng lưới ô bàn cờ vuông vức hoàn toàn (trừ khu Phố Pháp quận Hoàn Kiếm – Ba Đình), mà là **Cấu trúc Mạng nhện Đồng tâm (Radial-Ring)** kết hợp **Địa hình Hồ – Sông tự nhiên**. Cơ sở dữ liệu của bài tập cần chuẩn hóa thành **6 nhóm Thực thể (Nodes & Edges)**:
 
-Đây mới chính là hệ thống nhận thức.
+| Nhóm thực thể (Entity Type) | Vai trò trong Tư duy Định vị | Dữ liệu thực tế tại Hà Nội cần đưa vào bài tập | Thuộc tính dữ liệu cần lưu trữ (Schema) |
+| --- | --- | --- | --- |
+| **1. Điểm Neo Vĩ Mô & Tự Nhiên** *(Macro Anchors & Boundaries)* | Làm "khung xương sống" chia vùng không gian, không bao giờ thay đổi; nhìn thấy là biết mình đang ở khu vực nào. | • **Sông:** Sông Hồng (biên phía Đông/Bắc), Sông Tô Lịch, Sông Nhuệ.<br>
 
-6. Phân tích từng cơ chế trong ảnh
-6.1. Kết nối xúc tu
+<br>• **Hồ lớn:** Hồ Tây, Hồ Hoàn Kiếm, Hồ Bảy Mẫu, Hồ Giảng Võ, Hồ Thủ Lệ, Hồ Linh Đàm. | `id`, `name`, `polygon_geojson`, `centroid_lat_lng`, `bounding_district` |
+| **2. Điểm Neo Thị Giác / Tòa Nhà** *(Visual Landmarks)* | Dùng để định hướng từ xa (tầm nhìn chân trời) hoặc làm mốc xác nhận tại điểm giao cắt. | • **Tầm nhìn xa (Skyline):** Keangnam Landmark 72 (phía Tây), Lotte Center Liễu Giai (Tây Hồ Tây/Ba Đình), TechnoPark/Cầu Nhật Tân.<br>
 
-Ảnh 1:
+<br>• **Mốc giao lộ:** Lăng Bác, Nhà Hát Lớn, Chợ Đồng Xuân, Ga Hà Nội, Bến xe Mỹ Đình/Giáp Bát. | `id`, `name`, `coord`, `height_tier` (*Tầm xa > 3km* vs *Tại chỗ < 300m*), `district`, `adjacent_streets[]` |
+| **3. Trục Đường Giao Thông** *(Street Segments / Edges)* | Tạo mạng lưới liên kết; đặc trưng của Hà Nội là **1 trục thẳng nhưng đổi tên liên tục** qua mỗi ngã tư. | • **Vành đai (Rings):** Vành đai 1 (Trần Khát Chân – Đại Cồ Việt – Xã Đàn – Ô Chợ Dừa – Hoàng Cầu – Đê La Thành – Bưởi), Vành đai 2, Vành đai 3.<br>
 
-Chạm và kéo để kết nối.
+<br>• **Trục hướng tâm (Radials):** Nguyễn Trãi – Tây Sơn – Nguyễn Lương Bằng – Tôn Đức Thắng; Giải Phóng – Lê Duẩn; Cầu Giấy – Xuân Thủy – Hồ Tùng Mậu; Nguyễn Chí Thanh – Trần Duy Hưng. | `id`, `name`, `polyline`, `bearing_angle` (góc phương vị $0^\circ\text{–}360^\circ$), `ring_or_radial`, `one_way` (`true/false/partly`), `speed_tier` |
+| **4. Nút Giao & Cầu Vượt / Hầm Chui** *(Intersections & Junctions)* | Điểm quyết định hành vi rẽ hướng; nơi người đi đường dễ lạc nhất do cầu vượt/hầm chui nhiều tầng. | • **Ngã 4/5/6/7 phức tạp:** Ô Chợ Dừa, Ngã Tư Sở, Vọng, Cầu Giấy, Cửa Nam, Kim Mã – Liễu Giai.<br>
 
-Quan hệ:
+<br>• **Cầu qua sông:** Chương Dương, Long Biên, Vĩnh Tuy, Nhật Tân, Thanh Trì, Thăng Long. | `id`, `name`, `coord`, `connected_street_ids[]`, `junction_type` (*Hầm chui, Cầu vượt, Vòng xuyến*), `restricted_turns[]` |
+| **5. Khu Vực / Ô Phố Đặc Thù** *(Micro-Districts)* | Giúp gom nhóm trí nhớ (Chunking) theo quy luật đặt tên hoặc hình thái. | • **Ô bàn cờ Phố Pháp:** Trần Hưng Đạo – Lý Thường Kiệt – Hai Bà Trưng cắt Hàng Bài – Bà Triệu – Quang Trung – Quán Sứ.<br>
 
-A ── CONNECT ── B
+<br>• **Phố Cổ (36 phố phường):** Các phố Hàng. | `id`, `name`, `grid_type` (*Orthogonal Grid, Radial, Organic*), `street_ids[]` |
+| **6. Thực Thể Môi Trường & Thời Gian** *(Environmental Cues)* | Rèn phản xạ định hướng tự nhiên khi không mở điện thoại (hướng nắng, bóng đổ, giờ cao điểm). | • **Mặt Trời:** Góc phương vị Mặt Trời (Azimuth) và độ cao (Altitude) theo giờ trong ngày tại vĩ độ Hà Nội ($21.0285^\circ\text{ B}$). | `timestamp`, `sun_azimuth`, `sun_altitude`, `shadow_direction` |
 
-Não phải xử lý:
+### 2. Ma trận Mối quan hệ giữa các Thực thể (Relational Graph)
 
-TARGET_POSITION
-+
-SPATIAL_TRANSFORM
-+
-ACTION
+Để hệ thống tự động sinh câu hỏi (Procedural Question Generation) mà không cần nhập tay từng câu, bạn cần thiết lập **5 loại quan hệ toán học – hình học** giữa các thực thể:
 
-Nhưng còn nhiều hơn.
+1. **Quan hệ Hình học Đường – Đường (Geometric Topology):**
+* **Song song (`//`):** Hai đường có độ lệch góc phương vị $\Delta\theta < 12^\circ$ (hoặc $\approx 180^\circ$) và không cắt nhau trong bán kính xét duyệt. *Ví dụ:* `Trần Hưng Đạo // Lý Thường Kiệt // Hai Bà Trưng` (trục Đông – Tây lệch nhẹ); `Bà Triệu // Phố Huế // Hàng Bài // Quang Trung` (trục Bắc – Nam).
+* **Vuông góc ($\perp$):** Hai đường giao nhau và có góc lệch $\Delta\theta \in [78^\circ, 102^\circ]$. *Ví dụ:* `Lý Thường Kiệt` $\perp$ `Bà Triệu`.
+* **Nối tiếp đổi tên (Collinear Continuation $\rightarrow$):** Hai đoạn đường có chung 1 nút giao và góc lệch $\Delta\theta < 15^\circ$. *Ví dụ:* Đi thẳng hết `Trần Duy Hưng` qua gầm cầu vượt Láng là sang `Nguyễn Chí Thanh` $\rightarrow$ qua cầu vượt Liễu Giai là sang `Liễu Giai`.
 
-Não phải hiểu:
 
-"Nếu tôi nối A với B thì một quan hệ mới được tạo ra."
+2. **Quan hệ Chiều Giao thông & Ràng buộc Rẽ (Directional Flow):**
+* **Cặp đường Một chiều đối xứng (Paired One-Way):** Rất phổ biến ở Hà Nội. *Ví dụ:* `Phố Huế` (1 chiều hướng Bắc $\rightarrow$ Nam) đi cặp song song với `Hàng Bài – Bà Triệu` (1 chiều hướng Nam $\rightarrow$ Bắc); hoặc `Lê Duẩn` đoạn một chiều ô tô, `Thụy Khuê – Hoàng Hoa Thám`.
 
-Đây là:
 
-ENTITY → RELATION
-7. Chạm & chạm
+3. **Quan hệ Phương vị Điểm Neo – Vị trí Đứng (Bearing & Line-of-Sight):**
+* Từ tọa độ người dùng $P(x_1, y_1)$ nhìn về Điểm Neo $L(x_2, y_2)$ tạo ra góc phương vị $\alpha$. Nếu người dùng đang đi trên đường `Kim Mã` và thấy tòa **Lotte Center** ở phía trước bên phải khoảng $15^\circ$, suy ra người dùng đang đi theo hướng Đông $\rightarrow$ Tây (về phía Cầu Giấy).
 
-Ảnh 2 cho phép kết nối bằng:
 
-Chạm & Chạm.
+4. **Quan hệ Mặt Trời – Hướng Đường (Solar Orientation):**
+* Tại Hà Nội, lúc **7h30 sáng**, Mặt Trời ở hướng Đông / Đông-Đông Nam ($\approx 90^\circ\text{–}110^\circ$); lúc **16h30 chiều**, Mặt Trời ở hướng Tây / Tây-Tây Nam ($\approx 250^\circ\text{–}270^\circ$).
+* Nếu lúc 16h30 chiều bạn đang chạy xe trên đường mà **nắng chiếu thẳng vào mặt**, bạn đang đi về hướng Tây (ví dụ: đang đi trên trục `Xuân Thủy` hướng về `Hồ Tùng Mậu`, hoặc `Nguyễn Trãi` hướng về `Hà Đông`). Nếu bóng của tòa nhà **Keangnam** đổ dài về phía trước mặt bạn, bạn đang nhìn về hướng Đông.
 
-Tức là:
 
-Select A
-   ↓
-Select B
-   ↓
-CREATE(A,B)
+5. **Quan hệ Bao hàm & Cắt Vành Đai (Containment & Ring-Crossing):**
+* Xác định một con đường nằm **trong** hay **ngoài** Vành đai 1 / Vành đai 2 / Vành đai 3, và đi từ Quận A sang Quận B thì phải cắt qua cây cầu hay nút giao Vành đai nào.
 
-Đây là một dạng quan hệ lựa chọn hai bước.
 
-Brain Pro có thể tận dụng cực tốt:
 
-chọn Entity A
-→ chọn Entity B
-→ xác định loại quan hệ
-→ tạo relation
+### 3. Hệ sinh thái API & Thư viện (Miễn phí / Mã nguồn mở) Tận dụng Trực tiếp
 
-Ví dụ:
+Bạn hoàn toàn có thể xây dựng bài tập này với **chi phí $0** và tốc độ phản hồi tức thời (60fps) bằng cách kết hợp các API và thư viện chuẩn sau:
 
-"A lớn hơn B"
+| Thành phần Kỹ thuật | Công cụ / API khuyên dùng | Cách tận dụng cụ thể trong bài tập |
+| --- | --- | --- |
+| **Hiển thị Bản đồ Vector (3D & Tùy biến lớp)** | [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/) *(kết hợp nguồn tile miễn phí từ OpenFreeMap hoặc Protomaps)* | • Cho phép **ẩn toàn bộ nhãn tên đường (Street Labels)** bằng 1 dòng code (`map.setLayoutProperty(..., 'visibility', 'none')`) để tạo "Bản đồ câm" cho người dùng điền tên.<br>
 
-"A nằm bên trái B"
+<br>• Hỗ trợ xoay góc nhìn bản đồ $360^\circ$ (`bearing`), nghiêng góc 3D (`pitch: 60`) và dựng khối tòa nhà 3D (`fill-extrusion`) để mô phỏng góc nhìn người đi đường nhìn các tòa nhà cao tầng. |
+| **Trích xuất Dữ liệu Đường, Ngã tư & Điểm neo** | [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) ([Overpass QL](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL)) | • Dùng truy vấn Overpass QL để lấy toàn bộ tọa độ hình học (`way["highway"]`), chiều đường (`oneway=yes`), cầu vượt (`bridge=yes`, `layer=1`), hồ nước (`natural=water`) và các tòa nhà nổi tiếng (`building`, `tourism=attraction`) tại Hà Nội về lưu thành file tĩnh `hanoi_graph.json` (dung lượng chỉ ~2–3MB sau khi lọc các đường chính) để chạy offline siêu mượt trên Vercel. |
+| **Tính toán Hình học: Song song, Vuông góc, Giao điểm** | [Turf.js](https://turfjs.org/docs/intro) | • `turf.bearing(pt1, pt2)`: Tính góc phương vị của từng đoạn đường để tự động phân loại cặp đường **Song song (`//`)** hay **Vuông góc ($\perp$)**.<br>
 
-"A phụ thuộc B"
+<br>• `turf.lineIntersect(roadA, roadB)`: Tự động tìm tọa độ chính xác của mọi ngã tư giữa 2 con đường.<br>
 
-"A là nguyên nhân của B"
+<br>• `turf.distance(userPt, landmarkPt)`: Tính khoảng cách chim bay đến các tòa nhà điểm neo. |
+| **Định tuyến Thực tế & Kiểm tra Đường 1 chiều** | [Project OSRM API](https://project-osrm.org/docs/v5.5.1/api/) | • Dùng API `/route/v1/driving/` để kiểm tra lộ trình tối ưu thực tế từ điểm A đến điểm B (có tính đến đường 1 chiều, cấm rẽ trái) và chấm điểm xem lộ trình người dùng vạch ra ngắn hơn hay dài hơn lộ trình chuẩn bao nhiêu mét. |
+| **Tính Góc Mặt Trời & Hướng Bóng Đổ** | [SunCalc](https://github.com/mourner/suncalc) | • Truyền tọa độ Hà Nội `(21.0285, 105.8542)` và giờ bất kỳ vào `SunCalc.getPosition(date, lat, lng)` để lấy chính xác góc phương vị Mặt Trời (`azimuth`) và góc cao (`altitude`), từ đó vẽ mũi tên ánh nắng và hướng bóng đổ của tòa nhà trực tiếp trên bản đồ. |
+| **Tra cứu Tọa độ & Địa danh Tức thời** | [Nominatim API](https://nominatim.org/release-docs/latest/api/Search/) | • Hỗ trợ tìm kiếm địa danh hoặc chuyển đổi ngược từ cú click chuột trên bản đồ (`Reverse Geocoding`) ra tên phố và tên phường/quận tại Hà Nội. |
 
-8. Cắt xúc tu gần
+### 4. Thiết kế 5 Chế độ Bài tập (Game Modes) Sát Thực tế Giao thông Hà Nội
 
-Ảnh cho thấy:
+Để người dùng tiến bộ từ "mù đường" đến "thuộc lòng bản đồ Hà Nội trong đầu", bài tập nên chia thành **5 chế độ tương tác** gắn liền với các trục năng lực sẵn có trên [Brain Pro](https://brain-pro-psi.vercel.app/):
 
-Cắt gần điểm kết nối → tấn công nhiều tế bào hơn.
+#### Chế độ 1: Giải phẫu Khung Xương Đô Thị (Skeleton & Ring Builder)
 
-Đây là một cơ chế cực hay.
+* **Mục tiêu:** Nắm vững 3 Vành đai, 8 trục hướng tâm và 6 hồ/sông lớn trước khi học phố nhỏ.
+* **Cách chơi:** Hiển thị bản đồ Hà Nội ở trạng thái **Câm (chỉ có sông, hồ và nét vẽ các trục đường chính, không có chữ)**. Hệ thống đưa ra chuỗi nối tiếp (ví dụ: *"Hãy click theo thứ tự 5 đoạn đường nối tiếp nhau tạo thành Vành đai 1 từ Đông sang Tây"* $\rightarrow$ Người dùng phải click đúng chuỗi: `Trần Khát Chân` $\rightarrow$ `Đại Cồ Việt` $\rightarrow$ `Xã Đàn` $\rightarrow$ `Ô Chợ Dừa` $\rightarrow$ `Hoàng Cầu`).
 
-Bởi vì:
+#### Chế độ 2: Phản xạ Quan hệ Hình học `//` & $\perp$ (Grid Topology Blitz)
 
-Distance(cutPoint, connectionPoint)
+* **Mục tiêu:** Luyện tư duy mạng lưới không gian (Allocentric) – biết đường nào cắt đường nào, đường nào song song để tìm đường tránh tắc.
+* **Cách chơi:** Bấm giờ nhanh (giống nhịp độ của các bài tập Phản xạ trên [Brain Pro](https://brain-pro-psi.vercel.app/)):
+* **Dạng 1 (Ma trận `//` và $\perp$):** Đề bài cho đường gốc `Lý Thường Kiệt`. Hiển thị 6 thẻ tên phố (`Hai Bà Trưng`, `Bà Triệu`, `Trần Hưng Đạo`, `Quang Trung`, `Phố Huế`, `Phan Bội Châu`). Người dùng phải kéo nhanh vào 2 cột: **Song song (`//`)** hoặc **Vuông góc ($\perp$)**.
+* **Dạng 2 (Tìm Giao điểm):** *"Đường `Nguyễn Thái Học` và đường `Chu Văn An` có cắt nhau không? Nếu có, tại đó có công trình/điểm neo nào?"*
 
-ảnh hưởng đến kết quả.
 
-Tức:
 
-ACTION
-   +
-POSITION
-   ↓
-OUTCOME
+#### Chế độ 3: Định vị bằng Điểm Neo & Hướng Mặt Trời (Sun & Landmark Triangulation)
 
-Không phải chỉ:
+* **Mục tiêu:** Rèn kỹ năng xác định phương hướng và vị trí khi đứng giữa đường mà không có GPS.
+* **Cách chơi:** Màn hình hiển thị góc nhìn 3D giả lập (hoặc bản đồ xoay lệch hướng Bắc ngẫu nhiên — **Unaligned North**) kèm thông tin ngữ cảnh:
+* **Đề bài mẫu:** *"Hiện tại là **17h00 chiều**. Mặt trời đang chiếu từ phía **bên trái** tay lái của bạn. Trước mặt bạn cách 1.2km chếch về bên phải là tòa **Lotte Center**. Bạn đang đứng trước cổng **Công viên Thủ Lệ**. Hỏi: (1) Bạn đang quay mặt về hướng nào (Đông/Tây/Nam/Bắc)? (2) Bạn đang đứng trên đường nào? (3) Muốn đi về **Hồ Hoàn Kiếm** thì tại ngã tư tiếp theo bạn phải rẽ hướng nào?"*
+* **Công cụ hỗ trợ trên UI:** Hiển thị vòng tròn góc chiếu nắng tính từ [SunCalc](https://github.com/mourner/suncalc) và tia ngắm (Line-of-sight) nối tới các tòa nhà cao tầng.
 
-cut = true
 
-mà:
 
-cut(distance = d)
+#### Chế độ 4: Thử thách "Thả Dù Mù" & Tìm Đường (Blind Drop & Mental Routing)
 
-→ hậu quả thay đổi.
+* **Mục tiêu:** Kết hợp xác định **Vị trí hiện tại (Current Location)** và lập lộ trình tới **Vị trí mong muốn (Target Destination)** có tính đến bẫy đường 1 chiều tại Hà Nội.
+* **Cách chơi:**
+1. **Pha 1 – Xác định vị trí đứng:** Hệ thống đặt người dùng tại một ngã tư ẩn tên, chỉ hiện 2 gợi ý thực thể xung quanh (ví dụ: *"Cách Hồ Gươm 400m về phía Nam, giao giữa một đường 1 chiều hướng Nam $\rightarrow$ Bắc và một đường 2 chiều có nhiều cây sấu"*). Người dùng phải chấm đúng vị trí mình đang đứng trên bản đồ câm (`Ngã tư Hàng Bài – Trần Hưng Đạo`).
+2. **Pha 2 – Dẫn đường trong đầu (Mental Navigation):** Yêu cầu đi từ vị trí vừa tìm được tới **Lăng Bác** nhưng **không hiển thị bản đồ ở giữa**, người dùng phải chọn tuần tự các nút rẽ: *Đi thẳng `Hàng Bài` hay rẽ trái `Trần Hưng Đạo`? $\rightarrow$ Gặp `Quán Sứ` hay `Lê Duẩn` thì rẽ phải? $\rightarrow$ Đi tiếp qua `Điện Biên Phủ`...* Hệ thống dùng [Project OSRM API](https://project-osrm.org/docs/v5.5.1/api/) để chấm xem người dùng có đi ngược chiều đoạn nào không (ví dụ: rẽ nhầm vào chiều cấm của `Lê Duẩn` hay `Nguyễn Thái Học` sẽ bị báo lỗi ngay).
 
-Brain Pro có thể biến thành:
 
-Relationship Intervention
 
-Ví dụ:
+#### Chế độ 5: Radar Khoảng cách & Phương vị Tâm Tưởng (Mental Compass)
 
-A ───────── B
+* **Mục tiêu:** Căn chỉnh cảm giác khoảng cách và góc phương vị chính xác giữa các địa danh Hà Nội.
+* **Cách chơi:** Đưa người dùng về đứng tại một tâm cố định (ví dụ: **Ngã Tư Sở** và đang nhìn thẳng về hướng **Nguyễn Trãi – Hà Đông**). Hệ thống hỏi liên tiếp 5 địa danh (*Hồ Tây, Bến xe Giáp Bát, SVĐ Mỹ Đình, Cầu Vĩnh Tuy, Lăng Bác*): người dùng xoay một **vòng la bàn 360°** trên màn hình để chỉ hướng tương đối (trước mặt, sau lưng, 2 giờ, 8 giờ...) và ước lượng khoảng cách ($km$).
 
-Người chơi chọn vị trí can thiệp.
+### 5. Phân cấp 12 Cấp độ Chuẩn + Vô Cực (Tích hợp đồng bộ với Brain Pro)
 
-Gần A:
+Để bài tập khớp hoàn toàn với kiến trúc **Stage I – II – III – Vô Cực** và **SRS (SM-2)** hiện có trên [Brain Pro](https://brain-pro-psi.vercel.app/), bạn có thể thiết kế tiến trình độ khó như sau:
 
-effect_A = high
-effect_B = low
+| Giai đoạn | Cấp độ | Phạm vi Bản đồ & Nội dung rèn luyện | Ràng buộc nhận thức (Cognitive Constraints) |
+| --- | --- | --- | --- |
+| **Stage I: Khởi Động** *(Khung Xương & Hồ Lớn)* | **Cấp 1 – 4** | • **Cấp 1:** 6 Hồ lớn, Sông Hồng, Sông Tô Lịch & 4 hướng Đông – Tây – Nam – Bắc.<br>
 
-Gần B:
+<br>• **Cấp 2:** 3 Tuyến Vành đai (VĐ1, VĐ2, VĐ3) & các Cầu qua sông Hồng.<br>
 
-effect_A = low
-effect_B = high
+<br>• **Cấp 3:** 8 Trục hướng tâm chính & các chuỗi đường nối tiếp đổi tên.<br>
 
-Sau đó chuyển sang những domain khác:
+<br>• **Cấp 4:** 20 Điểm neo Tòa nhà / Địa danh biểu tượng khắp Hà Nội. | Bản đồ luôn cố định **Hướng Bắc ở trên (North-Up)**; hiển thị đầy đủ đường viền sông/hồ làm mốc. |
+| **Stage II: Bứt Phá** *(Lưới Phố & Quan hệ `//`, $\perp$)* | **Cấp 5 – 8** | • **Cấp 5:** Khu vực **Hoàn Kiếm – Ba Đình** (Ô bàn cờ Phố Pháp, quan hệ `//` và $\perp$, bẫy đường 1 chiều).<br>
 
-Cause ───────── Effect
+<br>• **Cấp 6:** Khu vực **Đống Đa – Hai Bà Trưng** (Nút giao Ô Chợ Dừa, Ngã Tư Sở, Vọng, Đại Cồ Việt).<br>
 
-Người chơi phải chọn:
+<br>• **Cấp 7:** Khu vực **Cầu Giấy – Tây Hồ – Nam Từ Liêm** (Trục Xuân Thủy, Trần Duy Hưng, Vành đai 2.5 & 3).<br>
 
-Can thiệp vào đâu để ảnh hưởng mạnh nhất đến hệ thống?
+<br>• **Cấp 8:** Khu vực **Thanh Xuân – Hoàng Mai – Hà Đông – Long Biên**. | Bản đồ **xoay góc ngẫu nhiên (Rotated Map)** buộc người dùng phải dựa vào quan hệ tương đối giữa các đường và điểm neo thay vì nhìn hướng Bắc cố định. |
+| **Stage III: Siêu Phàm** *(Định hướng Mặt Trời & Dẫn đường)* | **Cấp 9 – 12** | • **Cấp 9:** Định vị góc nhìn thứ nhất qua **Hướng Mặt Trời + Bóng Tòa nhà** theo giờ trong ngày.<br>
 
-Đây là một bài tập causal reasoning.
+<br>• **Cấp 10:** Dẫn đường vượt bẫy **Đường 1 chiều & Cấm rẽ** giờ cao điểm.<br>
 
-9. Cắt xa
+<br>• **Cấp 11:** Dẫn đường đa tầng qua các nút **Hầm chui – Cầu vượt – Vòng xuyến**.<br>
 
-Ảnh:
+<br>• **Cấp 12:** **Blind Navigation:** Ẩn 80% nét bản đồ, chỉ cho Điểm xuất phát + Điểm đích + 2 Điểm neo để tự vạch lộ trình. | Kết hợp cả hệ quy chiếu **Egocentric** (Trái/Phải trước mặt) và **Allocentric** (Đông/Tây/Nam/Bắc) dưới áp lực thời gian. |
+| **Stage IV: Vô Cực** *(Thử thách Thực chiến)* | **∞-I đến ∞-V** | • **∞-I:** *36 Phố Phường Mê Cung* (Phố cổ Hoàn Kiếm nối tiếp nhau).<br>
 
-Cắt xa điểm kết nối → có thể chữa lành nhiều tế bào hơn.
+<br>• **∞-II:** *Rush Hour Reroute* (Đang đi thì 1 nút giao bị tắc đỏ, phải tìm ngay đường `//` kế bên để thoát trong 5s).<br>
 
-Đây là một biến thể cực tốt để luyện:
+<br>• **∞-III:** *Night & Fog Navigation* (Không có Mặt Trời, tầm nhìn giới hạn, chỉ định vị bằng chuỗi ngã tư vừa đi qua). | Tích hợp trực tiếp vào **SRS Memory (SM-2)**: Ngã tư nào rẽ nhầm hoặc cặp đường nào nhớ sai quan hệ `//`, $\perp$ sẽ tự động được lưu vào tab *Lịch sử sai* để nhắc ôn lại. |
 
-Spatial relation → outcome relation
-distance
-   ↓
-number of affected nodes
-   ↓
-healing amount
+### 6. Quy trình Triển khai Kỹ thuật Từng bước (Implementation Blueprint)
 
-Có thể tạo thành:
+1. **Bước 1 – Xây dựng Script tạo dữ liệu tĩnh (`build-hanoi-graph.js`):**
+* Gọi [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) một lần duy nhất trong quá trình phát triển để lấy các trục đường chính (`highway~"trunk|primary|secondary|tertiary"`) và các địa danh nổi tiếng trong phạm vi nội thành Hà Nội.
+* Dùng [Turf.js](https://turfjs.org/docs/intro) chạy tiền xử lý (Pre-compute): Tính sẵn góc phương vị trung bình của từng con đường, lập danh sách `parallel_streets[]`, `perpendicular_streets[]`, `collinear_continuations[]` và `landmarks_nearby[]` cho từng con đường rồi xuất ra file `hanoi_cognitive_graph.json`. Cách này giúp ứng dụng trên Vercel không bị phụ thuộc tốc độ mạng khi người dùng đang làm bài tập tốc độ cao.
 
-POSITION
-   ↓
-RELATION PROPERTY
-   ↓
-SYSTEM EFFECT
 
-Đây là một trong những mechanics tôi sẽ giữ nguyên ý tưởng cho Brain Pro.
+2. **Bước 2 – Tích hợp Component Bản đồ Câm & La bàn Mặt Trời:**
+* Nhúng [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/) vào giao diện bài tập với 2 chế độ hiển thị: **Chế độ Học (Study Mode)** có bật lớp màu phân biệt Vành đai 1–2–3 / Trục hướng tâm, và **Chế độ Thi (Quiz Mode)** tắt toàn bộ chữ (`symbol` layers), chỉ giữ lại hình học đường, sông hồ và khối 3D của các Điểm neo.
+* Tạo một Widget **La bàn Mặt Trời (Solar Compass)** ở góc màn hình sử dụng [SunCalc](https://github.com/mourner/suncalc): khi câu hỏi đặt mốc thời gian (ví dụ `08:00 AM` hoặc `16:45 PM`), Widget sẽ chiếu vệt sáng song song qua toàn bộ mặt phẳng bản đồ để người dùng trực quan hóa hướng nắng và bóng râm.
 
-10. Tường
 
-Ảnh:
+3. **Bước 3 – Liên kết với 6 Trục Năng Lực & SRS của [Brain Pro](https://brain-pro-psi.vercel.app/):**
+* Bài tập này sẽ đóng góp điểm XP trực tiếp vào 3 trục trên **Sơ đồ Radar**: **Trí nhớ** (nhớ tên đường & vị trí điểm neo), **Thị giác ngoại vi / Không gian** (ước lượng góc phương vị, khoảng cách và quan hệ `//`, $\perp$), và **Phản xạ** (xử lý rẽ hướng tại giao lộ).
+* Mỗi khi người dùng trả lời sai một mối quan hệ (ví dụ: nhầm `Hai Bà Trưng` song song với `Bà Triệu` thay vì vuông góc, hoặc đi ngược chiều `Phố Huế`), hệ thống đẩy ngay cặp thực thể `[Hai Bà Trưng <-> Bà Triệu: Vuông góc]` vào bảng **Lịch sử sai (SRS SM-2)** hiện có của trang web.
 
-Không thể kết nối qua tường.
 
-Đây là:
 
-A ──X── B
-      WALL
-
-Tức:
-
-OBSTACLE
-   ↓
-CONSTRAINT
-   ↓
-RELATION FORBIDDEN
-
-Điều này liên kết rất đẹp với cách bạn đang suy nghĩ về:
-
-Rule → Condition → Allowed / Forbidden
-
-Ví dụ:
-
-IF obstacle_between(A,B)
-THEN CONNECT(A,B) = FORBIDDEN
-
-Đây chính là ràng buộc.
-
-11. Không thể cắt
-
-Một ảnh khác:
-
-Nếu cắt tại điểm kết nối thì tất cả tế bào sẽ được sử dụng để chữa lành.
-
-Ở đây action giống nhau:
-
-CUT
-
-nhưng:
-
-cut_position
-
-khác → outcome khác.
-
-Đây là:
-
-Context-sensitive action
-
-Cùng một hành động:
-
-CUT
-
-nhưng:
-
-context A → outcome A
-context B → outcome B
-
-Đây là một cơ chế cực kỳ đáng đưa vào Brain Pro.
-
-12. Tế bào phòng thủ
-
-Ảnh:
-
-Các tế bào được khôi phục ngay cả khi xúc tu kết nối với tế bào phòng thủ bị cắt.
-
-Ta có:
-
-DefenseCell
-       ↓
-   SUPPORT
-   /   |   \
- Cell Cell Cell
-
-Một Entity tạo ảnh hưởng lên nhiều Entity khác thông qua quan hệ.
-
-Đây là:
-
-ONE → MANY
-
-Rất quan trọng cho tư duy hệ thống.
-
-13. Tế bào tấn công
-
-Ảnh:
-
-2x tấn công khi tấn công kẻ thù.
-
-Ta có:
-
-Cell.role = ATTACKER
-
-sau đó:
-
-ATTACK
-   ↓
-damage × 2
-
-Tức:
-
-Entity State
-      ↓
-modifies
-      ↓
-Relation Effect
-
-Đây là một khái niệm cực quan trọng:
-
-State của Entity có thể thay đổi Dynamics của Relation.
-
-14. Tế bào chữa trị
-
-Ảnh:
-
-Ally 18
-   ↓ +2
-Healer 23
-   ↓ -1
-Enemy 23
-
-Và:
-
-2x chữa trị khi chữa trị đồng minh.
-
-Ta có:
-
-HEALER
-   ↓
-HEAL
-   ↓
-ALLY
-
-Trong khi:
-
-ATTACKER
-   ↓
-ATTACK
-   ↓
-ENEMY
-
-Hai relation có cùng cấu trúc:
-
-SOURCE → ACTION → TARGET
-
-nhưng semantics khác nhau.
-
-15. Biến đổi tế bào
-
-Ảnh:
-
-Biến tế bào kẻ thù thành tế bào đồng minh.
-
-Đây là mechanics rất mạnh cho Brain Pro:
-
-Enemy
-  ↓
-TRANSFORM
-  ↓
-Ally
-
-Ở đây Identity không nhất thiết đổi, nhưng:
-
-Faction
-State
-Relations
-
-đổi.
-
-Tức:
-
-STATE TRANSITION
-
-Ví dụ:
-
-Enemy
-→ Neutral
-→ Ally
-
-Đây là bài tập rất tốt để luyện:
-
-Nhận ra cùng một thực thể nhưng trạng thái đã thay đổi.
-
-16. Đóng băng
-Enemy
-   ↓
-FREEZE
-   ↓
-Movement = disabled
-
-Đây là:
-
-StatusEffect
-
-Nó không tiêu diệt Entity.
-
-Nó thay đổi khả năng hành động của Entity.
-
-Đây là distinction rất quan trọng:
-
-ENTITY EXISTENCE
-≠
-ENTITY CAPABILITY
-
-Brain Pro nên có cả loại bài này.
-
-17. Ô lõi
-
-Ảnh:
-
-Nếu điều khiển Ô lõi, bạn cũng điều khiển các ô còn lại.
-
-Đây là một mechanics cực kỳ hay.
-
-Ví dụ:
-
-       B
-       |
-A ─── CORE ─── C
-       |
-       D
-
-CORE là:
-
-central node
-
-Nếu CORE bị chiếm:
-
-control(CORE)
-       ↓
-control(network)
-
-Đây là:
-
-Network Centrality
-
-Não phải phát hiện:
-
-"Không phải mọi Node đều quan trọng như nhau."
-
-Một node có thể có:
-
-high degree
-high influence
-high dependency
-
-Đây là một năng lực tư duy hệ thống rất đáng luyện.
-
-18. Xúc tu thưởng
-
-Nhận +1 xúc tu.
-
-Tức:
-
-RESOURCE
-   ↓
-CAPACITY
-
-Ví dụ:
-
-tentacleCapacity = 3
-
-nhận item:
-
-tentacleCapacity = 4
-
-Đây không phải chỉ là điểm.
-
-Nó thay đổi khả năng tạo quan hệ trong tương lai.
-
-Rất quan trọng.
-
-19. Đá quý / item
-
-Item trong game không đơn thuần là:
-
-+score
-
-mà là:
-
-ITEM
- ↓
-MODIFIER
- ↓
-ENTITY STATE
- ↓
-RELATION DYNAMICS
-
-Đây chính là kiến trúc mà Brain Pro nên sử dụng.
-
-20. Zoom / Pan
-
-Hai ảnh cuối:
-
-Di chuyển màn hình.
-
-Phóng to / thu nhỏ.
-
-Đây tưởng như chỉ là UI nhưng thực ra có thể dùng để luyện:
-
-SPATIAL REPRESENTATION
-
-Não phải duy trì:
-
-world coordinate
-        ↕
-screen coordinate
-
-Đặc biệt nếu bạn đưa vào Brain Pro:
-
-zoom
-rotate
-pan
-perspective
-
-thì nó trở thành:
-
-Spatial Transformation Training
-
-đúng với SPATIAL_TRANSFORM mà Brain Pro hiện tại đã có.
-
-21. Bây giờ ta trừu tượng hóa toàn bộ game
-
-Không còn:
-
-tế bào xanh, tế bào đỏ.
-
-Mà thành:
-
-                    SYSTEM
-                      │
-        ┌─────────────┼─────────────┐
-        ↓             ↓             ↓
-     ENTITY        RELATION      ENVIRONMENT
-        │             │             │
-        ↓             ↓             ↓
-      STATE         STATE        CONSTRAINT
-        │             │             │
-        └─────────────┼─────────────┘
-                      ↓
-                  ACTION
-                      ↓
-                  TRANSITION
-                      ↓
-                NEW STATE
-
-Đây chính là engine nhận thức.
-
-22. Và đây là thứ Brain Pro nên lấy
-
-Tôi sẽ không tạo:
-
-Cell Expansion Wars clone.
-
-Tôi sẽ tạo một subsystem:
-
-🧠 Relational Dynamics Engine
-
-Nó là engine chung cho hàng loạt game.
-
-23. Entity model của Brain Pro
-
-Tôi đề xuất một ontology thống nhất:
-
-Entity
-│
-├── Object
-│   ├── Person
-│   ├── Animal
-│   ├── Tool
-│   ├── Number
-│   ├── Word
-│   ├── Shape
-│   ├── Sound
-│   ├── Location
-│   └── Concept
-│
-├── State
-│   ├── Position
-│   ├── Size
-│   ├── Value
-│   ├── Color
-│   ├── Health
-│   ├── Status
-│   ├── Capacity
-│   └── Role
-│
-├── Relation
-│   ├── Spatial
-│   ├── Temporal
-│   ├── Causal
-│   ├── Logical
-│   ├── Comparative
-│   ├── Hierarchical
-│   ├── Dependency
-│   ├── Sequence
-│   └── Semantic
-│
-└── Environment
-    ├── Boundary
-    ├── Obstacle
-    ├── Rule
-    ├── Resource
-    └── Distractor
-24. Quan hệ cần luyện
-
-Đây mới là phần quan trọng nhất.
-
-Tôi sẽ mở rộng 12 relation hiện tại của Brain Pro thành một ontology quan hệ lớn, nhưng vẫn map về 12 cognitive relations hiện tại.
-
-Nhóm A — Spatial
-LEFT_OF
-RIGHT_OF
-ABOVE
-BELOW
-NEAR
-FAR
-INSIDE
-OUTSIDE
-TOUCHING
-OVERLAPPING
-CONNECTED
-SEPARATED
-Nhóm B — Temporal
-BEFORE
-AFTER
-DURING
-SIMULTANEOUS
-REPEAT
-DELAY
-ACCELERATE
-SLOW
-Nhóm C — Comparative
-GREATER
-LESS
-EQUAL
-SIMILAR
-DIFFERENT
-STRONGER
-WEAKER
-FASTER
-SLOWER
-Nhóm D — Causal
-CAUSE
-EFFECT
-ENABLE
-PREVENT
-TRIGGER
-AMPLIFY
-REDUCE
-TRANSFORM
-Nhóm E — Structural
-PART_OF
-WHOLE_OF
-CONTAINS
-DEPENDS_ON
-SUPPORTS
-CONTROLS
-CENTRAL_TO
-PERIPHERAL_TO
-Nhóm F — Logical
-IF
-THEN
-ELSE
-AND
-OR
-NOT
-XOR
-EXCEPTION
-Nhóm G — Action
-SELECT
-MOVE
-CONNECT
-DISCONNECT
-ATTACK
-DEFEND
-HEAL
-TRANSFORM
-FREEZE
-SPLIT
-MERGE
-25. Nhưng đừng dừng ở relation
-
-Đây là điểm tôi muốn nâng Brain Pro lên một tầng.
-
-Mỗi Relation phải có property.
-
-Ví dụ:
-
-A ── CONNECT ── B
-
-không đủ.
-
-Phải là:
-
-CONNECT
-├── distance = 120
-├── direction = 45°
-├── strength = 0.8
-├── duration = 4s
-├── capacity = 2
-└── status = ACTIVE
-
-Tức:
-
-Relation cũng có State.
-
-Đây là một bước rất mạnh về mặt mô hình hóa.
-
-26. Và Action cũng có State
-
-Ví dụ:
-
-CUT
-├── position
-├── direction
-├── force
-├── timing
-└── target
-
-Do đó:
-
-Outcome =
-f(
-    EntityState,
-    RelationState,
-    ActionState,
-    EnvironmentState
-)
-
-Đây có thể trở thành công thức lõi của Brain Pro.
-
-27. Ví dụ một trial
-
-Giả sử:
-
-A = green cell
-HP = 50
-
-B = red cell
-HP = 30
-
-A ─────── B
-
-Người chơi cắt dây.
-
-Input:
-
-{
-  "action": "CUT",
-  "relation": "A-B",
-  "position": 0.2
-}
-
-Engine:
-
-position = 0.2
-        ↓
-near A
-        ↓
-A receives effect
-B receives effect
-        ↓
-update state
-
-Telemetry không chỉ lưu:
-
-correct = true
-
-mà:
-
-{
-  "relationType": "DISTANCE_TO_RELATION_POINT",
-  "action": "CUT",
-  "prediction": "A_HIGH_EFFECT",
-  "actual": "A_HIGH_EFFECT",
-  "reactionTime": 842,
-  "distanceError": 0.04,
-  "confidence": 0.71
-}
-
-Đây mới là telemetry đáng giá.
-
-28. Brain Pro phải luyện Prediction chứ không chỉ Reaction
-
-Đây là thay đổi lớn tôi đề xuất.
-
-Game hiện tại chủ yếu:
-
-SEE
-→ ACT
-→ SCORE
-
-Brain Pro nên:
-
-SEE
-→ BUILD RELATIONAL MODEL
-→ PREDICT
-→ ACT
-→ OBSERVE
-→ COMPARE PREDICTION VS RESULT
-→ UPDATE MODEL
-
-Ví dụ trước khi cắt:
-
-"Nếu cắt ở đây, tế bào nào sẽ bị ảnh hưởng?"
-
-Người chơi chưa được hành động ngay.
-
-Phải chọn:
-
-A
-B
-C
-
-và mức độ:
-
-HIGH
-MEDIUM
-LOW
-
-Sau đó mới cắt.
-
-Đây là cách biến game thành mental simulation.
-
-29. Tôi sẽ tạo 6 lớp difficulty
-Level 1 — Direct Relation
-A → B
-
-Ví dụ:
-
-A bên trái B.
-
-Level 2 — Multi-relation
-A → B
-B → C
-
-Câu hỏi:
-
-A có quan hệ gì với C?
-
-Level 3 — Hidden relation
-A → B → C
-
-Không hiển thị trực tiếp A-C.
-
-Não phải suy luận.
-
-Level 4 — Dynamic relation
-State₀
- ↓
-Action
- ↓
-State₁
-
-Người chơi dự đoán State₁.
-
-Level 5 — Cascading dynamics
-A
- ↓
-B
- ↓
-C
- ↓
-D
-
-Một action tại A ảnh hưởng D.
-
-Level 6 — Conflicting relations
-A ─ SUPPORT → B
-A ─ BLOCK → C
-B ─ ATTACK → C
-
-Người chơi phải xác định:
-
-relation nào thắng?
-
-Đây là cấp độ rất cao.
-
-30. Một game Brain Pro lấy trực tiếp cảm hứng từ Cell Wars
-
-Tôi sẽ đặt tên tạm:
-
-Relational Network
-
-Màn hình:
-
-        A
-       / \
-      /   \
-     B     C
-     |     |
-     D ─── E
-
-Mỗi Node có:
-
-value
-state
-role
-
-Mỗi Edge có:
-
-relation
-strength
-distance
-direction
-status
-31. Mode 1 — Connect
-
-Nhiệm vụ:
-
-Nối A với C.
-
-Luyện:
-
-TARGET_POSITION
-SPATIAL_TRANSFORM
-32. Mode 2 — Predict
-
-Hiện:
-
-A ─── B ─── C
-
-Thông báo:
-
-Nếu B bị loại bỏ, điều gì xảy ra?
-
-Các lựa chọn:
-
-A vẫn kết nối C
-A mất kết nối C
-C biến mất
-Không thay đổi
-
-Luyện:
-
-PART_WHOLE
-DEPENDENCY
-CAUSAL
-33. Mode 3 — Cut
-
-Giống Cell Wars nhưng abstract.
-
-A ───────── B
-
-Có 3 điểm cắt.
-
-Người chơi phải chọn:
-
-Điểm nào tạo outcome X?
-
-Luyện:
-
-SPATIAL_RELATION
-CAUSAL_RELATION
-DISTANCE
-34. Mode 4 — Repair
-A ─── B ─── C
-
-Bị hỏng.
-
-Người chơi phải tìm:
-
-Node nào sửa được nhiều thành phần nhất?
-
-Đây chính là:
-
-NETWORK CENTRALITY
-DEPENDENCY
-PART-WHOLE
-35. Mode 5 — Transform
-Enemy → Ally
-
-Nhưng sau khi biến đổi:
-
-A → B
-B → C
-
-các relation cũng thay đổi.
-
-Người chơi phải dự đoán:
-
-Network mới sẽ như thế nào?
-
-Đây là:
-
-STATE TRANSITION
-36. Mode 6 — Rule
-
-Ví dụ:
-
-IF
-    A is red
-AND
-    B is connected
-THEN
-    C becomes frozen
-
-Sau đó thay đổi một State.
-
-Người chơi phải dự đoán.
-
-Đây chính là:
-
-RULE
-+
-STATE
-→
-DYNAMICS
-37. Mode 7 — Core
-
-Cho network:
-
-      B
-      |
-A ─── C ─── D
-      |
-      E
-
-C hỏi:
-
-Nếu C mất thì mạng thay đổi thế nào?
-
-Không cần tính toán số học.
-
-Chỉ cần hiểu:
-
-CENTRALITY
-DEPENDENCY
-38. Mode 8 — Multi-step
-
-Ví dụ:
-
-Action 1:
-A attacks B
-
-Action 2:
-B becomes damaged
-
-Action 3:
-B loses connection C
-
-Action 4:
-C becomes isolated
-
-Người chơi phải dự đoán 4 state transition.
-
-Đây là:
-
-Mental simulation
-39. Mode 9 — Memory Network
-
-Cho người chơi nhìn:
-
-A ─ B
-B ─ C
-A ─ D
-D ─ E
-
-3 giây.
-
-Sau đó xoá network.
-
-Hỏi:
-
-Quan hệ giữa A và E là gì?
-
-Luyện:
-
-working memory
-relational memory
-graph memory
-40. Mode 10 — Dynamic World
-
-Đây mới là Infinity Tier.
-
-Network tự thay đổi:
-
-A ─ B
-    ↓
-B moves
-    ↓
-B ─ C
-    ↓
-C transforms
-    ↓
-C ─ D
-
-Người chơi phải liên tục cập nhật:
-
-WORLD MODEL
-
-Đây có thể là một trong những bài khó nhất Brain Pro.
-
-41. Liên kết với 12 relation hiện tại của Brain Pro
-
-Đây là mapping tôi đề xuất:
-
-Cell-Wars mechanic	Brain Pro relation
-Nối tế bào	IDENTITY_MATCH, TARGET_POSITION
-Cắt	RULE_ACTION, SPATIAL_TRANSFORM
-Cắt gần/xa	SIMILARITY_DIFF, TARGET_POSITION
-Tường	TARGET_DISTRACTOR, RULE_ACTION
-Tế bào lõi	PART_WHOLE
-Phòng thủ	DEPENDENCY, PART_WHOLE
-Tấn công	RULE_ACTION
-Chữa trị	RULE_ACTION
-Biến đổi	IDENTITY_MATCH, CONTEXT_MEANING
-Đóng băng	RULE_ACTION, TEMPORAL_PREDICT
-Xúc tu thưởng	RULE_ACTION
-Zoom/Pan	SPATIAL_TRANSFORM
-Nhiều xúc tu	ORDER_SEQUENCE, TARGET_POSITION
-Chuỗi ảnh hưởng	TEMPORAL_PREDICT
-Nhiều mục tiêu	FOCUS_FIELD, TARGET_DISTRACTOR
-
-Các quan hệ này nối trực tiếp với kiến trúc 12-node Brain Map hiện tại của Brain Pro.
-
-42. Nhưng tôi muốn thêm một tầng: Cognitive Relation Graph
-
-Hiện Brain Pro có:
-
-12 Relations
-
-Tôi sẽ biến nó thành:
-
-                TEMPORAL
-                /      \
-               /        \
-       SEQUENCE          PREDICT
-          |                 |
-          |                 |
-SPATIAL ─────── CAUSAL ───── RULE
-   |              |            |
-   |              |            |
-POSITION       TRANSFORM    INHIBITION
-   |
-TARGET
-
-Các bài tập không còn thuộc một relation duy nhất.
-
-Ví dụ Cell Wars:
-
-CUT
-│
-├── POSITION
-├── DISTANCE
-├── RULE
-├── CAUSE
-├── PREDICTION
-└── STATE TRANSITION
-
-Một trial có thể tạo evidence cho 6 quan hệ cùng lúc.
-
-Đây mới thực sự tạo thành mạng.
-
-43. Đừng chấm "game score" làm trung tâm
-
-Đây là điểm tôi muốn sửa mạnh trong Brain Pro.
-
-Hiện kiến trúc của bạn đã có relation_evidence, user_relation_mastery, EMA và DDA.
-
-Hãy mở rộng evidence:
-
-Trial
-│
-├── stimulus
-├── entities
-├── relations
-├── initialState
-├── action
-├── predictedState
-├── actualState
-├── reactionTime
-├── error
-├── confidence
-├── attention
-└── transfer
-44. Đặc biệt: Prediction Error
-
-Đây là biến tôi muốn Brain Pro theo dõi.
-
-Predicted State
-        ↓
-Actual State
-        ↓
-difference
-        ↓
-Prediction Error
-
-Ví dụ:
-
-Người chơi dự đoán:
-
-B HP = 10
-
-thực tế:
-
-B HP = 4
-
-→ prediction error.
-
-Nếu lặp đi lặp lại:
-
-prediction error ↓
-
-thì có bằng chứng người chơi đang xây dựng mô hình tốt hơn.
-
-Đây có giá trị nhận thức hơn việc đơn thuần tăng XP.
-
-45. Và có một chỉ số còn quan trọng hơn Accuracy
-Transfer
-
-Ví dụ người chơi rất giỏi:
-
-Cell Wars
-
-nhưng sang:
-
-Network
-
-lại kém.
-
-Điều đó có thể cho thấy người chơi học surface pattern chứ chưa chắc đã nắm relation abstraction.
-
-Ngược lại:
-
-Cell game
-↓
-network game
-↓
-logic puzzle
-↓
-reading
-
-nếu relation được nhận ra trong các domain khác nhau thì đó mới là evidence tốt hơn về transfer.
-
-Brain Pro hiện đã có ý tưởng TransferScore; nên biến nó thành thành phần trung tâm thay vì chỉ là chỉ số phụ.
-
-46. Đây là kiến trúc tôi đề xuất cho Brain Pro v2
-                    BRAIN PRO
-                       │
-          ┌────────────┴────────────┐
-          ↓                         ↓
-       CONTENT                   ENGINE
-          │                         │
-   ┌──────┼──────┐          ┌───────┼────────┐
-   ↓      ↓      ↓          ↓       ↓        ↓
-Visual  Audio  Semantic   Entity  Relation  State
-                              │       │        │
-                              └───────┼────────┘
-                                      ↓
-                                  Dynamics
-                                      ↓
-                                   Action
-                                      ↓
-                                  Outcome
-                                      ↓
-                                  Evidence
-                                      ↓
-                              Cognitive Graph
-                                      ↓
-                                     DDA
-                                      ↓
-                             Next Challenge
-47. Và đây là vòng lặp luyện não
-
-Không nên là:
-
-Game → Score → XP
-
-Mà:
-
-Stimulus
-   ↓
-Observe
-   ↓
-Identify entities
-   ↓
-Identify relations
-   ↓
-Construct state
-   ↓
-Predict transition
-   ↓
-Act
-   ↓
-Observe outcome
-   ↓
-Compare prediction ↔ reality
-   ↓
-Correct model
-   ↓
-Repeat with variation
-   ↓
-Transfer to another domain
-
-Đây mới là loop tôi nghĩ Brain Pro nên xây.
-
-48. "Ghim vào não" nên hiểu thế nào?
-
-Không nên hiểu là:
-
-chơi 1000 lần → não tự ghi nhớ quan hệ.
-
-Mà nên thiết kế để một relation xuất hiện trong nhiều bối cảnh khác nhau.
-
-Ví dụ:
-
-DEPENDENCY
-
-Ngày 1:
-
-Cell A depends on B
-
-Ngày 2:
-
-Task A depends on Task B
-
-Ngày 3:
-
-Code module A depends on B
-
-Ngày 4:
-
-Sentence A depends on context B
-
-Ngày 5:
-
-Cause A depends on condition B
-
-Lúc đó:
-
-surface changes
-       ↓
-relation remains
-       ↓
-abstraction strengthens
-
-Đây là thứ tôi sẽ ưu tiên hơn việc tăng độ khó vô hạn.
-
-49. Vì vậy một Relation nên có "Family"
-
-Ví dụ:
-
-DEPENDENCY
-│
-├── spatial dependency
-├── temporal dependency
-├── causal dependency
-├── logical dependency
-├── structural dependency
-└── resource dependency
-
-Tương tự:
-
-TRANSFORM
-│
-├── object transform
-├── state transform
-├── identity transform
-├── spatial transform
-├── semantic transform
-└── rule transform
-
-Đây sẽ là mạng khái niệm thật sự.
-
-50. Difficulty không chỉ tăng bằng tốc độ
-
-Đây là lỗi phổ biến của brain-training game.
-
-Không nên:
-
-Level 1 = 10s
-Level 2 = 8s
-Level 3 = 6s
-...
-
-mãi.
-
-Brain Pro nên có ít nhất 10 chiều difficulty:
-
-1. number of entities
-2. number of relations
-3. relation ambiguity
-4. state complexity
-5. temporal delay
-6. distractors
-7. hidden information
-8. prediction depth
-9. rule switching
-10. transfer distance
-
-Ví dụ:
-
-Level 1
-A → B
-
-Level 5
-A → B → C
-
-Level 10
-A → B → C → D
-+ distractors
-
-Level 15
-dynamic network
-
-Level 20
-hidden relation
-
-∞
-dynamic + hidden + conflicting rules
-51. Tôi đặc biệt đề xuất "Relation Mutation"
-
-Ví dụ hôm nay:
-
-A → B = SUPPORT
-
-Lần sau:
-
-A → B = ATTACK
-
-Lần nữa:
-
-A → B = DEPEND
-
-Visual có thể gần giống nhau.
-
-Não phải bỏ:
-
-"hình dạng này = đáp án này"
-
-và chuyển sang:
-
-"quan hệ hiện tại là gì?"
-
-Đây là cách chống rote learning / memorization of surface features.
-
-52. Và "Rule Mutation"
-
-Ví dụ:
-
-Trial 1
-RED → ATTACK
-GREEN → HEAL
-Trial 2
-RED → HEAL
-GREEN → ATTACK
-Trial 3
-RED → FREEZE
-
-Não phải liên tục cập nhật:
-
-RULE STATE
-
-Đây kết nối trực tiếp với RULE_ACTION + INHIBITION trong kiến trúc hiện tại.
-
-53. Một bước còn cao hơn: Rule về Relation
-
-Thay vì:
-
-A attacks B
-
-hãy có:
-
-IF A is connected to B
-AND B is protected
-THEN attack is ineffective
-
-Tức:
-
-Relation
-   ↓
-modifies
-   ↓
-another Relation
-
-Đây là meta-relation.
-
-Ví dụ:
-
-PROTECTED_BY
-     ↓
-modifies
-     ↓
-ATTACK
-
-Đây là tầng tư duy rất mạnh.
-
-54. Cuối cùng Brain Pro sẽ có 4 loại "não"
-
-Tôi sẽ tổ chức thành:
-
-🧩 1. Object Brain
-
-Nhận biết:
-
-Đây là cái gì?
-
-identity
-feature
-category
-🔗 2. Relation Brain
-
-Nhận biết:
-
-Nó liên quan với cái gì?
-
-spatial
-temporal
-causal
-logical
-structural
-🌊 3. Dynamics Brain
-
-Nhận biết:
-
-Nếu thay đổi A thì hệ thống sẽ thế nào?
-
-STATE₀
-→ ACTION
-→ STATE₁
-🧠 4. Model Brain
-
-Nhận biết:
-
-Quy luật chung nằm phía sau nhiều tình huống là gì?
-
-Cell
-Task
-Person
-Code
-Sound
-Number
-Sentence
-
-       ↓
-
-same abstract relation
-
-Tầng 4 mới là nơi Brain Pro thực sự khác một app game luyện phản xạ.
-
-55. Nếu đưa Cell Expansion Wars vào roadmap Brain Pro
-
-Tôi sẽ làm theo thứ tự:
-
-Phase A — Relational Engine
-Entity
-Relation
-RelationState
-EntityState
-Action
-Rule
-Constraint
-Transition
-Phase B — Network Game
-Connect
-Cut
-Attack
-Heal
-Transform
-Freeze
-Protect
-Core
-Phase C — Prediction
-Predict next state
-Predict affected nodes
-Predict cascade
-Phase D — Memory
-Hide network
-Recall nodes
-Recall relations
-Recall state
-Phase E — Transfer
-
-Cùng một relation:
-
-Cell
-↓
-Graph
-↓
-Number
-↓
-Word
-↓
-Sound
-↓
-Reading
-Phase F — Adaptive Brain
-
-DDA không chỉ hỏi:
-
-"Bạn làm đúng bao nhiêu?"
-
-mà:
-
-"Quan hệ nào đang yếu?"
-
-"Bạn sai ở Entity, Relation hay Dynamics?"
-
-"Bạn hiểu quan hệ nhưng phản ứng chậm?"
-
-"Bạn phản ứng nhanh nhưng prediction kém?"
-
-"Bạn làm được trong game nhưng không transfer sang domain khác?"
-
-Đây mới là cá nhân hóa thật sự.
-
-56. Một schema rất quan trọng cho Brain Pro
-
-Tôi sẽ định nghĩa mỗi challenge như:
-
-interface CognitiveChallenge {
-
-  entities: Entity[];
-
-  relations: Relation[];
-
-  initialState: State;
-
-  rules: Rule[];
-
-  constraints: Constraint[];
-
-  availableActions: Action[];
-
-  expectedTransition: Transition;
-
-  targetRelations: RelationId[];
-
-  distractorRelations: Relation[];
-
-  difficulty: DifficultyVector;
-
-  transferDomain: Domain;
-}
-
-Và mỗi trial:
-
-interface TrialEvidence {
-
-  observedEntities: EntityObservation[];
-
-  inferredRelations: RelationInference[];
-
-  predictedState: State;
-
-  action: Action;
-
-  actualState: State;
-
-  predictionError: number;
-
-  reactionTime: number;
-
-  accuracy: number;
-
-  confidence: number;
-
-  targetRelations: RelationId[];
-
-  transferContext: string;
-}
-
-Đây là phần tôi nghĩ nên bổ sung vào kiến trúc hiện tại của Brain Pro, thay vì chỉ tạo thêm một game mới.
-
-57. Và quan trọng nhất: 3 lăng kính bạn đã chọn
-
-Nếu dùng đúng framework bạn đã xây dựng trước đây:
-
-Lăng kính 1 — STATE
-
-Hỏi:
-
-Entity đang ở trạng thái nào?
-
-HP = 30
-position = X
-status = frozen
-faction = enemy
-Lăng kính 2 — RELATION
-
-Hỏi:
-
-Entity này đang liên hệ với Entity nào?
-
-A CONNECT B
-B SUPPORT C
-C DEPEND D
-Lăng kính 3 — DYNAMICS
-
-Hỏi:
-
-Nếu State/Relation thay đổi thì hệ thống chuyển thành gì?
-
-CUT(A-B)
-      ↓
-B loses support
-      ↓
-B becomes damaged
-      ↓
-B disconnects C
-      ↓
-C becomes isolated
-
-Và Cell Expansion Wars thực chất là một game Dynamics State-State rất rõ ràng.
-
-58. Công thức tổng quát tôi đề xuất cho Brain Pro
-
-Có thể xem mỗi bài tập là:
-
-             ENVIRONMENT
-                  │
-                  ↓
-        ┌──────────────────┐
-        │   CURRENT STATE   │
-        └────────┬─────────┘
-                 ↓
-            PERCEPTION
-                 ↓
-         ENTITY RECOGNITION
-                 ↓
-        RELATION INFERENCE
-                 ↓
-          STATE MODEL
-                 ↓
-          PREDICTION
-                 ↓
-             ACTION
-                 ↓
-          TRANSITION
-                 ↓
-          NEW STATE
-             /     \
-            /       \
-       EXPECTED     ACTUAL
-            \       /
-             \     /
-          PREDICTION ERROR
-                 ↓
-             LEARNING
-                 ↓
-          RELATION MASTERY
-                 ↓
-          TRANSFER TEST
-                 ↓
-             DDA NEXT
-
-Đây là kiến trúc mà tôi nghĩ bạn nên lấy từ game này.
-
-Không phải "thêm một game tế bào".
-
-Mà là biến Brain Pro thành một hệ thống trong đó mọi game đều là những “thế giới khác nhau” nhưng dùng chung một ngôn ngữ sâu bên dưới: Entity → Relation → State → Rule → Action → Transition → Prediction → Feedback.
-
-Nếu làm được như vậy, 25 game hiện tại của Brain Pro sẽ không còn là 25 trò chơi độc lập nữa; chúng trở thành 25 môi trường khác nhau để ép não phát hiện cùng một mạng lưới quan hệ, rồi dần chuyển từ nhận biết → ghi nhớ → dự đoán → thích nghi → khái quát hóa. Kiến trúc hiện tại của dự án đã có nền khá gần với hướng này qua 12 cognitive relations, evidence theo trial, Brain Graph, mastery và DDA.
-
-Một lưu ý khoa học: thiết kế như trên có thể tạo ra các bài luyện về chú ý, trí nhớ làm việc, suy luận quan hệ và dự đoán trạng thái; không nên mặc định rằng điểm game tăng đồng nghĩa với việc mọi năng lực nhận thức ngoài game cũng tăng. Vì vậy transfer phải được đo riêng, thay vì suy ra từ game score.
+Bạn có muốn mình viết luôn **truy vấn Overpass QL mẫu** để trích xuất bộ dữ liệu các trục đường + điểm neo Hà Nội, hoặc viết **cấu trúc JSON + thuật toán Turf.js** tự động xác định quan hệ song song (`//`), vuông góc ($\perp$) và hướng Mặt Trời để bạn đưa vào dự án không?

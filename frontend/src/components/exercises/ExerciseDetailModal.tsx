@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Play, ChevronLeft, Eye, Crosshair, Sparkles, Zap, Trophy, Target, 
   BarChart3, Settings2, Info, CheckCircle2, ShieldCheck, Flame, BookOpen, Type,
-  Infinity as InfinityIcon, Globe, Layers, Cpu, Orbit, Music
+  Infinity as InfinityIcon, Globe, Layers, Cpu, Orbit, Music, Compass
 } from 'lucide-react';
 import { useVocalStudioStore } from '../../store/vocalStudioStore';
 import { useAppStore } from '../../store/useAppStore';
@@ -142,6 +142,7 @@ export const ExerciseDetailModal: React.FC = () => {
   // Specific visual parameters for Peripheral Vision & Vocal Match
   const isPeripheral = exercise.slug === 'peripheral-vision';
   const isVocalMatch = exercise.slug === 'vocal-pitch-match';
+  const isHanoiMap = exercise.slug === 'hanoi-navigation';
   const openVocalStudio = useVocalStudioStore((s) => s.openStudio);
   const spanPx = (currentConfig.parametersJson as any)?.spanPx || (120 + (exerciseLevel * 45));
   const flashMs = (currentConfig.parametersJson as any)?.flashDurationMs || Math.max(200, 750 - (exerciseLevel * 45));
@@ -297,6 +298,39 @@ export const ExerciseDetailModal: React.FC = () => {
                 >
                   <Sparkles className="w-4 h-4 fill-slate-950" />
                   <span>Mở Studio Luyện Hát</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* SPECIAL SECTION: Hanoi Map Theory Explorer */}
+          {isHanoiMap && (
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-amber-950 via-slate-900 to-indigo-950 border-2 border-amber-500/40 p-5 sm:p-6 shadow-2xl">
+              <div className="absolute top-0 right-0 -mt-8 -mr-8 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-yellow-400 flex items-center justify-center text-slate-950 shadow-lg shadow-amber-500/30 shrink-0 font-black">
+                    <Compass className="w-6 h-6 animate-spin-slow" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base sm:text-lg font-black text-white">Bản Đồ Tương Tác & Giáo Trình Hà Nội</h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-950 text-amber-300 border border-amber-500/40">LÝ THUYẾT LÕI</span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
+                      Khám phá Bản đồ tương tác vector, mô phỏng góc nắng Mặt Trời theo giờ tại vĩ độ 21.03°N, bóc tách 3 Vành đai, 8 Trục hướng tâm, ô bàn cờ Phố Pháp và chiến thuật né bẫy một chiều!
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    navigateToTheory('hanoi-map');
+                    setSelectedExerciseSlug(null);
+                  }}
+                  className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-amber-500/25 active:scale-95 transition-all shrink-0 cursor-pointer"
+                >
+                  <BookOpen className="w-4 h-4 fill-slate-950" />
+                  <span>Xem Toàn Bộ Lý Thuyết</span>
                 </button>
               </div>
             </div>

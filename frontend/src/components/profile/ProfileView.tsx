@@ -21,7 +21,8 @@ import {
   Unlock,
   SlidersHorizontal,
   ChevronRight,
-  Layers
+  Layers,
+  Compass
 } from 'lucide-react';
 import { 
   EXERCISE_VARIANTS, 
@@ -176,6 +177,14 @@ export const ProfileView: React.FC = () => {
       icon: <Brain className="w-8 h-8 sm:w-9 sm:h-9 text-cyan-400" />,
       isUnlocked: getExerciseLevel('relational-network') >= 4,
       progressText: `Cấp ${getExerciseLevel('relational-network')}/4`
+    },
+    {
+      id: 'hanoi-navigator',
+      title: 'Bậc Thầy Bản Đồ Hà Nội',
+      desc: 'Bản Đồ Nhận Thức Hà Nội đạt Cấp 5+',
+      icon: <Compass className="w-8 h-8 sm:w-9 sm:h-9 text-amber-400" />,
+      isUnlocked: getExerciseLevel('hanoi-navigation') >= 5,
+      progressText: `Cấp ${getExerciseLevel('hanoi-navigation')}/5`
     },
     {
       id: 'infinity',

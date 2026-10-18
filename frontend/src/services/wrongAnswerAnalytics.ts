@@ -84,6 +84,38 @@ export function classifyAuditoryError(
       };
     }
 
+    case 'hanoi-navigation': {
+      // Xác định loại lỗi bản đồ nhận thức dựa trên code câu hỏi
+      if (userChoice.code?.includes('ONEWAY') || correct.code?.includes('ONEWAY')) {
+        return {
+          category: 'ROUTING_ONEWAY_TRAP',
+          severity: 'critical'
+        };
+      }
+      if (userChoice.code?.includes('RING') || userChoice.code?.includes('BRIDGE')) {
+        return {
+          category: 'RING_SKELETON_ERROR',
+          severity: 'moderate'
+        };
+      }
+      if (userChoice.code?.includes('PARALLEL') || userChoice.code?.includes('PERP')) {
+        return {
+          category: 'GRID_TOPOLOGY_ERROR',
+          severity: 'moderate'
+        };
+      }
+      if (userChoice.code?.includes('SUN') || userChoice.code?.includes('BEARING')) {
+        return {
+          category: 'MAP_ORIENTATION_ERROR',
+          severity: 'moderate'
+        };
+      }
+      return {
+        category: 'LANDMARK_TRIANGULATION_ERROR',
+        severity: 'moderate'
+      };
+    }
+
     default:
       return {
         category: 'INTERVAL_CONFUSION',

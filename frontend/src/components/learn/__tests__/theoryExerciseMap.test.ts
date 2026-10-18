@@ -7,8 +7,8 @@ import {
 } from '../theoryExerciseMap';
 
 describe('theoryExerciseMap integrity & round-trip', () => {
-  it('contains all 9 canonical theory modules with required properties', () => {
-    expect(THEORY_MODULE_LIST).toHaveLength(9);
+  it('contains all 10 canonical theory modules with required properties', () => {
+    expect(THEORY_MODULE_LIST).toHaveLength(10);
     for (const mod of THEORY_MODULE_LIST) {
       expect(mod.id).toBeDefined();
       expect(mod.title).toBeTruthy();
@@ -22,7 +22,7 @@ describe('theoryExerciseMap integrity & round-trip', () => {
     }
   });
 
-  it('correctly maps all auditory exercise slugs to their primary theory module', () => {
+  it('correctly maps exercise slugs to their primary theory module', () => {
     expect(getTheoryModuleForSlug('pitch-recall')).toBe('notes');
     expect(getTheoryModuleForSlug('vocal-pitch-match')).toBe('notes');
     expect(getTheoryModuleForSlug('interval-identify')).toBe('intervals');
@@ -31,9 +31,10 @@ describe('theoryExerciseMap integrity & round-trip', () => {
     expect(getTheoryModuleForSlug('timbre-match')).toBe('timbre');
     expect(getTheoryModuleForSlug('sound-localization')).toBe('spatial');
     expect(getTheoryModuleForSlug('voice-track')).toBe('polyphony');
+    expect(getTheoryModuleForSlug('hanoi-navigation')).toBe('hanoi-map');
   });
 
-  it('returns undefined for non-auditory slugs', () => {
+  it('returns undefined for unmapped slugs', () => {
     expect(getTheoryModuleForSlug('schulte-table' as any)).toBeUndefined();
     expect(getTheoryModuleForSlug('stroop-clash' as any)).toBeUndefined();
   });
@@ -43,5 +44,6 @@ describe('theoryExerciseMap integrity & round-trip', () => {
     expect(getTheoryModuleForWrongAnswer('rhythm-recall', { isRest: true })).toBe('rhythm');
     expect(getTheoryModuleForWrongAnswer('chord-identify')).toBe('chords');
     expect(getTheoryModuleForWrongAnswer('interval-identify')).toBe('intervals');
+    expect(getTheoryModuleForWrongAnswer('hanoi-navigation')).toBe('hanoi-map');
   });
 });

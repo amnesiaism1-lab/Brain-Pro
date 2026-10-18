@@ -70,6 +70,16 @@ export function calculateErrorSeverity(
       return 'critical';
     }
 
+    case 'ROUTING_ONEWAY_TRAP':
+      return 'critical'; // Bẫy ngược chiều hoặc cấm rẽ giờ cao điểm
+
+    case 'MAP_ORIENTATION_ERROR':
+    case 'RING_SKELETON_ERROR':
+    case 'GRID_TOPOLOGY_ERROR':
+    case 'LANDMARK_TRIANGULATION_ERROR':
+    case 'BEARING_DISTANCE_ERROR':
+      return 'moderate';
+
     case 'TIMBRE_CONFUSION':
     case 'RHYTHM_PATTERN_ERROR':
     default:

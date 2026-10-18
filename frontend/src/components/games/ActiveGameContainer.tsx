@@ -32,6 +32,7 @@ import { GraphMemoryMatrixGame } from './GraphMemoryMatrixGame';
 import { RuleMutationClashGame } from './RuleMutationClashGame';
 import { VocalPitchMatchGame } from './VocalPitchMatchGame';
 import { DualNBackGame } from './DualNBackGame';
+import { HanoiNavigationGame } from './HanoiNavigationGame';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { EXERCISES_METADATA } from '@brain-exercises/shared';
 import { Sparkles, Zap, Flame, ArrowRight, X } from 'lucide-react';
@@ -126,6 +127,8 @@ export const ActiveGameContainer: React.FC = () => {
         return <VocalPitchMatchGame />;
       case 'dual-nback':
         return <DualNBackGame />;
+      case 'hanoi-navigation':
+        return <HanoiNavigationGame />;
       default:
         return <SchulteTableGame />;
     }

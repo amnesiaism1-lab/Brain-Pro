@@ -58,6 +58,7 @@ export const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
       case 'rhythm-recall': return 'Nhớ Nhịp Điệu';
       case 'sound-localization': return 'Định Vị Âm Thanh 3D';
       case 'vocal-pitch-match': return 'Dò Cao Độ Giọng Hát';
+      case 'hanoi-navigation': return 'Bản Đồ Nhận Thức Hà Nội';
       default: return slug;
     }
   };
