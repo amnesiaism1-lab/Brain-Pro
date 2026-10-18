@@ -1,298 +1,386 @@
-Thiết kế bài tập “Bản đồ Hà Nội”
+Mình đánh giá Brain Pro của bạn đang có một hướng tiếp cận khá tốt: không chỉ ghi nhớ địa danh Hà Nội mà còn muốn giúp người học hiểu cấu trúc không gian, nhận biết mốc, xác định phương hướng, suy luận quan hệ và lựa chọn hành động.
 
-Bài tập này nên huấn luyện bản đồ nhận thức (cognitive map), không phải học thuộc tên đường. Kevin Lynch (The Image of the City) chia bản đồ trong đầu thành 5 loại thành phần: Paths, Edges, Districts, Nodes, Landmarks. Mô hình này khớp với cách bạn định xây dựng, nên nên lấy làm xương sống.
+Tuy nhiên, dựa trên 4 ảnh bạn gửi, mình cho rằng hệ thống đã có khung tư duy tốt nhưng chưa đủ để khẳng định mô hình nhận thức không gian đã đầy đủ và chính xác. Có một số điểm cần chỉnh về cách diễn giải cấu trúc Hà Nội, một số thực thể quan trọng còn thiếu, và quan trọng hơn cả là các mối quan hệ đang được thể hiện thiên về hình học, trong khi quan hệ về kết nối, khả năng quan sát, thời gian và trạng thái thực tế chưa được làm rõ.
 
-1. Hà Nội “có hình dạng” thế nào? (khung neo cấp cao nhất)
+Mình sẽ đánh giá dựa trên nội dung giao diện nhìn thấy trong ảnh; chưa thể xác nhận mọi dữ liệu địa lý hay thuật toán bên trong ứng dụng nếu chưa kiểm tra dữ liệu và mã nguồn.
 
-Trước khi nhớ từng phố, người học cần nắm khung xương, vì khung này cho phép suy luận vị trí thay vì nhớ rời rạc:
+# 1. Đánh giá tổng thể: Bạn đang xây dựng đúng hướng chưa?
 
-Sông Hồng chạy chéo theo hướng Tây Bắc → Đông Nam. Đây là trục tham chiếu lớn nhất và là ranh giới (Edge) chính.
-Hồ Gươm là tâm của phố cổ và phố Pháp. Hồ Tây là mốc lớn ở phía Tây Bắc.
-Cấu trúc xuyên tâm + vành đai: các trục hướng tâm đi ra (Giải Phóng, Nguyễn Trãi, Láng–Hòa Lạc, Nguyễn Văn Cừ, QL5…) bị cắt bởi các vành đai 1, 2, 3, 4 (đồng tâm).
-Ba “ngôn ngữ lưới” khác nhau:
-Phố cổ: lưới dày, đường ngắn, nhiều phố chuyên ngành.
-Phố Pháp: ô bàn cờ, vuông góc rõ.
-Khu mới (Cầu Giấy, Mỹ Đình, Hà Đông…): đường lớn, ô to.
+Điểm mạnh: mô hình hóa thay vì học thuộc
 
-Chuỗi thứ tự cũng là dạng nhớ rất mạnh. Ví dụ các cầu bắc qua sông Hồng từ Bắc xuống Nam: Nhật Tân → Thăng Long → Long Biên → Chương Dương → Vĩnh Tuy → Thanh Trì.
+Bạn đang kết hợp bản đồ khái niệm, các chương lý thuyết, mốc địa lý, trục đường, vành đai, la bàn mặt trời và bài tập nhận thức. Đây là hướng tốt để chuyển từ nhớ từng địa danh sang hiểu một hệ thống không gian.
 
-2. Thực thể chính
-Loại (Lynch)	Thực thể	Thuộc tính cần lưu
-Path	phố, đại lộ, vành đai, đường trên cao, đường sắt, tuyến metro	tên, cấp đường, hình học (polyline), hướng chính (bearing), một chiều, thứ tự các nút dọc theo nó
-Node	ngã tư, ngã năm, bùng binh, chân cầu, hầm, ga	tọa độ, danh sách đường giao nhau, loại
-Edge	sông, hồ, đê, đường sắt, vành đai (như ranh giới)	hình học, có vượt được không (chỉ qua cầu)
-District	quận/khu vực theo “cảm nhận” (Phố cổ, Phố Pháp, Tây Hồ…)	polygon, đặc trưng
-Landmark	Nhà hát Lớn, Lăng Bác, Văn Miếu, Ga Hà Nội, Keangnam, Lotte, Mỹ Đình…	tọa độ, độ nổi bật (để chọn neo), nhìn thấy từ xa không
-Hướng	Bắc, Đông (mặt trời mọc), Tây (lặn), chiều chảy sông Hồng	góc phương vị
-Giao thông công cộng	metro 2A, 3, BRT, bến xe	tuyến, ga
+Điểm cần sửa: mô hình hình học đang có nguy cơ trở thành mô hình tuyệt đối
 
-Lưu ý: nên dùng khu vực theo cảm nhận và địa lý, đừng dựa vào ranh giới phường/quận. Địa giới hành chính Hà Nội mới thay đổi và có thể đổi tiếp, còn sông, hồ, trục đường thì ổn định.
+Ba vành đai, tám trục hướng tâm và lưới ô bàn cờ giúp đơn giản hóa Hà Nội, nhưng thành phố không phải một hình tròn đồng tâm hoàn chỉnh. Nghiên cứu về mạng đường Hà Nội mô tả cấu trúc kết hợp giữa các trục xuyên tâm, các tuyến vòng và những khu vực có cấu trúc đường khác nhau.&#x20;
 
-3. Mối quan hệ (phần quan trọng nhất)
+[image](https://www.google.com/s2/favicons?domain=https://www.researchgate.net\&sz=32)
 
-Mỗi quan hệ là một “thẻ học” riêng, và đây là thứ phân biệt bài này với “học thuộc bản đồ” thông thường.
+ResearchGate
 
-Đường ↔ đường
++1
 
-Vuông góc (⟂), song song (∥), chéo, hội tụ về một nút
-Đồng tâm (vành đai bao quanh vành đai)
-Cắt nhau hay không (và cắt ở nút nào)
-Thứ tự giao cắt dọc một trục (đi trên A, gặp lần lượt B, C, D…)
 
-Đường ↔ landmark
 
-Nằm trên, ở góc ngã tư, đối diện
-Bên trái/phải khi đi theo hướng X
+Phần còn thiếu: mô hình quan hệ và sự thay đổi trạng thái
 
-Landmark ↔ landmark
+Bản đồ cho biết đường nào nằm ở đâu, nhưng hệ thống nhận thức hoàn chỉnh còn cần biết đường nào nối với đường nào, đi theo hướng nào được, mốc nào nhìn thấy từ vị trí nào, và khi điều kiện thay đổi thì hành động nào còn khả thi.
 
-Phương vị tương đối (A ở Đông Bắc của B)
-Khoảng cách tương đối (gần/xa hơn)
+Có một điểm quan trọng cần phân biệt: mô hình của Kevin Lynch không phải một danh mục địa danh hay một hình học duy nhất để áp lên mọi thành phố. Năm yếu tố của ông là Paths, Edges, Districts, Nodes và Landmarks — tức tuyến, ranh giới, khu vực, nút và mốc nhận diện — dùng để nghiên cứu cách con người nhận biết và tổ chức hình ảnh về thành phố trong tâm trí.&#x20;
 
-Đường/landmark ↔ hướng tuyệt đối
+[image](https://www.google.com/s2/favicons?domain=https://doi.org\&sz=32)
 
-Phố này chạy hướng nào (Bắc–Nam, Đông–Tây, chéo)
-Mặt trời mọc/lặn nhìn từ đâu thì ra hướng nào
+ScienceDirect
 
-Edge ↔ Path
++1
 
-Qua sông chỉ bằng cầu nào, hầm nào
-Mô hình dữ liệu gợi ý
-entities(id, type, name, geom, props)
-relations(a_id, b_id, type, props)
-  type ∈ {perpendicular, parallel, crosses_at, adjacent,
-          inside, bearing_from, ordered_along, concentric}
-cards(user_id, relation_or_entity_id, ease, due, streak)  -- spaced repetition
 
-Phần lớn quan hệ tự tính được từ hình học, không cần nhập tay: dùng Turf.js để tính bearing, giao điểm, chênh lệch góc. Ví dụ, chênh bearing < 10° là song song, 80–100° là vuông góc.
 
-4. Dữ liệu và API: dùng cái nào?
+Vì vậy, mình sẽ không chỉ hỏi bản đồ có đủ địa danh không, mà còn hỏi: nó có mô tả đủ những quan hệ khiến con người định hướng, ghi nhớ và hành động được không?
 
-Nguồn chính: OpenStreetMap (miễn phí, hợp pháp để lưu và chỉnh)
+# 2. Những điểm nội dung cần kiểm tra hoặc điều chỉnh
 
-Overpass API: truy vấn đường, landmark, sông, hồ theo vùng Hà Nội.
-Geofabrik extract Việt Nam: tải dữ liệu thô nếu muốn xử lý offline.
-Nominatim: geocode, nhưng giới hạn ~1 request/giây, chỉ dùng trong script xử lý, không gọi lúc chạy.
-Phải ghi nguồn OSM (giấy phép ODbL).
+## 2.1. Mô hình ba vành đai và tám trục hướng tâm
 
-Nên tiền xử lý rồi “bake” thành GeoJSON tĩnh, không gọi API lúc người dùng chơi. Lý do:
+[So sánh Vành đai 1, 2, 3, 4 Hà Nội: Điểm khác biệt và vai trò từng tuyến?](https://images.openai.com/static-rsc-4/Lja1zCzKXP2qhsktm8OrpVfaoNOP_UL7s879k2oNd_p_rW0ONbSAcVdrmK1-Yw17mELADyCls1nEwTveiz_r6qcuOx_ja92GETalSFR1gEWFxDiVJ73R6NsWAabZfr-Y3Bduje1utAyaHJ6zq0V7_FrdKDRkSciWUdYJw7O2Jq0?purpose=inline)
 
-Vercel serverless và các API công cộng không hợp để gọi nặng.
-Bạn cần chọn lọc: bài tập cần ~200–400 thực thể đã chọn kỹ, không phải toàn bộ OSM.
-Bạn cần kiểm soát lớp nào được ẩn hay hiện.
+[onehousing.vn](https://onehousing.vn/blog/so-sanh-vanh-dai-1-2-3-4-ha-noi-diem-khac-biet-va-vai-tro-tung-tuyen-n17t?utm_source=chatgpt.com)
 
-Hiển thị
+Trong ảnh, phần giới thiệu mô tả ba tuyến vành đai đồng tâm và tám trục hướng tâm. Đây là một cách khái quát hữu ích để người học nắm cấu trúc lớn, nhưng cần phân biệt mô hình nhận thức với hình học địa lý thực tế.
 
-Ưu tiên tự vẽ SVG/Canvas bằng d3-geo (hoặc MapLibre GL với style tự làm). Bài tập cần ẩn tên, ẩn từng lớp, xoay bản đồ, vẽ đè đáp án, mà tile có sẵn không làm được những việc này.
-Không dùng tile của openstreetmap.org cho ứng dụng thật vì vi phạm chính sách sử dụng.
-Nếu cần nền thật: OpenFreeMap, Protomaps (PMTiles tự host) hoặc MapTiler (gói free).
-Google Maps: tốn phí và điều khoản hạn chế việc lưu và biến đổi dữ liệu, không phù hợp.
+| Nội dung hiện tại    | Đánh giá                                                               | Đề xuất                                                                           |
+| -------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Ba vành đai đồng tâm | Dễ hình dung nhưng dễ khiến người học nghĩ chúng là các đường tròn đều | Dùng khái niệm hệ thống vành đai và hướng tâm; vẽ theo tuyến thực tế              |
+| Tám trục hướng tâm   | Có thể là bộ trục lựa chọn để học                                      | Ghi rõ tiêu chí chọn tám trục, tên tuyến và phạm vi nghiên cứu                    |
+| Mạng đường Hà Nội    | Được đơn giản hóa thành các đường chính                                | Bổ sung các đường nối liên vùng, đường nhánh, lối ngõ và các đoạn kết nối thực tế |
+| Trung tâm đô thị     | Có thể khiến người học hình dung một trung tâm duy nhất                | Bổ sung các trung tâm khác nhau và sự phân bố các chức năng đô thị                |
 
-Mặt trời: thư viện suncalc (offline) cho ra azimuth mặt trời tại Hà Nội (≈21.03°N, 105.85°E) theo ngày và giờ, không cần API.
+Nghiên cứu về sự phát triển mạng đường Hà Nội từ năm 1873 đến năm 2016 mô tả cấu trúc kết hợp giữa trục xuyên tâm và tuyến vòng, đồng thời nhấn mạnh sự khác biệt giữa khu phố cổ, khu phố Pháp, làng đô thị hóa và các khu đô thị quy hoạch mới.&#x20;
 
-Lưu trữ: Supabase đã có sẵn Postgres và hỗ trợ PostGIS, nên bạn lưu hình học và truy vấn quan hệ không gian ngay trong DB hiện tại.
+[image](https://www.google.com/s2/favicons?domain=https://www.researchgate.net\&sz=32)
 
-Cảnh báo thực tế: dữ liệu OSM Việt Nam có chỗ thiếu hoặc sai (tên, đường một chiều). Cần kiểm tra thủ công các thực thể cốt lõi. Quy tắc cấm rẽ và đường một chiều thay đổi theo thời gian, nên bài tập nên tập trung vào cấu trúc ổn định.
+ResearchGate
 
-5. Các dạng bài (mode)
-Đặt vào bản đồ trống: kéo landmark, sông, cầu vào đúng vị trí trên nền mờ. Chấm bằng sai số khoảng cách (m) và sai số góc.
-Quiz quan hệ: “Nguyễn Trãi so với Vành đai 3: ⟂ / ∥ / cắt chéo / không cắt?” Câu hỏi tự sinh từ bảng relations.
-Tam giác định vị: cho 2–3 neo kèm hướng/khoảng cách tương đối (“cách Hồ Gươm ~1 km về phía Nam, nằm phía Tây Ga Hà Nội”) rồi người học click vị trí.
-Nhớ chuỗi dọc trục: điền thứ tự các giao lộ hoặc cầu theo một tuyến.
-Đi mù trong đầu (blindfold): “Bạn đứng ở nút X, quay mặt về Đông, rẽ trái, đi qua 2 giao lộ. Bạn đang ở đâu?”
-La bàn mặt trời: “6h sáng mùa đông bạn đứng bờ Hồ Tây, mặt trời mọc ở phía nào so với Hồ Gươm?”
-Dẫn đường A → B: chọn chuỗi các trục và nút đi qua, chấm theo tính hợp lý và độ dài lộ trình.
++1
 
-Cơ chế chống “nhớ hình ảnh”: ở cấp cao, xoay bản đồ (Bắc không còn ở trên), ẩn tên, thay đổi tỷ lệ. Người học phải dùng quan hệ chứ không dùng thuộc lòng bức ảnh.
 
-6. Cấp độ (khớp hệ Khởi Động → Bứt Phá → Siêu Phàm → Vô Cực)
-Cấp	Nội dung
-1–3 (Khởi Động)	Khung xương: sông Hồng, hồ, các cầu, vành đai, vài landmark neo
-4–6	Các trục xuyên tâm và thứ tự giao cắt với vành đai
-7–9 (Bứt Phá)	Quan hệ landmark ↔ đường, tam giác định vị
-10–12 (Siêu Phàm)	Phố cổ và phố Pháp (lưới dày), đi mù, hướng mặt trời
-Vô Cực	Sinh ngẫu nhiên, xoay bản đồ, giới hạn thời gian, dẫn đường A → B
 
-Phạm vi “đầy đủ Hà Nội” nên chia thành các gói vùng để không quá tải: Lõi nội thành, Phố cổ, Phố Pháp, Tây Hồ–Bắc, Cầu Giấy–Tây, Hà Đông–Nam, Long Biên–Đông. Mỗi gói có tầng thực thể riêng (thành phố → khu → phố).
+Quy hoạch Hà Nội cũng sử dụng cách tiếp cận đa cực, đa trung tâm và đa tầng, thay vì chỉ coi thành phố là một hệ thống hướng về một lõi duy nhất.&#x20;
 
-7. Chấm điểm và ôn tập
-Mỗi thực thể và mỗi quan hệ là một thẻ trong hệ ôn tập ngắt quãng (SM-2 hoặc FSRS), lưu ở Supabase.
-Hiển thị bản đồ nhiệt điểm yếu (khu vực/quan hệ hay sai) và độ méo bản đồ nhận thức: vị trí người học đặt so với vị trí thật, để thấy mình lệch hướng hay lệch khoảng cách.
-Điểm gồm 3 phần: chính xác vị trí, chính xác quan hệ, tốc độ.
-8. Quy trình xây dựng (MVP trước)
-Chọn phạm vi MVP, ví dụ Lõi nội thành: 1 sông, 3 hồ, 6 cầu, 4 vành đai, ~8 trục chính, ~30 landmark.
-Overpass → script lấy dữ liệu → làm sạch và chọn lọc → xuất GeoJSON.
-Script tự tính quan hệ bằng Turf.js, sau đó kiểm tra thủ công.
-Viết bộ sinh câu hỏi từ relations.
-Làm 3 mode đầu: đặt vào bản đồ, quiz quan hệ, tam giác định vị.
-Thêm ôn tập ngắt quãng, rồi mở rộng sang các gói vùng khác.
+[image](https://www.google.com/s2/favicons?domain=https://english.hanoi.gov.vn\&sz=32)
 
-Bạn muốn mình viết thành file .md kế hoạch chi tiết, hay đi sâu trước vào schema dữ liệu + câu truy vấn Overpass cho gói Lõi nội thành?
-Để xây dựng bài tập **"Thuộc lòng & Định vị Bản đồ Hà Nội" (Hanoi Cognitive Navigation)** tích hợp vào hệ sinh thái 6 trục nhận thức và SRS (SM-2) của [Brain Pro](https://brain-pro-psi.vercel.app/), bạn không nên thiết kế theo kiểu học vẹt tên đường đơn thuần, mà cần xây dựng dựa trên cơ chế **Bản đồ nhận thức không gian (Cognitive Map – Hippocampus)** kết hợp **Định hướng quy chiếu kép**:
+Hanoi English
 
-1. **Hệ quy chiếu Bản đồ (Allocentric Frame):** Nhìn từ trên xuống — nắm cấu trúc Vành đai, trục hướng tâm, quan hệ song song (`//`), vuông góc ($\perp$), cắt nhau ($\times$) và phương hướng Đông – Tây – Nam – Bắc.
-2. **Hệ quy chiếu Góc nhìn thứ nhất (Egocentric Frame):** Đứng dưới mặt đất tại một ngã tư — nhìn tòa nhà điểm neo (Landmark), đoán hướng thông qua vị trí Mặt Trời/bóng nắng, nhận diện biển cấm/đường một chiều để quyết định rẽ trái hay rẽ phải.
 
-### 1. Mô hình Hóa Thực thể Chính (Core Entities) của Giao thông Hà Nội
 
-Đặc trưng đô thị Hà Nội không phải là mạng lưới ô bàn cờ vuông vức hoàn toàn (trừ khu Phố Pháp quận Hoàn Kiếm – Ba Đình), mà là **Cấu trúc Mạng nhện Đồng tâm (Radial-Ring)** kết hợp **Địa hình Hồ – Sông tự nhiên**. Cơ sở dữ liệu của bài tập cần chuẩn hóa thành **6 nhóm Thực thể (Nodes & Edges)**:
+Điều mình muốn bạn thay đổi là: đừng làm mất tính đơn giản của mô hình hiện tại; hãy ghi rõ đây là mô hình khái quát để suy luận, sau đó cho người học đối chiếu nó với mạng đường thực tế.
 
-| Nhóm thực thể (Entity Type) | Vai trò trong Tư duy Định vị | Dữ liệu thực tế tại Hà Nội cần đưa vào bài tập | Thuộc tính dữ liệu cần lưu trữ (Schema) |
-| --- | --- | --- | --- |
-| **1. Điểm Neo Vĩ Mô & Tự Nhiên** *(Macro Anchors & Boundaries)* | Làm "khung xương sống" chia vùng không gian, không bao giờ thay đổi; nhìn thấy là biết mình đang ở khu vực nào. | • **Sông:** Sông Hồng (biên phía Đông/Bắc), Sông Tô Lịch, Sông Nhuệ.<br>
+## 2.2. Phân biệt phố cổ, phố Pháp và các kiểu cấu trúc đường
 
-<br>• **Hồ lớn:** Hồ Tây, Hồ Hoàn Kiếm, Hồ Bảy Mẫu, Hồ Giảng Võ, Hồ Thủ Lệ, Hồ Linh Đàm. | `id`, `name`, `polygon_geojson`, `centroid_lat_lng`, `bounding_district` |
-| **2. Điểm Neo Thị Giác / Tòa Nhà** *(Visual Landmarks)* | Dùng để định hướng từ xa (tầm nhìn chân trời) hoặc làm mốc xác nhận tại điểm giao cắt. | • **Tầm nhìn xa (Skyline):** Keangnam Landmark 72 (phía Tây), Lotte Center Liễu Giai (Tây Hồ Tây/Ba Đình), TechnoPark/Cầu Nhật Tân.<br>
+Chương 4 trong ảnh có chủ đề “Ô Bàn Cờ Phố Pháp, 36 Phố Phường và Nghệ Thuật Tránh Bẫy Một Chiều”. Đây là một chủ đề có tiềm năng, nhưng cần tách các khái niệm.
 
-<br>• **Mốc giao lộ:** Lăng Bác, Nhà Hát Lớn, Chợ Đồng Xuân, Ga Hà Nội, Bến xe Mỹ Đình/Giáp Bát. | `id`, `name`, `coord`, `height_tier` (*Tầm xa > 3km* vs *Tại chỗ < 300m*), `district`, `adjacent_streets[]` |
-| **3. Trục Đường Giao Thông** *(Street Segments / Edges)* | Tạo mạng lưới liên kết; đặc trưng của Hà Nội là **1 trục thẳng nhưng đổi tên liên tục** qua mỗi ngã tư. | • **Vành đai (Rings):** Vành đai 1 (Trần Khát Chân – Đại Cồ Việt – Xã Đàn – Ô Chợ Dừa – Hoàng Cầu – Đê La Thành – Bưởi), Vành đai 2, Vành đai 3.<br>
+- Khu phố cổ: có mạng đường hình thành qua lịch sử lâu dài, với các tuyến phố thương mại và ngõ nhỏ; không nên mặc định nó là một lưới vuông hoàn chỉnh.
+- Khu phố Pháp: có các khu vực được quy hoạch theo dạng lưới, nhưng kích thước ô phố, mật độ đường và hình thái mạng không hoàn toàn đồng nhất.
+- Khu làng cũ được đô thị hóa: nhiều tuyến đường cong, ngõ nhỏ và đường nhánh, đôi khi khó suy ra lộ trình từ cấu trúc tổng thể.
+- Khu đô thị quy hoạch mới: có thể có các trục thẳng và hệ thống đường phân cấp rõ, nhưng tính kết nối giữa các khu vẫn phải kiểm tra riêng.
 
-<br>• **Trục hướng tâm (Radials):** Nguyễn Trãi – Tây Sơn – Nguyễn Lương Bằng – Tôn Đức Thắng; Giải Phóng – Lê Duẩn; Cầu Giấy – Xuân Thủy – Hồ Tùng Mậu; Nguyễn Chí Thanh – Trần Duy Hưng. | `id`, `name`, `polyline`, `bearing_angle` (góc phương vị $0^\circ\text{–}360^\circ$), `ring_or_radial`, `one_way` (`true/false/partly`), `speed_tier` |
-| **4. Nút Giao & Cầu Vượt / Hầm Chui** *(Intersections & Junctions)* | Điểm quyết định hành vi rẽ hướng; nơi người đi đường dễ lạc nhất do cầu vượt/hầm chui nhiều tầng. | • **Ngã 4/5/6/7 phức tạp:** Ô Chợ Dừa, Ngã Tư Sở, Vọng, Cầu Giấy, Cửa Nam, Kim Mã – Liễu Giai.<br>
+Nghiên cứu về hình thái đô thị Hà Nội phân biệt rõ khu phố cổ có cấu trúc hình thái hữu cơ với khu phố Pháp được quy hoạch theo dạng lưới; ngay trong khu phố Pháp cũng có những khác biệt giữa các khu vực.&#x20;
 
-<br>• **Cầu qua sông:** Chương Dương, Long Biên, Vĩnh Tuy, Nhật Tân, Thanh Trì, Thăng Long. | `id`, `name`, `coord`, `connected_street_ids[]`, `junction_type` (*Hầm chui, Cầu vượt, Vòng xuyến*), `restricted_turns[]` |
-| **5. Khu Vực / Ô Phố Đặc Thù** *(Micro-Districts)* | Giúp gom nhóm trí nhớ (Chunking) theo quy luật đặt tên hoặc hình thái. | • **Ô bàn cờ Phố Pháp:** Trần Hưng Đạo – Lý Thường Kiệt – Hai Bà Trưng cắt Hàng Bài – Bà Triệu – Quang Trung – Quán Sứ.<br>
+[image](https://www.google.com/s2/favicons?domain=https://www.researchgate.net\&sz=32)
 
-<br>• **Phố Cổ (36 phố phường):** Các phố Hàng. | `id`, `name`, `grid_type` (*Orthogonal Grid, Radial, Organic*), `street_ids[]` |
-| **6. Thực Thể Môi Trường & Thời Gian** *(Environmental Cues)* | Rèn phản xạ định hướng tự nhiên khi không mở điện thoại (hướng nắng, bóng đổ, giờ cao điểm). | • **Mặt Trời:** Góc phương vị Mặt Trời (Azimuth) và độ cao (Altitude) theo giờ trong ngày tại vĩ độ Hà Nội ($21.0285^\circ\text{ B}$). | `timestamp`, `sun_azimuth`, `sun_altitude`, `shadow_direction` |
+ResearchGate
 
-### 2. Ma trận Mối quan hệ giữa các Thực thể (Relational Graph)
 
-Để hệ thống tự động sinh câu hỏi (Procedural Question Generation) mà không cần nhập tay từng câu, bạn cần thiết lập **5 loại quan hệ toán học – hình học** giữa các thực thể:
 
-1. **Quan hệ Hình học Đường – Đường (Geometric Topology):**
-* **Song song (`//`):** Hai đường có độ lệch góc phương vị $\Delta\theta < 12^\circ$ (hoặc $\approx 180^\circ$) và không cắt nhau trong bán kính xét duyệt. *Ví dụ:* `Trần Hưng Đạo // Lý Thường Kiệt // Hai Bà Trưng` (trục Đông – Tây lệch nhẹ); `Bà Triệu // Phố Huế // Hàng Bài // Quang Trung` (trục Bắc – Nam).
-* **Vuông góc ($\perp$):** Hai đường giao nhau và có góc lệch $\Delta\theta \in [78^\circ, 102^\circ]$. *Ví dụ:* `Lý Thường Kiệt` $\perp$ `Bà Triệu`.
-* **Nối tiếp đổi tên (Collinear Continuation $\rightarrow$):** Hai đoạn đường có chung 1 nút giao và góc lệch $\Delta\theta < 15^\circ$. *Ví dụ:* Đi thẳng hết `Trần Duy Hưng` qua gầm cầu vượt Láng là sang `Nguyễn Chí Thanh` $\rightarrow$ qua cầu vượt Liễu Giai là sang `Liễu Giai`.
+Điều này dẫn đến một nguyên tắc thiết kế quan trọng: mỗi khu vực nên có mô hình cấu trúc riêng, thay vì ép toàn thành phố theo một hình học chung.
 
+## 2.3. Chuỗi sáu cầu sông Hồng
 
-2. **Quan hệ Chiều Giao thông & Ràng buộc Rẽ (Directional Flow):**
-* **Cặp đường Một chiều đối xứng (Paired One-Way):** Rất phổ biến ở Hà Nội. *Ví dụ:* `Phố Huế` (1 chiều hướng Bắc $\rightarrow$ Nam) đi cặp song song với `Hàng Bài – Bà Triệu` (1 chiều hướng Nam $\rightarrow$ Bắc); hoặc `Lê Duẩn` đoạn một chiều ô tô, `Thụy Khuê – Hoàng Hoa Thám`.
+Ảnh của bạn hiển thị sáu cầu sông Hồng như một thành phần chính của bản đồ nhận thức.
 
+Ý tưởng này đúng về mặt tổ chức kiến thức: cầu không chỉ là địa điểm, mà còn là công trình kết nối hai mạng đường ở hai bờ sông.
 
-3. **Quan hệ Phương vị Điểm Neo – Vị trí Đứng (Bearing & Line-of-Sight):**
-* Từ tọa độ người dùng $P(x_1, y_1)$ nhìn về Điểm Neo $L(x_2, y_2)$ tạo ra góc phương vị $\alpha$. Nếu người dùng đang đi trên đường `Kim Mã` và thấy tòa **Lotte Center** ở phía trước bên phải khoảng $15^\circ$, suy ra người dùng đang đi theo hướng Đông $\rightarrow$ Tây (về phía Cầu Giấy).
+Tuy nhiên, con số sáu cần được gắn với phạm vi cụ thể. Bạn nên xác định:
 
+- Sáu cây cầu nào được đưa vào bộ học liệu?
+- Phạm vi là lõi đô thị, địa giới hành chính nào, hay một khu vực nghiên cứu?
+- Cầu đang khai thác, đang xây dựng hay mới được quy hoạch?
+- Dữ liệu được cập nhật tại thời điểm nào?
 
-4. **Quan hệ Mặt Trời – Hướng Đường (Solar Orientation):**
-* Tại Hà Nội, lúc **7h30 sáng**, Mặt Trời ở hướng Đông / Đông-Đông Nam ($\approx 90^\circ\text{–}110^\circ$); lúc **16h30 chiều**, Mặt Trời ở hướng Tây / Tây-Tây Nam ($\approx 250^\circ\text{–}270^\circ$).
-* Nếu lúc 16h30 chiều bạn đang chạy xe trên đường mà **nắng chiếu thẳng vào mặt**, bạn đang đi về hướng Tây (ví dụ: đang đi trên trục `Xuân Thủy` hướng về `Hồ Tùng Mậu`, hoặc `Nguyễn Trãi` hướng về `Hà Đông`). Nếu bóng của tòa nhà **Keangnam** đổ dài về phía trước mặt bạn, bạn đang nhìn về hướng Đông.
+Nếu chưa giải thích rõ, người học dễ nhầm sáu cầu được lựa chọn trong bài học với toàn bộ cầu bắc qua sông Hồng trong một phạm vi địa lý xác định.
 
+Ngoài ra, quan hệ cần lưu trữ không đơn thuần là `cầu nằm trên sông`, mà còn là `cầu nối bờ A với bờ B`, `cầu nối đoạn đường X với đoạn đường Y` và `cầu cho phép những phương thức di chuyển nào`.
 
-5. **Quan hệ Bao hàm & Cắt Vành Đai (Containment & Ring-Crossing):**
-* Xác định một con đường nằm **trong** hay **ngoài** Vành đai 1 / Vành đai 2 / Vành đai 3, và đi từ Quận A sang Quận B thì phải cắt qua cây cầu hay nút giao Vành đai nào.
+## 2.4. La bàn mặt trời và định vị bằng đường chân trời
 
+Chương 5 có nội dung tốt: sử dụng phương vị mặt trời và các mốc đường chân trời để định hướng khi không có GPS.
 
+Nhưng đây là phần cần độ chính xác cao hơn những chương còn lại.
 
-### 3. Hệ sinh thái API & Thư viện (Miễn phí / Mã nguồn mở) Tận dụng Trực tiếp
+Theo quy ước thường dùng, góc phương vị mặt trời được đo theo chiều kim đồng hồ từ hướng Bắc: \\(0^\circ\\) là Bắc, \\(90^\circ\\) là Đông, \\(180^\circ\\) là Nam và \\(270^\circ\\) là Tây. Góc này phụ thuộc vào vị trí địa lý, ngày và giờ quan sát.&#x20;
 
-Bạn hoàn toàn có thể xây dựng bài tập này với **chi phí $0** và tốc độ phản hồi tức thời (60fps) bằng cách kết hợp các API và thư viện chuẩn sau:
+[image](https://www.google.com/s2/favicons?domain=https://www.gml.noaa.gov\&sz=32)
 
-| Thành phần Kỹ thuật | Công cụ / API khuyên dùng | Cách tận dụng cụ thể trong bài tập |
-| --- | --- | --- |
-| **Hiển thị Bản đồ Vector (3D & Tùy biến lớp)** | [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/) *(kết hợp nguồn tile miễn phí từ OpenFreeMap hoặc Protomaps)* | • Cho phép **ẩn toàn bộ nhãn tên đường (Street Labels)** bằng 1 dòng code (`map.setLayoutProperty(..., 'visibility', 'none')`) để tạo "Bản đồ câm" cho người dùng điền tên.<br>
+GML
 
-<br>• Hỗ trợ xoay góc nhìn bản đồ $360^\circ$ (`bearing`), nghiêng góc 3D (`pitch: 60`) và dựng khối tòa nhà 3D (`fill-extrusion`) để mô phỏng góc nhìn người đi đường nhìn các tòa nhà cao tầng. |
-| **Trích xuất Dữ liệu Đường, Ngã tư & Điểm neo** | [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) ([Overpass QL](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL)) | • Dùng truy vấn Overpass QL để lấy toàn bộ tọa độ hình học (`way["highway"]`), chiều đường (`oneway=yes`), cầu vượt (`bridge=yes`, `layer=1`), hồ nước (`natural=water`) và các tòa nhà nổi tiếng (`building`, `tourism=attraction`) tại Hà Nội về lưu thành file tĩnh `hanoi_graph.json` (dung lượng chỉ ~2–3MB sau khi lọc các đường chính) để chạy offline siêu mượt trên Vercel. |
-| **Tính toán Hình học: Song song, Vuông góc, Giao điểm** | [Turf.js](https://turfjs.org/docs/intro) | • `turf.bearing(pt1, pt2)`: Tính góc phương vị của từng đoạn đường để tự động phân loại cặp đường **Song song (`//`)** hay **Vuông góc ($\perp$)**.<br>
++1
 
-<br>• `turf.lineIntersect(roadA, roadB)`: Tự động tìm tọa độ chính xác của mọi ngã tư giữa 2 con đường.<br>
 
-<br>• `turf.distance(userPt, landmarkPt)`: Tính khoảng cách chim bay đến các tòa nhà điểm neo. |
-| **Định tuyến Thực tế & Kiểm tra Đường 1 chiều** | [Project OSRM API](https://project-osrm.org/docs/v5.5.1/api/) | • Dùng API `/route/v1/driving/` để kiểm tra lộ trình tối ưu thực tế từ điểm A đến điểm B (có tính đến đường 1 chiều, cấm rẽ trái) và chấm điểm xem lộ trình người dùng vạch ra ngắn hơn hay dài hơn lộ trình chuẩn bao nhiêu mét. |
-| **Tính Góc Mặt Trời & Hướng Bóng Đổ** | [SunCalc](https://github.com/mourner/suncalc) | • Truyền tọa độ Hà Nội `(21.0285, 105.8542)` và giờ bất kỳ vào `SunCalc.getPosition(date, lat, lng)` để lấy chính xác góc phương vị Mặt Trời (`azimuth`) và góc cao (`altitude`), từ đó vẽ mũi tên ánh nắng và hướng bóng đổ của tòa nhà trực tiếp trên bản đồ. |
-| **Tra cứu Tọa độ & Địa danh Tức thời** | [Nominatim API](https://nominatim.org/release-docs/latest/api/Search/) | • Hỗ trợ tìm kiếm địa danh hoặc chuyển đổi ngược từ cú click chuột trên bản đồ (`Reverse Geocoding`) ra tên phố và tên phường/quận tại Hà Nội. |
 
-### 4. Thiết kế 5 Chế độ Bài tập (Game Modes) Sát Thực tế Giao thông Hà Nội
+Với ví dụ hiển thị trên bản đồ của bạn:
 
-Để người dùng tiến bộ từ "mù đường" đến "thuộc lòng bản đồ Hà Nội trong đầu", bài tập nên chia thành **5 chế độ tương tác** gắn liền với các trục năng lực sẵn có trên [Brain Pro](https://brain-pro-psi.vercel.app/):
+- Mặt trời có phương vị \\(265^\circ\\): gần hướng Tây.
+- Bóng đổ có phương vị \\(85^\circ\\): gần hướng Đông, xấp xỉ ngược hướng mặt trời.
 
-#### Chế độ 1: Giải phẫu Khung Xương Đô Thị (Skeleton & Ring Builder)
+Hai góc này phù hợp với quan hệ hình học đối hướng. Tuy nhiên, mình chưa thể xác nhận góc \\(265^\circ\\) chính xác cho mốc thời gian trên giao diện vì ảnh chưa cho biết đầy đủ ngày, kinh độ và cách đặt thời gian mà thuật toán sử dụng.
 
-* **Mục tiêu:** Nắm vững 3 Vành đai, 8 trục hướng tâm và 6 hồ/sông lớn trước khi học phố nhỏ.
-* **Cách chơi:** Hiển thị bản đồ Hà Nội ở trạng thái **Câm (chỉ có sông, hồ và nét vẽ các trục đường chính, không có chữ)**. Hệ thống đưa ra chuỗi nối tiếp (ví dụ: *"Hãy click theo thứ tự 5 đoạn đường nối tiếp nhau tạo thành Vành đai 1 từ Đông sang Tây"* $\rightarrow$ Người dùng phải click đúng chuỗi: `Trần Khát Chân` $\rightarrow$ `Đại Cồ Việt` $\rightarrow$ `Xã Đàn` $\rightarrow$ `Ô Chợ Dừa` $\rightarrow$ `Hoàng Cầu`).
+Bảng phương vị theo buổi sáng, trưa và chiều cũng nên được kiểm tra lại từng khoảng góc, nhãn hướng và ngày tham chiếu.
 
-#### Chế độ 2: Phản xạ Quan hệ Hình học `//` & $\perp$ (Grid Topology Blitz)
+Một phân biệt nữa rất quan trọng:
 
-* **Mục tiêu:** Luyện tư duy mạng lưới không gian (Allocentric) – biết đường nào cắt đường nào, đường nào song song để tìm đường tránh tắc.
-* **Cách chơi:** Bấm giờ nhanh (giống nhịp độ của các bài tập Phản xạ trên [Brain Pro](https://brain-pro-psi.vercel.app/)):
-* **Dạng 1 (Ma trận `//` và $\perp$):** Đề bài cho đường gốc `Lý Thường Kiệt`. Hiển thị 6 thẻ tên phố (`Hai Bà Trưng`, `Bà Triệu`, `Trần Hưng Đạo`, `Quang Trung`, `Phố Huế`, `Phan Bội Châu`). Người dùng phải kéo nhanh vào 2 cột: **Song song (`//`)** hoặc **Vuông góc ($\perp$)**.
-* **Dạng 2 (Tìm Giao điểm):** *"Đường `Nguyễn Thái Học` và đường `Chu Văn An` có cắt nhau không? Nếu có, tại đó có công trình/điểm neo nào?"*
+Định hướng bằng mốc khác với xác định vị trí bằng tam giác hóa.
 
+Nếu người học đang đứng tại một vị trí đã biết, phương vị của một mốc có thể hỗ trợ xác định hướng nhìn. Nhưng nếu người học chưa biết mình đang ở đâu, phải sử dụng các mốc đã biết vị trí, hướng đo và hình học giao nhau của các đường ngắm để suy ra vị trí. Chỉ nhìn thấy một tòa nhà không đủ để xác định vị trí của người quan sát.
 
+Mình cũng đề xuất đổi cách diễn đạt “lái xe không cần GPS” theo hướng an toàn hơn: rèn luyện định hướng và khôi phục phương hướng khi thiếu tín hiệu GPS. Mặt trời và đường chân trời nên là dữ liệu hỗ trợ, không phải phương pháp thay thế hoàn toàn hệ thống dẫn đường thực tế.
 
-#### Chế độ 3: Định vị bằng Điểm Neo & Hướng Mặt Trời (Sun & Landmark Triangulation)
+# 3. Những thực thể quan trọng còn thiếu
 
-* **Mục tiêu:** Rèn kỹ năng xác định phương hướng và vị trí khi đứng giữa đường mà không có GPS.
-* **Cách chơi:** Màn hình hiển thị góc nhìn 3D giả lập (hoặc bản đồ xoay lệch hướng Bắc ngẫu nhiên — **Unaligned North**) kèm thông tin ngữ cảnh:
-* **Đề bài mẫu:** *"Hiện tại là **17h00 chiều**. Mặt trời đang chiếu từ phía **bên trái** tay lái của bạn. Trước mặt bạn cách 1.2km chếch về bên phải là tòa **Lotte Center**. Bạn đang đứng trước cổng **Công viên Thủ Lệ**. Hỏi: (1) Bạn đang quay mặt về hướng nào (Đông/Tây/Nam/Bắc)? (2) Bạn đang đứng trên đường nào? (3) Muốn đi về **Hồ Hoàn Kiếm** thì tại ngã tư tiếp theo bạn phải rẽ hướng nào?"*
-* **Công cụ hỗ trợ trên UI:** Hiển thị vòng tròn góc chiếu nắng tính từ [SunCalc](https://github.com/mourner/suncalc) và tia ngắm (Line-of-sight) nối tới các tòa nhà cao tầng.
+Đây là phần mình nghĩ sẽ giúp bạn nâng cấp hệ thống nhiều nhất.
 
+Trong các ảnh, đối tượng được thể hiện nổi bật là những đường vành đai, trục đường, cầu, khu phố, mặt trời và mốc đường chân trời. Nhưng nếu muốn xây dựng một mô hình nhận thức đô thị đầy đủ hơn, bạn nên tổ chức các thực thể thành những nhóm dưới đây.
 
+[Hanoi Old Quarter](https://images.openai.com/static-rsc-4/jV-6Ag7sNOUhA6zKqbU8gfp4B1NyJ-BhP6EqBKmr8-VDmQOn5HQTGa4ZHple2WV1sfxTccmkAAmGUyrcovWApyNDljMuaIBCeGhRVJ_Tlf-kovoY2pUwI9KiloA9QgpcfKsCgTKsJN-uF4uMLwFKhJkcl-fcU6WSqtEP2eskV8g?purpose=inline)
 
-#### Chế độ 4: Thử thách "Thả Dù Mù" & Tìm Đường (Blind Drop & Mental Routing)
+### Nhóm 1. Không gian và mạng lưới
 
-* **Mục tiêu:** Kết hợp xác định **Vị trí hiện tại (Current Location)** và lập lộ trình tới **Vị trí mong muốn (Target Destination)** có tính đến bẫy đường 1 chiều tại Hà Nội.
-* **Cách chơi:**
-1. **Pha 1 – Xác định vị trí đứng:** Hệ thống đặt người dùng tại một ngã tư ẩn tên, chỉ hiện 2 gợi ý thực thể xung quanh (ví dụ: *"Cách Hồ Gươm 400m về phía Nam, giao giữa một đường 1 chiều hướng Nam $\rightarrow$ Bắc và một đường 2 chiều có nhiều cây sấu"*). Người dùng phải chấm đúng vị trí mình đang đứng trên bản đồ câm (`Ngã tư Hàng Bài – Trần Hưng Đạo`).
-2. **Pha 2 – Dẫn đường trong đầu (Mental Navigation):** Yêu cầu đi từ vị trí vừa tìm được tới **Lăng Bác** nhưng **không hiển thị bản đồ ở giữa**, người dùng phải chọn tuần tự các nút rẽ: *Đi thẳng `Hàng Bài` hay rẽ trái `Trần Hưng Đạo`? $\rightarrow$ Gặp `Quán Sứ` hay `Lê Duẩn` thì rẽ phải? $\rightarrow$ Đi tiếp qua `Điện Biên Phủ`...* Hệ thống dùng [Project OSRM API](https://project-osrm.org/docs/v5.5.1/api/) để chấm xem người dùng có đi ngược chiều đoạn nào không (ví dụ: rẽ nhầm vào chiều cấm của `Lê Duẩn` hay `Nguyễn Thái Học` sẽ bị báo lỗi ngay).
+Ưu tiên cao
 
+Đây là lớp nền của toàn bộ bản đồ.
 
+- Đoạn đường: hình học, chiều dài, hướng đi, loại đường.
+- Nút giao: các đoạn đường gặp nhau, điểm chuyển hướng và điểm kết nối.
+- Ngõ, lối đi bộ, đường nội bộ: các liên kết thường bị mất khi chỉ vẽ các trục chính.
+- Ranh giới: ranh giới khu vực, bờ sông, mép hồ, ranh giới vật lý hoặc nhận thức.
+- Vùng không gian: khu phố cổ, khu phố Pháp, làng cũ, khu đô thị mới.
+- Địa hình và cao độ: cầu vượt, hầm, đường trên cao, chênh lệch cao độ và các điểm quan sát cao.
 
-#### Chế độ 5: Radar Khoảng cách & Phương vị Tâm Tưởng (Mental Compass)
+[Five Vietnamese bridges that have become global attractions](https://images.openai.com/static-rsc-4/boT2jTijZEis5qsrP3CsITkb_bo6wT8w2UJXhEwJUZjtZVKVIm4eWsJ2k_XORn5PbRvES05oXn1KPyqyJHtwNkij8cZIBcQS4JKby6IQmue3JGgJuRwJImso3oaZhFJo-RQEcWX03skhvNulzUHoivRV2auT7ARtOiAwKNPUWyw?purpose=inline)
 
-* **Mục tiêu:** Căn chỉnh cảm giác khoảng cách và góc phương vị chính xác giữa các địa danh Hà Nội.
-* **Cách chơi:** Đưa người dùng về đứng tại một tâm cố định (ví dụ: **Ngã Tư Sở** và đang nhìn thẳng về hướng **Nguyễn Trãi – Hà Đông**). Hệ thống hỏi liên tiếp 5 địa danh (*Hồ Tây, Bến xe Giáp Bát, SVĐ Mỹ Đình, Cầu Vĩnh Tuy, Lăng Bác*): người dùng xoay một **vòng la bàn 360°** trên màn hình để chỉ hướng tương đối (trước mặt, sau lưng, 2 giờ, 8 giờ...) và ước lượng khoảng cách ($km$).
+### Nhóm 2. Thực thể địa lý và công trình
 
-### 5. Phân cấp 12 Cấp độ Chuẩn + Vô Cực (Tích hợp đồng bộ với Brain Pro)
+Ưu tiên cao
 
-Để bài tập khớp hoàn toàn với kiến trúc **Stage I – II – III – Vô Cực** và **SRS (SM-2)** hiện có trên [Brain Pro](https://brain-pro-psi.vercel.app/), bạn có thể thiết kế tiến trình độ khó như sau:
+- Sông, hồ, kênh, bờ sông, đê và vùng trũng.
+- Cầu, hầm, nút giao lớn, công trình vượt sông.
+- Tòa nhà cao tầng, tháp, công trình công cộng và mốc dễ nhận diện.
+- Ga đường sắt, điểm trung chuyển và đầu mối giao thông.
+- Quảng trường, chợ, công viên và các không gian công cộng.
 
-| Giai đoạn | Cấp độ | Phạm vi Bản đồ & Nội dung rèn luyện | Ràng buộc nhận thức (Cognitive Constraints) |
-| --- | --- | --- | --- |
-| **Stage I: Khởi Động** *(Khung Xương & Hồ Lớn)* | **Cấp 1 – 4** | • **Cấp 1:** 6 Hồ lớn, Sông Hồng, Sông Tô Lịch & 4 hướng Đông – Tây – Nam – Bắc.<br>
+Các thực thể này cần vị trí và hình học xác định, thay vì chỉ là tên hoặc biểu tượng trên bản đồ.
 
-<br>• **Cấp 2:** 3 Tuyến Vành đai (VĐ1, VĐ2, VĐ3) & các Cầu qua sông Hồng.<br>
+[Hanoi, Vietnam: A busy intersection in the old quarter of Hanoi](https://images.openai.com/static-rsc-4/valfIwpQbIhQSjN7I_iRrv1ZyuZohRYUEfdcS2toCpehEkL5WMKWRHFoTHZ-ui61-8P3uUjTQAQduU3ObJ2RDTwGcloEXHKUhf8MfP3xcAaxP0B0S_ewKG3_lGX_LpO-FNwJ4wV3fjhBSceetBxy3nmR8y43cipfnZZY4l6NQnrHgqpf555ztEGUIrfbLAVN?purpose=inline)
 
-<br>• **Cấp 3:** 8 Trục hướng tâm chính & các chuỗi đường nối tiếp đổi tên.<br>
+### Nhóm 3. Người quan sát và trạng thái quan sát
 
-<br>• **Cấp 4:** 20 Điểm neo Tòa nhà / Địa danh biểu tượng khắp Hà Nội. | Bản đồ luôn cố định **Hướng Bắc ở trên (North-Up)**; hiển thị đầy đủ đường viền sông/hồ làm mốc. |
-| **Stage II: Bứt Phá** *(Lưới Phố & Quan hệ `//`, $\perp$)* | **Cấp 5 – 8** | • **Cấp 5:** Khu vực **Hoàn Kiếm – Ba Đình** (Ô bàn cờ Phố Pháp, quan hệ `//` và $\perp$, bẫy đường 1 chiều).<br>
+Thiếu quan trọng
 
-<br>• **Cấp 6:** Khu vực **Đống Đa – Hai Bà Trưng** (Nút giao Ô Chợ Dừa, Ngã Tư Sở, Vọng, Đại Cồ Việt).<br>
+Đây là nhóm cần thiết nếu ứng dụng hướng đến nhận thức và định hướng của con người.
 
-<br>• **Cấp 7:** Khu vực **Cầu Giấy – Tây Hồ – Nam Từ Liêm** (Trục Xuân Thủy, Trần Duy Hưng, Vành đai 2.5 & 3).<br>
+- Vị trí quan sát hiện tại.
+- Hướng cơ thể, hướng đầu hoặc hướng nhìn.
+- Phương thức di chuyển: đi bộ, xe máy, ô tô.
+- Mục tiêu di chuyển và mức độ quen thuộc với khu vực.
+- Mốc đang nhìn thấy, mốc bị che khuất và mốc chỉ được nhớ lại.
+- Khả năng quan sát thay đổi theo thời điểm, thời tiết và vật cản.
 
-<br>• **Cấp 8:** Khu vực **Thanh Xuân – Hoàng Mai – Hà Đông – Long Biên**. | Bản đồ **xoay góc ngẫu nhiên (Rotated Map)** buộc người dùng phải dựa vào quan hệ tương đối giữa các đường và điểm neo thay vì nhìn hướng Bắc cố định. |
-| **Stage III: Siêu Phàm** *(Định hướng Mặt Trời & Dẫn đường)* | **Cấp 9 – 12** | • **Cấp 9:** Định vị góc nhìn thứ nhất qua **Hướng Mặt Trời + Bóng Tòa nhà** theo giờ trong ngày.<br>
+[Just For Nomads](https://images.openai.com/static-rsc-4/cWupViRvLTGV7cLZkgEdQBFY8i8C2wQdW5i1m1TFHxJDUAm3fByYQ_I7An_Vj71OaU1BoVRMy7C8Vlm9Cz2azxpfEXog2UXosGxHZ3ldP-cY-5rASqd9gwV01NYYDuaH-Sf6wqogcAK7BdjSWwBPr2QZ2kDfYERDcK6b33ZMA3s?purpose=inline)
 
-<br>• **Cấp 10:** Dẫn đường vượt bẫy **Đường 1 chiều & Cấm rẽ** giờ cao điểm.<br>
+### Nhóm 4. Thời gian, lịch sử và dữ liệu
 
-<br>• **Cấp 11:** Dẫn đường đa tầng qua các nút **Hầm chui – Cầu vượt – Vòng xuyến**.<br>
+Thiếu quan trọng
 
-<br>• **Cấp 12:** **Blind Navigation:** Ẩn 80% nét bản đồ, chỉ cho Điểm xuất phát + Điểm đích + 2 Điểm neo để tự vạch lộ trình. | Kết hợp cả hệ quy chiếu **Egocentric** (Trái/Phải trước mặt) và **Allocentric** (Đông/Tây/Nam/Bắc) dưới áp lực thời gian. |
-| **Stage IV: Vô Cực** *(Thử thách Thực chiến)* | **∞-I đến ∞-V** | • **∞-I:** *36 Phố Phường Mê Cung* (Phố cổ Hoàn Kiếm nối tiếp nhau).<br>
+- Thời điểm dữ liệu được cập nhật.
+- Lịch sử thay đổi của đường, cầu và khu vực.
+- Trạng thái khai thác, đóng đường, thi công hoặc cấm rẽ.
+- Nguồn dữ liệu và độ tin cậy.
+- Phân biệt dữ kiện đã kiểm chứng với giả thuyết diễn giải.
+- Ngày, giờ và vị trí dùng để tính phương vị mặt trời.
 
-<br>• **∞-II:** *Rush Hour Reroute* (Đang đi thì 1 nút giao bị tắc đỏ, phải tìm ngay đường `//` kế bên để thoát trong 5s).<br>
+Với bản đồ Hà Nội, yếu tố thời gian không chỉ là một đồng hồ mô phỏng. Thành phố và mạng đường thực sự thay đổi qua các giai đoạn lịch sử.&#x20;
 
-<br>• **∞-III:** *Night & Fog Navigation* (Không có Mặt Trời, tầm nhìn giới hạn, chỉ định vị bằng chuỗi ngã tư vừa đi qua). | Tích hợp trực tiếp vào **SRS Memory (SM-2)**: Ngã tư nào rẽ nhầm hoặc cặp đường nào nhớ sai quan hệ `//`, $\perp$ sẽ tự động được lưu vào tab *Lịch sử sai* để nhắc ôn lại. |
+[image](https://www.google.com/s2/favicons?domain=https://www.researchgate.net\&sz=32)
 
-### 6. Quy trình Triển khai Kỹ thuật Từng bước (Implementation Blueprint)
+ResearchGate
 
-1. **Bước 1 – Xây dựng Script tạo dữ liệu tĩnh (`build-hanoi-graph.js`):**
-* Gọi [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) một lần duy nhất trong quá trình phát triển để lấy các trục đường chính (`highway~"trunk|primary|secondary|tertiary"`) và các địa danh nổi tiếng trong phạm vi nội thành Hà Nội.
-* Dùng [Turf.js](https://turfjs.org/docs/intro) chạy tiền xử lý (Pre-compute): Tính sẵn góc phương vị trung bình của từng con đường, lập danh sách `parallel_streets[]`, `perpendicular_streets[]`, `collinear_continuations[]` và `landmarks_nearby[]` cho từng con đường rồi xuất ra file `hanoi_cognitive_graph.json`. Cách này giúp ứng dụng trên Vercel không bị phụ thuộc tốc độ mạng khi người dùng đang làm bài tập tốc độ cao.
 
 
-2. **Bước 2 – Tích hợp Component Bản đồ Câm & La bàn Mặt Trời:**
-* Nhúng [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/) vào giao diện bài tập với 2 chế độ hiển thị: **Chế độ Học (Study Mode)** có bật lớp màu phân biệt Vành đai 1–2–3 / Trục hướng tâm, và **Chế độ Thi (Quiz Mode)** tắt toàn bộ chữ (`symbol` layers), chỉ giữ lại hình học đường, sông hồ và khối 3D của các Điểm neo.
-* Tạo một Widget **La bàn Mặt Trời (Solar Compass)** ở góc màn hình sử dụng [SunCalc](https://github.com/mourner/suncalc): khi câu hỏi đặt mốc thời gian (ví dụ `08:00 AM` hoặc `16:45 PM`), Widget sẽ chiếu vệt sáng song song qua toàn bộ mặt phẳng bản đồ để người dùng trực quan hóa hướng nắng và bóng râm.
+Mình muốn nhấn mạnh hai thực thể thường bị bỏ quên.
 
+Thứ nhất là đoạn đường và nút giao thực tế. Một trục đường chỉ thể hiện hướng tổng thể chưa đủ để suy ra lộ trình. Muốn đi từ A đến B, bạn cần biết đường nào thực sự nối với nhau và tại nút giao có thể chuyển sang hướng nào.
 
-3. **Bước 3 – Liên kết với 6 Trục Năng Lực & SRS của [Brain Pro](https://brain-pro-psi.vercel.app/):**
-* Bài tập này sẽ đóng góp điểm XP trực tiếp vào 3 trục trên **Sơ đồ Radar**: **Trí nhớ** (nhớ tên đường & vị trí điểm neo), **Thị giác ngoại vi / Không gian** (ước lượng góc phương vị, khoảng cách và quan hệ `//`, $\perp$), và **Phản xạ** (xử lý rẽ hướng tại giao lộ).
-* Mỗi khi người dùng trả lời sai một mối quan hệ (ví dụ: nhầm `Hai Bà Trưng` song song với `Bà Triệu` thay vì vuông góc, hoặc đi ngược chiều `Phố Huế`), hệ thống đẩy ngay cặp thực thể `[Hai Bà Trưng <-> Bà Triệu: Vuông góc]` vào bảng **Lịch sử sai (SRS SM-2)** hiện có của trang web.
+Thứ hai là người quan sát. Một mốc có thể rất nổi bật đối với người quen thành phố, nhưng vô nghĩa đối với người chưa từng đến đó. Vì vậy, bản đồ địa lý và bản đồ trong tâm trí là hai đối tượng có liên quan nhưng không đồng nhất.
 
+# 4. Các mối quan hệ quan trọng cần bổ sung
 
+Theo mình, đây là phần có giá trị nhất để hoàn thiện Brain Pro.
 
-Bạn có muốn mình viết luôn **truy vấn Overpass QL mẫu** để trích xuất bộ dữ liệu các trục đường + điểm neo Hà Nội, hoặc viết **cấu trúc JSON + thuật toán Turf.js** tự động xác định quan hệ song song (`//`), vuông góc ($\perp$) và hướng Mặt Trời để bạn đưa vào dự án không?
+Bạn không nên chỉ lưu danh sách thực thể. Bạn cần xác định rõ mỗi thực thể có quan hệ gì với thực thể khác, điều kiện nào làm quan hệ đó tồn tại và khi nào quan hệ thay đổi.
+
+| Nhóm quan hệ            | Quan hệ nên có                                                | Câu hỏi mà hệ thống trả lời được                                        |
+| ----------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Không gian              | `nằm_trong`, `giáp_ranh`, `giao_cắt`, `cắt_qua`               | Đối tượng thuộc vùng nào? Có vượt qua ranh giới nào không?              |
+| Kết nối                 | `nối_với`, `tiếp_giáp`, `đi_đến`, `có_thể_rẽ_tới`             | Có thực sự đi từ đường này sang đường khác được không?                  |
+| Giao thông              | `được_phép_đi_theo_hướng`, `cấm_rẽ`, `cho_phép_phương_thức`   | Lộ trình nào hợp lệ với phương tiện đang dùng?                          |
+| Định hướng              | `nhìn_thấy_từ`, `có_phương_vị_tới`, `định_hướng_bởi`          | Mốc nào giúp người quan sát xác định hướng?                             |
+| Nhận thức               | `nhận_diện_bởi`, `dễ_nhớ`, `gợi_nhớ_tới`                      | Vì sao một nơi trở thành mốc quan trọng trong tâm trí?                  |
+| Cấu trúc đô thị         | `thuộc_khu_vực`, `giới_hạn_khu_vực`, `kết_nối_trung_tâm`      | Các khu vực có cấu trúc và vai trò gì trong mạng đô thị?                |
+| Thời gian và trạng thái | `thay_đổi_theo`, `bị_ảnh_hưởng_bởi`, `không_còn_khả_dụng_khi` | Khi thời gian hoặc điều kiện thay đổi, hành động nào không còn khả thi? |
+| Bằng chứng              | `có_nguồn`, `được_xác_minh_bởi`, `có_độ_tin_cậy`              | Ta biết dữ kiện này từ đâu, vào lúc nào và chắc chắn đến mức nào?       |
+
+Đây là một số ví dụ cho thấy vì sao việc lưu quan hệ lại quan trọng.
+
+Ví dụ A — Cầu Long Biên
+
+Không chỉ có:
+
+`Cầu Long Biên → nằm trên → Sông Hồng`
+
+Mà còn cần:
+
+`Cầu Long Biên → kết nối → mạng đường bờ này`
+
+`Cầu Long Biên → có đầu cầu → vị trí X`
+
+`Cầu Long Biên → có đầu cầu → vị trí Y`
+
+`Người quan sát tại P → có thể nhìn thấy → Cầu Long Biên`
+
+Các quan hệ này phục vụ những mục tiêu khác nhau: học thuộc vị trí, đi qua sông, tìm lộ trình và định hướng.
+
+Ví dụ B — Một nút giao
+
+Một nút giao không chỉ là điểm trên bản đồ. Nó có các đoạn đường đi vào, đi ra và các chuyển hướng hợp lệ. Đường hai chiều khác với đường một chiều; có giao điểm về mặt hình học không có nghĩa là mọi hướng đi đều được phép.
+
+Vì thế, nếu bạn đã dạy “nghệ thuật tránh bẫy một chiều”, phần dữ liệu đường cần có đồ thị có hướng và quy tắc chuyển hướng, chứ không chỉ là tập hợp các đường cắt nhau.
+
+Ví dụ C — Mốc đường chân trời
+
+Một tòa nhà có thể có tọa độ cố định, nhưng quan hệ `nhìn_thấy_từ` thay đổi tùy vị trí quan sát, tầm nhìn, vật cản và điều kiện khí quyển. Quan hệ này không thể được biểu diễn đầy đủ bằng một đường nối tĩnh trên bản đồ.
+
+# 5. Điều quan trọng nhất: Bổ sung ba lớp State, Relations và Dynamics
+
+Mình nghĩ phần này sẽ giúp bạn kết nối các chương hiện có thành một hệ thống thống nhất, thay vì chỉ thêm nhiều nội dung mới.&#x20;
+
+## Lớp A — Trạng thái của từng thực thể
+
+Mỗi thực thể phải có các thuộc tính mô tả trạng thái của chính nó.
+
+Ví dụ:
+
+### Thực thể: Đoạn đường
+
+Thuộc tính tương đối tĩnh
+
+Hình học, vị trí, chiều dài, độ dốc, loại đường.
+
+Thuộc tính thay đổi
+
+Trạng thái mở/đóng, cấm rẽ, mật độ giao thông, công trường.
+
+Tương tự, thực thể người quan sát có vị trí, hướng nhìn, mục tiêu và mức độ quen thuộc; thực thể mặt trời có phương vị, độ cao và thời điểm tính toán.
+
+Không nên gộp tất cả thuộc tính vào một loại dữ liệu duy nhất. Các thuộc tính thay đổi theo thời gian cần được quản lý khác với đặc điểm hình học ổn định.
+
+## Lớp B — Quan hệ giữa các thực thể
+
+Quan hệ phải thể hiện được cấu trúc của cả hệ thống.
+
+Ví dụ:
+
+- Đoạn đường nối với nút giao.
+- Cầu nối hai mạng đường ở hai bờ.
+- Sông tạo thành một ranh giới không gian nhưng cũng có thể được vượt qua tại những vị trí nhất định.
+- Mốc nhận diện giúp người quan sát xác định phương hướng.
+- Một khu vực được đặc trưng bởi mạng đường, công trình và các hoạt động của nó.
+
+Trong mô hình Kevin Lynch, các vai trò không nhất thiết loại trừ nhau. Một cây cầu có thể là tuyến di chuyển, đồng thời là mốc nhận diện; một bờ sông có thể là ranh giới, nhưng lối đi ven sông lại là tuyến. Đây là cách phân loại theo vai trò trong nhận thức, không chỉ theo loại vật thể.
+
+## Lớp C — Quan hệ giữa các trạng thái và sự chuyển đổi
+
+Đây là lớp mình thấy chưa được thể hiện rõ trong giao diện hiện tại.
+
+Hãy xem quá trình định hướng như một chuỗi chuyển trạng thái:
+
+Trạng thái 1 — Chưa xác định hướng
+
+Không chắc đang ở đâu hoặc đang nhìn về hướng nào.
+
+Trạng thái 2 — Nhận ra mốc
+
+Xác định một tòa nhà, hồ, cầu hoặc tuyến đường.
+
+Trạng thái 3 — Xác lập quan hệ phương hướng
+
+So sánh vị trí, hướng nhìn, phương vị và các tuyến kết nối.
+
+Trạng thái 4 — Lập kế hoạch hành động
+
+Chọn tuyến đi hợp lệ để tiến tới mục tiêu.
+
+Trạng thái 5 — Kiểm tra và cập nhật
+
+So sánh thực tế với dự đoán, phát hiện sai lệch và điều chỉnh.
+
+Điểm cốt yếu là một hành động tạo ra trạng thái mới, còn trạng thái mới lại làm thay đổi những hành động khả thi tiếp theo.
+
+Ví dụ, một cây cầu đóng cửa không làm thay đổi vị trí địa lý của cây cầu, nhưng làm thay đổi trạng thái sử dụng của nó. Điều đó khiến một số đường đi không còn khả thi, làm thay đổi lựa chọn lộ trình và có thể khiến người quan sát phải tìm một mốc khác để tái định hướng.
+
+Đó chính là sự liên kết giữa trạng thái thực thể, quan hệ thực thể và động lực chuyển trạng thái.
+
+# 6. Những gì nên bổ sung vào từng chương hiện tại
+
+Mình không khuyến nghị thêm thật nhiều chương ngay lập tức. Trước hết, hãy làm cho năm chương đang có kết nối chặt chẽ với nhau.
+
+| Chương                                    | Nội dung đã có trong ảnh             | Phần nên hoàn thiện                                                                              |
+| ----------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| 1. Năm thành phần nhận thức               | Tuyến, ranh giới, khu vực, nút, mốc  | Bổ sung ví dụ Hà Nội và cho phép một vật thể có nhiều vai trò nhận thức                          |
+| 2. Hệ quy chiếu nhận thức                 | Allocentric và Egocentric            | Phân biệt tọa độ cố định trên bản đồ với vị trí, hướng nhìn và góc nhìn của người quan sát       |
+| 3. Vành đai và trục xuyên tâm             | Mạng vòng, tuyến hướng tâm           | Đối chiếu mô hình khái quát với hình học đường thật, các kết nối và khoảng trống trong mạng      |
+| 4. Lưới phố và tránh đường một chiều      | Ô phố, đối xứng, quy tắc tránh đường | Bổ sung đồ thị có hướng, quy tắc rẽ và lộ trình thực tế theo phương tiện                         |
+| 5. La bàn mặt trời và mốc đường chân trời | Phương vị mặt trời, mốc skyline      | Chuẩn hóa ngày/giờ/tọa độ, độ tin cậy, khả năng nhìn thấy mốc và phương pháp tái xác định vị trí |
+
+Chương 2 đặc biệt đáng chú ý. Nếu đã có phân biệt giữa hệ quy chiếu theo bản đồ và theo người quan sát, bạn nên dùng cùng một đối tượng để thể hiện hai cách biểu diễn. Chẳng hạn, vị trí hồ Hoàn Kiếm không đổi trên bản đồ, nhưng hướng nhìn tới hồ và góc nhìn của người đang đi trên một tuyến phố có thể thay đổi liên tục.
+
+Khi làm được điều này, chương 2 sẽ trở thành cầu nối tự nhiên giữa hình học của chương 3–4 với định hướng thực tế của chương 5.
+
+# 7. Bốn việc mình sẽ ưu tiên để hoàn thiện Brain Pro
+
+Ưu tiên 1 — Kiểm chứng và ghi nguồn cho dữ kiện
+
+Rà soát các con số như ba vành đai, tám trục, sáu cầu; ghi tên đầy đủ, phạm vi, ngày cập nhật và nguồn kiểm chứng. Đối với sơ đồ được vẽ giản lược, hãy ghi rõ đó là mô hình khái niệm chứ không phải hình học theo tỷ lệ.
+
+Ưu tiên 2 — Xây dựng đồ thị không gian thật
+
+Chuẩn hóa các đoạn đường, nút giao, cầu và điểm đến. Mỗi liên kết nên có hướng đi, phương thức di chuyển được phép và điều kiện sử dụng. Sau đó mới dùng mô hình vành đai–hướng tâm để giải thích cấu trúc mạng.
+
+Ưu tiên 3 — Quản lý thời gian và trạng thái
+
+Chuẩn hóa dữ liệu mặt trời theo ngày, giờ địa phương, vĩ độ, kinh độ và quy ước góc. Phân biệt hình học tĩnh với trạng thái động như đóng đường, giao thông hoặc điều kiện quan sát.
+
+Ưu tiên 4 — Kiểm tra khả năng nhận thức, không chỉ khả năng ghi nhớ
+
+Sau mỗi bài học, cho người học xác định hướng, dự đoán tuyến, nhận biết mốc, vẽ lại cấu trúc từ trí nhớ và giải thích khi nào dự đoán bị sai. Hệ thống nên đánh giá cả kết quả lẫn quan hệ mà người học đã sử dụng để suy luận.
+
+## Kết luận
+
+Mình sẽ giữ cấu trúc trực quan hiện tại của bạn. Nó đã tạo được một ngôn ngữ hình ảnh tương đối nhất quán cho việc học nhận thức không gian. Nhưng để hệ thống trở nên chặt chẽ hơn, không nên chỉ thêm nhiều đường, nhiều mốc hoặc nhiều chương.
+
+Điều cần làm là biến nó thành một mô hình có thể trả lời được bốn câu hỏi:
+
+1. Thực thể nào đang tồn tại và có trạng thái gì?
+2. Các thực thể liên hệ, kết nối hoặc ràng buộc nhau như thế nào?
+3. Khi thời gian, vị trí quan sát hoặc điều kiện thay đổi, trạng thái nào sẽ đổi theo?
+4. Sự thay đổi đó khiến những hành động nào trở nên khả thi, không khả thi hoặc đáng lựa chọn hơn?
+
+Nếu hoàn thiện được bốn câu hỏi ấy trên nền ba lớp trạng thái, quan hệ và động lực, Brain Pro sẽ vượt ra khỏi một bản đồ minh họa kiến thức để trở thành một hệ thống huấn luyện tư duy không gian có cơ sở rõ ràng hơn.

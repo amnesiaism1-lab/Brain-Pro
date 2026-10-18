@@ -83,6 +83,46 @@ export const HanoiMarkdownContent: React.FC<HanoiMarkdownContentProps> = ({ cont
       continue;
     }
 
+    // 0. Code Blocks (```)
+    if (line.startsWith('```')) {
+      i++;
+      const codeLines: string[] = [];
+      while (i < rawLines.length && !rawLines[i].trim().startsWith('```')) {
+        codeLines.push(rawLines[i]);
+        i++;
+      }
+      i++; // Skip closing ```
+      elements.push(
+        <div 
+          key={`code-${elKey++}`} 
+          className="my-4 p-4 rounded-2xl bg-slate-900 border border-slate-800 font-mono text-xs text-amber-300 overflow-x-auto shadow-inner"
+        >
+          <pre className="whitespace-pre">{codeLines.join('\n')}</pre>
+        </div>
+      );
+      continue;
+    }
+
+    // 0.1 Blockquotes (>)
+    if (line.startsWith('>')) {
+      const quoteLines: string[] = [];
+      while (i < rawLines.length && rawLines[i].trim().startsWith('>')) {
+        quoteLines.push(rawLines[i].trim().replace(/^>\s*/, ''));
+        i++;
+      }
+      elements.push(
+        <blockquote 
+          key={`quote-${elKey++}`} 
+          className="my-4 pl-4 py-2 border-l-4 border-amber-500 bg-amber-500/5 dark:bg-amber-500/10 rounded-r-xl text-xs sm:text-sm text-slate-800 dark:text-slate-200"
+        >
+          {quoteLines.map((ql, qIdx) => (
+            <p key={`qp-${qIdx}`} className="my-1">{parseInline(ql)}</p>
+          ))}
+        </blockquote>
+      );
+      continue;
+    }
+
     // 1. Horizontal Rule (---)
     if (line === '---') {
       elements.push(

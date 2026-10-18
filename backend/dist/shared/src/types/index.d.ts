@@ -295,3 +295,4 @@ export interface IVocalPitchAttemptTelemetry {
     accuracyPct: number;
 }
 export * from './wrong-answer.types';
+export * from './hanoi-graph.types';

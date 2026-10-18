@@ -17,6 +17,7 @@ import {
 
 export * from './infinityConfigs';
 export * from './hanoiMapData';
+export * from './hanoiGraphData';
 
 export const COGNITIVE_CATEGORIES: ICognitiveCategory[] = [
   {

@@ -239,7 +239,7 @@ export const HanoiMapTheoryModule: React.FC = () => {
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            <span>2. Giáo Trình 5 Chương Không Giới Hạn</span>
+            <span>2. Giáo Trình 10 Chương Thực Chiến & Không Giới Hạn</span>
           </button>
           <button
             onClick={() => setActiveMainTab('quick_quiz')}
@@ -928,7 +928,7 @@ export const HanoiMapTheoryModule: React.FC = () => {
           {/* Chapter Selector Navigation */}
           <div className="lg:col-span-4 space-y-3">
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">
-              Danh Mục 5 Chương Giáo Trình
+              Danh Mục 10 Chương Giáo Trình Thực Chiến
             </div>
             {HANOI_THEORY_CHAPTERS.map((chap, idx) => {
               const isSelected = activeChapterIndex === idx;

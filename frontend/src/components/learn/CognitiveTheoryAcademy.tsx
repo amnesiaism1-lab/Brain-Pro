@@ -327,11 +327,11 @@ export const CognitiveTheoryAcademy: React.FC<CognitiveTheoryAcademyProps> = ({ 
               <div className="flex items-center gap-2">
                 <Compass className="w-5 h-5 text-amber-500 animate-spin-slow shrink-0" />
                 <span className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
-                  Chuyên Đề Độc Lập: Bản Đồ Nhận Thức Hà Nội (5 Chương)
+                  Chuyên Đề Độc Lập: Bản Đồ Nhận Thức Hà Nội (10 Chương Thực Chiến)
                 </span>
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                Bản đồ vector SVG tương tác đa tầng, mô phỏng la bàn mặt trời theo giờ tại vĩ độ 21.03°N và 5 chế độ thực chiến.
+                Bản đồ vector SVG tương tác đa tầng, 10 chương thực chiến (đọc trục, ô phố, địa chỉ ngõ ngách, lập tuyến phân cấp) và 9 chế độ luyện tập.
               </p>
             </div>
             <button

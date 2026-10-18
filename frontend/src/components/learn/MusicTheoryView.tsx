@@ -291,7 +291,7 @@ export const MusicTheoryView: React.FC = () => {
           }`}
         >
           <Compass className="w-4 h-4 shrink-0 text-amber-200" />
-          <span>Bản Đồ Hà Nội (5 Chương)</span>
+          <span>Bản Đồ Hà Nội (10 Chương)</span>
         </button>
         <button
           onClick={() => setAcademyMode('music')}

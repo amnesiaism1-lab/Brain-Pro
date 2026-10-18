@@ -18,6 +18,7 @@ exports.CONTENT_POOLS = exports.WEEKLY_CHALLENGES = exports.EXERCISE_SYNERGIES =
 const infinityConfigs_1 = require("./infinityConfigs");
 __exportStar(require("./infinityConfigs"), exports);
 __exportStar(require("./hanoiMapData"), exports);
+__exportStar(require("./hanoiGraphData"), exports);
 exports.COGNITIVE_CATEGORIES = [
     {
         id: 'cat-1',

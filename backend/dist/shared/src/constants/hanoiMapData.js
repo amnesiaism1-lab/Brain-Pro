@@ -1092,6 +1092,277 @@ Khi đi trong nội đô, các tòa nhà chọc trời vượt lên trên mái n
 * **Vị trí địa lý:** Nằm tại ngã tư Đào Tấn - Liễu Giai.
 * **Quy tắc neo:** Điểm mốc nhận diện cho khu vực Ba Đình - Cầu Giấy. Thấy tháp Lotte sừng sững bên tay phải khi đang đi trên đường Kim Mã nghĩa là bạn đang chạy theo hướng Đông $\rightarrow$ Tây ra Cầu Giấy.
 `
+    },
+    {
+        id: 'chapter-corridors-chains',
+        chapterNumber: 6,
+        title: 'Tư Duy Đọc Trục: "Một Đường Nhiều Tên" (Corridor Chains)',
+        subtitle: 'Bí quyết giảm 80% tải lượng trí nhớ: Nhớ các hành lang xuyên suốt thay vì tên phố rời rạc',
+        badge: 'Kỹ Năng Thực Chiến',
+        iconName: 'Route',
+        readTimeMin: 7,
+        cognitiveMechanism: 'Gom cụm nhận thức (Cognitive Chunking) & Mô hình chuỗi tiếp nối Markov',
+        keyTakeaways: [
+            'Đặc trưng lớn nhất của đường phố Hà Nội: Một đường thẳng tắp đổi tên qua mỗi nút giao lớn.',
+            'Thuộc 6 trục chính: Tây Nam, Giảng Võ - Tố Hữu, Liễu Giai - Trần Duy Hưng, Cầu Giấy - QL32, Giải Phóng Nam, Chương Dương Long Biên.',
+            'Khi định vị, hãy xác định mình đang ở trên "trục nào", sau đó mới dò đến tên đoạn phố cụ thể.'
+        ],
+        contentMarkdown: `
+### 1. Hiện tượng "Một Đường Nhiều Tên" tại Hà Nội
+
+Một người ngoại tỉnh đi thẳng trên một con đường thẳng tắp nhưng nhìn biển tên đường lại thấy thay đổi liên tục:
+* Đoạn 1: \`Tây Sơn\` (Đống Đa)
+* Đi qua Ngã Tư Sở ➔ Đoạn 2: \`Nguyễn Trãi\` (Thanh Xuân)
+* Đi qua ngã tư Vành đai 3 ➔ Đoạn 3: \`Trần Phú\` (Hà Đông)
+* Đi qua Cầu Trắng ➔ Đoạn 4: \`Quang Trung\` (Hà Đông)
+* Đi qua ngã 3 Ba La ➔ Đoạn 5: \`Quốc lộ 6\`
+
+Nếu bạn cố gắng nhớ 5 con phố này như 5 thực thể độc lập, bộ não sẽ bị quá tải. Nhưng nếu bạn coi đây là **"Trục Xuyên Tâm Tây Nam"**, não bộ chỉ lưu trữ duy nhất 1 khái niệm hình học với 4 mốc chuyển tiếp!
+
+---
+
+### 2. Bảng 6 Trục Xuyên Tâm Cốt Lõi Phải Thuộc Lòng
+
+| Tên Trục | Chuỗi Phố Nối Tiếp (Từ Tâm Ra Ngoài) | Các Nút Giao Đổi Tên | Quận Đi Qua |
+| :--- | :--- | :--- | :--- |
+| **Trục Tây Nam** | Tây Sơn ➔ Nguyễn Trãi ➔ Trần Phú ➔ Quang Trung ➔ Ba La | Ngã Tư Sở, Ngã tư VĐ3 Khuất Duy Tiến, Cầu Trắng Hà Đông | Đống Đa, Thanh Xuân, Hà Đông |
+| **Trục Giảng Võ - Tố Hữu** | Giảng Võ ➔ Láng Hạ ➔ Lê Văn Lương ➔ Tố Hữu ➔ Yên Nghĩa | Cầu vượt La Thành, Cầu Hòa Mục (Đường Láng), Ngã tư VĐ3, Ngã tư Vạn Phúc | Ba Đình, Đống Đa, Thanh Xuân, Nam Từ Liêm, Hà Đông |
+| **Trục Liễu Giai - Thăng Long** | Văn Cao ➔ Liễu Giai ➔ Nguyễn Chí Thanh ➔ Trần Duy Hưng ➔ Đại Lộ Thăng Long | Bờ Hồ Tây, Ngã tư Daewoo Kim Mã, Cầu vượt Đường Láng, Nút giao Big C | Tây Hồ, Ba Đình, Đống Đa, Cầu Giấy, Nam Từ Liêm |
+| **Trục Cầu Giấy - QL32** | Kim Mã ➔ Cầu Giấy ➔ Xuân Thủy ➔ Hồ Tùng Mậu ➔ Cầu Diễn ➔ Nhổn | Ngã tư Voi Phục, Cầu Giấy (sông Tô Lịch), Cầu vượt Mai Dịch, Cầu Diễn | Ba Đình, Cầu Giấy, Nam Từ Liêm, Bắc Từ Liêm |
+| **Trục Giải Phóng (Nam)** | Lê Duẩn ➔ Giải Phóng ➔ Ngọc Hồi | Cửa Nam, Hầm Kim Liên (VĐ1), Ngã Tư Vọng (VĐ2), Nút Pháp Vân (VĐ3) | Hoàn Kiếm, Đống Đa, Hai Bà Trưng, Hoàng Mai |
+| **Trục Vượt Sông Hồng** | Trần Nhật Duật ➔ Cầu Chương Dương ➔ Nguyễn Văn Cừ ➔ Ngô Gia Tự ➔ Cầu Đuống | Đê Hoàn Kiếm, Bùng binh Bắc cầu Chương Dương, Nút Cầu Chui | Hoàn Kiếm, Long Biên, Gia Lâm |
+
+---
+
+### 3. Quy tắc ứng dụng khi lái xe
+
+Khi nghe ai đó nói: *"Nhà mình ở đường Lê Văn Lương"*, bạn lập tức kích hoạt hình ảnh trục:
+1. Bạn biết ngay nó nằm kẹp giữa trục Nguyễn Trãi (phía Nam) và trục Trần Duy Hưng (phía Bắc).
+2. Bạn biết ngay đi thẳng một mạch về trung tâm là ra Láng Hạ ➔ Giảng Võ.
+3. Bạn biết ngay đi thẳng ra ngoại thành là sang Tố Hữu ➔ Hà Đông.
+`
+    },
+    {
+        id: 'chapter-superblock-cells',
+        chapterNumber: 7,
+        title: 'Tư Duy Khối Ô Phố (Superblock Cells) & 4 Lối Thoát Ra Trục',
+        subtitle: 'Nguyên lý khối ô đô thị: Biết mình đang ở ô nào là biết ngay 4 lối thoát hiểm',
+        badge: 'Định Vị Siêu Cấp',
+        iconName: 'Layers',
+        readTimeMin: 8,
+        cognitiveMechanism: 'Phân vùng không gian dạng đa giác (Voronoi Polygons & Convex Hulls)',
+        keyTakeaways: [
+            'Mọi ngóc ngách tại Hà Nội đều nằm trọn trong một ô phố bị bao bởi 3 đến 5 trục chính có tên.',
+            'Khi bị lạc trong ngõ sâu, không bao giờ đi lùi; chọn 1 hướng đi thẳng để đâm trúng trục bao.',
+            'Thuộc các ô phố điển hình: Thành Công, Thái Hà - Thái Thịnh, Trung Hòa - Nhân Chính, Bách - Kinh - Xây, Mỹ Đình, Hà Đông lõi.'
+        ],
+        contentMarkdown: `
+### 1. Bản chất của Ô Phố (Superblock Cell)
+
+Hà Nội có hàng chục nghìn con ngõ ngoằn ngoèo như mê cung. Tuy nhiên, nếu nhìn từ bản đồ vệ tinh:
+* Các trục đường chính đóng vai trò như **bộ khung thép bao quanh**.
+* Khoảng không gian bên trong (chứa nhà dân, khu tập thể, chợ, hồ nhỏ) chính là một **Khối Ô Phố (Cell)**.
+
+> **Ví dụ điển hình: Ô Thành Công - Giảng Võ**
+> Ô này được giới hạn bởi đúng 4 trục đường:
+> * Phía Tây: **Đường Láng** (sông Tô Lịch)
+> * Phía Bắc: **Nguyễn Chí Thanh**
+> * Phía Nam: **Láng Hạ**
+> * Phía Đông: **Huỳnh Thúc Kháng**
+
+---
+
+### 2. Thuật toán thoát hiểm khi bị lạc trong ngõ sâu
+
+Nếu bạn đang giao hàng hoặc tìm nhà bạn bè ở sâu trong ngõ Nguyên Hồng hay ngõ Thành Công và không biết mình đang ở đâu:
+1. **Bước 1: Nhận diện Ô Phố:** Bạn đang ở ô Thành Công.
+2. **Bước 2: Xác định 4 trục bao:** Láng, Nguyễn Chí Thanh, Láng Hạ, Huỳnh Thúc Kháng.
+3. **Bước 3: Chọn hướng thoát:**
+   * Bạn muốn đi về phía Cầu Giấy ➔ Đi về phía Tây để ra **Đường Láng**.
+   * Bạn muốn đi về phía Đống Đa / Ba Đình ➔ Đi về phía Đông để ra **Huỳnh Thúc Kháng**.
+   * Bạn muốn đi về phía Thanh Xuân ➔ Đi về phía Nam để ra **Láng Hạ**.
+4. **Bước 4: Bám ngõ thông:** Đi theo biển chỉ dẫn *"Lối ra đường..."* trên cột điện hoặc các trục xương cá: phố Trúc Khê, phố Vũ Ngọc Phan, phố Nguyên Hồng.
+
+---
+
+### 3. Danh mục các Ô Phố trọng điểm tại 12 Quận
+
+* **Ô Trung Hòa - Nhân Chính:** Bao bởi Trần Duy Hưng - Đường Láng - Lê Văn Lương - Khuất Duy Tiến.
+* **Ô Thái Hà - Thái Thịnh:** Bao bởi Láng Hạ - Thái Hà - Tây Sơn - Đường Láng. Trục thoát ngang là phố Yên Lãng.
+* **Ô Bách - Kinh - Xây:** Bao bởi Đại Cồ Việt - Giải Phóng - Đại La - Trần Đại Nghĩa/Bạch Mai. Trục xương cá là Tạ Quang Bửu.
+* **Ô Đô thị Mỹ Đình:** Bao bởi Phạm Hùng - Mễ Trì - Lê Đức Thọ - Hồ Tùng Mậu. Trục thoát là Nguyễn Hoàng và Trần Hữu Dực.
+* **Ô Bán đảo Linh Đàm:** Bao bởi Vành đai 3 - Giải Phóng - Sông Tô Lịch. Trục độc đạo thoát hiểm là Nguyễn Hữu Thọ.
+`
+    },
+    {
+        id: 'chapter-address-and-alleys',
+        chapterNumber: 8,
+        title: 'Giải Mã Địa Chỉ & Quy Tắc Ngõ Ngách Xe Máy Hà Nội',
+        subtitle: 'Đọc vị số nhà chẵn/lẻ, cấu trúc ngõ/ngách/hẻm và nghệ thuật tiếp cận cổng chính xác',
+        badge: 'Kỹ Năng Đường Phố',
+        iconName: 'Bike',
+        readTimeMin: 7,
+        cognitiveMechanism: 'Phân tích ngữ pháp địa chỉ phân cấp (Address Grammar Parsing)',
+        keyTakeaways: [
+            'Địa chỉ Hà Nội: Số nhà X, Ngách Y, Ngõ Z, Phố W. Ngõ mang số Z mở ra tại số nhà Z trên phố.',
+            'Quy ước chẵn/lẻ: Bên trái số lẻ, bên phải số chẵn (theo chiều từ đầu phố đến cuối phố).',
+            'Đích đến lớn (Bệnh viện, Trường học, Bến xe) luôn có cổng chính và cổng phụ: Chọn cổng phụ xe máy để tránh kẹt xe và quay đầu xa.'
+        ],
+        contentMarkdown: `
+### 1. Cú pháp Ngữ pháp Địa chỉ Hà Nội
+
+Khi bạn nhìn thấy địa chỉ:
+\`Số 15, Ngách 42/105, Ngõ 105, Đường Láng Hạ\`
+
+Hãy giải mã ngược từ phải sang trái:
+1. **Đường Láng Hạ:** Con đường chính cấp 1.
+2. **Ngõ 105:** Con ngõ này đâm thẳng ra mặt đường Láng Hạ, ngay sát vị trí **Số nhà 105**.
+3. **Ngách 42/105:** Con ngách rẽ nhánh từ ngõ 105, tại vị trí nhà số 42 trong ngõ.
+4. **Số 15:** Căn nhà mục tiêu nằm ở số 15 trong ngách 42.
+
+> **Mẹo định vị cực nhanh:** Khi ai đó hẹn bạn ở *"Ngõ 298 Tây Sơn"*, bạn biết ngay con ngõ này nằm ở đoạn cuối phố Tây Sơn gần Ngã Tư Sở (vì số nhà Tây Sơn tăng dần từ Ô Chợ Dừa ra Ngã Tư Sở).
+
+---
+
+### 2. Quy tắc Đánh số Chẵn / Lẻ và Chiều Tăng Dần
+
+* **Quy ước chuẩn:**
+  * Bên **TAY TRÁI:** Đánh số **LẺ** (1, 3, 5, 7...).
+  * Bên **TAY PHẢI:** Đánh số **CHẴN** (2, 4, 6, 8...).
+* **Hướng tăng dần của số nhà:**
+  * Thông thường tăng dần từ **Trung tâm (Bờ Hồ / Sông Hồng) tỏa ra ngoại thành**.
+  * Đối với các đường vành đai: Tăng dần theo chiều kim đồng hồ hoặc từ Bắc xuống Nam.
+
+---
+
+### 3. Nghệ thuật tiếp cận cổng đến (Cổng Chính vs Cổng Phụ)
+
+Người đi xe máy chuyên nghiệp không bao giờ lao vào cổng chính đang ùn tắc nếu biết cổng phụ:
+
+* **Bệnh viện Bạch Mai:** Cổng 1 mặt đường Giải Phóng thường kẹt cứng trước ngã tư Vọng. Đi xe máy hãy đi vào **Cổng đường Phương Mai** thông thoáng và có bãi gửi xe máy ngay tại cổng.
+* **Bệnh viện Việt Đức:** Cổng chính Tràng Thi là đường 1 chiều ô tô. Cổng cấp cứu và gửi xe thuận tiện nằm trên **phố Phủ Doãn**.
+* **Đại học Bách Khoa:** Cổng Parabol Giải Phóng rất đông đúc. Cổng **Trần Đại Nghĩa** và cổng **Tạ Quang Bửu** là lối đi quen thuộc của sinh viên, gửi xe máy cực nhanh.
+* **Bến xe Mỹ Đình:** Mặt đường Phạm Hùng xe khách ra vào dày đặc. Xe máy đón trả khách có thể tiếp cận từ **phố Nguyễn Hoàng** hoặc **phố Trần Bình**.
+`
+    },
+    {
+        id: 'chapter-hierarchical-routing',
+        chapterNumber: 9,
+        title: 'Chiến Lược Lập Tuyến Phân Cấp & Thuật Toán Vượt Sông Hồng',
+        subtitle: 'Cách bộ não người thạo đường lập đường đi trong 3 giây: Từ ngõ nhỏ ra trục lớn rồi tiếp cận đích',
+        badge: 'Tư Duy Lập Tuyến',
+        iconName: 'Navigation',
+        readTimeMin: 9,
+        cognitiveMechanism: 'Thuật toán tìm đường phân cấp A* (Hierarchical Path Planning)',
+        keyTakeaways: [
+            'Công thức lập tuyến 3 tầng: Đích nhỏ ➔ Trục gom ➔ Đại lộ / Vành đai ➔ Trục gom ➔ Đích đến.',
+            'Không bao giờ đi xuyên qua mạng ngõ ngách zig-zag để đi xa; hãy nhảy lên trục chính ngay khi có thể.',
+            'Chiến lược vượt sông Hồng: Cầu Chương Dương (Phố Cổ), Cầu Vĩnh Tuy (Hai Bà Trưng/Long Biên), Cầu Nhật Tân (Sân bay Nội Bài).'
+        ],
+        contentMarkdown: `
+### 1. Sai lầm phổ biến khi lập đường đi
+
+Nhiều người nghĩ rằng *"đường thẳng nhất giữa 2 điểm là đường chim bay"*, nên cố gắng luồn lách qua hàng chục con ngõ nhỏ để đi chéo. Kết quả là:
+* Gặp ngõ cụt, chợ cóc họp buổi sáng.
+* Gặp rào chắn công trình hoặc ngõ không thông.
+* Tốc độ trung bình chỉ đạt 10-15 km/h và căng thẳng thần kinh tột độ.
+
+---
+
+### 2. Thuật toán Lập Tuyến Phân Cấp 3 Tầng của Chuyên Gia
+
+Người thạo đường luôn tư duy theo sơ đồ phân cấp:
+
+\`\`\`
+[Vị trí hiện tại trong ngõ]
+       ↓ (1. Thoát hiểm bằng ngõ thông)
+[Phố tiếp cận / Trục gom]
+       ↓ (2. Nhảy lên trục chính)
+[Trục Xuyên Tâm HOẶC Đường Vành Đai]
+       ↓ (3. Chạy tốc độ cao 40-50 km/h)
+[Trục tiếp cận đích]
+       ↓ (4. Rẽ đúng phía đường)
+[Cổng Đích Đến]
+\`\`\`
+
+#### Ví dụ thực chiến:
+Đi xe máy từ **Ngõ 105 Láng Hạ** đến **Bệnh viện Việt Đức (Tràng Thi)**:
+1. *Thoát ngõ:* Ra thẳng mặt đường Láng Hạ.
+2. *Lên trục chính:* Đi thẳng Láng Hạ ➔ Giảng Võ ➔ rẽ Cát Linh ➔ Nguyễn Thái Học.
+3. *Vào ô trung tâm:* Qua Ngã 5 Cửa Nam ➔ đâm thẳng Tràng Thi ➔ rẽ phải Phủ Doãn vào viện.
+Toàn bộ chuyến đi chỉ có 3 lần rẽ quyết định!
+
+---
+
+### 3. Cẩm nang Vượt Sông Hồng: Chọn Cầu Nào?
+
+Khi cần di chuyển giữa 2 bờ Nam (nội thành) và bờ Bắc/Đông (Long Biên, Gia Lâm, Đông Anh):
+
+| Tên Cầu | Nối Từ Quận Nào Sang Quận Nào | Phù Hợp Khi Nào | Lưu Ý Xe Máy |
+| :--- | :--- | :--- | :--- |
+| **Cầu Nhật Tân** | Tây Hồ (Võ Chí Công) ↔ Đông Anh (Võ Nguyên Giáp) | Đi Sân bay Nội Bài, Bắc Thăng Long | Cầu dây văng gió rất mạnh, xe máy đi đúng làn ngoài cùng |
+| **Cầu Thăng Long** | Bắc Từ Liêm (Phạm Văn Đồng) ↔ Đông Anh | Đi KCN Thăng Long, Mê Linh, Vĩnh Phúc | Xe máy đi tầng 1 bên dưới; ô tô đi tầng 2 trên cao |
+| **Cầu Long Biên** | Hoàn Kiếm (Trần Nhật Duật) ↔ Long Biên (Ngọc Thụy) | Đi ngắm cảnh, di chuyển giờ cao điểm | Chỉ cho phép xe máy, xe đạp và tàu hỏa; cấm ô tô |
+| **Cầu Chương Dương** | Hoàn Kiếm ↔ Long Biên (Nguyễn Văn Cừ) | Đi từ Phố Cổ / Hoàn Kiếm sang trung tâm Long Biên | Xe máy đi 2 làn cánh gà hai bên rìa cầu |
+| **Cầu Vĩnh Tuy** | Hai Bà Trưng (Minh Khai) ↔ Long Biên (Cổ Linh) | Đi Aeon Mall Long Biên, KĐT Ocean Park | 8 làn xe hiện đại, kết nối trực tiếp Vành đai 2 trên cao |
+| **Cầu Thanh Trì** | Hoàng Mai (Hoàng Liệt) ↔ Gia Lâm (QL5) | Đi Bắc Ninh, Hải Phòng, Hưng Yên | Cầu Vành đai 3, làn xe máy tách biệt có dải phân cách bê tông |
+`
+    },
+    {
+        id: 'chapter-gps-recovery',
+        chapterNumber: 10,
+        title: 'Phục Hồi Vị Trí Khi Mất GPS: "Đọc" Thành Phố Bằng Giác Quan',
+        subtitle: 'Nghệ thuật sinh tồn khi điện thoại sập nguồn: Dùng mặt nước, đường ray trên cao và mốc biểu tượng',
+        badge: 'Kỹ Năng Sinh Tồn',
+        iconName: 'Compass',
+        readTimeMin: 8,
+        cognitiveMechanism: 'Định vị suy diễn dựa trên manh mối (Dead Reckoning & Sensory Triangulation)',
+        keyTakeaways: [
+            'Điện thoại hết pin là lúc bản đồ nhận thức phát huy sức mạnh tối thượng.',
+            '3 quy tắc phục hồi tức thì: Nhìn mặt nước, Nhìn tuyến đường sắt trên cao, Nhìn bóng nắng mặt trời.',
+            'Tập trung tìm lại 1 trong 3 vành đai hoặc 6 trục xuyên tâm để lấy lại toàn bộ bức tranh không gian.'
+        ],
+        contentMarkdown: `
+### 1. Kịch bản tồi tệ: Mất GPS giữa đêm tối hoặc giờ cao điểm
+
+Điện thoại sập nguồn, trời đổ mưa, không thể dừng xe hỏi đường. Người bình thường sẽ hoảng loạn và đi lòng vòng tốn xăng. Người có bản đồ nhận thức sẽ **tìm kiếm 4 nhóm manh mối giác quan**:
+
+---
+
+### 2. Bộ 4 Manh Mối Phục Hồi Vị Trí Tức Thì
+
+#### Manh mối 1: Mặt Nước (Water Clues)
+* **Thấy bờ sông Tô Lịch:** Dòng sông nhỏ có lan can xanh và đường bê tông chạy dọc.
+  * *Nếu dòng sông ở bên TAY PHẢI khi bạn nhìn về phía Nam:* Bạn đang ở **Đường Láng** (thuộc Đống Đa).
+  * *Nếu dòng sông ở bên TAY TRÁI:* Bạn đang ở đường **Nguyễn Khang / Vũ Tông Phan**.
+* **Thấy mặt hồ mênh mông gió lộng:** Đó chắc chắn là **Hồ Tây**. Bạn đang ở mạn cực Bắc trung tâm (quận Tây Hồ).
+* **Thấy con đê cao có sông lớn cuồn cuộn:** Bạn đang ở triền đê **Sông Hồng** (Trần Nhật Duật, Trần Khánh Dư hoặc Yên Phụ).
+
+#### Manh mối 2: Tuyến Đường Sắt Trên Cao (Metro Clues)
+Hà Nội hiện có 2 tuyến metro nổi bật với trụ bê tông khổng lồ:
+* **Tuyến Cát Linh - Hà Đông (Metro 2A):** Chạy trên dải phân cách giữa trục: \`Hoàng Cầu ➔ Yên Lãng ➔ Thái Hà ➔ vượt Ngã Tư Sở ➔ Nguyễn Trãi ➔ Trần Phú ➔ Quang Trung\`.
+  * *Nhìn thấy dầm cầu này:* Bạn chắc chắn đang ở **Trục Tây Nam** đi về phía Hà Đông!
+* **Tuyến Nhổn - Ga Hà Nội (Metro 3):** Chạy dọc trục: \`Xuân Thủy ➔ Cầu Giấy ➔ Kim Mã\`.
+  * *Nhìn thấy dầm cầu này:* Bạn chắc chắn đang ở **Trục Tây Bắc** Cầu Giấy - Bắc Từ Liêm!
+
+#### Manh mối 3: Mốc Chân Trời (Skyline Clues)
+* **Tòa tháp Keangnam 72 tầng:** Đỉnh tháp kính xanh rực sáng. Đây là ngọn hải đăng của khu vực **Mỹ Đình - Phạm Hùng (Tây Nam)**.
+* **Tòa tháp Lotte Center:** Hình dáng hai tòa nhà chụm vào nhau, nằm ở **Liễu Giai - Ba Đình (Tây Bắc)**.
+
+#### Manh mối 4: Biển Tên Ngõ & Số Nhà
+Nhìn vào một biển hiệu bất kỳ trên tường ngõ:
+* Ví dụ thấy: *"Ngõ 165 Cầu Giấy"* ➔ Bạn biết ngay cách bạn 50m là đại lộ Cầu Giấy.
+* Ví dụ thấy: *"Tổ dân phố 12 phường Mộ Lao"* ➔ Bạn biết mình đang ở khu vực Mỗ Lao - Hà Đông cạnh đường Trần Phú.
+
+---
+
+### 3. Chiến lược phục hồi: "Hồi quy về Trục Xương Sống"
+
+Sau khi đã nhận diện được một manh mối:
+1. Đừng cố gắng tìm đường tắt.
+2. Hãy lái xe thẳng về phía trục chính gần nhất (Vành đai 1, 2, 3 hoặc 6 trục xuyên tâm).
+3. Khi bánh xe đã chạm vào mặt đường lớn, bức tranh bản đồ nhận thức trong đầu bạn sẽ tự động **đồng bộ hóa 100%**. Bạn đã hoàn toàn làm chủ không gian Thủ đô!
+`
     }
 ];
 //# sourceMappingURL=hanoiMapData.js.map

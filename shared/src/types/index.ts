@@ -381,5 +381,7 @@ export interface IVocalPitchAttemptTelemetry {
 }
 
 export * from './wrong-answer.types';
+export * from './hanoi-graph.types';
+
 
 

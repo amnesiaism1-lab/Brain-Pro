@@ -47,7 +47,11 @@ export interface IQuestionContext {
     targetPitchHz?: number;
     targetNoteName?: string;
     centsTolerance?: number;
-    hanoiMode?: 'skeleton' | 'grid_topology' | 'sun_triangulation' | 'blind_drop' | 'mental_compass';
+    hanoiMode?: 'skeleton' | 'grid_topology' | 'sun_triangulation' | 'blind_drop' | 'mental_compass' | string;
+    district?: string;
+    corridorName?: string;
+    intersectionName?: string;
+    vehicleType?: string;
     sunHour?: number;
     originNode?: string;
     targetNode?: string;
