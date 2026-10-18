@@ -38,6 +38,7 @@ import {
   bearingToCardinalName,
   IHanoiEntity
 } from '@brain-exercises/shared';
+import { HanoiMarkdownContent } from './HanoiMarkdownContent';
 
 export const HanoiMapTheoryModule: React.FC = () => {
   const { 
@@ -1004,8 +1005,8 @@ export const HanoiMapTheoryModule: React.FC = () => {
                   </div>
 
                   {/* Markdown-rendered Body */}
-                  <div className="prose dark:prose-invert max-w-none text-sm sm:text-base leading-relaxed text-slate-700 dark:text-slate-300 space-y-4 whitespace-pre-line">
-                    {chapter.contentMarkdown}
+                  <div className="pt-2 pb-4">
+                    <HanoiMarkdownContent content={chapter.contentMarkdown} />
                   </div>
 
                   {/* Chapter Navigation Footer */}

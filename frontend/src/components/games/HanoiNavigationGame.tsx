@@ -41,7 +41,8 @@ import {
   Layers,
   MapPin,
   Trophy,
-  Zap
+  Zap,
+  BookOpen
 } from 'lucide-react';
 
 export type HanoiGameMode = 
@@ -85,7 +86,8 @@ export const HanoiNavigationGame: React.FC = () => {
     playSound, 
     autoDifficulty,
     enableHints,
-    setActiveGameSlug 
+    setActiveGameSlug,
+    navigateToTheory
   } = useAppStore();
 
   const currentLevel = getExerciseLevel('hanoi-navigation') || 1;
@@ -646,6 +648,19 @@ export const HanoiNavigationGame: React.FC = () => {
           >
             <RotateCw className="w-4 h-4" />
             <span className="text-[10px] font-mono">{mapRotation}°</span>
+          </button>
+
+          {/* Theory button */}
+          <button
+            onClick={() => {
+              setActiveGameSlug(null);
+              navigateToTheory('hanoi-map');
+            }}
+            className="p-2 rounded-xl text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 border border-amber-500/40 flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Mở giáo trình lý thuyết Bản đồ Hà Nội"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Lý Thuyết</span>
           </button>
 
           {/* Timer Display */}

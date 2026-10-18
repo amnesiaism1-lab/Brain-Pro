@@ -244,7 +244,11 @@ const COGNITIVE_AXES_THEORY: ICognitiveAxisTheory[] = [
   }
 ];
 
-export const CognitiveTheoryAcademy: React.FC = () => {
+interface CognitiveTheoryAcademyProps {
+  onSelectHanoi?: () => void;
+}
+
+export const CognitiveTheoryAcademy: React.FC<CognitiveTheoryAcademyProps> = ({ onSelectHanoi }) => {
   const { setSelectedExerciseSlug, setActiveTab } = useAppStore();
   const [selectedAxisId, setSelectedAxisId] = useState<string>('speed-reading');
 
@@ -315,6 +319,30 @@ export const CognitiveTheoryAcademy: React.FC = () => {
             ))}
           </div>
         </div>
+
+        {/* Dedicated Hanoi Map Module Callout */}
+        {activeAxis.id === 'spatial-navigation' && onSelectHanoi && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-transparent border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-fade-in">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Compass className="w-5 h-5 text-amber-500 animate-spin-slow shrink-0" />
+                <span className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                  Chuyên Đề Độc Lập: Bản Đồ Nhận Thức Hà Nội (5 Chương)
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Bản đồ vector SVG tương tác đa tầng, mô phỏng la bàn mặt trời theo giờ tại vĩ độ 21.03°N và 5 chế độ thực chiến.
+              </p>
+            </div>
+            <button
+              onClick={onSelectHanoi}
+              className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 transition-all shrink-0 cursor-pointer"
+            >
+              <span>Mở Chuyên Trang Hà Nội</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Mechanism & Insight Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

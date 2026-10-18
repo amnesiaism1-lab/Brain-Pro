@@ -346,17 +346,25 @@ export const ExercisesListView: React.FC = () => {
 
   const categories: Array<{ id: CognitiveCategoryCode | 'ALL'; label: string }> = [
     { id: 'ALL', label: `Tất cả (${EXERCISES_METADATA.length})` },
+    { id: 'MEMORY', label: 'Trí nhớ' },
+    { id: 'SPATIAL_NAVIGATION', label: 'Định hướng không gian' },
     { id: 'SPEED_READING', label: 'Đọc nhanh' },
     { id: 'PERIPHERAL_VISION', label: 'Thị giác ngoại vi' },
     { id: 'ATTENTION', label: 'Tập trung' },
-    { id: 'MEMORY', label: 'Trí nhớ' },
     { id: 'REACTION', label: 'Phản xạ' },
     { id: 'AUDITORY_MEMORY', label: 'Cảm âm & Thính giác' }
   ];
 
-  const filteredExercises = EXERCISES_METADATA.filter(ex => 
-    selectedCategory === 'ALL' || ex.categoryCode === selectedCategory
-  );
+  const filteredExercises = EXERCISES_METADATA.filter(ex => {
+    if (selectedCategory === 'ALL') return true;
+    if (selectedCategory === 'MEMORY') {
+      return ex.categoryCode === 'MEMORY' || ex.slug === 'hanoi-navigation';
+    }
+    if (selectedCategory === 'SPATIAL_NAVIGATION') {
+      return ex.slug === 'hanoi-navigation' || ex.slug === 'spatial-memory' || ex.categoryCode === 'SPATIAL_NAVIGATION';
+    }
+    return ex.categoryCode === selectedCategory;
+  });
 
   const handleOpenDetail = (slug: string) => {
     playSound('click');

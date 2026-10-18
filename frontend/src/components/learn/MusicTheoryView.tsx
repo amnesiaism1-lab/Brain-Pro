@@ -27,7 +27,8 @@ import {
   Zap,
   Mic,
   Eye,
-  Award
+  Award,
+  Compass
 } from 'lucide-react';
 
 interface ITheoryTabItem {
@@ -168,8 +169,7 @@ const THEORY_TABS: ITheoryTabItem[] = [
   { id: 'timbre', title: '6. Âm Sắc (Timbre)', shortTitle: '6. Âm Sắc', icon: '🎸', component: TimbreModule },
   { id: 'spatial', title: '7. Âm Thanh 3D Không Gian', shortTitle: '7. 3D Không Gian', icon: '🔊', component: SpatialAudioModule },
   { id: 'polyphony', title: '8. Đa Thanh & Bè Phối', shortTitle: '8. Đa Thanh & Bè', icon: '🪈', component: PolyphonyModule },
-  { id: 'sound-network', title: '9. Mạng Lưới Hòa Âm & Cảm Âm Nâng Cao', shortTitle: '9. Mạng Hòa Âm & Cảm Âm', icon: '⚡', component: SoundNetworkModule },
-  { id: 'hanoi-map', title: '10. Bản Đồ Nhận Thức Hà Nội', shortTitle: '10. Bản Đồ Hà Nội', icon: '🗺️', component: HanoiMapTheoryModule },
+  { id: 'sound-network', title: '9. Mạng Lưới Hòa Âm & Cảm Âm Nâng Cao', shortTitle: '9. Mạng Hòa Âm & Cảm Âm', icon: '⚡', component: SoundNetworkModule }
 ];
 
 export const MusicTheoryView: React.FC = () => {
@@ -184,7 +184,7 @@ export const MusicTheoryView: React.FC = () => {
     masteredTheoryModules
   } = useAppStore();
 
-  const [academyMode, setAcademyMode] = useState<'cognitive' | 'music'>('cognitive');
+  const [academyMode, setAcademyMode] = useState<'cognitive' | 'hanoi' | 'music'>('cognitive');
 
   const [activeModuleId, setActiveModuleId] = useState<TheoryModuleId>(() => {
     try {
@@ -199,9 +199,13 @@ export const MusicTheoryView: React.FC = () => {
   const [showBrainInsights, setShowBrainInsights] = useState(true);
 
   useEffect(() => {
-    if (activeTheoryModuleId && THEORY_TABS.some(t => t.id === activeTheoryModuleId)) {
-      setAcademyMode('music');
-      setActiveModuleId(activeTheoryModuleId as TheoryModuleId);
+    if (activeTheoryModuleId) {
+      if (activeTheoryModuleId === 'hanoi-map') {
+        setAcademyMode('hanoi');
+      } else if (THEORY_TABS.some(t => t.id === activeTheoryModuleId)) {
+        setAcademyMode('music');
+        setActiveModuleId(activeTheoryModuleId as TheoryModuleId);
+      }
       setActiveTheoryModuleId(null);
     }
   }, [activeTheoryModuleId, setActiveTheoryModuleId]);
@@ -266,33 +270,48 @@ export const MusicTheoryView: React.FC = () => {
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6 pb-24 md:pb-12">
       {/* High-Level Academy Switcher */}
-      <div className="flex items-center justify-center p-1.5 rounded-3xl bg-slate-200/80 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 max-w-xl mx-auto shadow-sm">
+      <div className="flex items-center justify-center p-1.5 rounded-3xl bg-[#F5EFE6] dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 max-w-3xl mx-auto shadow-sm gap-1.5 flex-wrap">
         <button
           onClick={() => setAcademyMode('cognitive')}
-          className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`flex-1 min-w-[140px] py-2.5 sm:py-3 px-3 sm:px-4 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
             academyMode === 'cognitive'
               ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
               : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          <Brain className="w-4 h-4" />
-          <span>6 Trục Nhận Thức Khoa Học</span>
+          <Brain className="w-4 h-4 shrink-0" />
+          <span>7 Trục Nhận Thức</span>
+        </button>
+        <button
+          onClick={() => setAcademyMode('hanoi')}
+          className={`flex-1 min-w-[140px] py-2.5 sm:py-3 px-3 sm:px-4 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            academyMode === 'hanoi'
+              ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Compass className="w-4 h-4 shrink-0 text-amber-200" />
+          <span>Bản Đồ Hà Nội (5 Chương)</span>
         </button>
         <button
           onClick={() => setAcademyMode('music')}
-          className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`flex-1 min-w-[140px] py-2.5 sm:py-3 px-3 sm:px-4 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
             academyMode === 'music'
               ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
               : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          <BookOpen className="w-4 h-4" />
+          <BookOpen className="w-4 h-4 shrink-0" />
           <span>Nhạc Lý & Cảm Âm (9 Chương)</span>
         </button>
       </div>
 
       {academyMode === 'cognitive' ? (
-        <CognitiveTheoryAcademy />
+        <CognitiveTheoryAcademy onSelectHanoi={() => setAcademyMode('hanoi')} />
+      ) : academyMode === 'hanoi' ? (
+        <div className="space-y-6">
+          <HanoiMapTheoryModule />
+        </div>
       ) : (
         <>
           {/* Highlight Banner if navigating from a wrong-answer remediation */}
