@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
-import { calculateGameScore, INFINITY_ROMAN_NUMERALS } from '@brain-exercises/shared';
+import { calculateGameScore, INFINITY_ROMAN_NUMERALS, buildScaleNotes } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { 
   generateRandomPitchSequence, 
@@ -18,7 +19,7 @@ import { FrequencySpectrum } from '../ui/FrequencySpectrum';
 import { MidiStatusIndicator } from '../ui/MidiStatusIndicator';
 import { useMidiInput } from '../../hooks/useMidiInput';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
-import { Volume2, RotateCcw, Play, Music, Sparkles, GraduationCap, Zap, CheckCircle2, XCircle, ArrowRight, BookOpen, Anchor, TrendingUp, Headphones } from 'lucide-react';
+import { Volume2, RotateCcw, Play, Music, Sparkles, GraduationCap, Zap, CheckCircle2, XCircle, ArrowRight, BookOpen, Anchor, TrendingUp, Headphones, Sliders } from 'lucide-react';
 import { Note } from 'tonal';
 
 /**
@@ -133,36 +134,51 @@ export const PitchRecallGame: React.FC = () => {
   const { trackWrongAnswer } = useWrongAnswerTracker('pitch-recall');
   const sessionIdRef = useRef<string>(`session-pitch-${Date.now()}`);
 
-  const effectiveLevel = getExerciseLevel('pitch-recall') || currentLevel || 1;
-  const isInfinity = effectiveLevel >= 13;
+  const { sessionConfig, isCustom, currentLevel: sessionLevel } = useExerciseSessionConfig('pitch-recall');
+  const params = (sessionConfig.params || {}) as Record<string, any>;
+  const effectiveLevel = isCustom ? sessionLevel : (getExerciseLevel('pitch-recall') || sessionLevel || 1);
+  const isInfinity = !isCustom && effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
-  // Level configuration
-  const isContourMode = effectiveLevel === 10;
-  const isOctaveLeap = effectiveLevel === 11;
-  const isOddballMode = effectiveLevel === 12;
-  const isReverseRecall = effectiveLevel === 9;
-  const isChromaticStorm = effectiveLevel === 13;
-  const isTranspositionMode = effectiveLevel === 16;
-  const isFibonacciTempo = effectiveLevel === 17;
-  const isMicrotonal = effectiveLevel === 20;
+  // Level & Mode configuration
+  const isScaleDegreeMode = sessionConfig.modeId === 'pitch-recall.scale-degree';
+  const isReverseRecall = sessionConfig.modeId === 'pitch-recall.reverse' || (!isCustom && effectiveLevel === 9);
+  const isContourMode = !isCustom && effectiveLevel === 10;
+  const isOctaveLeap = !isCustom && effectiveLevel === 11;
+  const isOddballMode = !isCustom && effectiveLevel === 12;
+  const isChromaticStorm = !isCustom && effectiveLevel === 13;
+  const isTranspositionMode = !isCustom && effectiveLevel === 16;
+  const isFibonacciTempo = !isCustom && effectiveLevel === 17;
+  const isMicrotonal = !isCustom && effectiveLevel === 20;
 
-  const sequenceLength = isInfinity
-    ? Math.min(8, 4 + Math.floor(infinityTier / 2))
-    : effectiveLevel <= 2 ? 3 : effectiveLevel <= 4 ? 4 : effectiveLevel <= 7 ? 5 : effectiveLevel <= 10 ? 6 : 7;
+  const sequenceLength = isCustom
+    ? (typeof params.sequenceLength === 'number' ? params.sequenceLength : 4)
+    : isInfinity
+      ? Math.min(8, 4 + Math.floor(infinityTier / 2))
+      : effectiveLevel <= 2 ? 3 : effectiveLevel <= 4 ? 4 : effectiveLevel <= 7 ? 5 : effectiveLevel <= 10 ? 6 : 7;
 
   const octaveRange = useMemo<[number, number]>(() => {
+    if (isCustom) {
+      const min = typeof params.octaveMin === 'number' ? params.octaveMin : 4;
+      const max = typeof params.octaveMax === 'number' ? params.octaveMax : 4;
+      return [min, Math.max(min, max)];
+    }
     if (effectiveLevel === 11) return [3, 5];
     return effectiveLevel >= 5 || isInfinity ? [4, 5] : [4, 4];
-  }, [effectiveLevel, isInfinity]);
+  }, [isCustom, params.octaveMin, params.octaveMax, effectiveLevel, isInfinity]);
 
-  const includeAccidentals = effectiveLevel >= 4 || isInfinity;
-  const showVisualHints = effectiveLevel <= 2 && !isInfinity;
-  const noteSpeedMs = effectiveLevel >= 10 ? 360 : 520;
+  const includeAccidentals = isCustom
+    ? (typeof params.includeAccidentals === 'boolean' ? params.includeAccidentals : true)
+    : (effectiveLevel >= 4 || isInfinity);
+
+  const showVisualHints = !isCustom && effectiveLevel <= 2 && !isInfinity;
+  const noteSpeedMs = isCustom
+    ? (typeof params.playbackSpeed === 'number' ? Math.round(520 / params.playbackSpeed) : 520)
+    : (effectiveLevel >= 10 ? 360 : 520);
 
   // Game state
   const [round, setRound] = useState(1);
-  const maxRounds = 4;
+  const maxRounds = sessionConfig.rounds || 4;
   const [targetSequence, setTargetSequence] = useState<string[]>([]);
   const [userSequence, setUserSequence] = useState<string[]>([]);
   const [recordedUserSequence, setRecordedUserSequence] = useState<string[]>([]);
@@ -224,6 +240,27 @@ export const PitchRecallGame: React.FC = () => {
       setUserSequence([]);
       setLastFeedback(null);
       setPhase('listen');
+    } else if (isScaleDegreeMode) {
+      const scaleIds = Array.isArray(params.scaleIds) && params.scaleIds.length > 0 ? params.scaleIds : ['major'];
+      const chosenScaleId = scaleIds[Math.floor(Math.random() * scaleIds.length)];
+      const root = params.rootPitchClass && params.rootPitchClass !== 'random'
+        ? params.rootPitchClass
+        : ['C', 'D', 'E', 'F', 'G', 'A'][Math.floor(Math.random() * 6)];
+      const scaleNotes = buildScaleNotes(chosenScaleId, root, octaveRange[0], octaveRange[1]);
+      let seq: string[] = [];
+      if (scaleNotes.length > 0) {
+        seq = Array.from({ length: sequenceLength }, () => {
+          const pick = scaleNotes[Math.floor(Math.random() * scaleNotes.length)];
+          return pick.note;
+        });
+      } else {
+        seq = generateRandomPitchSequence(sequenceLength, [octaveRange[0]], includeAccidentals);
+      }
+      targetSeqRef.current = seq;
+      setTargetSequence(seq);
+      setUserSequence([]);
+      setLastFeedback(null);
+      setPhase('listen');
     } else {
       const seq = generateRandomPitchSequence(
         sequenceLength,
@@ -236,14 +273,14 @@ export const PitchRecallGame: React.FC = () => {
       setLastFeedback(null);
       setPhase('listen');
     }
-  }, [sequenceLength, octaveRange, includeAccidentals, isContourMode, isOctaveLeap, isOddballMode]);
+  }, [sequenceLength, octaveRange, includeAccidentals, isContourMode, isOctaveLeap, isOddballMode, isScaleDegreeMode, params.scaleIds, params.rootPitchClass]);
 
-  // Initial setup on level change
+  // Initial setup on level/mode change
   useEffect(() => {
     resetSession();
     playedRoundRef.current = 0;
     startNewRound();
-  }, [effectiveLevel, resetSession, startNewRound]);
+  }, [effectiveLevel, sessionConfig.modeId, resetSession, startNewRound]);
 
   // Check if audio context is active on mount
   useEffect(() => {
@@ -648,7 +685,9 @@ export const PitchRecallGame: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                {isContourMode
+                {isCustom
+                  ? sessionConfig.modeLabelVi
+                  : isContourMode
                   ? 'Đường Nét Giai Điệu (Melodic Contour - Cấp 10)'
                   : isOctaveLeap
                   ? 'Bước Nhảy Bát Độ (Octave Leaps - Cấp 11)'
@@ -658,14 +697,24 @@ export const PitchRecallGame: React.FC = () => {
                   ? 'Nhớ Cao Độ Đảo Ngược (Reverse Recall - Cấp 9)'
                   : 'Nhớ Cao Độ (Pitch Recall)'}
               </h2>
-              {isInfinity && (
+              {isCustom ? (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-violet-900/60 text-violet-300 border border-violet-500/40 shadow-sm">
+                  Tùy chỉnh
+                </span>
+              ) : isInfinity ? (
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm">
                   {INFINITY_ROMAN_NUMERALS[infinityTier - 1] || 'INF'}
                 </span>
-              )}
+              ) : null}
             </div>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium">
-              {isContourMode
+              {isCustom
+                ? (isScaleDegreeMode
+                    ? 'Lắng nghe các bậc trong âm giai đã chọn và đánh lại chính xác'
+                    : isReverseRecall
+                    ? '⚠️ Nhớ chuỗi nốt và đánh lại THEO THỨ TỰ ĐẢO NGƯỢC'
+                    : 'Lắng nghe chuỗi nốt tùy chỉnh và bấm lại theo đúng thứ tự')
+                : isContourMode
                 ? 'Nhận diện hình dáng quỹ đạo của câu nhạc (Mã Parsons: Lên ↗, Xuống ↘, Cầu Vồng ∧, Lượn Sóng ∿)'
                 : isOctaveLeap
                 ? 'Phân biệt nốt cùng tên nhưng khác quãng tám (Pitch Chroma vs Pitch Height - Bước nhảy C3 ↔ C4 ↔ C5)'
@@ -727,6 +776,25 @@ export const PitchRecallGame: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Custom Mode Banner */}
+      {isCustom && (
+        <div className="w-full mt-3 px-4 py-2 rounded-2xl bg-violet-950/40 border border-violet-500/30 flex items-center justify-between text-xs backdrop-blur-md">
+          <div className="flex items-center gap-2">
+            <Sliders className="w-4 h-4 text-violet-400" />
+            <span className="font-bold text-violet-200">Chế độ tùy chỉnh:</span>
+            <span className="font-semibold text-white">{sessionConfig.modeLabelVi}</span>
+            {sessionConfig.presetName && (
+              <span className="px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-mono text-[10px] border border-violet-400/30">
+                {sessionConfig.presetName}
+              </span>
+            )}
+          </div>
+          <div className="text-[11px] text-violet-300/80 font-mono">
+            Độ dài {sequenceLength} nốt • Quãng {octaveRange[0]}-{octaveRange[1]} • {maxRounds} vòng
+          </div>
+        </div>
+      )}
 
       {/* Visualizer & Status */}
       <div className="my-4 flex flex-col items-center">

@@ -15,14 +15,22 @@ import {
   IRawMetricsJson,
   IRelationEvent,
   createInitialMasteriesMap,
-  updateMasteryFromEvents
+  updateMasteryFromEvents,
+  ICustomExercisePreset
 } from '@brain-exercises/shared';
 import { createWrongAnswerSlice, WrongAnswerSliceState } from './slices/wrongAnswerSlice';
 import { createPersonalAnchorsSlice, PersonalAnchorsSliceState } from './slices/personalAnchorsSlice';
+import { 
+  CustomPresetsSlice, 
+  loadPersistedPresets, 
+  loadPersistedActivePresetIds, 
+  persistCustomPresets, 
+  persistActivePresetIds 
+} from './slices/customPresetsSlice';
 
 export type MainNavTab = 'home' | 'exercises' | 'learn' | 'wrong-history' | 'settings' | 'user';
 
-interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState {
+interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, CustomPresetsSlice {
   // Navigation & Modals
   activeTab: MainNavTab;
   setActiveTab: (tab: MainNavTab) => void;
@@ -243,6 +251,9 @@ export const useAppStore = create<AppState>((set, get) => {
   } catch {
     initialMasteries = {};
   }
+
+  const initialCustomPresets = loadPersistedPresets();
+  const initialActivePresetIds = loadPersistedActivePresetIds();
 
   const initialChallenges: IWeeklyChallenge[] = [...WEEKLY_CHALLENGES];
 
@@ -516,6 +527,72 @@ export const useAppStore = create<AppState>((set, get) => {
       });
     },
 
+    // Custom Exercise Presets (Personalized training modes)
+    customPresets: initialCustomPresets,
+    activeCustomPresetIdBySlug: initialActivePresetIds,
+    activeSessionSource: 'ladder',
+
+    setActiveSessionSource: (source) => set({ activeSessionSource: source }),
+
+    saveCustomPreset: (preset) => {
+      set(state => {
+        const slug = preset.exerciseSlug;
+        const currentList = state.customPresets[slug] || [];
+        const existingIndex = currentList.findIndex(p => p.id === preset.id);
+        let updatedList: ICustomExercisePreset[];
+        if (existingIndex >= 0) {
+          updatedList = currentList.map((p, idx) => idx === existingIndex ? preset : p);
+        } else {
+          updatedList = [...currentList, preset];
+        }
+        const updatedPresets = { ...state.customPresets, [slug]: updatedList };
+        const updatedActiveIds = { ...state.activeCustomPresetIdBySlug, [slug]: preset.id };
+        persistCustomPresets(updatedPresets);
+        persistActivePresetIds(updatedActiveIds);
+        return {
+          customPresets: updatedPresets,
+          activeCustomPresetIdBySlug: updatedActiveIds
+        };
+      });
+    },
+
+    deleteCustomPreset: (slug, presetId) => {
+      set(state => {
+        const currentList = state.customPresets[slug] || [];
+        const updatedList = currentList.filter(p => p.id !== presetId);
+        const updatedPresets = { ...state.customPresets, [slug]: updatedList };
+        let activeId = state.activeCustomPresetIdBySlug[slug];
+        if (activeId === presetId) {
+          activeId = updatedList[0]?.id || null;
+        }
+        const updatedActiveIds = { ...state.activeCustomPresetIdBySlug, [slug]: activeId };
+        persistCustomPresets(updatedPresets);
+        persistActivePresetIds(updatedActiveIds);
+        return {
+          customPresets: updatedPresets,
+          activeCustomPresetIdBySlug: updatedActiveIds
+        };
+      });
+    },
+
+    setActiveCustomPreset: (slug, presetId) => {
+      set(state => {
+        const updatedActiveIds = { ...state.activeCustomPresetIdBySlug, [slug]: presetId };
+        persistActivePresetIds(updatedActiveIds);
+        return { activeCustomPresetIdBySlug: updatedActiveIds };
+      });
+    },
+
+    getActiveCustomPreset: (slug) => {
+      const state = get();
+      const activeId = state.activeCustomPresetIdBySlug[slug];
+      const list = state.customPresets[slug] || [];
+      if (activeId) {
+        return list.find(p => p.id === activeId) || null;
+      }
+      return list[0] || null;
+    },
+
     // Synergies & Combos
     lastPlayedSlug: null,
     activeSynergy: null,
@@ -698,11 +775,12 @@ export const useAppStore = create<AppState>((set, get) => {
         consecutiveLosses: 0
       };
 
+      const isCustomSession = state.activeSessionSource === 'custom';
       let nextLevel = prevMastery.currentLevel;
       let nextWins = prevMastery.consecutiveWins;
       let nextLosses = prevMastery.consecutiveLosses;
 
-      if (state.autoDifficulty) {
+      if (!isCustomSession && state.autoDifficulty) {
         if (attempt.accuracyRate >= 90) {
           nextWins += 1;
           nextLosses = 0;

@@ -29,13 +29,8 @@ import {
   Grid
 } from 'lucide-react';
 
-export type ScaleCategory = 
-  | 'CHURCH_MODES' 
-  | 'MINOR_MODES' 
-  | 'PENTATONIC_BLUES' 
-  | 'SYMMETRIC' 
-  | 'VIETNAMESE' 
-  | 'WORLD_EXOTIC';
+import { ScaleCategory } from '@brain-exercises/shared';
+export type { ScaleCategory };
 
 export interface IScaleDefinition {
   id: string;

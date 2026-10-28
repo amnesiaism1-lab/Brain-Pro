@@ -46,6 +46,7 @@ export interface IExerciseLevelConfig {
     speedWpm?: number;
     variantCode?: string;
     variantName?: string;
+    modeId?: string;
     parametersJson?: Record<string, unknown>;
     infinityTier?: InfinityTier;
     infinityMetadata?: IInfinityMetadata;

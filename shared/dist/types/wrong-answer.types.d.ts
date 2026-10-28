@@ -47,6 +47,9 @@ export interface IQuestionContext {
     targetPitchHz?: number;
     targetNoteName?: string;
     centsTolerance?: number;
+    degree?: string;
+    scaleId?: string;
+    modeId?: string;
     hanoiMode?: 'skeleton' | 'grid_topology' | 'sun_triangulation' | 'blind_drop' | 'mental_compass' | string;
     district?: string;
     corridorName?: string;

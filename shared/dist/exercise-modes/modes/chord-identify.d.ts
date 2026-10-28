@@ -1,0 +1,3 @@
+import { IExerciseModeDefinition } from '../types';
+export declare const CHORD_IDENTIFY_MODES: IExerciseModeDefinition[];
+//# sourceMappingURL=chord-identify.d.ts.map

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Play, ChevronLeft, Eye, Crosshair, Sparkles, Zap, Trophy, Target, 
   BarChart3, Settings2, Info, CheckCircle2, ShieldCheck, Flame, BookOpen, Type,
-  Infinity as InfinityIcon, Globe, Layers, Cpu, Orbit, Music, Compass
+  Infinity as InfinityIcon, Globe, Layers, Cpu, Orbit, Music, Compass, Sliders
 } from 'lucide-react';
 import { useVocalStudioStore } from '../../store/vocalStudioStore';
 import { useAppStore } from '../../store/useAppStore';
@@ -10,12 +10,14 @@ import { EXERCISES_METADATA, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfini
 import { infinityApiService, shuffleArray } from '../../services/infinityApiService';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { getTheoryModuleForSlug, THEORY_MODULE_MAP } from '../learn/theoryExerciseMap';
+import { CustomizePanel } from '../customize/CustomizePanel';
 
 export const ExerciseDetailModal: React.FC = () => {
   const { 
     selectedExerciseSlug, 
     setSelectedExerciseSlug, 
     setActiveGameSlug,
+    setActiveSessionSource,
     setActiveTab: setStoreActiveTab,
     navigateToTheory,
     getExerciseLevel,
@@ -26,7 +28,7 @@ export const ExerciseDetailModal: React.FC = () => {
     playSound 
   } = useAppStore();
 
-  const [activeTab, setActiveTab] = useState<'settings' | 'stats'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'custom' | 'stats'>('settings');
 
   // Exercise stimulus preference (Letters vs Speed Reading Words)
   const [stimulusMode, setStimulusMode] = useState<'letters' | 'words'>(() => {
@@ -73,6 +75,14 @@ export const ExerciseDetailModal: React.FC = () => {
   const handleStartGame = () => {
     playSound('click');
     auditoryEngine.resumeAudioContext().catch(() => {});
+    setActiveSessionSource('ladder');
+    setActiveGameSlug(exercise.slug);
+  };
+
+  const handleStartCustomGame = () => {
+    playSound('click');
+    auditoryEngine.resumeAudioContext().catch(() => {});
+    setActiveSessionSource('custom');
     setActiveGameSlug(exercise.slug);
   };
 
@@ -237,21 +247,36 @@ export const ExerciseDetailModal: React.FC = () => {
           </div>
         </div>
 
-        {/* 2 Sub-tabs: CÀI ĐẶT & THÔNG SỐ | THỐNG KÊ */}
-        <div className="grid grid-cols-2 gap-2 mt-6 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/60">
+        {/* 3 Sub-tabs: CẤP ĐỘ TIÊU CHUẨN | TÙY CHỈNH & SCALE | THỐNG KÊ */}
+        <div className="grid grid-cols-3 gap-2 mt-6 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/60">
           <button
             onClick={() => {
               playSound('click');
               setActiveTab('settings');
             }}
-            className={`py-2.5 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 transition-all ${
+            className={`py-2.5 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'settings'
                 ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
             }`}
           >
             <Settings2 className="w-4 h-4" />
-            <span>CÀI ĐẶT & THÔNG SỐ BÀI TẬP</span>
+            <span className="truncate">CẤP ĐỘ (1–22)</span>
+          </button>
+
+          <button
+            onClick={() => {
+              playSound('click');
+              setActiveTab('custom');
+            }}
+            className={`py-2.5 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'custom'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+            }`}
+          >
+            <Sliders className="w-4 h-4 text-emerald-400" />
+            <span className="truncate">TÙY CHỈNH & SCALE</span>
           </button>
 
           <button
@@ -259,19 +284,24 @@ export const ExerciseDetailModal: React.FC = () => {
               playSound('click');
               setActiveTab('stats');
             }}
-            className={`py-2.5 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 transition-all ${
+            className={`py-2.5 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'stats'
                 ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
             }`}
           >
             <BarChart3 className="w-4 h-4" />
-            <span>LỊCH SỬ & THỐNG KÊ</span>
+            <span className="truncate">LỊCH SỬ</span>
           </button>
         </div>
       </div>
 
-      {activeTab === 'settings' ? (
+      {activeTab === 'custom' ? (
+        <CustomizePanel
+          exerciseSlug={exercise.slug}
+          onStartCustomGame={handleStartCustomGame}
+        />
+      ) : activeTab === 'settings' ? (
         <div className="space-y-6">
           {/* SPECIAL SECTION: Vocal Studio MP3 Import & Sing-Along */}
           {isVocalMatch && (

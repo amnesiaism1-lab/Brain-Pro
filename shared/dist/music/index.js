@@ -15,3 +15,5 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./pitch"), exports);
+__exportStar(require("./scales"), exports);
+__exportStar(require("./scaleEngine"), exports);

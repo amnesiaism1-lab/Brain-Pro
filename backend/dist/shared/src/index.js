@@ -19,4 +19,5 @@ __exportStar(require("./constants"), exports);
 __exportStar(require("./utils"), exports);
 __exportStar(require("./cognition"), exports);
 __exportStar(require("./music"), exports);
+__exportStar(require("./exercise-modes"), exports);
 //# sourceMappingURL=index.js.map

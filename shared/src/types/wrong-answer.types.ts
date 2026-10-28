@@ -82,6 +82,9 @@ export interface IQuestionContext {
   targetPitchHz?: number;
   targetNoteName?: string;              // VD: 'A4'
   centsTolerance?: number;
+  degree?: string;
+  scaleId?: string;
+  modeId?: string;
 
   // Hanoi Cognitive Navigation
   hanoiMode?: 'skeleton' | 'grid_topology' | 'sun_triangulation' | 'blind_drop' | 'mental_compass' | string;

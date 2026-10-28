@@ -9,6 +9,7 @@ import {
   IVocalPitchTracePoint
 } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { getNoteFrequency } from '../../services/musicTheoryService';
 import { 
@@ -20,6 +21,8 @@ import { CentsTunerGauge } from '../ui/CentsTunerGauge';
 import { VocalPitchRibbonCanvas } from '../ui/VocalPitchRibbonCanvas';
 import { VocalPreflightModal } from '../ui/VocalPreflightModal';
 import { VocalStudioModal } from '../vocal-studio/VocalStudioModal';
+import { generateVocalTargets, TargetNoteItem } from './vocal/vocalTargetGenerators';
+import { ScaleProgressHud } from './vocal/ScaleProgressHud';
 import { 
   Mic, 
   Volume2, 
@@ -31,23 +34,16 @@ import {
   Flame, 
   ArrowRight,
   ShieldCheck,
-  Music
+  Music,
+  Sliders
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 
 type GamePhase = 'preflight' | 'prompt' | 'countdown' | 'singing' | 'feedback' | 'finished';
 
-interface TargetNoteItem {
-  note: string;
-  solfege: string;
-  holdDurationMs: number;
-}
-
 export const VocalPitchMatchGame: React.FC = () => {
   const { 
-    getExerciseLevel, 
-    setExerciseLevel,
     setActiveGameSlug, 
     playSound,
     enableTonicAnchor
@@ -55,39 +51,17 @@ export const VocalPitchMatchGame: React.FC = () => {
   const { trackWrongAnswer } = useWrongAnswerTracker('vocal-pitch-match');
   const sessionIdRef = useRef<string>(`session-vocal-${Date.now()}`);
 
-  const currentLevel = getExerciseLevel('vocal-pitch-match') || 1;
+  // Unified Session Configuration (Ladder or Custom Preset)
+  const { sessionConfig, isCustom, currentLevel } = useExerciseSessionConfig('vocal-pitch-match');
   const isInfinity = currentLevel > 12;
   const infinityTier = isInfinity ? currentLevel - 12 : null;
 
-  // Level configuration
-  const exerciseMeta = useMemo(() => EXERCISES_METADATA.find(e => e.slug === 'vocal-pitch-match'), []);
-  const levelConfig = useMemo(() => {
-    return exerciseMeta?.levelConfigs.find(c => c.level === currentLevel) || {
-      level: currentLevel,
-      timeLimitSec: 45,
-      targetItemCount: 3,
-      parametersJson: {
-        noteCount: 1,
-        centsTolerance: 40,
-        holdDurationMs: 1800,
-        referenceDrone: false,
-        sequenceType: 'single',
-      },
-    };
-  }, [exerciseMeta, currentLevel]);
-
-  const params = (levelConfig.parametersJson || {}) as {
-    noteCount?: number;
-    centsTolerance?: number;
-    holdDurationMs?: number;
-    referenceDrone?: boolean;
-    sequenceType?: string;
-  };
-
-  const toleranceCents = params.centsTolerance ?? 35;
-  const requiredHoldMs = params.holdDurationMs ?? 1800;
-  const totalRounds = levelConfig.targetItemCount ?? 3;
-  const timeLimitSec = levelConfig.timeLimitSec ?? 45;
+  const params = (sessionConfig.params || {}) as Record<string, any>;
+  const toleranceCents = typeof params.centsTolerance === 'number' ? params.centsTolerance : 35;
+  const requiredHoldMs = typeof params.holdDurationMs === 'number' ? params.holdDurationMs : 1800;
+  const totalRounds = sessionConfig.rounds || 3;
+  const isFreePlay = sessionConfig.timeLimitSec === null;
+  const timeLimitSec = sessionConfig.timeLimitSec !== null ? sessionConfig.timeLimitSec : 60;
 
   // Session & Relational Dynamics
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
@@ -103,6 +77,17 @@ export const VocalPitchMatchGame: React.FC = () => {
   const [score, setScore] = useState(0);
   const [correctRounds, setCorrectRounds] = useState(0);
   const [consecutiveInTuneStreak, setConsecutiveInTuneStreak] = useState(0);
+
+  // Active Scale metadata for Scale Mode
+  const [activeScaleMeta, setActiveScaleMeta] = useState<{
+    id: string;
+    nameVi: string;
+    root: string;
+    feel?: string;
+    allScaleNotes: string[];
+  } | undefined>(undefined);
+  const lastScaleRef = useRef<{ scaleId: string; root: string } | undefined>(undefined);
+  const scaleDegreeStatsRef = useRef<Record<string, { totalHoldMs: number; hits: number; avgCents: number }>>({});
 
   // Live Audio Telemetry
   const [reading, setReading] = useState<IVocalPitchReading | null>(null);
@@ -124,49 +109,26 @@ export const VocalPitchMatchGame: React.FC = () => {
     holdDurationMs: requiredHoldMs,
   };
 
-  // Generate target notes based on level and user's vocal range
+  // Generate target notes based on level/mode and user's vocal range
   const generateTargets = useCallback((): TargetNoteItem[] => {
     const range = vocalPitchService.getUserRange();
-    let octave = 4;
-    if (range === 'bass-baritone') octave = 3;
-    else if (range === 'soprano') octave = 4;
+    const res = generateVocalTargets({
+      modeId: sessionConfig.modeId,
+      params,
+      vocalRange: range,
+      requiredHoldMs,
+      lastScaleSelected: lastScaleRef.current,
+    });
 
-    const baseNotes = [
-      { n: 'C', s: 'Đô' },
-      { n: 'D', s: 'Rê' },
-      { n: 'E', s: 'Mi' },
-      { n: 'F', s: 'Fa' },
-      { n: 'G', s: 'Sol' },
-      { n: 'A', s: 'La' },
-      { n: 'B', s: 'Si' },
-    ];
-
-    const noteCount = params.noteCount ?? 1;
-    const items: TargetNoteItem[] = [];
-
-    if (noteCount === 1) {
-      const pick = baseNotes[Math.floor(Math.random() * baseNotes.length)];
-      items.push({
-        note: `${pick.n}${octave}`,
-        solfege: `${pick.s} ${octave}`,
-        holdDurationMs: requiredHoldMs,
-      });
+    if (res.activeScaleMeta) {
+      setActiveScaleMeta(res.activeScaleMeta);
+      lastScaleRef.current = { scaleId: res.activeScaleMeta.id, root: res.activeScaleMeta.root };
     } else {
-      // Sequence: e.g. intervals, triad arpeggios
-      const startIndex = Math.floor(Math.random() * 3);
-      for (let i = 0; i < noteCount; i++) {
-        const step = (startIndex + i * 2) % baseNotes.length;
-        const pick = baseNotes[step];
-        items.push({
-          note: `${pick.n}${octave}`,
-          solfege: `${pick.s} ${octave}`,
-          holdDurationMs: requiredHoldMs,
-        });
-      }
+      setActiveScaleMeta(undefined);
     }
 
-    return items;
-  }, [params.noteCount, requiredHoldMs]);
+    return res.targets;
+  }, [sessionConfig.modeId, params, requiredHoldMs]);
 
   // Start new round
   const startRound = useCallback(async (roundNum: number) => {
@@ -194,14 +156,31 @@ export const VocalPitchMatchGame: React.FC = () => {
     try {
       await auditoryEngine.resumeAudioContext();
 
-      // Play prompt sequence
-      for (let i = 0; i < targets.length; i++) {
-        auditoryEngine.playNote(targets[i].note, 0.9, { volume: 0.65, timbrePreset: 'acoustic-piano' });
-        await new Promise((r) => setTimeout(r, 900));
+      // 1. Establish key cadence if requested (e.g. for scales)
+      if (params.establishKey && lastScaleRef.current?.root) {
+        const root = lastScaleRef.current.root;
+        const tonicOct = vocalPitchService.getUserRange() === 'bass-baritone' ? '2' : '3';
+        auditoryEngine.playNote(`${root}${tonicOct}`, 0.6, { volume: 0.5, timbrePreset: 'acoustic-piano' });
+        await new Promise((r) => setTimeout(r, 600));
       }
 
-      // Ensure no drone leaks into mic
-      auditoryEngine.stopDrone();
+      // 2. Play prompt sequence based on promptMode
+      const promptMode = params.promptMode || 'call-response';
+      if (promptMode !== 'silent' && promptMode !== 'drone-only') {
+        for (let i = 0; i < targets.length; i++) {
+          auditoryEngine.playNote(targets[i].note, 0.85, { volume: 0.65, timbrePreset: 'acoustic-piano' });
+          await new Promise((r) => setTimeout(r, 850));
+        }
+      }
+
+      // 3. Optional continuous tonic drone
+      if (params.tonicDrone && lastScaleRef.current?.root) {
+        const root = lastScaleRef.current.root;
+        const droneOct = vocalPitchService.getUserRange() === 'bass-baritone' ? '2' : '3';
+        auditoryEngine.startDrone(`${root}${droneOct}`, 0.05);
+      } else {
+        auditoryEngine.stopDrone();
+      }
 
       // Phase: Countdown
       setPhase('countdown');
@@ -229,7 +208,7 @@ export const VocalPitchMatchGame: React.FC = () => {
       setCurrentHoldMs(0);
       lastFrameTimestampRef.current = performance.now();
     }
-  }, [generateTargets, playSound]);
+  }, [generateTargets, params, playSound]);
 
   // Replay current target note
   const handleReplayPrompt = useCallback(() => {
@@ -258,6 +237,7 @@ export const VocalPitchMatchGame: React.FC = () => {
     setTimeLeft(timeLimitSec);
     setScore(0);
     setCorrectRounds(0);
+    scaleDegreeStatsRef.current = {};
     pitchTraceRef.current = [];
     startRound(1);
   };
@@ -379,6 +359,20 @@ export const VocalPitchMatchGame: React.FC = () => {
     const targets = targetNotesRef.current;
     const round = currentRoundRef.current;
     const total = totalRoundsRef.current;
+    const currentTgt = targets[activeIdx];
+
+    // Record degree stats if in a scale
+    if (currentTgt?.degree) {
+      const prev = scaleDegreeStatsRef.current[currentTgt.degree] || { totalHoldMs: 0, hits: 0, avgCents: 0 };
+      const cents = Math.abs(evaluation?.centsDiff ?? 0);
+      const newHits = prev.hits + 1;
+      const newAvgCents = Math.round((prev.avgCents * prev.hits + cents) / newHits);
+      scaleDegreeStatsRef.current[currentTgt.degree] = {
+        totalHoldMs: prev.totalHoldMs + holdMsRef.current,
+        hits: newHits,
+        avgCents: newAvgCents,
+      };
+    }
 
     // Emit Relational Event (SIMILARITY_DIFF)
     try {
@@ -391,6 +385,9 @@ export const VocalPitchMatchGame: React.FC = () => {
           targetNote: matchedNote,
           toleranceCents: toleranceCentsRef.current,
           requiredHoldMs,
+          degree: currentTgt?.degree,
+          scaleId: currentTgt?.scaleId,
+          modeId: sessionConfig.modeId,
         },
         stateBefore: 'SEEKING_PITCH',
         stateAfter: 'PITCH_MATCHED',
@@ -466,26 +463,29 @@ export const VocalPitchMatchGame: React.FC = () => {
         difficultyLevel: currentLevel,
         questionContext: {
           targetNoteName: target.note,
-          centsTolerance: toleranceCentsRef.current
+          centsTolerance: toleranceCentsRef.current,
+          degree: target.degree,
+          scaleId: target.scaleId,
+          modeId: sessionConfig.modeId,
         },
         correctAnswer: {
-          label: `Nốt mục tiêu: ${target.note}`,
-          code: target.note
+          label: `Nốt mục tiêu: ${target.note}${target.degree ? ` (${target.degree})` : ''}`,
+          code: target.note,
         },
         userAnswer: {
           label: reading?.noteName ? `Nốt hát được: ${reading.noteName} (${Math.round(evaluation?.centsDiff ?? 0)} cents)` : 'Lệch cao độ / Chưa hoàn thành giữ nốt',
           code: reading?.noteName || 'pitch-drift',
-          centsDeviation: Math.round(evaluation?.centsDiff ?? 0)
+          centsDeviation: Math.round(evaluation?.centsDiff ?? 0),
         },
         responseTimeMs: Math.round((timeLimitSec - timeLeft) * 1000),
-        sessionId: sessionIdRef.current
+        sessionId: sessionIdRef.current,
       });
     }
-  }, [correctRounds, totalRounds, currentLevel, reading, evaluation, timeLimitSec, timeLeft, trackWrongAnswer]);
+  }, [correctRounds, totalRounds, currentLevel, sessionConfig.modeId, reading, evaluation, timeLimitSec, timeLeft, trackWrongAnswer]);
 
   // Overall timer
   useEffect(() => {
-    if (phase !== 'singing' || isFinished || showStudioModal) return;
+    if (phase !== 'singing' || isFinished || showStudioModal || isFreePlay) return;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -499,7 +499,7 @@ export const VocalPitchMatchGame: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [phase, isFinished, showStudioModal, finishGame]);
+  }, [phase, isFinished, showStudioModal, isFreePlay, finishGame]);
 
   // Clean up audio on unmount
   useEffect(() => {
@@ -545,9 +545,13 @@ export const VocalPitchMatchGame: React.FC = () => {
                 Cảm Âm & Dò Cao Độ Giọng Hát
               </h2>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                isInfinity ? 'bg-purple-950 text-purple-300 border border-purple-500/50' : 'bg-emerald-950 text-emerald-300 border border-emerald-500/50'
+                isCustom
+                  ? 'bg-violet-950 text-violet-300 border border-violet-500/50'
+                  : isInfinity
+                    ? 'bg-purple-950 text-purple-300 border border-purple-500/50'
+                    : 'bg-emerald-950 text-emerald-300 border border-emerald-500/50'
               }`}>
-                {isInfinity ? `Tier ${INFINITY_ROMAN_NUMERALS[infinityTier || 1]}` : `Cấp ${currentLevel}`}
+                {isCustom ? 'Tùy chỉnh' : isInfinity ? `Tier ${INFINITY_ROMAN_NUMERALS[infinityTier || 1]}` : `Cấp ${currentLevel}`}
               </span>
             </div>
             <p className="text-[11px] text-slate-400">
@@ -570,8 +574,8 @@ export const VocalPitchMatchGame: React.FC = () => {
 
           <div className="flex flex-col items-end pl-3 border-l border-slate-800">
             <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Thời gian</span>
-            <span className={`text-base font-mono font-bold ${timeLeft <= 10 ? 'text-rose-400 animate-pulse' : 'text-slate-200'}`}>
-              {timeLeft}s
+            <span className={`text-base font-mono font-bold ${!isFreePlay && timeLeft <= 10 ? 'text-rose-400 animate-pulse' : 'text-slate-200'}`}>
+              {isFreePlay ? '∞' : `${timeLeft}s`}
             </span>
           </div>
 
@@ -583,6 +587,25 @@ export const VocalPitchMatchGame: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Custom Mode Banner */}
+      {isCustom && (
+        <div className="w-full mb-3 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-violet-950/80 via-indigo-950/60 to-purple-950/80 border border-violet-500/30 flex items-center justify-between text-xs backdrop-blur-md">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Sliders className="w-4 h-4 text-violet-400 shrink-0" />
+            <span className="font-bold text-violet-200">Chế độ tùy chỉnh:</span>
+            <span className="font-semibold text-white">{sessionConfig.modeLabelVi}</span>
+            {sessionConfig.presetName && (
+              <span className="px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-mono text-[10px] border border-violet-400/30">
+                {sessionConfig.presetName}
+              </span>
+            )}
+          </div>
+          <div className="text-[11px] text-violet-300/80 font-mono shrink-0">
+            {isFreePlay ? 'Không giới hạn thời gian' : `${timeLimitSec}s`} • {totalRounds} vòng
+          </div>
+        </div>
+      )}
 
       {/* Center Interactive Arena - ALWAYS MOUNTED to eliminate lag and flicker */}
       <div className="w-full flex-1 relative flex flex-col items-center justify-center gap-4 my-2 min-h-[380px]">
@@ -626,6 +649,15 @@ export const VocalPitchMatchGame: React.FC = () => {
 
         {/* Live Arena Components - Continuously Active */}
         <div className="w-full flex flex-col gap-4">
+          {/* Interactive Scale Runway HUD (when in scale mode or multi-note) */}
+          {(activeScaleMeta || targetNotes.length > 1) && (
+            <ScaleProgressHud
+              scaleMeta={activeScaleMeta}
+              targets={targetNotes}
+              activeNoteIndex={activeNoteIndex}
+            />
+          )}
+
           {/* 60 FPS Visual Ribbon Runway Canvas */}
           <VocalPitchRibbonCanvas
             reading={reading}
@@ -693,6 +725,7 @@ export const VocalPitchMatchGame: React.FC = () => {
             setTimeLeft(timeLimitSec);
             setScore(0);
             setCorrectRounds(0);
+            scaleDegreeStatsRef.current = {};
             startRound(1);
           }}
           onClose={() => setActiveGameSlug(null)}
