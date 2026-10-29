@@ -281,7 +281,7 @@ export const ExerciseDetailModal: React.FC = () => {
             className={`py-2.5 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'settings'
                 ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Settings2 className="w-4 h-4" />
@@ -296,7 +296,7 @@ export const ExerciseDetailModal: React.FC = () => {
             className={`py-2.5 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'custom'
                 ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Sliders className="w-4 h-4 text-emerald-400" />
@@ -311,7 +311,7 @@ export const ExerciseDetailModal: React.FC = () => {
             className={`py-2.5 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'stats'
                 ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <BarChart3 className="w-4 h-4" />
@@ -392,18 +392,18 @@ export const ExerciseDetailModal: React.FC = () => {
 
           {/* SPECIAL SECTION: Interactive Cockpit Visual Simulator (Only for Peripheral Vision) */}
           {isPeripheral && (
-            <div className="bg-slate-950 rounded-3xl border-2 border-brand-500/40 p-5 sm:p-6 shadow-2xl overflow-hidden relative">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="bg-white/90 dark:bg-slate-950 rounded-3xl border border-[#D5CBB9] dark:border-brand-500/40 p-5 sm:p-6 shadow-md dark:shadow-2xl overflow-hidden relative">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <Crosshair className="w-4 h-4 text-rose-500 animate-pulse" />
-                  <span className="text-xs font-black tracking-wider uppercase text-cyan-400">
+                  <span className="text-xs font-black tracking-wider uppercase text-cyan-600 dark:text-cyan-400">
                     Mô Phỏng Không Gian Thị Giác Ngoại Vi (Cấp {exerciseLevel})
                   </span>
                 </div>
                 <button
                   onClick={triggerTestFlash}
                   disabled={isPreviewFlashing}
-                  className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-xl bg-cyan-500/10 dark:bg-cyan-500/20 hover:bg-cyan-500/20 dark:hover:bg-cyan-500/30 border border-cyan-500/30 dark:border-cyan-500/40 text-cyan-700 dark:text-cyan-300 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
                   <Zap className="w-3.5 h-3.5" />
                   <span>{isPreviewFlashing ? 'Đang chớp...' : 'Xem thử 1 nhịp chớp'}</span>
@@ -472,21 +472,21 @@ export const ExerciseDetailModal: React.FC = () => {
 
               {/* Real-time Scientific Metrics Bar */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-center">
-                <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block">Độ mở góc nhìn</span>
-                  <span className="text-sm font-black text-cyan-400">~{visualAngleDeg}° ngoại vi</span>
+                <div className="bg-slate-100 dark:bg-slate-900/80 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Độ mở góc nhìn</span>
+                  <span className="text-sm font-black text-cyan-600 dark:text-cyan-400">~{visualAngleDeg}° ngoại vi</span>
                 </div>
-                <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block">Khoảng cách biên</span>
-                  <span className="text-sm font-black text-amber-400">{spanPx} px</span>
+                <div className="bg-slate-100 dark:bg-slate-900/80 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Khoảng cách biên</span>
+                  <span className="text-sm font-black text-amber-600 dark:text-amber-400">{spanPx} px</span>
                 </div>
-                <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block">Thời gian lưu ảnh</span>
-                  <span className="text-sm font-black text-emerald-400">{flashMs} ms</span>
+                <div className="bg-slate-100 dark:bg-slate-900/80 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Thời gian lưu ảnh</span>
+                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{flashMs} ms</span>
                 </div>
-                <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block">Loại kích thích</span>
-                  <span className="text-sm font-black text-purple-400">
+                <div className="bg-slate-100 dark:bg-slate-900/80 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Loại kích thích</span>
+                  <span className="text-sm font-black text-purple-600 dark:text-purple-400">
                     {exerciseLevel === 13 ? 'Ký tự Latin & Toán' :
                      exerciseLevel === 14 ? 'Chữ số & Hằng số' :
                      exerciseLevel === 15 ? 'Từ vựng tiếng Anh' :
@@ -831,17 +831,20 @@ export const ExerciseDetailModal: React.FC = () => {
               </div>
 
               <button
+                role="switch"
+                aria-checked={autoDifficulty}
+                aria-label="Tự động thích ứng độ khó DDA"
                 onClick={() => {
                   playSound('click');
                   setAutoDifficulty(!autoDifficulty);
                 }}
-                className={`w-14 h-7 rounded-full transition-colors relative shrink-0 ${
+                className={`w-14 h-7 rounded-full transition-colors relative shrink-0 cursor-pointer ${
                   autoDifficulty ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
                 }`}
               >
                 <span
-                  className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
-                    autoDifficulty ? 'right-1' : 'left-1'
+                  className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${
+                    autoDifficulty ? 'translate-x-7' : 'translate-x-0'
                   }`}
                 />
               </button>

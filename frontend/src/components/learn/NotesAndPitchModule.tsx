@@ -146,19 +146,19 @@ export const NotesAndPitchModule: React.FC = () => {
       </div>
 
       {/* Interactive Piano Section */}
-      <div className="p-6 bg-slate-950 text-white rounded-3xl shadow-2xl border border-white/10 space-y-5">
+      <div className="p-6 bg-white/95 dark:bg-slate-950 text-slate-800 dark:text-white rounded-3xl shadow-md dark:shadow-2xl border border-[#D5CBB9] dark:border-white/10 space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-black text-white flex items-center gap-2">
-              <Volume2 className="w-5 h-5 text-cyan-400" />
+            <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <Volume2 className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
               Bàn Phím Piano Tương Tác (Octave 4 - 5)
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Nhấp chuột hoặc kết nối đàn MIDI USB để trải nghiệm âm sắc nốt nhạc thực tế
             </p>
           </div>
           {activeNote && (
-            <div className="px-3.5 py-1.5 rounded-full bg-cyan-500/20 border border-cyan-400 text-cyan-300 font-mono font-bold text-xs animate-pulse">
+            <div className="px-3.5 py-1.5 rounded-full bg-cyan-50 dark:bg-cyan-500/20 border border-cyan-400 text-cyan-700 dark:text-cyan-300 font-mono font-bold text-xs animate-pulse">
               Đang phát: {activeNote}
             </div>
           )}
@@ -175,38 +175,38 @@ export const NotesAndPitchModule: React.FC = () => {
         </div>
 
         {/* Live Note & Physical Attribute Inspector Deck */}
-        <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="text-slate-400 font-bold flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400" />
               <span>Bảng Thuộc Tính Thực Thể Sống (Live Inspector):</span>
             </span>
-            <span className="font-mono text-cyan-400 font-bold">
+            <span className="font-mono text-cyan-600 dark:text-cyan-400 font-bold">
               Đang chọn: {activeMeta.note}
             </span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
-              <span className="text-[10px] text-slate-400 block">Tên Nốt & Solfege</span>
-              <span className="text-sm font-black text-cyan-300">{activeMeta.solfege}</span>
+            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-center shadow-xs">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Tên Nốt & Solfege</span>
+              <span className="text-sm font-black text-cyan-600 dark:text-cyan-300">{activeMeta.solfege}</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
-              <span className="text-[10px] text-slate-400 block">Tần Số Dao Động</span>
-              <span className="text-sm font-black text-amber-400 font-mono">{activeMeta.freq} Hz</span>
+            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-center shadow-xs">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Tần Số Dao Động</span>
+              <span className="text-sm font-black text-amber-600 dark:text-amber-400 font-mono">{activeMeta.freq} Hz</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
-              <span className="text-[10px] text-slate-400 block">Mã Số Chuẩn MIDI</span>
-              <span className="text-sm font-black text-emerald-400 font-mono">#{activeMeta.midi}</span>
+            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-center shadow-xs">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Mã Số Chuẩn MIDI</span>
+              <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">#{activeMeta.midi}</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
-              <span className="text-[10px] text-slate-400 block">Phân Vùng Octave</span>
-              <span className="text-sm font-black text-purple-400">Quãng 8 thứ {activeMeta.octave}</span>
+            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-center shadow-xs">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Phân Vùng Octave</span>
+              <span className="text-sm font-black text-purple-600 dark:text-purple-400">Quãng 8 thứ {activeMeta.octave}</span>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/10 text-xs">
-            <span className="text-slate-400 text-[11px]">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-white/10 text-xs">
+            <span className="text-slate-500 dark:text-slate-400 text-[11px]">
               Quy luật Quãng 8: Tần số gấp đôi (×2) hoặc chia đôi (/2) giữ nguyên phẩm chất nốt.
             </span>
             <button

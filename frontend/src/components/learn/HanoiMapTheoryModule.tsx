@@ -343,18 +343,18 @@ export const HanoiMapTheoryModule: React.FC = () => {
 
           {/* Interactive Map Canvas Container */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-8 bg-slate-950 rounded-3xl p-4 sm:p-6 border border-slate-800 relative overflow-hidden shadow-2xl flex flex-col justify-between min-h-[540px]">
+            <div className="lg:col-span-8 bg-white/95 dark:bg-slate-950 rounded-3xl p-4 sm:p-6 border border-[#D5CBB9] dark:border-slate-800 relative overflow-hidden shadow-lg dark:shadow-2xl flex flex-col justify-between min-h-[540px]">
               {/* Solar Azimuth Overlay Header */}
-              <div className="relative z-20 flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-800">
+              <div className="relative z-20 flex flex-wrap items-center justify-between gap-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-[#D5CBB9] dark:border-slate-800">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400">
+                  <div className="p-2 rounded-xl bg-amber-500/20 text-amber-500 dark:text-amber-400">
                     <Sun className="w-5 h-5 animate-pulse" />
                   </div>
                   <div>
-                    <div className="text-xs text-slate-400">Mô phỏng giờ trong ngày tại Hà Nội:</div>
-                    <div className="text-sm font-black text-amber-300 flex items-center gap-2">
+                    <div className="text-xs text-slate-500 dark:text-slate-400">Mô phỏng giờ trong ngày tại Hà Nội:</div>
+                    <div className="text-sm font-black text-amber-600 dark:text-amber-300 flex items-center gap-2">
                       <span>{Math.floor(simulatedHour)}h{Math.round((simulatedHour % 1) * 60).toString().padStart(2, '0')}</span>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
                         Nắng {currentSunDirectionName} ({currentSunAzimuth}°)
                       </span>
                     </div>
@@ -779,12 +779,12 @@ export const HanoiMapTheoryModule: React.FC = () => {
               </div>
 
               {/* Bottom Interactive Legend / Status */}
-              <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 bg-slate-900/80 backdrop-blur-md p-3 rounded-2xl border border-slate-800">
+              <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-400 bg-white/90 dark:bg-slate-900/80 backdrop-blur-md p-3 rounded-2xl border border-[#D5CBB9] dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
                   <span>Click vào bất kỳ sông, cầu, vành đai hoặc landmark để xem chi tiết & mẹo định vị</span>
                 </div>
-                <div className="text-amber-300 font-medium">
+                <div className="text-amber-600 dark:text-amber-300 font-medium">
                   Góc phương vị mặt trời hiện tại: <strong>{currentSunAzimuth}°</strong> · Hướng bóng đổ: <strong>{currentShadowBearing}°</strong>
                 </div>
               </div>

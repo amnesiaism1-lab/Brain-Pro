@@ -439,9 +439,9 @@ export const MusicTheoryView: React.FC = () => {
 
           <button
             onClick={() => setShowBrainInsights(!showBrainInsights)}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
           >
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
+            <Zap className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
             <span>{showBrainInsights ? 'Thu gọn phân tích' : 'Xem chi tiết lợi ích não bộ'}</span>
           </button>
         </div>
@@ -449,40 +449,40 @@ export const MusicTheoryView: React.FC = () => {
         {showBrainInsights && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-1 animate-fadeIn">
             {/* Brain Region Box */}
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-indigo-500/20 space-y-1.5">
-              <span className="text-[11px] font-mono uppercase tracking-wider text-indigo-400 font-bold block">
+            <div className="p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-slate-900/80 border border-indigo-200 dark:border-indigo-500/20 space-y-1.5">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-indigo-700 dark:text-indigo-400 font-bold block">
                 🧠 Vùng Não Bộ Tham Gia
               </span>
-              <p className="text-xs font-semibold text-slate-200 leading-snug">
+              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-snug">
                 {currentInsight.brainRegion}
               </p>
-              <p className="text-[11px] text-slate-400 pt-1 leading-relaxed">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 pt-1 leading-relaxed">
                 {currentInsight.neuralMechanism}
               </p>
             </div>
 
             {/* RFT Cognitive Rule Box */}
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-purple-500/20 space-y-1.5">
-              <span className="text-[11px] font-mono uppercase tracking-wider text-purple-400 font-bold block">
+            <div className="p-3.5 rounded-2xl bg-purple-50/70 dark:bg-slate-900/80 border border-purple-200 dark:border-purple-500/20 space-y-1.5">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-purple-700 dark:text-purple-400 font-bold block">
                 📐 Khung Quan Hệ Nhận Thức (RFT)
               </span>
-              <p className="text-xs font-semibold text-purple-200 leading-snug font-mono">
+              <p className="text-xs font-semibold text-purple-900 dark:text-purple-200 leading-snug font-mono">
                 {currentInsight.rftRule}
               </p>
-              <p className="text-[11px] text-slate-400 pt-1 leading-relaxed">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 pt-1 leading-relaxed">
                 Rèn luyện khả năng trừu tượng hóa tín hiệu sóng âm thành cấu trúc quan hệ ngữ nghĩa trong tư duy nhận thức.
               </p>
             </div>
 
             {/* Far-Transfer Cognitive Benefits Box */}
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-emerald-500/20 space-y-1.5">
-              <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400 font-bold block">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-slate-900/80 border border-emerald-200 dark:border-emerald-500/20 space-y-1.5">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold block">
                 🚀 Lợi Ích Chuyển Di Ngoài Âm Nhạc
               </span>
-              <ul className="space-y-1 text-[11px] text-slate-300 leading-relaxed">
+              <ul className="space-y-1 text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed">
                 {currentInsight.farTransferBenefits.map((benefit, idx) => (
                   <li key={idx} className="flex items-start gap-1.5">
-                    <span className="text-emerald-400 shrink-0 mt-0.5">✦</span>
+                    <span className="text-emerald-500 dark:text-emerald-400 shrink-0 mt-0.5">✦</span>
                     <span>{benefit}</span>
                   </li>
                 ))}

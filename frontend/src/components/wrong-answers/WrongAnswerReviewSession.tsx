@@ -144,21 +144,21 @@ export const WrongAnswerReviewSession: React.FC<WrongAnswerReviewSessionProps> =
   };
 
   return (
-    <div className={`p-6 rounded-3xl bg-slate-900/95 text-white backdrop-blur-2xl border border-slate-800 shadow-2xl flex flex-col justify-between max-w-xl mx-auto min-h-[460px] animate-fadeIn ${className}`}>
+    <div className={`p-6 rounded-3xl bg-white/95 dark:bg-slate-900/95 text-slate-800 dark:text-white backdrop-blur-2xl border border-[#D5CBB9] dark:border-slate-800 shadow-2xl flex flex-col justify-between max-w-xl mx-auto min-h-[460px] animate-fadeIn ${className}`}>
       {/* Top Header */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center font-bold">
+          <div className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 flex items-center justify-center font-bold">
             <GraduationCap className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
               Ôn Tập Tập Trung
-              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/15 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-mono font-bold">
                 {pairKey}
               </span>
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Phân biệt chuẩn xác giữa 2 lựa chọn hay bị nhầm
             </p>
           </div>
@@ -166,7 +166,7 @@ export const WrongAnswerReviewSession: React.FC<WrongAnswerReviewSessionProps> =
 
         <button
           onClick={onClose}
-          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+          className="p-2 rounded-xl text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -176,23 +176,23 @@ export const WrongAnswerReviewSession: React.FC<WrongAnswerReviewSessionProps> =
       {phase === 'study' && (
         <div className="flex flex-col gap-4 my-auto py-4">
           <div className="text-center">
-            <h4 className="text-lg font-bold text-slate-100">
+            <h4 className="text-lg font-bold text-slate-900 dark:text-slate-100">
               Bước 1: Nghe So Sánh Đối Kháng (A/B)
             </h4>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Hãy nghe lần lượt từng âm thanh để nhận biết nét khác biệt đặc trưng
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3.5">
             {/* Option A */}
-            <div className="p-4 rounded-2xl bg-cyan-950/40 border border-cyan-500/30 flex flex-col items-center justify-center gap-3 text-center">
-              <span className="text-xs font-mono font-bold text-cyan-400">LỰA CHỌN A</span>
-              <p className="text-sm font-bold text-white">{labelA}</p>
+            <div className="p-4 rounded-2xl bg-cyan-500/10 dark:bg-cyan-950/40 border border-cyan-500/30 flex flex-col items-center justify-center gap-3 text-center">
+              <span className="text-xs font-mono font-bold text-cyan-600 dark:text-cyan-400">LỰA CHỌN A</span>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{labelA}</p>
               <button
                 onClick={() => playSoundForChoice('A')}
                 disabled={isPlayingAudio}
-                className="w-full py-2 px-3 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                className="w-full py-2 px-3 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
               >
                 <Volume2 className="w-4 h-4" />
                 <span>Nghe A</span>
@@ -200,13 +200,13 @@ export const WrongAnswerReviewSession: React.FC<WrongAnswerReviewSessionProps> =
             </div>
 
             {/* Option B */}
-            <div className="p-4 rounded-2xl bg-purple-950/40 border border-purple-500/30 flex flex-col items-center justify-center gap-3 text-center">
-              <span className="text-xs font-mono font-bold text-purple-400">LỰA CHỌN B</span>
-              <p className="text-sm font-bold text-white">{labelB}</p>
+            <div className="p-4 rounded-2xl bg-purple-500/10 dark:bg-purple-950/40 border border-purple-500/30 flex flex-col items-center justify-center gap-3 text-center">
+              <span className="text-xs font-mono font-bold text-purple-600 dark:text-purple-400">LỰA CHỌN B</span>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{labelB}</p>
               <button
                 onClick={() => playSoundForChoice('B')}
                 disabled={isPlayingAudio}
-                className="w-full py-2 px-3 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                className="w-full py-2 px-3 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-700 dark:text-purple-300 border border-purple-500/40 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
               >
                 <Volume2 className="w-4 h-4" />
                 <span>Nghe B</span>
@@ -216,8 +216,8 @@ export const WrongAnswerReviewSession: React.FC<WrongAnswerReviewSessionProps> =
 
           {initialWrongAnswer?.correctAnswer.explanationVi && (
             <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5">
-              <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-200 leading-relaxed">
+              <Sparkles className="w-4 h-4 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed font-medium">
                 {initialWrongAnswer.correctAnswer.explanationVi}
               </p>
             </div>
@@ -225,7 +225,7 @@ export const WrongAnswerReviewSession: React.FC<WrongAnswerReviewSessionProps> =
 
           <button
             onClick={startNewQuizTrial}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-sm shadow-lg shadow-cyan-900/40 flex items-center justify-center gap-2 active:scale-95 transition-all"
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-sm shadow-lg shadow-cyan-900/40 flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
           >
             <Play className="w-4 h-4" />
             <span>Tôi đã sẵn sàng — Bắt đầu kiểm tra thử</span>

@@ -525,7 +525,7 @@ export const VocalPitchMatchGame: React.FC = () => {
   }, [currentLevel, accuracyRate, timeSpentSec, timeLimitSec]);
 
   return (
-    <div className="relative min-h-[560px] w-full max-w-4xl mx-auto flex flex-col items-center justify-between p-4 md:p-6 bg-slate-950/60 backdrop-blur-2xl rounded-3xl border border-slate-800/80 shadow-2xl">
+    <div className="relative min-h-[560px] w-full max-w-4xl mx-auto flex flex-col items-center justify-between p-4 md:p-6 bg-white/95 dark:bg-slate-950/60 backdrop-blur-2xl rounded-3xl border border-[#D5CBB9] dark:border-slate-800/80 shadow-xl dark:shadow-2xl text-slate-800 dark:text-white">
       {/* Pre-flight Modal */}
       <VocalPreflightModal
         isOpen={showPreflightModal}
@@ -534,14 +534,14 @@ export const VocalPitchMatchGame: React.FC = () => {
       />
 
       {/* Top Header Bar */}
-      <div className="w-full flex items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-800/80">
+      <div className="w-full flex items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-200 dark:border-slate-800/80">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
             <Mic className="w-5 h-5 text-slate-950" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base md:text-lg font-black tracking-tight text-white">
+              <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
                 Cảm Âm & Dò Cao Độ Giọng Hát
               </h2>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
@@ -698,7 +698,7 @@ export const VocalPitchMatchGame: React.FC = () => {
 
           <button
             onClick={() => setShowPreflightModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/60 font-medium transition"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60 font-medium transition cursor-pointer"
           >
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
             <span>Kiểm tra Micro</span>

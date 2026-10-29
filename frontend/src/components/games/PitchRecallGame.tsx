@@ -81,7 +81,7 @@ const MelodicContourGraph: React.FC<{ notes: string[]; className?: string }> = (
   const polylineStr = points.map(p => `${p.x},${p.y}`).join(' ');
 
   return (
-    <div className={`flex flex-col items-center bg-slate-900/95 rounded-2xl p-2.5 border border-slate-800 shadow-md ${className}`}>
+    <div className={`flex flex-col items-center bg-white/90 dark:bg-slate-900/95 rounded-2xl p-2.5 border border-[#D5CBB9] dark:border-slate-800 shadow-sm dark:shadow-md ${className}`}>
       <span className="text-[10px] font-mono font-bold text-amber-400/90 mb-1 flex items-center gap-1">
         <TrendingUp className="w-3 h-3 text-amber-400" /> Quỹ đạo cao độ (Melodic Pitch Curve)
       </span>

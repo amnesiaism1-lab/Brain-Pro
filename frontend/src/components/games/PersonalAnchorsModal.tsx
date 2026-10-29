@@ -76,29 +76,29 @@ export const PersonalAnchorsModal: React.FC<PersonalAnchorsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-2xl bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900">
+        <div className="px-6 py-4 border-b border-[#D5CBB9]/60 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400">
               <Compass className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 Đích Cá Nhân & Điểm Neo Thường Ngày
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold">
                   {personalAnchors.length} Điểm
                 </span>
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Ghim Nhà, Chỗ làm, Trường học để hệ thống tự động sinh bài tập lập tuyến quen thuộc
               </p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -108,14 +108,14 @@ export const PersonalAnchorsModal: React.FC<PersonalAnchorsModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-4 flex-1 custom-scrollbar">
           
           <div className="flex items-center justify-between pb-2">
-            <div className="text-xs text-slate-400 flex items-center gap-1.5">
-              <Info className="w-4 h-4 text-cyan-400" />
+            <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <Info className="w-4 h-4 text-cyan-500 dark:text-cyan-400" />
               Mẹo xe máy: Thuộc 4 lối thoát từ nhà ra trục chính giúp bạn đi đâu cũng thuận lợi
             </div>
             {!isAdding && (
               <button
                 onClick={() => setIsAdding(true)}
-                className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition-all cursor-pointer"
+                className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 Thêm Điểm Neo Mới
@@ -125,15 +125,15 @@ export const PersonalAnchorsModal: React.FC<PersonalAnchorsModalProps> = ({
 
           {/* Add form */}
           {isAdding && (
-            <form onSubmit={handleSave} className="p-4 rounded-xl bg-slate-800/80 border border-emerald-500/30 space-y-3 animate-fadeIn">
-              <div className="flex items-center justify-between border-b border-slate-700 pb-2">
-                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+            <form onSubmit={handleSave} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-emerald-500/30 space-y-3 animate-fadeIn">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
                   Ghim Vị Trí Cá Nhân Mới
                 </span>
                 <button
                   type="button"
                   onClick={() => setIsAdding(false)}
-                  className="text-xs text-slate-400 hover:text-white cursor-pointer"
+                  className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
@@ -141,11 +141,11 @@ export const PersonalAnchorsModal: React.FC<PersonalAnchorsModalProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">Loại Điểm Neo</label>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Loại Điểm Neo</label>
                   <select
                     value={label}
                     onChange={(e) => setLabel(e.target.value as any)}
-                    className="w-full px-3 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-amber-400"
+                    className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:border-amber-400"
                   >
                     <option value="home">Nhà riêng</option>
                     <option value="workplace">Nơi làm việc / Cơ quan</option>
@@ -154,25 +154,25 @@ export const PersonalAnchorsModal: React.FC<PersonalAnchorsModalProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">Tên Gọi Gợi Nhớ</label>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Tên Gọi Gợi Nhớ</label>
                   <input
                     type="text"
                     value={customTitle}
                     onChange={(e) => setCustomTitle(e.target.value)}
                     placeholder="VD: Nhà riêng Thanh Xuân, Chỗ làm Duy Tân..."
                     required
-                    className="w-full px-3 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-amber-400"
+                    className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:border-amber-400"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">Quận / Huyện</label>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Quận / Huyện</label>
                   <select
                     value={district}
                     onChange={(e) => setDistrict(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-amber-400"
+                    className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:border-amber-400"
                   >
                     {HANOI_COGNITIVE_GRAPH.metadata.districtsCovered.map(d => (
                       <option key={d} value={d}>{d}</option>
@@ -180,36 +180,36 @@ export const PersonalAnchorsModal: React.FC<PersonalAnchorsModalProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">Phố Tiếp Cận Gần Nhất</label>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Phố Tiếp Cận Gần Nhất</label>
                   <input
                     type="text"
                     value={nearestStreet}
                     onChange={(e) => setNearestStreet(e.target.value)}
                     placeholder="VD: Nguyễn Trãi, Thái Hà..."
                     required
-                    className="w-full px-3 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-amber-400"
+                    className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:border-amber-400"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">Nút Giao Thoát Ra Trục</label>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Nút Giao Thoát Ra Trục</label>
                   <input
                     type="text"
                     value={nearestIntersection}
                     onChange={(e) => setNearestIntersection(e.target.value)}
                     placeholder="VD: Ngã Tư Sở, Mai Dịch..."
-                    className="w-full px-3 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-amber-400"
+                    className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:border-amber-400"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Ghi chú ngõ ngách / Mẹo đi xe máy</label>
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Ghi chú ngõ ngách / Mẹo đi xe máy</label>
                 <input
                   type="text"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="VD: Ngõ 190 thông sang Vũ Trọng Phụng, tránh quay đầu..."
-                  className="w-full px-3 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-amber-400"
+                  className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:border-amber-400"
                 />
               </div>
 
@@ -235,25 +235,25 @@ export const PersonalAnchorsModal: React.FC<PersonalAnchorsModalProps> = ({
               personalAnchors.map((anchor) => (
                 <div
                   key={anchor.id}
-                  className="p-4 rounded-xl bg-slate-800/50 hover:bg-slate-800/80 border border-slate-700/60 hover:border-slate-600 transition-all flex items-start justify-between gap-4"
+                  className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 transition-all flex items-start justify-between gap-4"
                 >
                   <div className="flex items-start gap-3.5">
-                    <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/50">
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/50 shadow-xs">
                       {getIcon(anchor.label)}
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-white">{anchor.customTitle}</h4>
-                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-700/60 text-slate-300 border border-slate-600/40">
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">{anchor.customTitle}</h4>
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 border border-slate-300/50 dark:border-slate-600/40 font-semibold">
                           {anchor.district}
                         </span>
                       </div>
-                      <p className="text-xs text-amber-300/90 flex items-center gap-1.5">
-                        <Building className="w-3.5 h-3.5 text-amber-400/80" />
-                        Phố: <strong className="text-white font-medium">{anchor.nearestStreet}</strong> ➔ Ra nút giao: <strong className="text-amber-200 font-medium">{anchor.nearestIntersection}</strong>
+                      <p className="text-xs text-amber-700 dark:text-amber-300/90 flex items-center gap-1.5">
+                        <Building className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400/80" />
+                        Phố: <strong className="text-slate-800 dark:text-white font-medium">{anchor.nearestStreet}</strong> ➔ Ra nút giao: <strong className="text-amber-800 dark:text-amber-200 font-medium">{anchor.nearestIntersection}</strong>
                       </p>
                       {anchor.notes && (
-                        <p className="text-[11px] text-slate-400 italic">
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
                           "{anchor.notes}"
                         </p>
                       )}
@@ -267,7 +267,7 @@ export const PersonalAnchorsModal: React.FC<PersonalAnchorsModalProps> = ({
                           onSelectAnchorForDrill(anchor);
                           onClose();
                         }}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
                       >
                         <Navigation className="w-3.5 h-3.5" />
                         Luyện Tuyến
@@ -275,7 +275,7 @@ export const PersonalAnchorsModal: React.FC<PersonalAnchorsModalProps> = ({
                     )}
                     <button
                       onClick={() => deletePersonalAnchor(anchor.id)}
-                      className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-700/40 transition-colors cursor-pointer"
+                      className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700/40 transition-colors cursor-pointer"
                       title="Xóa điểm neo này"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -289,11 +289,11 @@ export const PersonalAnchorsModal: React.FC<PersonalAnchorsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between text-xs text-slate-400">
+        <div className="px-6 py-3 border-t border-[#D5CBB9]/60 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
           <span>Dữ liệu lưu an toàn trên máy của bạn và đồng bộ với hồ sơ cá nhân.</span>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700 font-medium transition-colors cursor-pointer"
+            className="px-4 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-medium transition-colors cursor-pointer"
           >
             Đóng
           </button>

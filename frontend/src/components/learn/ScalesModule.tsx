@@ -1375,29 +1375,29 @@ export const ScalesModule: React.FC = () => {
       </div>
 
       {/* 2. Interactive Scale Player & Piano Visualizer */}
-      <div className="p-5 sm:p-7 bg-slate-950 text-white rounded-3xl shadow-2xl border border-white/10 space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
+      <div className="p-5 sm:p-7 bg-white/95 dark:bg-slate-950 text-slate-800 dark:text-white rounded-3xl shadow-sm dark:shadow-2xl border border-[#D5CBB9] dark:border-white/10 space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#D5CBB9]/60 dark:border-white/10 pb-4">
           <div>
-            <h3 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
-              <Zap className="w-5 h-5 text-emerald-400" />
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <Zap className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               <span>Phòng Thí Nghiệm Điệu Thức Trực Quan (Scale Studio)</span>
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Nốt đặc trưng (Color Note) phát sáng màu Vàng Hổ Phách trên phím đàn để tai nhận biết ngay tức thì
             </p>
           </div>
 
           {/* 12 Roots Selector */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-semibold text-slate-400 mr-1">Chủ âm:</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 mr-1">Chủ âm:</span>
             {ROOT_NOTES_ALL.map(n => (
               <button
                 key={n}
                 onClick={() => setRoot(n)}
                 className={`px-2.5 py-1.5 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer ${
                   root === n 
-                    ? 'bg-emerald-400 text-slate-950 shadow-md shadow-emerald-400/40 scale-105' 
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-400/40 scale-105' 
+                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700'
                 }`}
               >
                 {n}
@@ -1407,7 +1407,7 @@ export const ScalesModule: React.FC = () => {
         </div>
 
         {/* Current Scale Details Banner */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-inner flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-inner flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="px-3.5 py-1 rounded-xl bg-emerald-400/20 text-emerald-300 border border-emerald-400/40 font-black text-lg font-mono tracking-tight shadow-sm">
@@ -1632,36 +1632,36 @@ export const ScalesModule: React.FC = () => {
         </div>
 
         {/* Detailed Scientific Profile Card */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3 text-xs leading-relaxed text-slate-300">
-          <div className="flex items-center gap-2 font-bold text-sm text-cyan-300">
-            <Info className="w-4 h-4 text-cyan-400" />
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-3 text-xs leading-relaxed text-slate-700 dark:text-slate-300">
+          <div className="flex items-center gap-2 font-bold text-sm text-cyan-600 dark:text-cyan-300">
+            <Info className="w-4 h-4 text-cyan-500 dark:text-cyan-400" />
             <span>Hồ Sơ Khoa Học: {currentInfo.nameVi} ({root})</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-              <span className="text-slate-400 block font-semibold mb-1">📐 Công Thức Cung (Step Pattern):</span>
-              <span className="font-mono text-emerald-300 font-bold">{currentInfo.stepFormula}</span>
+            <div className="bg-white dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-slate-500 dark:text-slate-400 block font-semibold mb-1">📐 Công Thức Cung (Step Pattern):</span>
+              <span className="font-mono text-emerald-600 dark:text-emerald-300 font-bold">{currentInfo.stepFormula}</span>
             </div>
-            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-              <span className="text-slate-400 block font-semibold mb-1">🎯 Công Thức Bậc Quãng (Degrees):</span>
-              <span className="font-mono text-cyan-300 font-bold">{currentInfo.intervalFormula}</span>
+            <div className="bg-white dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-slate-500 dark:text-slate-400 block font-semibold mb-1">🎯 Công Thức Bậc Quãng (Degrees):</span>
+              <span className="font-mono text-cyan-600 dark:text-cyan-300 font-bold">{currentInfo.intervalFormula}</span>
             </div>
-            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-              <span className="text-slate-400 block font-semibold mb-1">✨ Nốt Linh Hồn / Nốt Đặc Trưng:</span>
-              <span className="text-amber-300 font-bold">{currentInfo.characterNoteVi}</span>
+            <div className="bg-white dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-slate-500 dark:text-slate-400 block font-semibold mb-1">✨ Nốt Linh Hồn / Nốt Đặc Trưng:</span>
+              <span className="text-amber-600 dark:text-amber-300 font-bold">{currentInfo.characterNoteVi}</span>
             </div>
-            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-              <span className="text-slate-400 block font-semibold mb-1">🎶 Cặp Hợp Âm Nền (Modal Vamp):</span>
-              <span className="text-white font-mono font-bold">{currentInfo.modalVamp.label}</span>
+            <div className="bg-white dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-slate-500 dark:text-slate-400 block font-semibold mb-1">🎶 Cặp Hợp Âm Nền (Modal Vamp):</span>
+              <span className="text-slate-900 dark:text-white font-mono font-bold">{currentInfo.modalVamp.label}</span>
             </div>
-            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 md:col-span-2">
-              <span className="text-slate-400 block font-semibold mb-1">🎧 Bài Hát Ví Dụ Kinh Điển:</span>
-              <span className="text-white font-medium">{currentInfo.famousSongVi}</span>
+            <div className="bg-white dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 md:col-span-2 shadow-xs">
+              <span className="text-slate-500 dark:text-slate-400 block font-semibold mb-1">🎧 Bài Hát Ví Dụ Kinh Điển:</span>
+              <span className="text-slate-900 dark:text-white font-medium">{currentInfo.famousSongVi}</span>
             </div>
           </div>
 
-          <p className="pt-1 text-slate-300">
+          <p className="pt-1 text-slate-600 dark:text-slate-300">
             {currentInfo.descriptionVi}
           </p>
         </div>

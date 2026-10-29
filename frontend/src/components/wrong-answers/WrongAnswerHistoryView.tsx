@@ -330,20 +330,20 @@ export const WrongAnswerHistoryView: React.FC = () => {
       {/* Clear Confirmation Modal */}
       {showClearConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fadeIn">
-          <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 text-white max-w-sm w-full shadow-2xl flex flex-col gap-4 text-center">
-            <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 text-slate-800 dark:text-white max-w-sm w-full shadow-2xl flex flex-col gap-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-500 dark:text-rose-400 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
             <div>
-              <h4 className="text-lg font-bold text-white">Xóa toàn bộ lịch sử câu sai?</h4>
-              <p className="text-xs text-slate-400 mt-1">
+              <h4 className="text-lg font-bold text-slate-900 dark:text-white">Xóa toàn bộ lịch sử câu sai?</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Thao tác này sẽ xóa các bản ghi câu sai và thiết lập lại ma trận nhầm lẫn. Dữ liệu không thể khôi phục.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
                 onClick={() => setShowClearConfirm(false)}
-                className="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-all"
+                className="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-white text-xs font-bold transition-all cursor-pointer"
               >
                 Hủy
               </button>
@@ -352,7 +352,7 @@ export const WrongAnswerHistoryView: React.FC = () => {
                   clearWrongAnswerHistory('ALL');
                   setShowClearConfirm(false);
                 }}
-                className="py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-md shadow-rose-900/30"
+                className="py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-md shadow-rose-900/30 cursor-pointer"
               >
                 Xác nhận xóa
               </button>

@@ -23,26 +23,29 @@ export const SettingsView: React.FC = () => {
         {/* Sound toggle */}
         <div className="flex items-center justify-between py-2 border-b border-[#D5CBB9]/60 dark:border-slate-700">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-brand-100 dark:bg-brand-900/40 text-brand-600">
+            <div className="p-2.5 rounded-xl bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400">
               {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
             </div>
             <div>
               <span className="text-sm font-bold text-slate-800 dark:text-white block">Hiệu ứng âm thanh</span>
-              <span className="text-xs text-slate-500">Phản hồi âm thanh khi nhấp và hoàn thành</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Phản hồi âm thanh khi nhấp và hoàn thành</span>
             </div>
           </div>
           <button
+            role="switch"
+            aria-checked={soundEnabled}
+            aria-label="Bật hoặc tắt hiệu ứng âm thanh"
             onClick={() => {
               setSoundEnabled(!soundEnabled);
               playSound('click');
             }}
-            className={`w-14 h-7 rounded-full transition-colors relative ${
+            className={`w-14 h-7 rounded-full transition-colors relative cursor-pointer ${
               soundEnabled ? 'bg-brand-600' : 'bg-slate-300 dark:bg-slate-700'
             }`}
           >
             <span
-              className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
-                soundEnabled ? 'right-1' : 'left-1'
+              className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${
+                soundEnabled ? 'translate-x-7' : 'translate-x-0'
               }`}
             />
           </button>
@@ -51,26 +54,29 @@ export const SettingsView: React.FC = () => {
         {/* Dark Mode toggle */}
         <div className="flex items-center justify-between py-2 border-b border-[#D5CBB9]/60 dark:border-slate-700">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-600">
+            <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400">
               {darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
             </div>
             <div>
               <span className="text-sm font-bold text-slate-800 dark:text-white block">Chế độ ban đêm (Dark Mode)</span>
-              <span className="text-xs text-slate-500">Bảo vệ mắt khi luyện đọc ban đêm</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Bảo vệ mắt khi luyện đọc ban đêm</span>
             </div>
           </div>
           <button
+            role="switch"
+            aria-checked={darkMode}
+            aria-label="Bật hoặc tắt chế độ ban đêm"
             onClick={() => {
               playSound('click');
               setDarkMode(!darkMode);
             }}
-            className={`w-14 h-7 rounded-full transition-colors relative ${
+            className={`w-14 h-7 rounded-full transition-colors relative cursor-pointer ${
               darkMode ? 'bg-brand-600' : 'bg-slate-300 dark:bg-slate-700'
             }`}
           >
             <span
-              className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
-                darkMode ? 'right-1' : 'left-1'
+              className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${
+                darkMode ? 'translate-x-7' : 'translate-x-0'
               }`}
             />
           </button>
@@ -79,26 +85,29 @@ export const SettingsView: React.FC = () => {
         {/* Auto difficulty default */}
         <div className="flex items-center justify-between py-2 border-b border-[#D5CBB9]/60 dark:border-slate-700">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600">
+            <div className="p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
               <span className="text-sm font-bold text-slate-800 dark:text-white block">Thích ứng độ khó động (DDA)</span>
-              <span className="text-xs text-slate-500">Tự động tăng cấp khi đạt chính xác trên 90%</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Tự động tăng cấp khi đạt chính xác trên 90%</span>
             </div>
           </div>
           <button
+            role="switch"
+            aria-checked={autoDifficulty}
+            aria-label="Bật hoặc tắt thích ứng độ khó động DDA"
             onClick={() => {
               playSound('click');
               setAutoDifficulty(!autoDifficulty);
             }}
-            className={`w-14 h-7 rounded-full transition-colors relative ${
+            className={`w-14 h-7 rounded-full transition-colors relative cursor-pointer ${
               autoDifficulty ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
             }`}
           >
             <span
-              className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
-                autoDifficulty ? 'right-1' : 'left-1'
+              className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${
+                autoDifficulty ? 'translate-x-7' : 'translate-x-0'
               }`}
             />
           </button>
@@ -107,12 +116,12 @@ export const SettingsView: React.FC = () => {
         {/* Interactive Language selector */}
         <div className="flex items-center justify-between py-2">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600">
+            <div className="p-2.5 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400">
               <Globe className="w-5 h-5" />
             </div>
             <div>
               <span className="text-sm font-bold text-slate-800 dark:text-white block">Ngôn ngữ hiển thị</span>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 {language === 'vi' ? 'Tiếng Việt (Giao diện chuẩn)' : 'English (Song ngữ / Cognitive Dual)'}
               </span>
             </div>

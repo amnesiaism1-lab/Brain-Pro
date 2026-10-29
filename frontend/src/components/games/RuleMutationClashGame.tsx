@@ -151,12 +151,12 @@ export const RuleMutationClashGame: React.FC = () => {
       {/* Mutation Flash Alert */}
       {mutationFlash && (
         <div className="fixed inset-0 z-50 bg-rose-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
-          <div className="bg-slate-900 border-2 border-rose-500 rounded-2xl p-6 shadow-2xl text-center space-y-3 max-w-sm">
+          <div className="bg-white dark:bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 shadow-2xl text-center space-y-3 max-w-sm">
             <AlertTriangle className="w-10 h-10 text-rose-500 mx-auto animate-bounce" />
-            <h3 className="text-base font-extrabold text-white uppercase tracking-wider">
+            <h3 className="text-base font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
               {mutationFlash}
             </h3>
-            <p className="text-xs text-rose-300">
+            <p className="text-xs text-rose-600 dark:text-rose-300 font-semibold">
               Quy tắc đã bị đảo ngược! Hãy ức chế phản xạ quán tính cũ!
             </p>
           </div>
@@ -164,21 +164,21 @@ export const RuleMutationClashGame: React.FC = () => {
       )}
 
       {/* Control Header */}
-      <div className="w-full bg-slate-900/85 border border-slate-800 rounded-2xl p-4 sm:p-5 mb-4 shadow-xl backdrop-blur-md flex flex-wrap items-center justify-between gap-4">
+      <div className="w-full bg-white/90 dark:bg-slate-900/85 border border-[#D5CBB9] dark:border-slate-800 rounded-2xl p-4 sm:p-5 mb-4 shadow-sm dark:shadow-xl backdrop-blur-md flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-400/30 flex items-center justify-center text-rose-400">
+          <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-400/30 flex items-center justify-center text-rose-600 dark:text-rose-400">
             <Shuffle className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-rose-400 uppercase tracking-wider">
+              <span className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800/40">
                 Màn {effectiveLevel} • Lượt {currentRoundIndex + 1}/{totalRounds}
               </span>
             </div>
-            <div className="text-slate-400 text-xs mt-0.5 flex items-center gap-2">
-              <span className="text-cyan-300 font-semibold">Điểm: {score}</span>
+            <div className="text-slate-500 dark:text-slate-400 text-xs mt-0.5 flex items-center gap-2">
+              <span className="text-cyan-700 dark:text-cyan-300 font-semibold">Điểm: {score}</span>
               <span>•</span>
-              <span className="text-purple-300">Độ trễ can thiệp: +{interferenceCostMs}ms</span>
+              <span className="text-purple-700 dark:text-purple-300">Độ trễ can thiệp: +{interferenceCostMs}ms</span>
             </div>
           </div>
         </div>

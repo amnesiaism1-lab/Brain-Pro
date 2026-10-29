@@ -210,14 +210,14 @@ export const CausalCascadeGame: React.FC = () => {
       {/* Prediction Gate Modal */}
       {showPrediction && challenge.predictionQuestion && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-slate-900 border border-cyan-500/40 rounded-2xl p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
-            <div className="flex items-center gap-3 text-cyan-400">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-[#D5CBB9] dark:border-cyan-500/40 rounded-3xl p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3 text-cyan-600 dark:text-cyan-400">
               <Sparkles className="w-6 h-6 animate-pulse" />
-              <h3 className="text-base font-bold uppercase tracking-wider">
+              <h3 className="text-base font-bold uppercase tracking-wider text-slate-900 dark:text-white">
                 Pha 1: Dự Đoán Nhân Quả
               </h3>
             </div>
-            <p className="text-sm font-medium text-slate-200">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
               {challenge.predictionQuestion}
             </p>
             <div className="space-y-2.5">
@@ -225,10 +225,10 @@ export const CausalCascadeGame: React.FC = () => {
                 <button
                   key={opt.id}
                   onClick={() => handleConfirmPrediction(opt.id, opt.isCorrect)}
-                  className="w-full text-left p-3.5 rounded-xl border border-slate-700/80 bg-slate-800/60 hover:bg-cyan-950/40 hover:border-cyan-500/50 text-xs sm:text-sm text-slate-200 transition-all flex items-center justify-between"
+                  className="w-full text-left p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-800/60 hover:bg-cyan-50 dark:hover:bg-cyan-950/40 hover:border-cyan-400 dark:hover:border-cyan-500/50 text-xs sm:text-sm text-slate-800 dark:text-slate-200 transition-all flex items-center justify-between cursor-pointer"
                 >
                   <span>{opt.labelVi}</span>
-                  <span className="text-cyan-400 font-bold ml-2">➔</span>
+                  <span className="text-cyan-600 dark:text-cyan-400 font-bold ml-2">➔</span>
                 </button>
               ))}
             </div>
@@ -237,26 +237,26 @@ export const CausalCascadeGame: React.FC = () => {
       )}
 
       {/* Control Header */}
-      <div className="w-full bg-slate-900/85 border border-slate-800 rounded-2xl p-4 sm:p-5 mb-4 shadow-xl backdrop-blur-md flex flex-wrap items-center justify-between gap-4">
+      <div className="w-full bg-white/90 dark:bg-slate-900/85 border border-[#D5CBB9] dark:border-slate-800 rounded-2xl p-4 sm:p-5 mb-4 shadow-sm dark:shadow-xl backdrop-blur-md flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-400/30 flex items-center justify-center text-amber-400">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
             <GitMerge className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+              <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800/40">
                 Màn {effectiveLevel} • {challenge.titleVi}
               </span>
             </div>
-            <div className="text-slate-400 text-xs mt-0.5 flex items-center gap-2">
-              <span className="flex items-center gap-1 text-slate-300">
-                <Clock className="w-3.5 h-3.5 text-amber-400" />
+            <div className="text-slate-500 dark:text-slate-400 text-xs mt-0.5 flex items-center gap-2 flex-wrap">
+              <span className="flex items-center gap-1 text-slate-800 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/70 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                <Clock className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                 {timeLeft}s
               </span>
               <span>•</span>
-              <span className="text-cyan-300 font-semibold">Điểm: {score}</span>
+              <span className="text-cyan-700 dark:text-cyan-300 font-semibold">Điểm: {score}</span>
               <span>•</span>
-              <span className="text-purple-300">Can thiệp còn: {interventionsLeft}</span>
+              <span className="text-purple-700 dark:text-purple-300">Can thiệp còn: {interventionsLeft}</span>
             </div>
           </div>
         </div>
@@ -364,7 +364,7 @@ export const CausalCascadeGame: React.FC = () => {
         </div>
 
         {/* Footer instruction helper */}
-        <div className="text-[11px] text-slate-400 bg-slate-900/80 px-3.5 py-1.5 rounded-lg border border-slate-800 flex justify-between items-center">
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900/80 px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 flex justify-between items-center">
           <span>Click vào Cần Gạt (Lever) để đổi trạng thái ON/OFF</span>
           <span>Bấm Trigger để bắt đầu phản ứng</span>
         </div>
