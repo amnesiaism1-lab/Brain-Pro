@@ -185,6 +185,7 @@ export const MusicTheoryView: React.FC = () => {
   } = useAppStore();
 
   const [academyMode, setAcademyMode] = useState<'cognitive' | 'hanoi' | 'music'>('cognitive');
+  const [selectedCognitiveAxis, setSelectedCognitiveAxis] = useState<string | undefined>(undefined);
 
   const [activeModuleId, setActiveModuleId] = useState<TheoryModuleId>(() => {
     try {
@@ -202,13 +203,17 @@ export const MusicTheoryView: React.FC = () => {
     if (activeTheoryModuleId) {
       if (activeTheoryModuleId === 'hanoi-map') {
         setAcademyMode('hanoi');
+      } else if (activeTheoryModuleId === 'cognitive') {
+        setAcademyMode('cognitive');
+      } else if (['speed-reading', 'peripheral-vision', 'attention', 'memory', 'reaction', 'auditory', 'spatial-navigation'].includes(activeTheoryModuleId)) {
+        setAcademyMode('cognitive');
+        setSelectedCognitiveAxis(activeTheoryModuleId);
       } else if (THEORY_TABS.some(t => t.id === activeTheoryModuleId)) {
         setAcademyMode('music');
         setActiveModuleId(activeTheoryModuleId as TheoryModuleId);
       }
-      setActiveTheoryModuleId(null);
     }
-  }, [activeTheoryModuleId, setActiveTheoryModuleId]);
+  }, [activeTheoryModuleId]);
 
   const [completedModules, setCompletedModules] = useState<string[]>(() => {
     try {
@@ -239,6 +244,7 @@ export const MusicTheoryView: React.FC = () => {
 
   const handleSelectModule = (id: TheoryModuleId) => {
     setActiveModuleId(id);
+    setActiveTheoryModuleId(id);
     try {
       localStorage.setItem('be_last_theory_module', id);
       if (!completedModules.includes(id)) {
@@ -272,7 +278,10 @@ export const MusicTheoryView: React.FC = () => {
       {/* High-Level Academy Switcher */}
       <div className="flex items-center justify-center p-1.5 rounded-3xl bg-[#F5EFE6] dark:bg-slate-900 border border-[#D5CBB9] dark:border-slate-800 max-w-3xl mx-auto shadow-sm gap-1.5 flex-wrap">
         <button
-          onClick={() => setAcademyMode('cognitive')}
+          onClick={() => {
+            setAcademyMode('cognitive');
+            setActiveTheoryModuleId('cognitive');
+          }}
           className={`flex-1 min-w-[140px] py-2.5 sm:py-3 px-3 sm:px-4 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
             academyMode === 'cognitive'
               ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
@@ -283,7 +292,10 @@ export const MusicTheoryView: React.FC = () => {
           <span>7 Trục Nhận Thức</span>
         </button>
         <button
-          onClick={() => setAcademyMode('hanoi')}
+          onClick={() => {
+            setAcademyMode('hanoi');
+            setActiveTheoryModuleId('hanoi-map');
+          }}
           className={`flex-1 min-w-[140px] py-2.5 sm:py-3 px-3 sm:px-4 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
             academyMode === 'hanoi'
               ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
@@ -294,7 +306,10 @@ export const MusicTheoryView: React.FC = () => {
           <span>Bản Đồ Hà Nội (10 Chương)</span>
         </button>
         <button
-          onClick={() => setAcademyMode('music')}
+          onClick={() => {
+            setAcademyMode('music');
+            setActiveTheoryModuleId(activeModuleId);
+          }}
           className={`flex-1 min-w-[140px] py-2.5 sm:py-3 px-3 sm:px-4 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
             academyMode === 'music'
               ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
@@ -307,7 +322,13 @@ export const MusicTheoryView: React.FC = () => {
       </div>
 
       {academyMode === 'cognitive' ? (
-        <CognitiveTheoryAcademy onSelectHanoi={() => setAcademyMode('hanoi')} />
+        <CognitiveTheoryAcademy 
+          initialAxisId={selectedCognitiveAxis}
+          onSelectHanoi={() => {
+            setAcademyMode('hanoi');
+            setActiveTheoryModuleId('hanoi-map');
+          }} 
+        />
       ) : academyMode === 'hanoi' ? (
         <div className="space-y-6">
           <HanoiMapTheoryModule />

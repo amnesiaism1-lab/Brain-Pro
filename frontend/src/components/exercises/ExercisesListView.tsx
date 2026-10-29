@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Shuffle, 
   Grid, 
@@ -7,9 +7,13 @@ import {
   Gauge, 
   FileSearch,
   Mic,
-  Compass
+  Compass,
+  Search,
+  X,
+  Sparkles
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { useVocalStudioStore } from '../../store/vocalStudioStore';
 import { EXERCISES_METADATA, CognitiveCategoryCode, INFINITY_ROMAN_NUMERALS, getInfinityLabel, EXERCISE_SYNERGIES } from '@brain-exercises/shared';
 
 // Map slugs to representative custom graphic icons matching app screenshots
@@ -328,6 +332,8 @@ export const ExercisesListView: React.FC = () => {
   const selectedCategory = selectedExercisesCategory || 'ALL';
   const setSelectedCategory = setSelectedExercisesCategory;
   const [highlightedSlug, setHighlightedSlug] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const openVocalStudio = useVocalStudioStore((s) => s.openStudio);
 
   // Restore scroll to the last viewed exercise card seamlessly
   useEffect(() => {
@@ -344,27 +350,55 @@ export const ExercisesListView: React.FC = () => {
     }
   }, [lastViewedExerciseSlug]);
 
+  const getCategoryCount = (id: CognitiveCategoryCode | 'ALL'): number => {
+    if (id === 'ALL') return EXERCISES_METADATA.length;
+    if (id === 'MEMORY') {
+      return EXERCISES_METADATA.filter(ex => ex.categoryCode === 'MEMORY' || ex.slug === 'hanoi-navigation').length;
+    }
+    if (id === 'SPATIAL_NAVIGATION') {
+      return EXERCISES_METADATA.filter(ex => ex.slug === 'hanoi-navigation' || ex.slug === 'spatial-memory' || ex.categoryCode === 'SPATIAL_NAVIGATION').length;
+    }
+    return EXERCISES_METADATA.filter(ex => ex.categoryCode === id).length;
+  };
+
   const categories: Array<{ id: CognitiveCategoryCode | 'ALL'; label: string }> = [
-    { id: 'ALL', label: `Tất cả (${EXERCISES_METADATA.length})` },
-    { id: 'MEMORY', label: 'Trí nhớ' },
-    { id: 'SPATIAL_NAVIGATION', label: 'Định hướng không gian' },
-    { id: 'SPEED_READING', label: 'Đọc nhanh' },
-    { id: 'PERIPHERAL_VISION', label: 'Thị giác ngoại vi' },
-    { id: 'ATTENTION', label: 'Tập trung' },
-    { id: 'REACTION', label: 'Phản xạ' },
-    { id: 'AUDITORY_MEMORY', label: 'Cảm âm & Thính giác' }
+    { id: 'ALL', label: `Tất cả (${getCategoryCount('ALL')})` },
+    { id: 'MEMORY', label: `Trí nhớ (${getCategoryCount('MEMORY')})` },
+    { id: 'SPATIAL_NAVIGATION', label: `Định hướng (${getCategoryCount('SPATIAL_NAVIGATION')})` },
+    { id: 'SPEED_READING', label: `Đọc nhanh (${getCategoryCount('SPEED_READING')})` },
+    { id: 'PERIPHERAL_VISION', label: `Thị giác (${getCategoryCount('PERIPHERAL_VISION')})` },
+    { id: 'ATTENTION', label: `Tập trung (${getCategoryCount('ATTENTION')})` },
+    { id: 'REACTION', label: `Phản xạ (${getCategoryCount('REACTION')})` },
+    { id: 'AUDITORY_MEMORY', label: `Cảm âm (${getCategoryCount('AUDITORY_MEMORY')})` }
   ];
 
-  const filteredExercises = EXERCISES_METADATA.filter(ex => {
-    if (selectedCategory === 'ALL') return true;
-    if (selectedCategory === 'MEMORY') {
-      return ex.categoryCode === 'MEMORY' || ex.slug === 'hanoi-navigation';
-    }
-    if (selectedCategory === 'SPATIAL_NAVIGATION') {
-      return ex.slug === 'hanoi-navigation' || ex.slug === 'spatial-memory' || ex.categoryCode === 'SPATIAL_NAVIGATION';
-    }
-    return ex.categoryCode === selectedCategory;
-  });
+  const filteredExercises = useMemo(() => {
+    return EXERCISES_METADATA.filter(ex => {
+      // 1. Category match
+      let matchCat = true;
+      if (selectedCategory !== 'ALL') {
+        if (selectedCategory === 'MEMORY') {
+          matchCat = ex.categoryCode === 'MEMORY' || ex.slug === 'hanoi-navigation';
+        } else if (selectedCategory === 'SPATIAL_NAVIGATION') {
+          matchCat = ex.slug === 'hanoi-navigation' || ex.slug === 'spatial-memory' || ex.categoryCode === 'SPATIAL_NAVIGATION';
+        } else {
+          matchCat = ex.categoryCode === selectedCategory;
+        }
+      }
+      if (!matchCat) return false;
+
+      // 2. Search query match
+      if (searchQuery.trim() !== '') {
+        const q = searchQuery.toLowerCase().trim();
+        const matchTitle = ex.title.toLowerCase().includes(q);
+        const matchSubtitle = ex.subtitle.toLowerCase().includes(q);
+        const matchCatName = ex.categoryName.toLowerCase().includes(q);
+        const matchSlug = ex.slug.toLowerCase().includes(q);
+        return matchTitle || matchSubtitle || matchCatName || matchSlug;
+      }
+      return true;
+    });
+  }, [selectedCategory, searchQuery]);
 
   const handleOpenDetail = (slug: string) => {
     playSound('click');
@@ -373,6 +407,44 @@ export const ExercisesListView: React.FC = () => {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-fade-in pb-28">
+      {/* Search Bar & Quick Stats */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tìm kiếm bài tập (vd: Schulte, Hà Nội, N-Back, Cảm âm...)"
+            className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-white/90 dark:bg-slate-800/90 border border-[#D5CBB9] dark:border-slate-700 text-xs sm:text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-sm transition-all"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
+              title="Xóa tìm kiếm"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between sm:justify-end gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+          <span>Hiển thị <strong>{filteredExercises.length}</strong> / {EXERCISES_METADATA.length} bài tập</span>
+          {(searchQuery || selectedCategory !== 'ALL') && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCategory('ALL');
+              }}
+              className="text-brand-600 dark:text-brand-400 hover:underline font-extrabold cursor-pointer ml-1"
+            >
+              Đặt lại
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Category Pills Filter */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
         {categories.map((cat) => (
@@ -469,12 +541,46 @@ export const ExercisesListView: React.FC = () => {
                   }`}>
                     {stageName}
                   </span>
+                  {exercise.slug === 'vocal-pitch-match' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        playSound('click');
+                        openVocalStudio();
+                      }}
+                      className="text-[10px] font-black px-2 py-0.5 rounded-md bg-gradient-to-r from-violet-600 to-cyan-600 text-white flex items-center gap-1 shadow-sm hover:scale-105 transition-transform"
+                      title="Mở phòng thu âm Vocal Studio"
+                    >
+                      <Mic className="w-3 h-3" />
+                      <span>Vocal Studio</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Empty State when search or filter has no results */}
+      {filteredExercises.length === 0 && (
+        <div className="p-8 sm:p-12 text-center bg-white/60 dark:bg-slate-800/60 rounded-3xl border border-[#D5CBB9] dark:border-slate-700 space-y-3 animate-fade-in">
+          <FileSearch className="w-12 h-12 text-slate-400 mx-auto" />
+          <h4 className="text-base font-bold text-slate-800 dark:text-white">Không tìm thấy bài tập phù hợp</h4>
+          <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto">
+            Không có bài tập nào khớp với từ khóa &ldquo;{searchQuery}&rdquo;. Hãy thử tìm bằng tên bài, kỹ năng hoặc chọn danh mục khác.
+          </p>
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setSelectedCategory('ALL');
+            }}
+            className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+          >
+            Hiển thị tất cả {EXERCISES_METADATA.length} bài tập
+          </button>
+        </div>
+      )}
     </div>
   );
 };

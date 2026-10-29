@@ -17,9 +17,12 @@ import {
   Music,
   RotateCcw,
   CheckCircle2,
-  ChevronRight
+  ChevronRight,
+  Mic2,
+  Compass
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { useVocalStudioStore } from '../../store/vocalStudioStore';
 import { 
   WORKOUT_ROUTINES, 
   IWorkoutRoutine, 
@@ -40,13 +43,19 @@ export const HomeView: React.FC = () => {
     getExerciseLevel,
     setExerciseLevel,
     setActiveGameSlug,
+    setSelectedExerciseSlug,
     setActiveTab,
     setSelectedExercisesCategory,
     weeklyChallenges,
     playSound 
   } = useAppStore();
 
+  const openVocalStudio = useVocalStudioStore((s) => s.openStudio);
   const [activeSynergyIndex, setActiveSynergyIndex] = useState(0);
+
+  const getCategoryCount = (code: CognitiveCategoryCode) => {
+    return EXERCISES_METADATA.filter(e => e.categoryCode === code).length;
+  };
 
   const handleStartWorkout = (routine: IWorkoutRoutine) => {
     playSound('click');
@@ -71,7 +80,7 @@ export const HomeView: React.FC = () => {
       code: 'SPEED_READING' as CognitiveCategoryCode,
       name: 'Đọc Nhanh',
       sub: 'Mở rộng WPM & Bỏ đọc thầm',
-      count: 4,
+      count: getCategoryCount('SPEED_READING'),
       icon: <Zap className="w-5 h-5 text-amber-500" />,
       gradient: 'from-amber-500/15 via-orange-500/10 to-transparent',
       border: 'border-amber-400/30 hover:border-amber-400',
@@ -81,7 +90,7 @@ export const HomeView: React.FC = () => {
       code: 'PERIPHERAL_VISION' as CognitiveCategoryCode,
       name: 'Thị Giác Ngoại Vi',
       sub: 'Tăng góc nhìn & Quét từ khóa',
-      count: 4,
+      count: getCategoryCount('PERIPHERAL_VISION'),
       icon: <Eye className="w-5 h-5 text-cyan-500" />,
       gradient: 'from-cyan-500/15 via-blue-500/10 to-transparent',
       border: 'border-cyan-400/30 hover:border-cyan-400',
@@ -91,7 +100,7 @@ export const HomeView: React.FC = () => {
       code: 'ATTENTION' as CognitiveCategoryCode,
       name: 'Tập Trung & Chú Ý',
       sub: 'Lọc nhiễu & Duy trì bền bỉ',
-      count: 6,
+      count: getCategoryCount('ATTENTION'),
       icon: <Target className="w-5 h-5 text-emerald-500" />,
       gradient: 'from-emerald-500/15 via-teal-500/10 to-transparent',
       border: 'border-emerald-400/30 hover:border-emerald-400',
@@ -101,7 +110,7 @@ export const HomeView: React.FC = () => {
       code: 'MEMORY' as CognitiveCategoryCode,
       name: 'Trí Nhớ Làm Việc',
       sub: 'Dung lượng nhớ & Đồ thị không gian',
-      count: 5,
+      count: getCategoryCount('MEMORY'),
       icon: <Brain className="w-5 h-5 text-purple-500" />,
       gradient: 'from-purple-500/15 via-indigo-500/10 to-transparent',
       border: 'border-purple-400/30 hover:border-purple-400',
@@ -111,7 +120,7 @@ export const HomeView: React.FC = () => {
       code: 'REACTION' as CognitiveCategoryCode,
       name: 'Phản Xạ & Ức Chế',
       sub: 'Xung đột nhận thức & Ra quyết định',
-      count: 4,
+      count: getCategoryCount('REACTION'),
       icon: <Flame className="w-5 h-5 text-rose-500" />,
       gradient: 'from-rose-500/15 via-red-500/10 to-transparent',
       border: 'border-rose-400/30 hover:border-rose-400',
@@ -121,7 +130,7 @@ export const HomeView: React.FC = () => {
       code: 'AUDITORY_MEMORY' as CognitiveCategoryCode,
       name: 'Cảm Âm & Thính Giác',
       sub: 'Cao độ, Quãng, Nhịp & Giọng hát',
-      count: 8,
+      count: getCategoryCount('AUDITORY_MEMORY'),
       icon: <Music className="w-5 h-5 text-indigo-500" />,
       gradient: 'from-indigo-500/15 via-purple-500/10 to-transparent',
       border: 'border-indigo-400/30 hover:border-indigo-400',
@@ -141,7 +150,7 @@ export const HomeView: React.FC = () => {
             <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-brand-200">Chào mừng trở lại!</span>
             <h2 className="text-2xl sm:text-3xl font-black">Sẵn Sàng Rèn Luyện Não Bộ?</h2>
             <p className="text-xs sm:text-sm text-brand-100">
-              Cấp độ nhận thức: <strong className="text-white font-black">Cấp {level}</strong> ({xp} XP tích lũy) • Đã cập nhật 31 bài tập & 12 quan hệ
+              Cấp độ nhận thức: <strong className="text-white font-black">Cấp {level}</strong> ({xp} XP tích lũy) • Đã cập nhật {EXERCISES_METADATA.length} bài tập & 12 quan hệ
             </p>
           </div>
           <div className="flex sm:flex-col items-center justify-between sm:justify-center bg-white/15 backdrop-blur-md px-4 sm:px-6 py-3 sm:py-4 rounded-2xl border border-white/20 shadow-lg shrink-0">
@@ -224,6 +233,81 @@ export const HomeView: React.FC = () => {
         </div>
       </div>
 
+      {/* Dual Flagship Showcase: Bản Đồ Hà Nội & Vocal Studio */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Card 1: Hanoi Map Navigation */}
+        <div 
+          onClick={() => {
+            playSound('click');
+            setSelectedExerciseSlug('hanoi-navigation');
+          }}
+          className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-transparent bg-[#F5EFE6] dark:bg-slate-800/90 border-2 border-amber-500/40 hover:border-amber-500 shadow-md transition-all duration-300 cursor-pointer btn-press group flex flex-col justify-between gap-4"
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Compass className="w-6 h-6 animate-spin-slow" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                  Định Hướng Không Gian
+                </span>
+                <span className="text-[10px] font-bold text-slate-500">10 Chương</span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                Bản Đồ Nhận Thức Hà Nội
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Khắc phục mù đường: 5 yếu tố Kevin Lynch, xoay trục tâm tưởng Allocentric vs Egocentric và la bàn mặt trời.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between pt-2 border-t border-amber-500/20">
+            <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300">9 Chế độ luyện tập topo</span>
+            <button className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-sm group-hover:translate-x-0.5 transition-all">
+              <span>Khám phá</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Card 2: Vocal Studio Audio Workstation */}
+        <div 
+          onClick={() => {
+            playSound('click');
+            openVocalStudio();
+          }}
+          className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-violet-500/10 via-cyan-500/10 to-transparent bg-[#F5EFE6] dark:bg-slate-800/90 border-2 border-cyan-500/40 hover:border-cyan-400 shadow-md transition-all duration-300 cursor-pointer btn-press group flex flex-col justify-between gap-4"
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Mic2 className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-700 dark:text-cyan-300">
+                  Phòng Thu Âm 60FPS
+                </span>
+                <span className="text-[10px] font-bold text-slate-500">Real-time Pitch</span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+                Phòng Thu Âm Vocal Studio
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Đường băng cao độ Canvas 60FPS, thang âm Solfège, chấm điểm Cents vi sai và đo đạc quãng giọng chuẩn phòng thu.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between pt-2 border-t border-cyan-500/20">
+            <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300">Hát theo mẫu & Cảm âm</span>
+            <button className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-black text-xs flex items-center gap-1.5 shadow-sm group-hover:translate-x-0.5 transition-all">
+              <span>Mở Studio</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* 6 Khối Năng Lực Nhận Thức (6 Cognitive Pillars Hub) */}
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
@@ -232,7 +316,7 @@ export const HomeView: React.FC = () => {
               6 Trục Năng Lực Não Bộ
             </h2>
             <p className="text-xs sm:text-sm text-slate-500">
-              Khám phá toàn bộ 31 bài tập được phân loại theo cấu trúc khoa học thần kinh
+              Khám phá toàn bộ {EXERCISES_METADATA.length} bài tập được phân loại theo cấu trúc khoa học thần kinh
             </p>
           </div>
           <button
@@ -241,9 +325,9 @@ export const HomeView: React.FC = () => {
               setSelectedExercisesCategory('ALL');
               setActiveTab('exercises');
             }}
-            className="text-xs sm:text-sm font-bold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
+            className="text-xs sm:text-sm font-bold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 cursor-pointer"
           >
-            <span>Xem tất cả (31)</span>
+            <span>Xem tất cả ({EXERCISES_METADATA.length})</span>
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>

@@ -246,11 +246,18 @@ const COGNITIVE_AXES_THEORY: ICognitiveAxisTheory[] = [
 
 interface CognitiveTheoryAcademyProps {
   onSelectHanoi?: () => void;
+  initialAxisId?: string;
 }
 
-export const CognitiveTheoryAcademy: React.FC<CognitiveTheoryAcademyProps> = ({ onSelectHanoi }) => {
+export const CognitiveTheoryAcademy: React.FC<CognitiveTheoryAcademyProps> = ({ onSelectHanoi, initialAxisId }) => {
   const { setSelectedExerciseSlug, setActiveTab } = useAppStore();
-  const [selectedAxisId, setSelectedAxisId] = useState<string>('speed-reading');
+  const [selectedAxisId, setSelectedAxisId] = useState<string>(initialAxisId || 'speed-reading');
+
+  React.useEffect(() => {
+    if (initialAxisId && COGNITIVE_AXES_THEORY.some(a => a.id === initialAxisId)) {
+      setSelectedAxisId(initialAxisId);
+    }
+  }, [initialAxisId]);
 
   const activeAxis = COGNITIVE_AXES_THEORY.find(a => a.id === selectedAxisId) || COGNITIVE_AXES_THEORY[0];
   const Icon = activeAxis.icon;

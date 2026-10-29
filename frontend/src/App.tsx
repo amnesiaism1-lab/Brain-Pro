@@ -19,6 +19,7 @@ import { MusicTheoryView } from './components/learn/MusicTheoryView';
 import { WrongAnswerHistoryView } from './components/wrong-answers/WrongAnswerHistoryView';
 import { VocalStudio } from './components/vocal-studio/VocalStudio';
 import { useVocalStudioStore } from './store/vocalStudioStore';
+import { useNavigationSync } from './hooks/useNavigationSync';
 
 export const App: React.FC = () => {
   const { 
@@ -30,21 +31,10 @@ export const App: React.FC = () => {
     setActiveDebriefEvents
   } = useAppStore();
   useOfflineSync();
+  useNavigationSync();
 
   const isVocalStudioOpen = useVocalStudioStore((s) => s.isOpen);
-  const openVocalStudio = useVocalStudioStore((s) => s.openStudio);
   const closeVocalStudio = useVocalStudioStore((s) => s.closeStudio);
-
-  useEffect(() => {
-    const handleHash = () => {
-      if (window.location.hash === '#/vocal-studio') {
-        openVocalStudio();
-      }
-    };
-    handleHash();
-    window.addEventListener('hashchange', handleHash);
-    return () => window.removeEventListener('hashchange', handleHash);
-  }, [openVocalStudio]);
 
   useEffect(() => {
     if (darkMode) {

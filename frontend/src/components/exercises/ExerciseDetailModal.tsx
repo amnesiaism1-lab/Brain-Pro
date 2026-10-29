@@ -2,11 +2,18 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Play, ChevronLeft, Eye, Crosshair, Sparkles, Zap, Trophy, Target, 
   BarChart3, Settings2, Info, CheckCircle2, ShieldCheck, Flame, BookOpen, Type,
-  Infinity as InfinityIcon, Globe, Layers, Cpu, Orbit, Music, Compass, Sliders
+  Infinity as InfinityIcon, Globe, Layers, Cpu, Orbit, Music, Compass, Sliders,
+  Brain, GraduationCap
 } from 'lucide-react';
 import { useVocalStudioStore } from '../../store/vocalStudioStore';
 import { useAppStore } from '../../store/useAppStore';
-import { EXERCISES_METADATA, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
+import { 
+  EXERCISES_METADATA, 
+  INFINITY_ROMAN_NUMERALS, 
+  getInfinityTier, 
+  getInfinityLabel,
+  getExerciseRationale 
+} from '@brain-exercises/shared';
 import { infinityApiService, shuffleArray } from '../../services/infinityApiService';
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { getTheoryModuleForSlug, THEORY_MODULE_MAP } from '../learn/theoryExerciseMap';
@@ -58,6 +65,7 @@ export const ExerciseDetailModal: React.FC = () => {
 
   const exerciseLevel = getExerciseLevel(exercise.slug);
   const currentConfig = exercise.levelConfigs.find(c => c.level === exerciseLevel) || exercise.levelConfigs[0];
+  const rationale = useMemo(() => getExerciseRationale(exercise.slug), [exercise.slug]);
 
   // Dynamic preview pair for the Peripheral Vision Cockpit Simulation
   const [previewPair, setPreviewPair] = useState<[string, string]>(() => {
@@ -170,6 +178,22 @@ export const ExerciseDetailModal: React.FC = () => {
     }, flashMs);
   };
 
+  const storeActiveTab = useAppStore(s => s.activeTab);
+  const backLabel = useMemo(() => {
+    switch (storeActiveTab) {
+      case 'home':
+        return 'Quay lại Trang chủ';
+      case 'user':
+        return 'Quay lại Hồ sơ cá nhân';
+      case 'learn':
+        return 'Quay lại Học viện lý thuyết';
+      case 'wrong-history':
+        return 'Quay lại Lịch sử sai';
+      default:
+        return 'Quay lại danh sách bài tập';
+    }
+  }, [storeActiveTab]);
+
   return (
     <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-5 animate-fade-in pb-28">
       {/* Top Breadcrumb Navigation */}
@@ -186,10 +210,10 @@ export const ExerciseDetailModal: React.FC = () => {
               }
             }, 60);
           }}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-white/90 dark:bg-slate-800/90 border border-[#D5CBB9] dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-400 hover:border-brand-500 shadow-sm transition-all active:scale-95"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-white/90 dark:bg-slate-800/90 border border-[#D5CBB9] dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-400 hover:border-brand-500 shadow-sm transition-all active:scale-95 cursor-pointer"
         >
           <ChevronLeft className="w-4 h-4" />
-          <span>Quay lại danh sách bài tập</span>
+          <span>{backLabel}</span>
         </button>
 
         <div className="flex items-center gap-2">
@@ -825,54 +849,140 @@ export const ExerciseDetailModal: React.FC = () => {
           </div>
 
           {/* Section 4: Deep Neuroscience & Practice Rationale Card */}
-          <div className="bg-gradient-to-br from-amber-50/70 to-orange-50/40 dark:from-slate-900 dark:to-slate-800/80 rounded-3xl border border-amber-200 dark:border-slate-700 p-5 sm:p-6 shadow-sm space-y-3">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
-              <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                Cơ Sở Khoa Học & Giá Trị Nhận Thức Thực Tế
-              </h4>
+          <div className="bg-gradient-to-br from-amber-50/80 via-orange-50/40 to-amber-50/60 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-800/90 rounded-3xl border border-amber-300/80 dark:border-amber-500/30 p-5 sm:p-7 shadow-lg space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-200/80 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-2xl bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-sm shrink-0">
+                  <Brain className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-sm sm:text-base font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                      Cơ Sở Khoa Học & Giá Trị Nhận Thức Thực Tế
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40">
+                      ĐÃ KIỂM CHỨNG
+                    </span>
+                  </div>
+                  <p className="text-xs font-bold text-amber-700 dark:text-amber-400/90 mt-0.5">
+                    {rationale.coreTheoryVi}
+                  </p>
+                </div>
+              </div>
+
+              {rationale.academicCitationVi && (
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 font-medium bg-white/70 dark:bg-slate-800/70 px-3 py-1.5 rounded-xl border border-slate-200/70 dark:border-slate-700/70 self-start sm:self-center">
+                  <GraduationCap className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="italic">{rationale.academicCitationVi}</span>
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              <div className="bg-white/80 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-amber-200/60 dark:border-slate-700/60">
-                <strong className="text-slate-900 dark:text-white block mb-1">
-                  1. Giải Phóng Tế Bào Que (Rod Cells)
-                </strong>
-                Mắt người có 120 triệu tế bào que ở biên võng mạc. Bài tập kích hoạt khả năng bắt mẫu hình rộng tới 180° thay vì chỉ dùng 2° hố mắt hẹp.
+            {/* 3 Pillars Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              {/* Pillar 1: Neural Mechanism */}
+              <div className="bg-white/90 dark:bg-slate-800/90 p-4 rounded-2xl border border-amber-200/80 dark:border-slate-700/80 shadow-xs flex flex-col justify-between space-y-2">
+                <div>
+                  <div className="flex items-center gap-1.5 text-slate-900 dark:text-white font-extrabold text-xs uppercase tracking-wide mb-2">
+                    <span className="w-5 h-5 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-mono font-black text-[11px]">1</span>
+                    <span>Cơ Chế Thần Kinh & Vùng Não</span>
+                  </div>
+                  <p className="text-[11.5px] leading-relaxed text-slate-600 dark:text-slate-300">
+                    {rationale.neuralMechanismVi}
+                  </p>
+                </div>
               </div>
 
-              <div className="bg-white/80 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-amber-200/60 dark:border-slate-700/60">
-                <strong className="text-slate-900 dark:text-white block mb-1">
-                  2. Giảm Lần Nhảy Mắt (Fixations)
-                </strong>
-                Người đọc bình thường nhảy mắt 6–8 lần/dòng. Mở rộng tầm nhìn ngoại vi giúp giảm chỉ còn 1–2 lần/dòng, bứt phá tốc độ 800+ WPM.
+              {/* Pillar 2: Real World Value */}
+              <div className="bg-white/90 dark:bg-slate-800/90 p-4 rounded-2xl border border-amber-200/80 dark:border-slate-700/80 shadow-xs flex flex-col justify-between space-y-2">
+                <div>
+                  <div className="flex items-center gap-1.5 text-slate-900 dark:text-white font-extrabold text-xs uppercase tracking-wide mb-2">
+                    <span className="w-5 h-5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-mono font-black text-[11px]">2</span>
+                    <span>Giá Trị Nhận Thức Đời Sống</span>
+                  </div>
+                  <p className="text-[11.5px] leading-relaxed text-slate-600 dark:text-slate-300">
+                    {rationale.realWorldValueVi}
+                  </p>
+                </div>
               </div>
 
-              <div className="bg-white/80 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-amber-200/60 dark:border-slate-700/60">
-                <strong className="text-slate-900 dark:text-white block mb-1">
-                  3. Quy Tắc Vàng Khi Luyện
-                </strong>
-                Tuyệt đối khóa chặt ánh nhìn vào tâm đỏ. Hãy thả lỏng cơ mắt và để não bộ tự động bao quát hai biên mà không cần liếc mắt.
+              {/* Pillar 3: Golden Training Rule */}
+              <div className="bg-white/90 dark:bg-slate-800/90 p-4 rounded-2xl border border-amber-200/80 dark:border-slate-700/80 shadow-xs flex flex-col justify-between space-y-2">
+                <div>
+                  <div className="flex items-center gap-1.5 text-slate-900 dark:text-white font-extrabold text-xs uppercase tracking-wide mb-2">
+                    <span className="w-5 h-5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-mono font-black text-[11px]">3</span>
+                    <span>Chiến Thuật & Quy Tắc Vàng</span>
+                  </div>
+                  <p className="text-[11.5px] leading-relaxed text-slate-600 dark:text-slate-300">
+                    {rationale.goldenRuleVi}
+                  </p>
+                </div>
               </div>
             </div>
+
+            {/* Target Cognitive Functions Badges */}
+            {rationale.targetFunctionsVi && rationale.targetFunctionsVi.length > 0 && (
+              <div className="pt-2 flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Chức năng tôi luyện:
+                </span>
+                {rationale.targetFunctionsVi.map((fn, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700/80 shadow-xs flex items-center gap-1"
+                  >
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                    <span>{fn}</span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Theory Learning Shortcut for Auditory Exercises */}
+          {/* Two-Way Theory Bridge for All 33 Exercises */}
           {(() => {
+            if (exercise.slug === 'hanoi-navigation') {
+              return (
+                <button
+                  onClick={() => {
+                    playSound('click');
+                    navigateToTheory('hanoi-map');
+                  }}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-amber-500/15 hover:from-amber-500/25 hover:to-orange-500/25 text-amber-900 dark:text-amber-200 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-amber-500/40 transition-all btn-press shadow-sm cursor-pointer"
+                >
+                  <Compass className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span>Xem chuyên đề 10 chương thực chiến: Bản Đồ Nhận Thức Hà Nội</span>
+                </button>
+              );
+            }
+
             const theoryModuleId = getTheoryModuleForSlug(exercise.slug as any);
             const theoryMeta = theoryModuleId ? THEORY_MODULE_MAP[theoryModuleId] : null;
-            if (!theoryMeta) return null;
+            if (theoryMeta) {
+              return (
+                <button
+                  onClick={() => {
+                    playSound('click');
+                    navigateToTheory(theoryModuleId!);
+                  }}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand-500/10 via-indigo-500/10 to-brand-500/10 hover:from-brand-500/20 hover:to-indigo-500/20 text-brand-700 dark:text-brand-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-brand-500/30 transition-all btn-press shadow-sm cursor-pointer"
+                >
+                  <BookOpen className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                  <span>Xem lý thuyết & khuôn hình: {theoryMeta.title}</span>
+                </button>
+              );
+            }
 
             return (
               <button
                 onClick={() => {
                   playSound('click');
-                  navigateToTheory(theoryModuleId!);
+                  navigateToTheory('cognitive');
                 }}
-                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand-500/10 via-indigo-500/10 to-brand-500/10 hover:from-brand-500/20 hover:to-indigo-500/20 text-brand-700 dark:text-brand-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-brand-500/30 transition-all btn-press shadow-sm cursor-pointer"
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand-500/10 via-purple-500/10 to-brand-500/10 hover:from-brand-500/20 hover:to-purple-500/20 text-brand-700 dark:text-brand-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-brand-500/30 transition-all btn-press shadow-sm cursor-pointer"
               >
-                <BookOpen className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-                <span>Xem lý thuyết & khuôn hình: {theoryMeta.title}</span>
+                <Brain className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <span>Xem cơ sở thần kinh học tại Học Viện Nhận Thức (7 Trục Não Bộ)</span>
               </button>
             );
           })()}

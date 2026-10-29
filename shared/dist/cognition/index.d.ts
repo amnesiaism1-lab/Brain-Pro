@@ -5,4 +5,5 @@ export * from './mastery';
 export * from './dda-policy';
 export * from './workouts-relation';
 export * from './rde';
+export * from './exercise-rationales';
 //# sourceMappingURL=index.d.ts.map

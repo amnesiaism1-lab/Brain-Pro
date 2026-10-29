@@ -122,9 +122,15 @@ export const WrongAnswerHistoryView: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setActiveTab('exercises')}
-            className="p-2.5 rounded-2xl bg-white/70 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 hover:text-cyan-500 hover:border-cyan-500/50 transition-all shadow-sm active:scale-95"
-            title="Quay lại danh sách bài tập"
+            onClick={() => {
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                setActiveTab('exercises');
+              }
+            }}
+            className="p-2.5 rounded-2xl bg-white/70 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 hover:text-cyan-500 hover:border-cyan-500/50 transition-all shadow-sm active:scale-95 cursor-pointer"
+            title="Quay lại"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>

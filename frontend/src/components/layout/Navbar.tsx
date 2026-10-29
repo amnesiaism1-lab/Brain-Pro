@@ -1,6 +1,7 @@
 import React from 'react';
-import { Home, Brain, BookOpen, History, Settings, User, Cloud, LogIn, LogOut } from 'lucide-react';
+import { Home, Brain, BookOpen, History, Settings, User, Cloud, LogIn, LogOut, Mic2, Sparkles } from 'lucide-react';
 import { useAppStore, MainNavTab } from '../../store/useAppStore';
+import { useVocalStudioStore } from '../../store/vocalStudioStore';
 
 export const Navbar: React.FC = () => {
   const { 
@@ -13,6 +14,8 @@ export const Navbar: React.FC = () => {
     logout,
     wrongAnswers
   } = useAppStore();
+
+  const openVocalStudio = useVocalStudioStore((s) => s.openStudio);
 
   // Hide bottom nav while game is actively playing to maximize focus & screen area
   if (activeGameSlug) {
@@ -139,6 +142,34 @@ export const Navbar: React.FC = () => {
             );
           })}
         </nav>
+
+        {/* Vocal Studio Direct Fast-Launch Pill */}
+        <div className="my-3 px-1">
+          <button
+            onClick={() => {
+              playSound('click');
+              openVocalStudio();
+            }}
+            className="w-full p-3 rounded-2xl bg-gradient-to-r from-violet-600/90 to-cyan-600/90 hover:from-violet-500 hover:to-cyan-500 text-white shadow-md shadow-violet-600/20 transition-all flex items-center justify-between group cursor-pointer active:scale-95 border border-white/20"
+            title="Mở phòng thu âm và trực quan cao độ 60FPS"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-xl bg-white/20 text-white">
+                <Mic2 className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-black leading-tight text-white group-hover:text-amber-200 transition-colors">
+                  Vocal Studio
+                </p>
+                <p className="text-[10px] text-white/80">Phòng Thu 60FPS</p>
+              </div>
+            </div>
+            <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black flex items-center gap-0.5">
+              <Sparkles className="w-2.5 h-2.5 fill-slate-950" />
+              LIVE
+            </span>
+          </button>
+        </div>
 
         {/* User Account Card at Bottom of Desktop Sidebar */}
         {authUser ? (

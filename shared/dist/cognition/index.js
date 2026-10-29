@@ -21,3 +21,4 @@ __exportStar(require("./mastery"), exports);
 __exportStar(require("./dda-policy"), exports);
 __exportStar(require("./workouts-relation"), exports);
 __exportStar(require("./rde"), exports);
+__exportStar(require("./exercise-rationales"), exports);

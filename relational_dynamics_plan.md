@@ -16,7 +16,11 @@ Tài liệu `đánh giá 1.txt` đưa ra một phát kiến cốt lõi: **Không
 | **Bản chất đường nối** | Đồ họa nối vô tri (Visual line) | **Thực thể quan hệ (Relation Entity) có State, Capacity, Direction, Modifiers** |
 | **Thước đo tiến bộ** | Tốc độ bấm (Reaction time) & Điểm số (Score/XP) | **Sai số dự đoán (Prediction Error $\downarrow$) & Độ bền chuyển giao (Transfer Score $\uparrow$)** |
 | **Cách "Ghim vào não"** | Lặp lại 1 dạng bài hàng ngàn lần (*Overfitting*) | **Khai thác cùng 1 Quan hệ trừu tượng trên nhiều miền kích thích khác nhau** |
+Security Notice & Data Use
+AI coding agents are known to have certain security limitations. Users should be aware of potential risks, including data exfiltration and possible code execution. Avoid processing highly sensitive data and verify all the actions taken by the agent.
 
+
+Yes, I agree to help improve Antigravity by allowing Google to collect and use my Interactions data, subject to the Google Antigravity Terms of Service and Google Privacy Policy. I understand I can choose to opt out later whenever I want via my settings.
 ### 1.2. Kiến trúc 4 Tầng Nhận Thức ("4 Brains Model")
 
 ```mermaid
