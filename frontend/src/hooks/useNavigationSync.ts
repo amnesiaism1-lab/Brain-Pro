@@ -181,3 +181,4 @@ export function useNavigationSync() {
     isVocalStudioOpen
   ]);
 }
+

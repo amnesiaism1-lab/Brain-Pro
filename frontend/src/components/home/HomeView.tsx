@@ -64,6 +64,8 @@ export const HomeView: React.FC = () => {
 
   const handleExploreCategory = (catCode: CognitiveCategoryCode) => {
     playSound('click');
+    setSelectedExerciseSlug(null);
+    setActiveGameSlug(null);
     setSelectedExercisesCategory(catCode);
     setActiveTab('exercises');
   };
@@ -322,6 +324,8 @@ export const HomeView: React.FC = () => {
           <button
             onClick={() => {
               playSound('click');
+              setSelectedExerciseSlug(null);
+              setActiveGameSlug(null);
               setSelectedExercisesCategory('ALL');
               setActiveTab('exercises');
             }}

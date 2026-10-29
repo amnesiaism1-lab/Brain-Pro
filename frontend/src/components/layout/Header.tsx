@@ -133,9 +133,11 @@ export const Header: React.FC = () => {
                 <button
                   onClick={() => {
                     playSound('click');
+                    setSelectedExerciseSlug(null);
+                    setActiveGameSlug(null);
                     setActiveTab('user');
                   }}
-                  className="flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full bg-white/15 hover:bg-white/25 transition-all text-xs font-bold border border-white/20 shadow-inner group"
+                  className="flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full bg-white/15 hover:bg-white/25 transition-all text-xs font-bold border border-white/20 shadow-inner group cursor-pointer"
                   title="Xem hồ sơ nhận thức"
                 >
                   {authUser.avatarUrl ? (

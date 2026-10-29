@@ -8,6 +8,9 @@ export const Navbar: React.FC = () => {
     activeTab, 
     setActiveTab, 
     activeGameSlug, 
+    setActiveGameSlug,
+    selectedExerciseSlug,
+    setSelectedExerciseSlug,
     playSound,
     authUser,
     setIsAuthModalOpen,
@@ -74,6 +77,8 @@ export const Navbar: React.FC = () => {
 
   const handleSelect = (tab: MainNavTab) => {
     playSound('click');
+    setSelectedExerciseSlug(null);
+    setActiveGameSlug(null);
     setActiveTab(tab);
   };
 
@@ -86,12 +91,12 @@ export const Navbar: React.FC = () => {
       >
         <div className="grid grid-cols-6 max-w-lg mx-auto py-1 px-1">
           {navItems.map((item) => {
-            const isActive = activeTab === item.id;
+            const isActive = selectedExerciseSlug ? item.id === 'exercises' : activeTab === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => handleSelect(item.id)}
-                className={`flex flex-col items-center justify-center py-1.5 transition-all duration-150 btn-press ${
+                className={`flex flex-col items-center justify-center py-1.5 transition-all duration-150 btn-press cursor-pointer ${
                   isActive
                     ? 'text-brand-600 dark:text-brand-400 font-semibold scale-105'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
@@ -125,12 +130,12 @@ export const Navbar: React.FC = () => {
 
         <nav className="flex-1 space-y-1.5">
           {navItems.map((item) => {
-            const isActive = activeTab === item.id;
+            const isActive = selectedExerciseSlug ? item.id === 'exercises' : activeTab === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => handleSelect(item.id)}
-                className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-semibold transition-all duration-150 btn-press ${
+                className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-semibold transition-all duration-150 btn-press cursor-pointer ${
                   isActive
                     ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5'
@@ -148,6 +153,8 @@ export const Navbar: React.FC = () => {
           <button
             onClick={() => {
               playSound('click');
+              setSelectedExerciseSlug(null);
+              setActiveGameSlug(null);
               openVocalStudio();
             }}
             className="w-full p-3 rounded-2xl bg-gradient-to-r from-violet-600/90 to-cyan-600/90 hover:from-violet-500 hover:to-cyan-500 text-white shadow-md shadow-violet-600/20 transition-all flex items-center justify-between group cursor-pointer active:scale-95 border border-white/20"
