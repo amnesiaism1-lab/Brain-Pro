@@ -458,24 +458,58 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
               )}
             </div>
 
-            {/* Word-by-word Note & Pitch Accuracy Chips */}
+            {/* Legend for Vowel & Pitch Trajectory */}
+            <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-400">
+              <span>Quỹ đạo nguyên âm từng từ:</span>
+              <span className="px-1.5 py-0.5 rounded bg-sky-950/60 border border-sky-500/30 text-sky-300">
+                ↗ Đi lên (+bán âm)
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-amber-950/60 border border-amber-500/30 text-amber-300">
+                ↘ Đi xuống (-bán âm)
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-purple-950/60 border border-purple-500/30 text-purple-300">
+                ⤴ Luyến vòm / 〰 Ngân rung
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
+                → Giữ ngang
+              </span>
+            </div>
+
+            {/* Word-by-word Vowel, Pitch Trajectory & Accuracy Chips */}
             <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
               {(focusedPhrase.words || []).map((w) => {
                 const wKey = `${focusedPhrase.phraseIndex}_${w.wordIndex}`;
                 const wStat = sessionStats.wordScores?.[wKey];
+                const step = w.stepSemitones ?? 0;
+                const stepTag = step > 0 ? `+${step}` : step < 0 ? `${step}` : '0';
+                const arrow = w.trajectorySymbol || '→';
+                const vowelBadge =
+                  w.vowelPhoneme && !w.text.startsWith(w.vowelPhoneme)
+                    ? `/${w.vowelPhoneme}/ `
+                    : '';
+
+                // Default color reflects melodic direction (Up vs Down vs Arch/Vibrato vs Steady)
                 let chipColor = 'bg-slate-950/80 border-slate-800 text-slate-200';
-                let centsLabel = w.noteName;
+                if (w.pitchTrajectory === 'arch' || w.pitchTrajectory === 'vibrato' || w.pitchTrajectory === 'dip') {
+                  chipColor = 'bg-purple-950/45 border-purple-500/35 text-purple-200';
+                } else if (step >= 1 || w.pitchTrajectory === 'rising') {
+                  chipColor = 'bg-sky-950/45 border-sky-500/35 text-sky-200';
+                } else if (step <= -1 || w.pitchTrajectory === 'falling') {
+                  chipColor = 'bg-amber-950/40 border-amber-500/35 text-amber-200';
+                }
+
+                let metaLabel = `${vowelBadge}${w.noteName} · ${arrow}${stepTag}`;
 
                 if (wStat && wStat.total > 30) {
                   const cStr =
                     wStat.avgCentsDiff > 0 ? `+${wStat.avgCentsDiff}c` : `${wStat.avgCentsDiff}c`;
-                  centsLabel = `${w.noteName} · ${cStr}`;
+                  metaLabel = `${vowelBadge}${w.noteName} (${arrow}${stepTag}) · ${cStr}`;
                   if (wStat.status === 'in_tune') {
-                    chipColor = 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300';
+                    chipColor = 'bg-emerald-950/75 border-emerald-500/50 text-emerald-300';
                   } else if (wStat.status === 'flat') {
-                    chipColor = 'bg-amber-950/70 border-amber-500/40 text-amber-300';
+                    chipColor = 'bg-amber-950/75 border-amber-500/50 text-amber-300';
                   } else {
-                    chipColor = 'bg-rose-950/70 border-rose-500/40 text-rose-300';
+                    chipColor = 'bg-rose-950/75 border-rose-500/50 text-rose-300';
                   }
                 }
 
@@ -484,13 +518,17 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
                     key={w.wordIndex}
                     type="button"
                     onClick={() => onSeekToPhrase(w.startMs)}
-                    className={`px-2 py-1 rounded-xl border text-xs flex items-center gap-1.5 hover:border-sky-400 transition ${chipColor}`}
-                    title={`Tua tới chữ "${w.text}" (${w.solfege})${
-                      w.vowelHint ? ` • Khẩu hình: ${w.vowelHint}` : ''
-                    }`}
+                    className={`px-2.5 py-1 rounded-xl border text-xs flex items-center gap-1.5 hover:border-sky-400 transition ${chipColor}`}
+                    title={`Tua tới "${w.text}" (${w.solfege}) • Nguyên âm: /${
+                      w.vowelPhoneme || 'A'
+                    }/ (${w.vowelHint || ''})${
+                      w.formantsHz ? ` [F1:${w.formantsHz[0]}Hz, F2:${w.formantsHz[1]}Hz]` : ''
+                    } • ${w.trajectoryLabel || ''}`}
                   >
-                    <span className="font-bold">{w.text}</span>
-                    <span className="text-[10px] font-mono opacity-80">[{centsLabel}]</span>
+                    <span className="font-black">
+                      {w.text.includes(arrow) ? w.text : `${w.text}${arrow}`}
+                    </span>
+                    <span className="text-[10px] font-mono opacity-85">[{metaLabel}]</span>
                   </button>
                 );
               })}

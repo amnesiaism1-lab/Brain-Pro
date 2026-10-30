@@ -372,7 +372,7 @@ class VocalFileAnalysisService {
     // 6. Phrase Segmentation (Tách từng câu hát)
     const phrases = this.segmentPhrases(pitchTrack);
 
-    notify(96, 'Giai đoạn 6/6: Phân tích lời hát (Auto-Lyric & Khẩu hình) và định vị cấu trúc đoạn...');
+    notify(91, 'Giai đoạn 6/7: Quét phổ Formant F1-F2 (Goertzel Pre-emphasis) & Quỹ đạo nguyên âm...');
     const lyricMeta = await populateAutomaticSongLyricsAndStructure({
       fileName,
       durationMs,
@@ -381,8 +381,10 @@ class VocalFileAnalysisService {
       arrayBuffer,
       phrases,
       noteBars,
+      pitchTrack,
       lowestMidi: Math.round(lowestPoint.midi),
       highestMidi: Math.round(highestPoint.midi),
+      onProgress: notify,
     });
 
     // 7. Calculate Vocal Complexity Metrics

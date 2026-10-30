@@ -8,6 +8,8 @@ import {
   mergeWithNextPhrase,
   splitPhraseAtPlayhead,
   updateSinglePhraseLyric,
+  buildSmartLyricQueries,
+  analyzeDeepNoteBarVowelAndTrajectory,
 } from '../lyricAlignmentService';
 import type { IVocalPhrase, IVocalNoteBar, IVocalAnalysisResult } from '../vocalFileAnalysisService';
 
@@ -150,8 +152,37 @@ describe('lyricAlignmentService', () => {
     expect(phrases[0].words?.length).toBe(2);
     expect(phrases[0].words?.[0].text).toBe('Chiều');
     expect(phrases[0].words?.[0].noteName).toBe('C4');
-    expect(noteBars[0].lyricSyllable).toBe('Chiều');
-    expect(noteBars[1].lyricSyllable).toBe('nhẹ');
+    expect(phrases[0].words?.[1].stepSemitones).toBe(4);
+    expect(phrases[0].words?.[1].trajectorySymbol).toBe('↗');
+    expect(noteBars[0].lyricSyllable).toBe('Chiều→');
+    expect(noteBars[1].lyricSyllable).toBe('nhẹ↗');
+  });
+
+  it('extracts smart search queries from complex YouTube/MP3 filenames and analyzes vowel trajectory', () => {
+    const queries = buildSmartLyricQueries(
+      'Thích Thích - Phương Ly ft. JustaTee | Vụ Nổ Lớn - Phát Phát.mp3'
+    );
+    expect(queries[0]).toBe('Thích Thích Phương Ly');
+    expect(queries).toContain('Thích Thích');
+
+    const { noteBars } = createMockPhrasesAndBars();
+    // Simulate a rising pitch bend within noteBars[1]
+    const mockPitchTrack = [
+      { timeMs: 1950, freqHz: 325, midi: 63.7, noteName: 'E4', solfegeName: 'Mi 4', clarity: 0.9, volumeDb: -18, isVocal: true },
+      { timeMs: 2300, freqHz: 330, midi: 64.0, noteName: 'E4', solfegeName: 'Mi 4', clarity: 0.9, volumeDb: -18, isVocal: true },
+      { timeMs: 2700, freqHz: 338, midi: 64.4, noteName: 'E4', solfegeName: 'Mi 4', clarity: 0.9, volumeDb: -18, isVocal: true },
+    ];
+    const analysis = analyzeDeepNoteBarVowelAndTrajectory({
+      rawMonoPcm: null,
+      sampleRate: 44100,
+      bar: noteBars[1],
+      prevBar: noteBars[0],
+      pitchTrack: mockPitchTrack,
+    });
+    expect(analysis.stepSemitones).toBe(4);
+    expect(analysis.pitchTrajectory).toBe('rising');
+    expect(analysis.trajectorySymbol).toBe('↗');
+    expect(analysis.intraBendCents).toBeGreaterThan(25);
   });
 
   it('parses LRC timestamps and aligns them to phrases by maximum temporal overlap', () => {

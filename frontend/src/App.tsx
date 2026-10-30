@@ -75,13 +75,17 @@ export const App: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <div className={`min-h-screen bg-[#ECE5D8] dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col ${!activeGameSlug ? 'md:pl-64' : ''} transition-colors duration-200`}>
-        <Header />
-        <main className="flex-1 w-full">
-          {renderCurrentView()}
-        </main>
-        {(!activeGameSlug && !selectedExerciseSlug) && <Footer />}
-        <Navbar />
+      <div className={`min-h-screen bg-[#ECE5D8] dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col ${!activeGameSlug && !isVocalStudioOpen ? 'md:pl-64' : ''} transition-colors duration-200`}>
+        {!isVocalStudioOpen && (
+          <>
+            <Header />
+            <main className="flex-1 w-full">
+              {renderCurrentView()}
+            </main>
+            {(!activeGameSlug && !selectedExerciseSlug) && <Footer />}
+            <Navbar />
+          </>
+        )}
 
         {/* Global Modals */}
         <HowToTrainModal />

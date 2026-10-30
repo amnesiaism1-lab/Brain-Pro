@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Music,
+  TrendingUp,
 } from 'lucide-react';
 import { IVocalPhrase } from '../../../services/vocalFileAnalysisService';
 import { LyricDisplayMode, LyricSourceType } from '../../../services/lyricAlignmentService';
@@ -41,7 +42,7 @@ const SOURCE_LABELS: Record<LyricSourceType, { label: string; colorClass: string
     colorClass: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
   },
   acoustic_relative: {
-    label: 'Lời khẩu hình & Xướng âm tương đối (AI Acoustic)',
+    label: 'Phổ Formant Nguyên Âm (F1-F2) & Quỹ Đạo Lên/Xuống',
     colorClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
   },
   lrc: {
@@ -71,7 +72,6 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
   const [isEditingInline, setIsEditingInline] = useState(false);
   const [inlineDraft, setInlineDraft] = useState('');
 
-  // Determine current or upcoming phrase so the HUD is never empty during breath pauses
   const currentOrUpcomingPhrase = React.useMemo(() => {
     if (activePhrase) return activePhrase;
     if (phrases.length === 0) return null;
@@ -122,7 +122,7 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
 
   return (
     <div className="px-3.5 py-2.5 bg-gradient-to-r from-slate-950 via-slate-900/95 to-slate-950 border-b border-slate-800/90 flex flex-col gap-2">
-      {/* Top Row: Section Landmark Locator ("Đang ở đoạn nào") + Lyric Mode Controls */}
+      {/* Top Row: Section Landmark Locator ("Đang ở đoạn nào") + Active Vowel & Pitch Trajectory */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {/* Prev / Next Phrase quick buttons */}
@@ -166,11 +166,17 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
             </span>
           )}
 
-          {/* Active Vowel Mouth Shape Hint */}
-          {activeWord?.vowelHint && (
-            <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-bold text-emerald-300 animate-fade-in">
-              Khẩu hình: {activeWord.vowelHint}
-            </span>
+          {/* Active Vowel Formant & Pitch Trajectory Live Pill */}
+          {activeWord && (
+            <div className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-[10px] font-bold text-emerald-300 flex items-center gap-1.5 animate-fade-in">
+              <TrendingUp className="w-3 h-3 text-emerald-400 shrink-0" />
+              <span>
+                Nguyên âm /{activeWord.vowelPhoneme || 'A'}/ ({activeWord.vowelHint || 'Mở rộng'})
+              </span>
+              {activeWord.trajectoryLabel && (
+                <span className="text-sky-300 font-mono">• {activeWord.trajectoryLabel}</span>
+              )}
+            </div>
           )}
         </div>
 
@@ -194,21 +200,21 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                   ? 'bg-sky-500 text-slate-950'
                   : 'text-slate-400 hover:text-white'
               }`}
-              title="Hiện cả lời hát và nốt nhạc tương ứng trên từng chữ"
+              title="Hiện lời/nguyên âm kèm nốt nhạc và hướng đi lên/xuống của từng từ"
             >
-              Lời + Nốt
+              Lời + Quỹ Đạo
             </button>
             <button
               type="button"
-              onClick={() => setDisplayMode('lyrics')}
+              onClick={() => setDisplayMode('vowel_trajectory')}
               className={`px-2 py-1 rounded-lg font-bold transition ${
-                displayMode === 'lyrics'
+                displayMode === 'vowel_trajectory'
                   ? 'bg-sky-500 text-slate-950'
                   : 'text-slate-400 hover:text-white'
               }`}
-              title="Chỉ hiện lời hát / khẩu hình"
+              title="Tập trung vào Nguyên âm (A, Ê, I, Ô, U, Ơi) và hướng đi lên/xuống (↗ ↘ ⤴ 〰)"
             >
-              Chỉ Lời
+              Nguyên Âm ↗↘
             </button>
             <button
               type="button"
@@ -218,7 +224,7 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                   ? 'bg-sky-500 text-slate-950'
                   : 'text-slate-400 hover:text-white'
               }`}
-              title="Hiện xướng âm Đô - Rê - Mi"
+              title="Hiện xướng âm Đô - Rê - Mi kèm hướng lên/xuống"
             >
               Xướng Âm
             </button>
@@ -250,7 +256,7 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
         </div>
       </div>
 
-      {/* Center Karaoke Line: Word-by-word synchronized display with pitch accuracy coloring */}
+      {/* Center Karaoke Line: Word-by-word synchronized display with Vowel & Pitch Trajectory */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-0.5">
         {isEditingInline ? (
           <div className="flex-1 flex items-center gap-2">
@@ -281,7 +287,7 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
             </button>
           </div>
         ) : (
-          <div className="flex-1 flex flex-wrap items-center gap-x-2 gap-y-1.5 min-h-[34px]">
+          <div className="flex-1 flex flex-wrap items-center gap-x-2 gap-y-1.5 min-h-[38px]">
             {isWaitingForEntrance && countdownSec && (
               <span className="px-2 py-0.5 rounded-lg bg-sky-500/20 border border-sky-400/40 text-sky-300 text-xs font-mono font-bold animate-pulse">
                 Vào nhịp sau {countdownSec}s:
@@ -296,9 +302,21 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                 const wordKey = `${currentOrUpcomingPhrase.phraseIndex}_${word.wordIndex}`;
                 const stat = sessionStats.wordScores?.[wordKey];
 
+                const step = word.stepSemitones ?? 0;
+                const stepStr = step > 0 ? `+${step}` : step < 0 ? `${step}` : '';
+                const arrow = word.trajectorySymbol || '→';
+                const vowelTag = word.vowelPhoneme ? `/${word.vowelPhoneme}/` : '';
+
                 // Color word based on real-time singing pitch accuracy!
                 let wordColorClass = 'text-slate-200 hover:text-white';
-                let subBadgeClass = 'text-slate-400 bg-slate-900/90 border-slate-700/70';
+                let subBadgeClass = 'text-slate-300 bg-slate-900/90 border-slate-700/70';
+
+                // Color code direction badge when unpracticed so user sees up/down movement at a glance
+                if (step >= 2 || word.pitchTrajectory === 'rising' || word.pitchTrajectory === 'arch') {
+                  subBadgeClass = 'text-sky-300 bg-sky-950/70 border-sky-500/40';
+                } else if (step <= -2 || word.pitchTrajectory === 'falling') {
+                  subBadgeClass = 'text-amber-300 bg-amber-950/70 border-amber-500/40';
+                }
 
                 if (isWordActive) {
                   wordColorClass =
@@ -320,25 +338,38 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                 }
 
                 const primaryText =
-                  displayMode === 'solfege' ? word.solfege : word.text;
+                  displayMode === 'solfege'
+                    ? `${word.solfege}${arrow}`
+                    : displayMode === 'vowel_trajectory'
+                    ? `${word.vowelPhoneme || word.text}${arrow}${stepStr ? `(${stepStr})` : ''}`
+                    : word.text;
+
+                const topBadgeText =
+                  displayMode === 'vowel_trajectory'
+                    ? `${word.noteName} · ${word.vowelHint?.split(' ')[0] || ''}`
+                    : `${word.noteName} ${vowelTag}${arrow}${stepStr}`;
 
                 return (
                   <button
                     key={word.wordIndex}
                     type="button"
                     onClick={() => onSeek(word.startMs)}
-                    className={`group inline-flex flex-col items-center transition-all duration-100 px-1 py-0.5 rounded-lg hover:bg-slate-800/60 ${wordColorClass}`}
-                    title={`Nhấn để tua tới "${word.text}" (${word.noteName} / ${word.solfege})${
+                    className={`group inline-flex flex-col items-center transition-all duration-100 px-1.5 py-0.5 rounded-lg hover:bg-slate-800/60 ${wordColorClass}`}
+                    title={`"${word.text}" • Nốt: ${word.noteName} (${word.solfege}) • Nguyên âm: /${
+                      word.vowelPhoneme || 'A'
+                    }/ (${word.vowelHint || ''}) • ${word.trajectoryLabel || ''}${
                       stat && stat.total > 30
-                        ? ` • Độ lệch: ${stat.avgCentsDiff > 0 ? `+${stat.avgCentsDiff}` : stat.avgCentsDiff} cents`
+                        ? ` • Độ lệch khi hát: ${
+                            stat.avgCentsDiff > 0 ? `+${stat.avgCentsDiff}` : stat.avgCentsDiff
+                          } cents`
                         : ''
                     }`}
                   >
-                    {displayMode === 'bilingual' && (
+                    {(displayMode === 'bilingual' || displayMode === 'vowel_trajectory') && (
                       <span
-                        className={`text-[9px] font-mono px-1 py-0 rounded border leading-tight mb-0.5 ${subBadgeClass}`}
+                        className={`text-[9px] font-mono px-1.5 py-0 rounded border leading-tight mb-0.5 ${subBadgeClass}`}
                       >
-                        {word.noteName}
+                        {topBadgeText}
                       </span>
                     )}
                     <span className="text-sm sm:text-base font-bold tracking-tight leading-snug">
@@ -389,4 +420,3 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
     </div>
   );
 };
-
