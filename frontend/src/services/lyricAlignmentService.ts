@@ -74,6 +74,26 @@ export interface IVocalLyricWord {
   midi: number;
   startMs: number;
   endMs: number;
+  /** Duration of this word's note(s) in milliseconds */
+  durationMs?: number;
+  /** True when this word is held significantly longer than normal (nốt ngân lâu hơn) */
+  isSustained?: boolean;
+  /** Human-readable sustain tag (e.g. "Ngân 1.2s") */
+  sustainLabel?: string;
+  /** Ending note name when a single word glides/slurs across multiple notes (e.g. "E4" in C4→E4) */
+  endNoteName?: string;
+  /** Ending solfege when a single word glides/slurs across multiple notes */
+  endSolfege?: string;
+  /** Ending MIDI number when a word glides across multiple notes */
+  endMidi?: number;
+  /** Sequence of distinct consecutive note names sung within this word (e.g. ["C4", "E4"]) */
+  noteSequence?: string[];
+  /** Sequence of distinct consecutive solfege names sung within this word (e.g. ["Đô4", "Mi4"]) */
+  solfegeSequence?: string[];
+  /** Number of discrete note bars spanned by this word (1 = single note, >=2 = melisma/glide) */
+  melismaNotesCount?: number;
+  /** Net semitone glide from the start note to the end note WITHIN this word (+4 = từ thấp lên cao 4 bán âm) */
+  glideSemitones?: number;
   /** Detected or orthographic vowel phoneme (e.g. "A", "Ê", "I", "Ô", "U", "Ư", "Ươ", "Uô", "Ơi", "Ai", "Ao") */
   vowelPhoneme?: string;
   vowelHint?: VowelMouthHint;
@@ -110,7 +130,7 @@ interface ICachedSongLyrics {
   }>;
 }
 
-const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v3_';
+const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v4_';
 
 /**
  * Normalize Vietnamese text for accent-insensitive search & trace
@@ -145,6 +165,24 @@ export function midiToCompactSolfege(midi: number): {
   };
 }
 
+export type VietnameseToneContour = 'rising' | 'falling' | 'dipping' | 'level';
+
+/**
+ * Extract the natural Vietnamese lexical tone pitch contour from a lyric word:
+ * - Sắc (\u0301) / Ngã (\u0303) -> 'rising' (đi lên / cao)
+ * - Huyền (\u0300) / Nặng (\u0323) -> 'falling' (đi xuống / trầm)
+ * - Hỏi (\u0309) -> 'dipping' (uốn võng xuống rồi lên)
+ * - Ngang (không dấu) -> 'level' (giữ ngang)
+ */
+export function extractVietnameseToneContour(rawWord: string): VietnameseToneContour {
+  if (!rawWord) return 'level';
+  const nfd = rawWord.toLowerCase().normalize('NFD');
+  if (/[\u0301\u0303]/.test(nfd)) return 'rising';
+  if (/[\u0300\u0323]/.test(nfd)) return 'falling';
+  if (/\u0309/.test(nfd)) return 'dipping';
+  return 'level';
+}
+
 /**
  * Extract the exact Vietnamese vowel nucleus, acoustic family, mouth-shape coaching hint,
  * and checked-stop coda status (`-p, -t, -c, -ch`) from a Vietnamese lyric word.
@@ -154,6 +192,7 @@ export function extractVietnameseWordVowel(rawWord: string): {
   vowelFamily: CoreVowelFamily;
   vowelHint: VowelMouthHint;
   isCheckedStop: boolean;
+  toneContour?: VietnameseToneContour;
 } | null {
   if (!rawWord) return null;
   // Strip tone marks (acute, grave, hook, tilde, dot below) while preserving vowel diacritics (ă, â, ê, ô, ơ, ư)
@@ -974,9 +1013,247 @@ function buildSectionFocusTip(phrase: IVocalPhrase, sectionType: VocalSectionTyp
 }
 
 /**
- * When a phrase has fewer NoteBars than sung words ($B < W$) because the singer articulated
- * multiple words on the same sustained pitch, subdivide the longest sustained NoteBars at their
- * internal consonant/energy dips (or proportional syllable midpoint) so each word gets its own NoteBar.
+ * Analyze a single NoteBar's internal acoustic contour to detect whether it contains
+ * a genuine syllable re-articulation (consonant dip / bridged gap between two vowel peaks)
+ * vs. a single smooth sustained hold (`nốt ngân lâu hơn`).
+ */
+function findInternalSyllableDip(
+  targetBar: IVocalNoteBar,
+  pitchTrack: IReferencePitchPoint[]
+): {
+  splitMs: number;
+  prominenceDb: number;
+  isBridgedConsonant: boolean;
+  isSteadyVibrato: boolean;
+  dipScore: number;
+} {
+  const barPts = pitchTrack.filter(
+    (pt) =>
+      pt.isVocal &&
+      pt.midi > 0 &&
+      pt.timeMs >= targetBar.startTimeMs &&
+      pt.timeMs <= targetBar.endTimeMs
+  );
+
+  const fallbackMidMs = Math.round((targetBar.startTimeMs + targetBar.endTimeMs) / 2);
+  if (barPts.length < 3) {
+    return {
+      splitMs: fallbackMidMs,
+      prominenceDb: 0,
+      isBridgedConsonant: false,
+      isSteadyVibrato: false,
+      dipScore: 0,
+    };
+  }
+
+  // Count vibrato oscillations across the bar to avoid chopping a single held vibrato note
+  let vibratoOscillations = 0;
+  let prevDelta = 0;
+  for (let i = 1; i < barPts.length; i++) {
+    const d = barPts[i].midi - barPts[i - 1].midi;
+    if (Math.abs(d) > 0.06) {
+      if (prevDelta * d < 0) vibratoOscillations++;
+      prevDelta = d;
+    }
+  }
+  const isSteadyVibrato = targetBar.durationMs >= 450 && vibratoOscillations >= 4;
+
+  const minK = Math.max(1, Math.floor(barPts.length * 0.22));
+  const maxK = Math.min(barPts.length - 2, Math.ceil(barPts.length * 0.78));
+
+  let bestK = Math.floor(barPts.length / 2);
+  let bestDipScore = -Infinity;
+  let bestProminenceDb = 0;
+  let bestBridged = false;
+
+  for (let k = minK; k <= maxK; k++) {
+    const candidateMs = barPts[k].timeMs;
+    if (candidateMs - targetBar.startTimeMs < 75 || targetBar.endTimeMs - candidateMs < 75) {
+      continue;
+    }
+
+    let leftPeakDb = -100;
+    let leftPeakClarity = 0;
+    for (let l = 0; l < k; l++) {
+      if (barPts[l].volumeDb > leftPeakDb) leftPeakDb = barPts[l].volumeDb;
+      if (barPts[l].clarity > leftPeakClarity) leftPeakClarity = barPts[l].clarity;
+    }
+
+    let rightPeakDb = -100;
+    let rightPeakClarity = 0;
+    for (let r = k + 1; r < barPts.length; r++) {
+      if (barPts[r].volumeDb > rightPeakDb) rightPeakDb = barPts[r].volumeDb;
+      if (barPts[r].clarity > rightPeakClarity) rightPeakClarity = barPts[r].clarity;
+    }
+
+    const valleyDb = barPts[k].volumeDb;
+    const valleyClarity = barPts[k].clarity;
+    // Prominence requires BOTH left and right sides to have higher energy than the valley (bimodal syllable envelope)
+    const prominenceDb = Math.max(0, Math.min(leftPeakDb, rightPeakDb) - valleyDb);
+    const isBridgedConsonant =
+      valleyClarity <= 0.66 && leftPeakClarity >= 0.76 && rightPeakClarity >= 0.76;
+
+    const score =
+      prominenceDb * 2.4 +
+      (isBridgedConsonant ? 14.0 : 0) +
+      Math.max(0, 0.85 - valleyClarity) * 10 -
+      (isSteadyVibrato && !isBridgedConsonant ? 8.0 : 0);
+
+    if (score > bestDipScore) {
+      bestDipScore = score;
+      bestK = k;
+      bestProminenceDb = prominenceDb;
+      bestBridged = isBridgedConsonant;
+    }
+  }
+
+  const splitMs =
+    bestDipScore > -Infinity ? barPts[bestK].timeMs : fallbackMidMs;
+
+  return {
+    splitMs,
+    prominenceDb: bestProminenceDb,
+    isBridgedConsonant: bestBridged,
+    isSteadyVibrato,
+    dipScore: Math.max(0, bestDipScore),
+  };
+}
+
+/**
+ * Helper to split a single NoteBar at `splitMs` and update both `workingBars` and `allNoteBars`.
+ */
+function splitSingleBarAtMs(
+  workingBars: IVocalNoteBar[],
+  allNoteBars: IVocalNoteBar[],
+  barIdx: number,
+  splitMs: number,
+  pitchTrack: IReferencePitchPoint[]
+): void {
+  const targetBar = workingBars[barIdx];
+  const barPts = pitchTrack.filter(
+    (pt) =>
+      pt.isVocal &&
+      pt.midi > 0 &&
+      pt.timeMs >= targetBar.startTimeMs &&
+      pt.timeMs <= targetBar.endTimeMs
+  );
+
+  const leftPts = barPts.filter((p) => p.timeMs <= splitMs);
+  const rightPts = barPts.filter((p) => p.timeMs > splitMs);
+
+  const calcExactMidi = (pts: IReferencePitchPoint[], fallback: number) =>
+    pts.length > 0
+      ? Math.round((pts.reduce((s, p) => s + p.midi, 0) / pts.length) * 100) / 100
+      : fallback;
+
+  const leftExact = calcExactMidi(leftPts, targetBar.exactMidi);
+  const rightExact = calcExactMidi(rightPts, targetBar.exactMidi);
+  const leftNom = Math.round(leftExact);
+  const rightNom = Math.round(rightExact);
+  const leftInfo = midiToCompactSolfege(leftNom);
+  const rightInfo = midiToCompactSolfege(rightNom);
+
+  const leftBar: IVocalNoteBar = {
+    ...targetBar,
+    id: `${targetBar.id}-a`,
+    endTimeMs: splitMs - 5,
+    durationMs: Math.max(60, splitMs - 5 - targetBar.startTimeMs),
+    midi: leftNom,
+    exactMidi: leftExact,
+    noteName: leftInfo.noteName,
+    solfegeName: leftInfo.solfege.replace(/(\d+)$/, ' $1'),
+    avgCentsDiff: Math.round((leftExact - leftNom) * 100),
+    pointsCount: Math.max(2, leftPts.length),
+  };
+
+  const rightBar: IVocalNoteBar = {
+    ...targetBar,
+    id: `${targetBar.id}-b`,
+    startTimeMs: splitMs + 5,
+    durationMs: Math.max(60, targetBar.endTimeMs - (splitMs + 5)),
+    midi: rightNom,
+    exactMidi: rightExact,
+    noteName: rightInfo.noteName,
+    solfegeName: rightInfo.solfege.replace(/(\d+)$/, ' $1'),
+    avgCentsDiff: Math.round((rightExact - rightNom) * 100),
+    pointsCount: Math.max(2, rightPts.length),
+  };
+
+  workingBars.splice(barIdx, 1, leftBar, rightBar);
+  const globalIdx = allNoteBars.findIndex((b) => b.id === targetBar.id);
+  if (globalIdx >= 0) {
+    allNoteBars.splice(globalIdx, 1, leftBar, rightBar);
+  }
+}
+
+/**
+ * Absorb transient vocal attack scoops (<= 85ms, gap <= 20ms) and release tails (<= 75ms)
+ * into their parent sustained note bar so a 60ms attack scoop never steals an entire word slot!
+ */
+function fuseMicroScoopAndTailBars(
+  phraseBars: IVocalNoteBar[],
+  allNoteBars: IVocalNoteBar[],
+  targetWordCount: number
+): IVocalNoteBar[] {
+  const working = [...phraseBars];
+  if (working.length <= 1 || working.length <= targetWordCount) return working;
+
+  // 1. Absorb leading micro-attack scoops (e.g. 60ms scoop from C#4 into 380ms D#4)
+  for (let i = 0; i < working.length - 1 && working.length > targetWordCount; i++) {
+    const curr = working[i];
+    const next = working[i + 1];
+    const gap = next.startTimeMs - curr.endTimeMs;
+    const semitoneDiff = Math.abs(next.midi - curr.midi);
+    if (
+      curr.durationMs <= 85 &&
+      next.durationMs >= 180 &&
+      gap <= 22 &&
+      semitoneDiff >= 1 &&
+      semitoneDiff <= 4
+    ) {
+      next.startTimeMs = curr.startTimeMs;
+      next.durationMs = next.endTimeMs - next.startTimeMs;
+      next.pointsCount += curr.pointsCount;
+      working.splice(i, 1);
+      const gIdx = allNoteBars.findIndex((b) => b.id === curr.id);
+      if (gIdx >= 0) allNoteBars.splice(gIdx, 1);
+      i--;
+    }
+  }
+
+  // 2. Absorb trailing micro-release fall-offs (e.g. 65ms release drop at end of a long sustained note)
+  for (let i = 1; i < working.length && working.length > targetWordCount; i++) {
+    const prev = working[i - 1];
+    const curr = working[i];
+    const gap = curr.startTimeMs - prev.endTimeMs;
+    const semitoneDiff = Math.abs(curr.midi - prev.midi);
+    if (
+      curr.durationMs <= 75 &&
+      prev.durationMs >= 220 &&
+      gap <= 18 &&
+      semitoneDiff >= 1 &&
+      semitoneDiff <= 4
+    ) {
+      prev.endTimeMs = curr.endTimeMs;
+      prev.durationMs = prev.endTimeMs - prev.startTimeMs;
+      prev.pointsCount += curr.pointsCount;
+      working.splice(i, 1);
+      const gIdx = allNoteBars.findIndex((b) => b.id === curr.id);
+      if (gIdx >= 0) allNoteBars.splice(gIdx, 1);
+      i--;
+    }
+  }
+
+  return working;
+}
+
+/**
+ * Intelligent Syllable-Pulse & Sustain Subdivision:
+ * 1. Even when $B \ge W$, if the phrase contains legato pitch glides (`nốt từ thấp lên cao`) AND
+ *    a long bar contains a high-confidence internal consonant boundary (2 words sung on the same pitch),
+ *    splits the multi-syllable bar so DP can simultaneously resolve the same-pitch words AND the multi-note glide!
+ * 2. When $B < W$, prioritizes splitting bars that exhibit a true bimodal syllable consonant valley (`dipScore`)
+ *    rather than blindly chopping a single long sustained note (`nốt ngân lâu hơn`).
  */
 function subdivideSustainedBarsForWords(
   phraseBars: IVocalNoteBar[],
@@ -984,115 +1261,87 @@ function subdivideSustainedBarsForWords(
   targetWordCount: number,
   pitchTrack: IReferencePitchPoint[]
 ): IVocalNoteBar[] {
-  const workingBars = [...phraseBars];
+  const workingBars = fuseMicroScoopAndTailBars(phraseBars, allNoteBars, targetWordCount);
+  if (workingBars.length === 0 || targetWordCount <= 1) return workingBars;
 
-  while (workingBars.length > 0 && workingBars.length < targetWordCount) {
-    // Pick the longest bar that is at least 180ms long (so each resulting half is >= 90ms)
+  // Phase A: Check if there are legato pitch glides (gap <= 25ms, pitch change 1..7 semitones)
+  // that should be grouped onto a single word while another bar has a strong internal consonant dip
+  let legatoGlideCount = 0;
+  for (let i = 0; i < workingBars.length - 1; i++) {
+    const gap = workingBars[i + 1].startTimeMs - workingBars[i].endTimeMs;
+    const step = Math.abs(workingBars[i + 1].midi - workingBars[i].midi);
+    if (gap <= 25 && step >= 1 && step <= 7) {
+      legatoGlideCount++;
+    }
+  }
+
+  const maxAllowedBarsForHighConfSplit = targetWordCount + Math.min(2, legatoGlideCount);
+  while (workingBars.length < maxAllowedBarsForHighConfSplit) {
     let bestIdx = -1;
-    let maxDur = 179;
+    let bestDip: ReturnType<typeof findInternalSyllableDip> | null = null;
+
     for (let i = 0; i < workingBars.length; i++) {
-      if (workingBars[i].durationMs > maxDur) {
-        maxDur = workingBars[i].durationMs;
+      if (workingBars[i].durationMs < 320) continue;
+      const dip = findInternalSyllableDip(workingBars[i], pitchTrack);
+      if (
+        (dip.isBridgedConsonant || dip.prominenceDb >= 4.5) &&
+        (!bestDip || dip.dipScore > bestDip.dipScore)
+      ) {
+        bestDip = dip;
         bestIdx = i;
       }
     }
+
+    if (bestIdx < 0 || !bestDip) break;
+    splitSingleBarAtMs(workingBars, allNoteBars, bestIdx, bestDip.splitMs, pitchTrack);
+  }
+
+  // Phase B: If we still have fewer bars than words ($B < W$), split bars prioritizing genuine syllable valleys
+  // over pure duration so single sustained notes (`nốt ngân lâu hơn`) are preserved whenever possible!
+  while (workingBars.length > 0 && workingBars.length < targetWordCount) {
+    let bestIdx = -1;
+    let bestCompositeScore = -Infinity;
+    let bestSplitMs = 0;
+
+    for (let i = 0; i < workingBars.length; i++) {
+      const bar = workingBars[i];
+      if (bar.durationMs < 180) continue;
+      const dip = findInternalSyllableDip(bar, pitchTrack);
+      // Combine acoustic syllable valley score with duration weight
+      const durationFactor = Math.min(9.0, bar.durationMs / 160);
+      const compositeScore = dip.dipScore * 1.8 + durationFactor;
+      if (compositeScore > bestCompositeScore) {
+        bestCompositeScore = compositeScore;
+        bestIdx = i;
+        bestSplitMs = dip.splitMs;
+      }
+    }
+
     if (bestIdx < 0) break;
-
-    const targetBar = workingBars[bestIdx];
-    const barPts = pitchTrack.filter(
-      (pt) =>
-        pt.isVocal &&
-        pt.midi > 0 &&
-        pt.timeMs >= targetBar.startTimeMs &&
-        pt.timeMs <= targetBar.endTimeMs
-    );
-
-    // Search for an internal syllable consonant valley (minimum volumeDb / bridged clarity) in middle 25%..75%
-    let splitMs = Math.round((targetBar.startTimeMs + targetBar.endTimeMs) / 2);
-    if (barPts.length >= 6) {
-      const minK = Math.max(1, Math.floor(barPts.length * 0.25));
-      const maxK = Math.min(barPts.length - 2, Math.ceil(barPts.length * 0.75));
-      let lowestEnergyScore = Infinity;
-      let bestK = Math.floor(barPts.length / 2);
-      for (let k = minK; k <= maxK; k++) {
-        // Consonant dips have lower volumeDb and/or lower autocorrelation clarity (0.65 when bridged)
-        const energyScore = barPts[k].volumeDb + barPts[k].clarity * 15;
-        if (energyScore < lowestEnergyScore) {
-          lowestEnergyScore = energyScore;
-          bestK = k;
-        }
-      }
-      const candidateMs = barPts[bestK].timeMs;
-      if (
-        candidateMs - targetBar.startTimeMs >= 70 &&
-        targetBar.endTimeMs - candidateMs >= 70
-      ) {
-        splitMs = candidateMs;
-      }
-    }
-
-    const leftPts = barPts.filter((p) => p.timeMs <= splitMs);
-    const rightPts = barPts.filter((p) => p.timeMs > splitMs);
-
-    const calcExactMidi = (pts: IReferencePitchPoint[], fallback: number) =>
-      pts.length > 0
-        ? Math.round((pts.reduce((s, p) => s + p.midi, 0) / pts.length) * 100) / 100
-        : fallback;
-
-    const leftExact = calcExactMidi(leftPts, targetBar.exactMidi);
-    const rightExact = calcExactMidi(rightPts, targetBar.exactMidi);
-    const leftNom = Math.round(leftExact);
-    const rightNom = Math.round(rightExact);
-    const leftInfo = midiToCompactSolfege(leftNom);
-    const rightInfo = midiToCompactSolfege(rightNom);
-
-    const leftBar: IVocalNoteBar = {
-      ...targetBar,
-      id: `${targetBar.id}-a`,
-      endTimeMs: splitMs - 5,
-      durationMs: Math.max(60, splitMs - 5 - targetBar.startTimeMs),
-      midi: leftNom,
-      exactMidi: leftExact,
-      noteName: leftInfo.noteName,
-      solfegeName: leftInfo.solfege.replace(/(\d+)$/, ' $1'),
-      avgCentsDiff: Math.round((leftExact - leftNom) * 100),
-      pointsCount: Math.max(2, leftPts.length),
-    };
-
-    const rightBar: IVocalNoteBar = {
-      ...targetBar,
-      id: `${targetBar.id}-b`,
-      startTimeMs: splitMs + 5,
-      durationMs: Math.max(60, targetBar.endTimeMs - (splitMs + 5)),
-      midi: rightNom,
-      exactMidi: rightExact,
-      noteName: rightInfo.noteName,
-      solfegeName: rightInfo.solfege.replace(/(\d+)$/, ' $1'),
-      avgCentsDiff: Math.round((rightExact - rightNom) * 100),
-      pointsCount: Math.max(2, rightPts.length),
-    };
-
-    workingBars.splice(bestIdx, 1, leftBar, rightBar);
-    const globalIdx = allNoteBars.findIndex((b) => b.id === targetBar.id);
-    if (globalIdx >= 0) {
-      allNoteBars.splice(globalIdx, 1, leftBar, rightBar);
-    }
+    splitSingleBarAtMs(workingBars, allNoteBars, bestIdx, bestSplitMs, pitchTrack);
   }
 
   return workingBars;
 }
 
 /**
- * Phonology & Legato-Aware Dynamic Programming (DP) Partitioner:
+ * Phonology, Sustain & Legato-Glide Dynamic Programming (DP) Partitioner:
  * Maps $B$ NoteBars ($B \ge W$) onto $W$ Vietnamese words so that:
- * - Checked-stop words (-p, -t, -c, -ch like "bước", "biết") stay on single notes instead of stealing melismas.
- * - Words never group bars across a breath/consonant silence gap (> 75ms).
- * - Open/sonorant words and phrase-ending words naturally receive legato melisma notes.
+ * - Multi-note glides from low to high (`từ thấp lên cao`) or high to low (`từ cao xuống thấp`)
+ *   with continuous vowel energy (`isLegatoSlur`) naturally bind to the gliding word.
+ * - Long sustained notes (`nốt ngân lâu hơn`) bind to open/sonorant words rather than checked stops.
+ * - Checked-stop words (`-p, -t, -c, -ch` like "bước", "biết") stay on single notes.
+ * - Words never group bars across a breath/consonant silence gap (> 65ms) or across split same-pitch bars.
  */
 function partitionBarsToWordsDP(
   phraseBars: IVocalNoteBar[],
-  barAnalysisList: Array<{ vowelFamily: CoreVowelFamily }>,
-  rawTokens: string[]
+  barAnalysisList: Array<{
+    vowelFamily: CoreVowelFamily;
+    stepSemitones: number;
+    intraBendCents: number;
+  }>,
+  rawTokens: string[],
+  pitchTrack: IReferencePitchPoint[] = []
 ): Array<{ startBarIdx: number; endBarIdx: number }> {
   const W = rawTokens.length;
   const B = phraseBars.length;
@@ -1106,6 +1355,48 @@ function partitionBarsToWordsDP(
   }
 
   const wordPhonology = rawTokens.map((tk) => extractVietnameseWordVowel(tk));
+  const wordTones = rawTokens.map((tk) => extractVietnameseToneContour(tk));
+
+  // Compute median bar duration in this phrase to identify long sustained notes (`nốt ngân lâu hơn`)
+  const sortedDurs = phraseBars.map((b) => b.durationMs).sort((a, b) => a - b);
+  const medianBarDur = sortedDurs[Math.floor(sortedDurs.length / 2)] || 300;
+
+  // Precompute acoustic boundary transitions between adjacent bars (j -> j + 1)
+  const transitions = phraseBars.slice(0, B - 1).map((barJ, j) => {
+    const barNext = phraseBars[j + 1];
+    const gapMs = barNext.startTimeMs - barJ.endTimeMs;
+    const pitchStep = barNext.midi - barJ.midi;
+    const samePitch = barNext.midi === barJ.midi;
+    const sameVowelFamily =
+      barAnalysisList[j]?.vowelFamily === barAnalysisList[j + 1]?.vowelFamily;
+
+    // Inspect pitchTrack around the junction for consonant energy drop or bridged unvoiced frames
+    let hasConsonantBoundary = gapMs >= 26 || samePitch;
+    if (!hasConsonantBoundary && pitchTrack.length > 0) {
+      const junctionPts = pitchTrack.filter(
+        (p) => p.timeMs >= barJ.endTimeMs - 35 && p.timeMs <= barNext.startTimeMs + 35
+      );
+      if (junctionPts.some((p) => !p.isVocal || p.clarity <= 0.66)) {
+        hasConsonantBoundary = true;
+      }
+    }
+
+    const isLegatoSlur =
+      gapMs <= 25 &&
+      !hasConsonantBoundary &&
+      !samePitch &&
+      Math.abs(pitchStep) >= 1 &&
+      Math.abs(pitchStep) <= 8;
+
+    return {
+      gapMs,
+      pitchStep,
+      samePitch,
+      sameVowelFamily,
+      hasConsonantBoundary,
+      isLegatoSlur,
+    };
+  });
 
   // dp[w][b] = min cost to assign words 0..w using bars 0..b
   const dp: number[][] = Array.from({ length: W }, () => new Array(B).fill(Infinity));
@@ -1114,44 +1405,97 @@ function partitionBarsToWordsDP(
   const spanCost = (wIdx: number, startBar: number, endBar: number): number => {
     const span = endBar - startBar + 1;
     const phon = wordPhonology[wIdx];
+    const tone = wordTones[wIdx];
     const ac = barAnalysisList[startBar];
     let cost = 0;
 
-    // 1. Inter-word gap reward: starting a new word after a clear pause between startBar-1 and startBar
+    // 1. Inter-word onset alignment (between startBar - 1 and startBar)
     if (startBar > 0) {
-      const gapBefore = phraseBars[startBar].startTimeMs - phraseBars[startBar - 1].endTimeMs;
-      if (gapBefore >= 25) {
-        cost -= Math.min(16, gapBefore * 0.12);
+      const prevTr = transitions[startBar - 1];
+      if (prevTr.gapMs >= 22 || prevTr.hasConsonantBoundary) {
+        cost -= Math.min(18, Math.max(0, prevTr.gapMs) * 0.14 + (prevTr.hasConsonantBoundary ? 5.5 : 0));
+      } else if (prevTr.isLegatoSlur && prevTr.sameVowelFamily) {
+        // Breaking a continuous same-vowel legato slur across two different words has a mild penalty
+        cost += 3.2;
       }
     }
 
-    // 2. Intra-word gap penalty: grouping multiple bars into 1 word across a silence gap is unnatural
+    // 2. Intra-word transitions (when a single word spans multiple notes: `startBar .. endBar`)
+    let totalSpanDur = 0;
+    for (let j = startBar; j <= endBar; j++) {
+      totalSpanDur += phraseBars[j].durationMs;
+    }
+
     for (let j = startBar; j < endBar; j++) {
-      const internalGap = phraseBars[j + 1].startTimeMs - phraseBars[j].endTimeMs;
-      if (internalGap > 70) {
-        cost += (internalGap - 50) * 0.45;
+      const tr = transitions[j];
+      if (tr.samePitch) {
+        // Two separate bars of the exact same pitch are separate syllables, never a melisma!
+        cost += 22.0;
+      }
+      if (tr.gapMs > 65) {
+        cost += (tr.gapMs - 45) * 0.48;
+      }
+      if (tr.hasConsonantBoundary && !tr.samePitch) {
+        cost += 9.5;
+      }
+      if (tr.isLegatoSlur) {
+        // True vocal slur (e.g. low-to-high or high-to-low on one word)
+        cost -= 3.6;
+        if (tr.sameVowelFamily) {
+          cost -= 2.2;
+        }
       }
     }
 
-    // 3. Melisma (span > 1) phonological constraints
+    // 3. Melisma (span > 1) phonological & tonal constraints
     if (span > 1) {
-      // Base regularization so 1-note-per-word is preferred unless legato/melisma is natural
-      cost += (span - 1) * 5.0;
+      // Base regularization so 1-note-per-word is preferred unless legato slur is present
+      cost += (span - 1) * 4.8;
 
       // Checked-stop syllables (-p, -t, -c, -ch like "bước", "thích", "biết") rarely melisma
       if (phon?.isCheckedStop) {
-        cost += (span - 1) * 18.0;
+        cost += (span - 1) * 20.0;
       }
 
       // Phrase-final word or clause-ending word naturally sustains/melismas
       if (wIdx === W - 1 || /[,.;!?]$/.test(rawTokens[wIdx])) {
-        cost -= 4.5;
+        cost -= 4.8;
+      }
+
+      // Vietnamese Tone Agreement with Multi-Note Glide (từ thấp lên cao vs từ cao xuống thấp)
+      const netGlide = phraseBars[endBar].midi - phraseBars[startBar].midi;
+      if (netGlide >= 1 && (tone === 'rising' || tone === 'dipping' || tone === 'level')) {
+        cost -= 2.6;
+      } else if (netGlide <= -1 && (tone === 'falling' || tone === 'level')) {
+        cost -= 2.6;
       }
     }
 
-    // 4. Vowel Formant compatibility bonus
+    // 4. Sustained Note Matching (`nốt ngân lâu hơn`)
+    const isLongSustain = totalSpanDur >= Math.max(580, medianBarDur * 1.45);
+    if (isLongSustain) {
+      if (phon?.isCheckedStop) {
+        // Checked-stop syllables are clipped; penalize assigning them to the longest held notes
+        cost += 5.5;
+      } else {
+        // Open/sonorant syllables naturally hold sustained notes
+        cost -= 2.2;
+      }
+      if (wIdx === W - 1 || /[,.;!?]$/.test(rawTokens[wIdx])) {
+        cost -= 2.5;
+      }
+    }
+
+    // 5. Vowel Formant & Lexical Tone Step compatibility bonus
     if (phon && ac && phon.vowelFamily === ac.vowelFamily) {
       cost -= 2.5;
+    }
+    if (ac) {
+      if ((ac.stepSemitones >= 1 || ac.intraBendCents >= 25) && tone === 'rising') {
+        cost -= 1.6;
+      } else if ((ac.stepSemitones <= -1 || ac.intraBendCents <= -25) && tone === 'falling') {
+        cost -= 1.6;
+      }
     }
 
     return cost;
@@ -1195,9 +1539,9 @@ function partitionBarsToWordsDP(
 /**
  * Align a lyric string (or deep vowel-trajectory tokens) onto the discrete NoteBars belonging to a Phrase.
  * Combines:
- * - Syllable-aware NoteBar subdivision when $B < W$
- * - Phonology & Legato-aware Dynamic Programming when $B \ge W$
- * - Orthographic + Acoustic Formant hybrid vowel labeling
+ * - Attack-scoop absorption & Syllable-dip NoteBar subdivision (distinguishing 2 same-pitch words from 1 sustained note)
+ * - Phonology, Sustain & Legato-Glide Dynamic Programming when $B \ge W$
+ * - Multi-note glide (`C4→E4`, `từ thấp lên cao`) and sustained duration (`Ngân 1.2s`, `nốt ngân lâu hơn`) tracking per word
  */
 export function alignWordsToPhraseNoteBars(
   phrase: IVocalPhrase,
@@ -1215,9 +1559,8 @@ export function alignWordsToPhraseNoteBars(
 
   let phraseBars = getPhraseNoteBarsStrict(phrase, allNoteBars);
 
-  // If we have real lyric words and fewer NoteBars than words ($B < W$),
-  // subdivide multi-syllable sustained NoteBars at their internal consonant dips!
-  if (customTokens.length > 1 && phraseBars.length > 0 && phraseBars.length < customTokens.length) {
+  // Run intelligent syllable-dip subdivision & micro-scoop fusion whenever we have multi-word lyrics
+  if (customTokens.length > 1 && phraseBars.length > 0) {
     phraseBars = subdivideSustainedBarsForWords(
       phraseBars,
       allNoteBars,
@@ -1293,14 +1636,21 @@ export function alignWordsToPhraseNoteBars(
     rawTokens.forEach((tk, i) => {
       const info = midiToCompactSolfege(phrase.avgMidi);
       const ortho = customTokens.length > 0 ? extractVietnameseWordVowel(tk) : null;
+      const wStart = Math.round(phrase.startMs + i * step);
+      const wEnd = Math.round(phrase.startMs + (i + 1) * step);
       words.push({
         wordIndex: i,
         text: tk,
         solfege: info.solfege,
         noteName: info.noteName,
         midi: Math.round(phrase.avgMidi),
-        startMs: Math.round(phrase.startMs + i * step),
-        endMs: Math.round(phrase.startMs + (i + 1) * step),
+        startMs: wStart,
+        endMs: wEnd,
+        durationMs: Math.max(50, wEnd - wStart),
+        noteSequence: [info.noteName],
+        solfegeSequence: [info.solfege],
+        melismaNotesCount: 1,
+        glideSemitones: 0,
         vowelPhoneme: ortho?.vowelPhoneme || 'A',
         vowelHint: ortho?.vowelHint || 'A (Mở rộng hàm)',
         pitchTrajectory: 'steady',
@@ -1312,8 +1662,8 @@ export function alignWordsToPhraseNoteBars(
       });
     });
   } else if (rawTokens.length <= phraseBars.length) {
-    // Use Phonology & Legato-aware Dynamic Programming to map words onto NoteBars
-    const barRanges = partitionBarsToWordsDP(phraseBars, barAnalysisList, rawTokens);
+    // Use Phonology, Sustain & Legato-aware Dynamic Programming to map words onto NoteBars
+    const barRanges = partitionBarsToWordsDP(phraseBars, barAnalysisList, rawTokens, pitchTrack);
 
     rawTokens.forEach((tk, i) => {
       const { startBarIdx, endBarIdx } = barRanges[i] || {
@@ -1323,17 +1673,78 @@ export function alignWordsToPhraseNoteBars(
       const firstBar = phraseBars[startBarIdx];
       const lastBar = phraseBars[endBarIdx];
       const ac = barAnalysisList[startBarIdx];
+      const lastAc = barAnalysisList[endBarIdx];
       const ortho = customTokens.length > 0 ? extractVietnameseWordVowel(tk) : null;
 
       const resolvedVowel = ortho ? ortho.vowelPhoneme : ac.vowelPhoneme;
       const resolvedHint = ortho ? ortho.vowelHint : ac.vowelHint;
 
+      // Build distinct consecutive note & solfege sequences across the bars spanned by this word
+      const noteSequence: string[] = [];
+      const solfegeSequence: string[] = [];
+      for (let bIdx = startBarIdx; bIdx <= endBarIdx; bIdx++) {
+        const bAc = barAnalysisList[bIdx];
+        if (noteSequence[noteSequence.length - 1] !== bAc.noteName) {
+          noteSequence.push(bAc.noteName);
+          solfegeSequence.push(bAc.solfege);
+        }
+      }
+
       let melismaSymbol = ac.trajectorySymbol;
       let melismaLabel = ac.trajectoryLabel;
+      let wordTrajectory: VowelPitchTrajectory = ac.pitchTrajectory;
+      let wordIntraBendCents = ac.intraBendCents;
+      let wordPitchCurve = ac.pitchCurveCents;
+      let endNoteName: string | undefined =
+        lastBar.noteName !== firstBar.noteName ? lastBar.noteName : undefined;
+      let endSolfege: string | undefined =
+        lastAc.solfege !== ac.solfege ? lastAc.solfege : undefined;
+      let endMidi: number | undefined =
+        lastBar.midi !== firstBar.midi ? lastBar.midi : undefined;
+      let glideSemitones = lastBar.midi - firstBar.midi;
+
       if (endBarIdx > startBarIdx) {
         const netMelisma = lastBar.midi - firstBar.midi;
-        melismaSymbol = netMelisma > 0 ? '⤴' : netMelisma < 0 ? '⤵' : '〰';
-        melismaLabel = `${melismaSymbol} Luyến ${endBarIdx - startBarIdx + 1} nốt (${firstBar.noteName}→${lastBar.noteName})`;
+        wordIntraBendCents = Math.round((lastBar.exactMidi - firstBar.exactMidi) * 100);
+        const midBar = phraseBars[Math.floor((startBarIdx + endBarIdx) / 2)];
+        wordPitchCurve = [
+          0,
+          Math.round((midBar.exactMidi - firstBar.exactMidi) * 100),
+          wordIntraBendCents,
+        ];
+        if (netMelisma > 0) {
+          melismaSymbol = '⤴';
+          wordTrajectory = 'rising';
+          melismaLabel = `⤴ Luyến từ thấp lên cao (${noteSequence.join('→')}, +${netMelisma} bán âm)`;
+        } else if (netMelisma < 0) {
+          melismaSymbol = '⤵';
+          wordTrajectory = 'falling';
+          melismaLabel = `⤵ Luyến từ cao xuống thấp (${noteSequence.join('→')}, ${netMelisma} bán âm)`;
+        } else {
+          melismaSymbol = noteSequence.length > 1 ? '⤴' : '〰';
+          wordTrajectory = noteSequence.length > 1 ? 'arch' : 'vibrato';
+          melismaLabel = `${melismaSymbol} Luyến ${endBarIdx - startBarIdx + 1} nốt (${noteSequence.join('→')})`;
+        }
+      } else if (Math.abs(ac.intraBendCents) >= 80) {
+        // Single NoteBar with strong intra-note pitch glide (>= 0.8 semitones from start to end of the vowel)
+        const glideSt = Math.round(ac.intraBendCents / 100);
+        if (glideSt !== 0) {
+          const startTargetMidi =
+            glideSt > 0 ? firstBar.midi - Math.abs(glideSt) : firstBar.midi + Math.abs(glideSt);
+          const startInfo = midiToCompactSolfege(startTargetMidi);
+          if (startInfo.noteName !== ac.noteName) {
+            glideSemitones = glideSt;
+            endNoteName = ac.noteName;
+            endSolfege = ac.solfege;
+            endMidi = firstBar.midi;
+            noteSequence.splice(0, noteSequence.length, startInfo.noteName, ac.noteName);
+            solfegeSequence.splice(0, solfegeSequence.length, startInfo.solfege, ac.solfege);
+            melismaLabel =
+              glideSt > 0
+                ? `↗ Vuốt từ thấp lên cao (${startInfo.noteName}→${ac.noteName}, +${ac.intraBendCents}c)`
+                : `↘ Vuốt từ cao xuống thấp (${startInfo.noteName}→${ac.noteName}, ${ac.intraBendCents}c)`;
+          }
+        }
       }
 
       firstBar.lyricSyllable = tk.includes(melismaSymbol) ? tk : `${tk}${melismaSymbol}`;
@@ -1344,6 +1755,8 @@ export function alignWordsToPhraseNoteBars(
         phraseBars[bIdx].vowelHint = resolvedHint;
       }
 
+      const wDur = Math.max(50, lastBar.endTimeMs - firstBar.startTimeMs);
+
       words.push({
         wordIndex: i,
         text: tk,
@@ -1352,15 +1765,23 @@ export function alignWordsToPhraseNoteBars(
         midi: firstBar.midi,
         startMs: firstBar.startTimeMs,
         endMs: lastBar.endTimeMs,
+        durationMs: wDur,
+        endNoteName,
+        endSolfege,
+        endMidi,
+        noteSequence,
+        solfegeSequence,
+        melismaNotesCount: endBarIdx - startBarIdx + 1,
+        glideSemitones,
         vowelPhoneme: resolvedVowel,
         vowelHint: resolvedHint,
         formantsHz: ac.formantsHz,
-        pitchTrajectory: ac.pitchTrajectory,
+        pitchTrajectory: wordTrajectory,
         trajectorySymbol: melismaSymbol,
         trajectoryLabel: melismaLabel,
         stepSemitones: ac.stepSemitones,
-        intraBendCents: ac.intraBendCents,
-        pitchCurveCents: ac.pitchCurveCents,
+        intraBendCents: wordIntraBendCents,
+        pitchCurveCents: wordPitchCurve,
       });
     });
   } else {
@@ -1393,14 +1814,22 @@ export function alignWordsToPhraseNoteBars(
         bar.lyricSyllable = `${bar.lyricSyllable} ${tk}`;
       }
 
+      const wStart = Math.round(bar.startTimeMs + subIndex * subDur);
+      const wEnd = Math.round(bar.startTimeMs + (subIndex + 1) * subDur);
+
       words.push({
         wordIndex: i,
         text: tk,
         solfege: ac.solfege,
         noteName: ac.noteName,
         midi: bar.midi,
-        startMs: Math.round(bar.startTimeMs + subIndex * subDur),
-        endMs: Math.round(bar.startTimeMs + (subIndex + 1) * subDur),
+        startMs: wStart,
+        endMs: wEnd,
+        durationMs: Math.max(50, wEnd - wStart),
+        noteSequence: [ac.noteName],
+        solfegeSequence: [ac.solfege],
+        melismaNotesCount: 1,
+        glideSemitones: 0,
         vowelPhoneme: resolvedVowel,
         vowelHint: resolvedHint,
         formantsHz: ac.formantsHz,
@@ -1411,6 +1840,23 @@ export function alignWordsToPhraseNoteBars(
         intraBendCents: ac.intraBendCents,
         pitchCurveCents: ac.pitchCurveCents,
       });
+    });
+  }
+
+  // Post-process word durations to mark sustained notes (`nốt ngân lâu hơn`)
+  if (words.length > 0) {
+    const sortedWordDurs = words
+      .map((w) => w.durationMs || Math.max(50, w.endMs - w.startMs))
+      .sort((a, b) => a - b);
+    const medianWordDur = sortedWordDurs[Math.floor(sortedWordDurs.length / 2)] || 300;
+
+    words.forEach((w) => {
+      const dur = w.durationMs || Math.max(50, w.endMs - w.startMs);
+      w.durationMs = dur;
+      if (dur >= 600 && (dur >= medianWordDur * 1.35 || dur >= 850)) {
+        w.isSustained = true;
+        w.sustainLabel = `Ngân ${(dur / 1000).toFixed(1)}s`;
+      }
     });
   }
 
@@ -1564,15 +2010,28 @@ function buildPhraseFromBarsAndLyric(params: {
     pitchTrack,
   } = params;
 
-  // If a window has a huge silence gap (> 2600ms) at the tail after the lyric is sung,
-  // trim the trailing instrumental gap so the phrase wraps tightly around the sung lyric!
+  // Trim leading leftover tail bar or trailing pickup/instrumental bars across breath pauses
+  // so the phrase's NoteBars wrap tightly around the exact sung words of this sentence!
   let activeBars = bars;
   if (bars.length >= 2 && lyricText) {
     const wordCount = lyricText.trim().split(/\s+/).filter(Boolean).length;
-    for (let i = 0; i < bars.length - 1; i++) {
-      const gap = bars[i + 1].startTimeMs - bars[i].endTimeMs;
-      if (gap >= 2400 && i + 1 >= Math.max(2, Math.floor(wordCount * 0.6))) {
-        activeBars = bars.slice(0, i + 1);
+
+    // 1. Leading leftover tail bar from previous phrase before a >= 650ms breath pause
+    if (
+      activeBars.length > wordCount &&
+      activeBars[1].startTimeMs - activeBars[0].endTimeMs >= 650
+    ) {
+      activeBars = activeBars.slice(1);
+    }
+
+    // 2. Trailing pickup/ad-lib bars after a breath gap once the sentence's words are already sung
+    for (let i = 0; i < activeBars.length - 1; i++) {
+      const gap = activeBars[i + 1].startTimeMs - activeBars[i].endTimeMs;
+      const enoughForAllWords = i + 1 >= wordCount && gap >= 750;
+      const enoughForMostWords =
+        i + 1 >= Math.max(2, Math.floor(wordCount * 0.65)) && gap >= 1500;
+      if (enoughForAllWords || enoughForMostWords) {
+        activeBars = activeBars.slice(0, i + 1);
         break;
       }
     }

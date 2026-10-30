@@ -235,9 +235,64 @@ describe('lyricAlignmentService', () => {
     expect(phrase.words?.[1].vowelPhoneme).toBe('Ươ');
     expect(phrase.words?.[1].endMs).toBe(1600);
     expect(phrase.words?.[2].noteName).toBe('D#4');
+    expect(phrase.words?.[2].endNoteName).toBe('C#4');
+    expect(phrase.words?.[2].noteSequence).toEqual(['D#4', 'C#4']);
+    expect(phrase.words?.[2].glideSemitones).toBe(-2);
+    expect(phrase.words?.[2].isSustained).toBe(true);
     expect(phrase.words?.[2].vowelPhoneme).toBe('Ua');
     expect(phrase.words?.[2].startMs).toBe(1640);
     expect(phrase.words?.[2].endMs).toBe(2500);
+  });
+
+  it('splits same-pitch multi-syllable bars at consonant dips while preserving sustained notes and low-to-high glides', () => {
+    // 3 words ("Từng bước yêu") where:
+    // - Bar 1 (1000..1500ms, D#4) contains 2 articulated syllables ("Từng bước") with a bridged consonant dip at 1250ms
+    // - Bar 2 (1560..1850ms, C4) and Bar 3 (1865..2650ms, E4) are a continuous legato low-to-high glide on "yêu" (held long)
+    const bars: IVocalNoteBar[] = [
+      { id: 'sb-1', startTimeMs: 1000, endTimeMs: 1500, durationMs: 500, midi: 63, exactMidi: 63, noteName: 'D#4', solfegeName: 'Rê# 4', avgCentsDiff: 0, pointsCount: 16 },
+      { id: 'sb-2', startTimeMs: 1560, endTimeMs: 1850, durationMs: 290, midi: 60, exactMidi: 60, noteName: 'C4', solfegeName: 'Đô 4', avgCentsDiff: 0, pointsCount: 10 },
+      { id: 'sb-3', startTimeMs: 1865, endTimeMs: 2650, durationMs: 785, midi: 64, exactMidi: 64, noteName: 'E4', solfegeName: 'Mi 4', avgCentsDiff: 0, pointsCount: 24 },
+    ];
+    const pitchTrack = [
+      { timeMs: 1050, freqHz: 311, midi: 63, noteName: 'D#4', solfegeName: 'Rê# 4', clarity: 0.92, volumeDb: -16, isVocal: true },
+      { timeMs: 1150, freqHz: 311, midi: 63, noteName: 'D#4', solfegeName: 'Rê# 4', clarity: 0.90, volumeDb: -17, isVocal: true },
+      { timeMs: 1250, freqHz: 311, midi: 63, noteName: 'D#4', solfegeName: 'Rê# 4', clarity: 0.65, volumeDb: -25, isVocal: true }, // Bridged consonant dip!
+      { timeMs: 1350, freqHz: 311, midi: 63, noteName: 'D#4', solfegeName: 'Rê# 4', clarity: 0.91, volumeDb: -15, isVocal: true },
+      { timeMs: 1450, freqHz: 311, midi: 63, noteName: 'D#4', solfegeName: 'Rê# 4', clarity: 0.89, volumeDb: -16, isVocal: true },
+      // Continuous legato transition between sb-2 (C4) and sb-3 (E4)
+      { timeMs: 1840, freqHz: 261.6, midi: 60, noteName: 'C4', solfegeName: 'Đô 4', clarity: 0.92, volumeDb: -15, isVocal: true },
+      { timeMs: 1860, freqHz: 293.6, midi: 62, noteName: 'D4', solfegeName: 'Rê 4', clarity: 0.90, volumeDb: -15, isVocal: true },
+      { timeMs: 1880, freqHz: 329.6, midi: 64, noteName: 'E4', solfegeName: 'Mi 4', clarity: 0.93, volumeDb: -14, isVocal: true },
+    ];
+    const phrase: IVocalPhrase = {
+      id: 'p-glide',
+      phraseIndex: 1,
+      startMs: 1000,
+      endMs: 2650,
+      durationMs: 1650,
+      notes: ['D#4', 'C4', 'E4'],
+      lowestNote: 'C4',
+      highestNote: 'E4',
+      avgPitchHz: 311,
+      avgMidi: 63,
+      pitchJumpSemitones: 4,
+      difficulty: 'Trung bình',
+      difficultyScore: 5,
+      pointsCount: 50,
+    };
+
+    alignWordsToPhraseNoteBars(phrase, bars, 'Từng bước yêu', null, 44100, pitchTrack);
+    expect(phrase.words?.length).toBe(3);
+    // Word 0 ("Từng") and Word 1 ("bước") each get half of the split D#4 bar
+    expect(phrase.words?.[0].noteName).toBe('D#4');
+    expect(phrase.words?.[1].noteName).toBe('D#4');
+    // Word 2 ("yêu") gets the low-to-high C4 -> E4 glide and is marked as sustained!
+    expect(phrase.words?.[2].noteName).toBe('C4');
+    expect(phrase.words?.[2].endNoteName).toBe('E4');
+    expect(phrase.words?.[2].noteSequence).toEqual(['C4', 'E4']);
+    expect(phrase.words?.[2].glideSemitones).toBe(4);
+    expect(phrase.words?.[2].trajectorySymbol).toBe('⤴');
+    expect(phrase.words?.[2].isSustained).toBe(true);
   });
 
   it('parses LRC timestamps and re-segments fragmented phrases cleanly without gluing lines together', () => {

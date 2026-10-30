@@ -230,57 +230,98 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
         effectiveMs
       );
 
-      // Compute cents diff with smart octave fold and transpose
+      // Identify active phrase, active word, and active NoteBar at effectiveMs
+      let activePhraseIdx: number | null = null;
+      let activeWordKey: string | null = null;
+      const activePhraseObj = store.analysisResult?.phrases.find(
+        (ph) => effectiveMs >= ph.startMs && effectiveMs <= ph.endMs
+      );
+      const activeWordObj = activePhraseObj?.words?.find(
+        (w) => effectiveMs >= w.startMs - 30 && effectiveMs <= w.endMs + 30
+      );
+      if (activePhraseObj) {
+        activePhraseIdx = activePhraseObj.phraseIndex;
+        if (activeWordObj) {
+          activeWordKey = `${activePhraseObj.phraseIndex}_${activeWordObj.wordIndex}`;
+        }
+      }
+
+      const activeBar = store.analysisResult?.noteBars?.find(
+        (b) => effectiveMs >= b.startTimeMs - 35 && effectiveMs <= b.endTimeMs + 35
+      );
+
+      // Compute cents diff with smart octave fold, transpose, and human micro-timing tolerance (±75ms)
       let cents = 0;
       let inTune = false;
-      const isTargetVocal = Boolean(refPt && refPt.isVocal && refPt.midi > 0);
+      const isTargetVocal = Boolean(
+        (refPt && refPt.isVocal && refPt.midi > 0) || activeBar
+      );
 
-      if (reading.isSinging && reading.freqHz > 0 && isTargetVocal && refPt) {
-        let targetMidi = refPt.midi + (store.transposeSemitones || 0);
-
-        // Snap to Scale if enabled
-        if (store.snapToScale && activeScaleNotes.length > 0) {
-          const semi = ((Math.round(targetMidi) % 12) + 12) % 12;
-          const noteName = NOTE_NAMES[semi];
-          if (!activeScaleNotes.includes(noteName)) {
-            for (let shift = -1; shift <= 1; shift += 2) {
-              const testSemi = ((semi + shift) % 12 + 12) % 12;
-              if (activeScaleNotes.includes(NOTE_NAMES[testSemi])) {
-                targetMidi = Math.round(targetMidi) + shift;
-                break;
+      if (reading.isSinging && reading.freqHz > 0 && isTargetVocal) {
+        const transpose = store.transposeSemitones || 0;
+        const snapMidi = (rawM: number): number => {
+          let m = rawM + transpose;
+          if (store.snapToScale && activeScaleNotes.length > 0) {
+            const semi = ((Math.round(m) % 12) + 12) % 12;
+            const noteName = NOTE_NAMES[semi];
+            if (!activeScaleNotes.includes(noteName)) {
+              for (let shift = -1; shift <= 1; shift += 2) {
+                const testSemi = (((semi + shift) % 12) + 12) % 12;
+                if (activeScaleNotes.includes(NOTE_NAMES[testSemi])) {
+                  m = Math.round(m) + shift;
+                  break;
+                }
               }
+            }
+          }
+          return m;
+        };
+
+        const candidateMidis: number[] = [];
+        if (refPt && refPt.isVocal && refPt.midi > 0) {
+          candidateMidis.push(snapMidi(refPt.midi));
+        }
+        if (activeBar && activeBar.midi > 0) {
+          candidateMidis.push(snapMidi(activeBar.midi));
+          candidateMidis.push(snapMidi(activeBar.exactMidi));
+        }
+        if (activeWordObj) {
+          candidateMidis.push(snapMidi(activeWordObj.midi));
+          if (activeWordObj.endMidi && activeWordObj.endMidi !== activeWordObj.midi) {
+            candidateMidis.push(snapMidi(activeWordObj.endMidi));
+          }
+        }
+
+        // Also include reference points within ±75ms so natural human timing on low-to-high glides is never penalized
+        const track = renderStateRef.current.pitchTrack;
+        if (track && track.length > 0) {
+          for (let deltaMs = -70; deltaMs <= 70; deltaMs += 35) {
+            if (deltaMs === 0) continue;
+            const nearPt = findClosestPitchPoint(track, effectiveMs + deltaMs);
+            if (nearPt && nearPt.isVocal && nearPt.midi > 0) {
+              candidateMidis.push(snapMidi(nearPt.midi));
             }
           }
         }
 
-        const evalResult = evaluateCentsDeviation(reading.freqHz, targetMidi, {
-          smartOctaveFold: renderStateRef.current.smartOctaveFold,
-          a4: store.concertA4Hz,
-        });
-        cents = evalResult.centsDiff;
+        let bestCents = Infinity;
+        for (const candMidi of candidateMidis) {
+          const evalResult = evaluateCentsDeviation(reading.freqHz, candMidi, {
+            smartOctaveFold: renderStateRef.current.smartOctaveFold,
+            a4: store.concertA4Hz,
+          });
+          if (Math.abs(evalResult.centsDiff) < Math.abs(bestCents)) {
+            bestCents = evalResult.centsDiff;
+          }
+        }
+
+        cents = Number.isFinite(bestCents) ? bestCents : 0;
         inTune = Math.abs(cents) <= renderStateRef.current.toleranceCents;
       }
 
       // Update scoring accumulator
       const dtMs = lastFrameTimeRef.current > 0 ? Math.min(50, now - lastFrameTimeRef.current) : 25;
       lastFrameTimeRef.current = now;
-
-      let activePhraseIdx: number | null = null;
-      let activeWordKey: string | null = null;
-      if (store.analysisResult?.phrases) {
-        const p = store.analysisResult.phrases.find(
-          (ph) => effectiveMs >= ph.startMs && effectiveMs <= ph.endMs
-        );
-        if (p) {
-          activePhraseIdx = p.phraseIndex;
-          const activeWord = p.words?.find(
-            (w) => effectiveMs >= w.startMs - 30 && effectiveMs <= w.endMs + 30
-          );
-          if (activeWord) {
-            activeWordKey = `${p.phraseIndex}_${activeWord.wordIndex}`;
-          }
-        }
-      }
 
       processPitchScoreFrame(accumulatorRef.current, {
         dtMs,

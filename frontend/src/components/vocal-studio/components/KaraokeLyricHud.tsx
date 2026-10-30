@@ -307,15 +307,60 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                 const arrow = word.trajectorySymbol || '→';
                 const vowelTag = word.vowelPhoneme ? `/${word.vowelPhoneme}/` : '';
 
+                const hasMultiNoteGlide =
+                  (word.noteSequence && word.noteSequence.length > 1) ||
+                  (word.endNoteName && word.endNoteName !== word.noteName);
+                const noteDisplay =
+                  word.noteSequence && word.noteSequence.length > 1
+                    ? word.noteSequence.join('→')
+                    : word.endNoteName && word.endNoteName !== word.noteName
+                    ? `${word.noteName}→${word.endNoteName}`
+                    : word.noteName;
+                const solfegeDisplay =
+                  word.solfegeSequence && word.solfegeSequence.length > 1
+                    ? word.solfegeSequence.join('→')
+                    : word.endSolfege && word.endSolfege !== word.solfege
+                    ? `${word.solfege}→${word.endSolfege}`
+                    : word.solfege;
+
+                const glideSt = word.glideSemitones ?? 0;
+                const glideTag =
+                  hasMultiNoteGlide && glideSt !== 0
+                    ? `${arrow}${glideSt > 0 ? `+${glideSt}` : glideSt}st`
+                    : `${arrow}${stepStr}`;
+                const sustainBadge =
+                  word.isSustained && word.durationMs
+                    ? ` ⏳${(word.durationMs / 1000).toFixed(1)}s`
+                    : '';
+
+                const activeProgressPct = isWordActive
+                  ? Math.max(
+                      0,
+                      Math.min(
+                        100,
+                        ((currentTimeMs - word.startMs) / Math.max(80, word.endMs - word.startMs)) *
+                          100
+                      )
+                    )
+                  : 0;
+
                 // Color word based on real-time singing pitch accuracy!
                 let wordColorClass = 'text-slate-200 hover:text-white';
                 let subBadgeClass = 'text-slate-300 bg-slate-900/90 border-slate-700/70';
 
                 // Color code direction badge when unpracticed so user sees up/down movement at a glance
-                if (step >= 2 || word.pitchTrajectory === 'rising' || word.pitchTrajectory === 'arch') {
+                if (hasMultiNoteGlide) {
+                  subBadgeClass = 'text-purple-200 bg-purple-950/75 border-purple-500/45';
+                } else if (
+                  step >= 2 ||
+                  word.pitchTrajectory === 'rising' ||
+                  word.pitchTrajectory === 'arch'
+                ) {
                   subBadgeClass = 'text-sky-300 bg-sky-950/70 border-sky-500/40';
                 } else if (step <= -2 || word.pitchTrajectory === 'falling') {
                   subBadgeClass = 'text-amber-300 bg-amber-950/70 border-amber-500/40';
+                } else if (word.isSustained) {
+                  subBadgeClass = 'text-cyan-200 bg-cyan-950/70 border-cyan-500/40';
                 }
 
                 if (isWordActive) {
@@ -339,25 +384,27 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
 
                 const primaryText =
                   displayMode === 'solfege'
-                    ? `${word.solfege}${arrow}`
+                    ? `${solfegeDisplay}${arrow}`
                     : displayMode === 'vowel_trajectory'
-                    ? `${word.vowelPhoneme || word.text}${arrow}${stepStr ? `(${stepStr})` : ''}`
+                    ? `${word.vowelPhoneme || word.text}${glideTag}`
                     : word.text;
 
                 const topBadgeText =
                   displayMode === 'vowel_trajectory'
-                    ? `${word.noteName} · ${word.vowelHint?.split(' ')[0] || ''}`
-                    : `${word.noteName} ${vowelTag}${arrow}${stepStr}`;
+                    ? `${noteDisplay} · ${word.vowelHint?.split(' ')[0] || ''}${sustainBadge}`
+                    : `${noteDisplay} ${vowelTag}${glideTag}${sustainBadge}`;
 
                 return (
                   <button
                     key={word.wordIndex}
                     type="button"
                     onClick={() => onSeek(word.startMs)}
-                    className={`group inline-flex flex-col items-center transition-all duration-100 px-1.5 py-0.5 rounded-lg hover:bg-slate-800/60 ${wordColorClass}`}
-                    title={`"${word.text}" • Nốt: ${word.noteName} (${word.solfege}) • Nguyên âm: /${
+                    className={`relative overflow-hidden group inline-flex flex-col items-center transition-all duration-100 px-1.5 py-0.5 rounded-lg hover:bg-slate-800/60 ${wordColorClass}`}
+                    title={`"${word.text}" • Nốt: ${noteDisplay} (${solfegeDisplay}) • Nguyên âm: /${
                       word.vowelPhoneme || 'A'
                     }/ (${word.vowelHint || ''}) • ${word.trajectoryLabel || ''}${
+                      word.sustainLabel ? ` • ${word.sustainLabel}` : ''
+                    }${
                       stat && stat.total > 30
                         ? ` • Độ lệch khi hát: ${
                             stat.avgCentsDiff > 0 ? `+${stat.avgCentsDiff}` : stat.avgCentsDiff
@@ -365,6 +412,12 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                         : ''
                     }`}
                   >
+                    {isWordActive && (
+                      <span
+                        className="absolute bottom-0 left-0 h-0.5 bg-sky-400 transition-all duration-75"
+                        style={{ width: `${activeProgressPct}%` }}
+                      />
+                    )}
                     {(displayMode === 'bilingual' || displayMode === 'vowel_trajectory') && (
                       <span
                         className={`text-[9px] font-mono px-1.5 py-0 rounded border leading-tight mb-0.5 ${subBadgeClass}`}

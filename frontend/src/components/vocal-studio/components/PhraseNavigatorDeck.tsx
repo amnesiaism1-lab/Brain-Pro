@@ -458,9 +458,9 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
               )}
             </div>
 
-            {/* Legend for Vowel & Pitch Trajectory */}
+            {/* Legend for Vowel, Multi-Note Glide & Sustain */}
             <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-400">
-              <span>Quỹ đạo nguyên âm từng từ:</span>
+              <span>Quỹ đạo nguyên âm & nốt từng từ:</span>
               <span className="px-1.5 py-0.5 rounded bg-sky-950/60 border border-sky-500/30 text-sky-300">
                 ↗ Đi lên (+bán âm)
               </span>
@@ -468,14 +468,17 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
                 ↘ Đi xuống (-bán âm)
               </span>
               <span className="px-1.5 py-0.5 rounded bg-purple-950/60 border border-purple-500/30 text-purple-300">
-                ⤴ Luyến vòm / 〰 Ngân rung
+                ⤴ Luyến nốt (Thấp→Cao) / 〰 Ngân rung
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30 text-cyan-300">
+                ⏳ Ngân dài
               </span>
               <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
                 → Giữ ngang
               </span>
             </div>
 
-            {/* Word-by-word Vowel, Pitch Trajectory & Accuracy Chips */}
+            {/* Word-by-word Vowel, Multi-Note Glide, Sustain Duration & Accuracy Chips */}
             <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
               {(focusedPhrase.words || []).map((w) => {
                 const wKey = `${focusedPhrase.phraseIndex}_${w.wordIndex}`;
@@ -488,22 +491,68 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
                     ? `/${w.vowelPhoneme}/ `
                     : '';
 
-                // Default color reflects melodic direction (Up vs Down vs Arch/Vibrato vs Steady)
+                const hasMultiNoteGlide =
+                  (w.noteSequence && w.noteSequence.length > 1) ||
+                  (w.endNoteName && w.endNoteName !== w.noteName);
+                const noteDisplay =
+                  w.noteSequence && w.noteSequence.length > 1
+                    ? w.noteSequence.join('→')
+                    : w.endNoteName && w.endNoteName !== w.noteName
+                    ? `${w.noteName}→${w.endNoteName}`
+                    : w.noteName;
+                const solfegeDisplay =
+                  w.solfegeSequence && w.solfegeSequence.length > 1
+                    ? w.solfegeSequence.join('→')
+                    : w.endSolfege && w.endSolfege !== w.solfege
+                    ? `${w.solfege}→${w.endSolfege}`
+                    : w.solfege;
+
+                const glideSt = w.glideSemitones ?? 0;
+                const directionTag =
+                  hasMultiNoteGlide && glideSt !== 0
+                    ? `${arrow}${glideSt > 0 ? `+${glideSt}` : glideSt}st`
+                    : `${arrow}${stepTag}`;
+
+                const durSecStr =
+                  w.isSustained && w.durationMs
+                    ? ` · ⏳${(w.durationMs / 1000).toFixed(1)}s`
+                    : '';
+
+                const isWordPlayingNow =
+                  currentTimeMs >= w.startMs - 30 && currentTimeMs <= w.endMs + 30;
+                const wordProgressPct = isWordPlayingNow
+                  ? Math.max(
+                      0,
+                      Math.min(
+                        100,
+                        ((currentTimeMs - w.startMs) / Math.max(80, w.endMs - w.startMs)) * 100
+                      )
+                    )
+                  : 0;
+
+                // Default color reflects melodic direction (Multi-note glide vs Up vs Down vs Sustained)
                 let chipColor = 'bg-slate-950/80 border-slate-800 text-slate-200';
-                if (w.pitchTrajectory === 'arch' || w.pitchTrajectory === 'vibrato' || w.pitchTrajectory === 'dip') {
-                  chipColor = 'bg-purple-950/45 border-purple-500/35 text-purple-200';
+                if (
+                  hasMultiNoteGlide ||
+                  w.pitchTrajectory === 'arch' ||
+                  w.pitchTrajectory === 'vibrato' ||
+                  w.pitchTrajectory === 'dip'
+                ) {
+                  chipColor = 'bg-purple-950/45 border-purple-500/40 text-purple-200';
                 } else if (step >= 1 || w.pitchTrajectory === 'rising') {
                   chipColor = 'bg-sky-950/45 border-sky-500/35 text-sky-200';
                 } else if (step <= -1 || w.pitchTrajectory === 'falling') {
                   chipColor = 'bg-amber-950/40 border-amber-500/35 text-amber-200';
+                } else if (w.isSustained) {
+                  chipColor = 'bg-cyan-950/40 border-cyan-500/35 text-cyan-200';
                 }
 
-                let metaLabel = `${vowelBadge}${w.noteName} · ${arrow}${stepTag}`;
+                let metaLabel = `${vowelBadge}${noteDisplay} (${directionTag})${durSecStr}`;
 
                 if (wStat && wStat.total > 30) {
                   const cStr =
                     wStat.avgCentsDiff > 0 ? `+${wStat.avgCentsDiff}c` : `${wStat.avgCentsDiff}c`;
-                  metaLabel = `${vowelBadge}${w.noteName} (${arrow}${stepTag}) · ${cStr}`;
+                  metaLabel = `${vowelBadge}${noteDisplay} (${directionTag})${durSecStr} · ${cStr}`;
                   if (wStat.status === 'in_tune') {
                     chipColor = 'bg-emerald-950/75 border-emerald-500/50 text-emerald-300';
                   } else if (wStat.status === 'flat') {
@@ -513,22 +562,36 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
                   }
                 }
 
+                if (isWordPlayingNow) {
+                  chipColor += ' ring-2 ring-sky-400 border-sky-300 shadow-md shadow-sky-500/20';
+                }
+
                 return (
                   <button
                     key={w.wordIndex}
                     type="button"
                     onClick={() => onSeekToPhrase(w.startMs)}
-                    className={`px-2.5 py-1 rounded-xl border text-xs flex items-center gap-1.5 hover:border-sky-400 transition ${chipColor}`}
-                    title={`Tua tới "${w.text}" (${w.solfege}) • Nguyên âm: /${
-                      w.vowelPhoneme || 'A'
-                    }/ (${w.vowelHint || ''})${
+                    className={`relative overflow-hidden px-2.5 py-1 rounded-xl border text-xs flex items-center gap-1.5 hover:border-sky-400 transition ${
+                      w.isSustained ? 'min-w-[140px] justify-between' : ''
+                    } ${chipColor}`}
+                    title={`Tua tới "${w.text}" (${solfegeDisplay}, ${
+                      w.durationMs ? `${Math.round(w.durationMs)}ms` : ''
+                    }) • Nguyên âm: /${w.vowelPhoneme || 'A'}/ (${w.vowelHint || ''})${
                       w.formantsHz ? ` [F1:${w.formantsHz[0]}Hz, F2:${w.formantsHz[1]}Hz]` : ''
-                    } • ${w.trajectoryLabel || ''}`}
+                    } • ${w.trajectoryLabel || ''}${w.sustainLabel ? ` • ${w.sustainLabel}` : ''}`}
                   >
-                    <span className="font-black">
+                    {isWordPlayingNow && (
+                      <span
+                        className="absolute inset-y-0 left-0 bg-sky-400/20 pointer-events-none transition-all duration-75"
+                        style={{ width: `${wordProgressPct}%` }}
+                      />
+                    )}
+                    <span className="relative z-10 font-black">
                       {w.text.includes(arrow) ? w.text : `${w.text}${arrow}`}
                     </span>
-                    <span className="text-[10px] font-mono opacity-85">[{metaLabel}]</span>
+                    <span className="relative z-10 text-[10px] font-mono opacity-90">
+                      [{metaLabel}]
+                    </span>
                   </button>
                 );
               })}

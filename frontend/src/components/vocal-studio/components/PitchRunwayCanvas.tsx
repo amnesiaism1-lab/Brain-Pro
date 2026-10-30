@@ -595,15 +595,36 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           ctx.fillStyle = isActive ? 'rgba(255, 255, 255, 0.45)' : 'rgba(253, 186, 116, 0.4)';
           ctx.fillRect(x1 + 2, topY + 1.5, Math.max(2, barW - 4), 2.5);
 
+          // If this bar is a melisma/glide continuation of the same word (`~`), draw a Legato Slur Bridge from previous bar
+          const rawSyl = bar.lyricSyllable ? bar.lyricSyllable.trim() : '';
+          if (i > 0 && rawSyl.startsWith('~')) {
+            const prevBar = noteBars[i - 1];
+            if (prevBar.startTimeMs <= bar.startTimeMs && bar.startTimeMs - prevBar.endTimeMs <= 160) {
+              const prevMidi = prevBar.midi + transposeSemitones;
+              const prevX2 =
+                playheadX + ((prevBar.endTimeMs - effectiveTimeMs) / totalWindowMs) * width;
+              const prevY = midiToY(prevMidi);
+              const midX = (prevX2 + x1) / 2;
+
+              ctx.save();
+              ctx.strokeStyle = isActive ? '#38bdf8' : 'rgba(192, 132, 252, 0.85)';
+              ctx.lineWidth = 2.4;
+              ctx.beginPath();
+              ctx.moveTo(prevX2 - 2, prevY);
+              ctx.bezierCurveTo(midX, prevY, midX, barY, x1 + 2, barY);
+              ctx.stroke();
+              ctx.restore();
+            }
+          }
+
           // Note text & synced lyric syllable badge on the block
           if (barW >= 22) {
             const oct = Math.floor(barMidi / 12) - 1 + octOffset;
             const displayNoteName = `${barNoteName}${oct}`;
-            const rawSyl = bar.lyricSyllable ? bar.lyricSyllable.trim() : '';
             const labelText =
               rawSyl && barW >= 46
                 ? `${rawSyl} · ${displayNoteName}`
-                : rawSyl && barW >= 28 && !rawSyl.startsWith('~')
+                : rawSyl && barW >= 26
                 ? rawSyl
                 : displayNoteName;
 
