@@ -23,5 +23,6 @@ __exportStar(require("./modes/pitch-recall"), exports);
 __exportStar(require("./modes/interval-identify"), exports);
 __exportStar(require("./modes/chord-identify"), exports);
 __exportStar(require("./modes/rhythm-recall"), exports);
+__exportStar(require("./modes/schulte-table"), exports);
 __exportStar(require("./modes/default"), exports);
 //# sourceMappingURL=index.js.map

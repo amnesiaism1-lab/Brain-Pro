@@ -23,6 +23,13 @@ export type TargetPitchMode = 'quantized' | 'original';
 
 export type PhraseViewMode = 'grid' | 'timeline_minutes' | 'needs_practice';
 
+export interface WordPitchScoreStat {
+  total: number;
+  inTune: number;
+  avgCentsDiff: number;
+  status: 'in_tune' | 'flat' | 'sharp';
+}
+
 export interface SingSessionStats {
   totalVocalFrames: number;
   inTuneFrames: number;
@@ -30,6 +37,8 @@ export interface SingSessionStats {
   sharpFrames: number;
   highestStreak: number;
   phraseScores: Record<number, { total: number; inTune: number }>;
+  /** Key: `${phraseIndex}_${wordIndex}` */
+  wordScores?: Record<string, WordPitchScoreStat>;
 }
 
 export interface IUserPitchPoint {
@@ -56,6 +65,8 @@ export interface IVocalNoteBar {
   avgCentsDiff: number;
   pointsCount: number;
   rmsEnvelope?: number[];
+  lyricSyllable?: string;
+  vowelHint?: string;
 }
 
 export interface RunwayRenderState {

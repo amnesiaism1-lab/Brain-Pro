@@ -87,9 +87,9 @@ exports.EXERCISE_COGNITIVE_RATIONALES = {
     'schulte-table': {
         exerciseSlug: 'schulte-table',
         coreTheoryVi: 'Trường Nhìn Chú Ý Hữu Dụng (Useful Field of View - UFOV) & Tâm Lý Học Schulte',
-        academicCitationVi: 'Walter Schulte (1962); Ball & Owsley (1993 - Visual attention and driving safety)',
-        neuralMechanismVi: 'Kích hoạt tế bào que (Rod cells) chiếm 95% võng mạc ngoại biên; giải phóng vùng Fovea trung tâm hẹp để mở rộng chú ý thị giác phân tán lên tới 180°. Vỏ não đỉnh (Parietal Cortex) lập bản đồ tọa độ song song mà không cần giật mắt (Saccades).',
-        realWorldValueVi: 'Tăng tốc độ đọc sách lên 800+ WPM nhờ giảm số lần dừng mắt (Fixations) từ 6-8 lần/dòng xuống còn 1-2 lần; bao quát tình huống giao thông toàn cảnh khi lái xe tốc độ cao.',
+        academicCitationVi: 'Walter Schulte (1962); Ball & Owsley (1993 - Visual attention and driving safety); Curcio et al. (1990 - Human Photoreceptor Topography)',
+        neuralMechanismVi: 'Kích hoạt mạng lưới tế bào que (chiếm ~95% tế bào cảm quang võng mạc ngoại vi theo Curcio et al., 1990); giải phóng vùng Fovea trung tâm hẹp để mở rộng chú ý thị giác phân tán lên tới 180°. Vỏ não đỉnh (Parietal Cortex) lập bản đồ tọa độ song song mà không cần giật mắt (Saccades).',
+        realWorldValueVi: 'Tối ưu hóa nhịp quét và mở rộng biên độ đọc hiểu hướng tới 500-800+ WPM (Keith Rayner, 1998) nhờ giảm số lần dừng mắt (Fixations) từ 6-8 lần/dòng xuống còn 1-2 lần; bao quát tình huống giao thông toàn cảnh khi lái xe tốc độ cao.',
         goldenRuleVi: 'Khóa chặt ánh nhìn vào tâm lưới, tuyệt đối không đảo mắt sang hai bên. Hãy thả lỏng cơ mặt và để não bộ dùng thị giác ngoại vi "bắt trọn" vị trí con số.',
         targetFunctionsVi: ['Mở rộng Trường nhìn Ngoại vi', 'Chú ý Thị giác Phân bổ', 'Giảm Điểm dừng Nhảy mắt', 'Xử lý Song song 180°']
     },

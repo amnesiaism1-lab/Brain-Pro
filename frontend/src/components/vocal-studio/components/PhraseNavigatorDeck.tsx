@@ -3,17 +3,27 @@ import { IVocalPhrase } from '../../../services/vocalFileAnalysisService';
 import { PhraseViewMode, SingSessionStats } from '../types';
 import { formatTimeMs } from '../utils/vocalHelpers';
 import { DifficultyBadge } from './DifficultyBadge';
-import { 
-  Layers, 
-  Clock, 
-  Repeat, 
-  Play, 
-  CheckCircle2, 
-  AlertCircle, 
-  Sparkles, 
-  Filter, 
-  Grid3X3, 
-  Calendar 
+import {
+  searchAndTracePhrases,
+  VocalSectionType,
+} from '../../../services/lyricAlignmentService';
+import {
+  Layers,
+  Clock,
+  Repeat,
+  Play,
+  AlertCircle,
+  Sparkles,
+  Filter,
+  Grid3X3,
+  Search,
+  X,
+  MapPin,
+  Edit3,
+  Scissors,
+  Merge,
+  Check,
+  FileText,
 } from 'lucide-react';
 
 interface PhraseNavigatorDeckProps {
@@ -27,7 +37,23 @@ interface PhraseNavigatorDeckProps {
   onLoopPhrase: (phrase: IVocalPhrase) => void;
   onSeekToPhrase: (timeMs: number) => void;
   onClearLoop: () => void;
+  onOpenLyricModal?: () => void;
+  onUpdatePhraseLyric?: (phraseIndex: number, newText: string) => void;
+  onMergeNextPhrase?: (phraseIndex: number) => void;
+  onSplitPhrase?: (phraseIndex: number, splitTimeMs?: number) => void;
+  playbackSpeed?: number;
+  onChangeSpeed?: (spd: number) => void;
 }
+
+const SECTION_BADGE_STYLE: Record<VocalSectionType, string> = {
+  intro: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+  verse: 'bg-slate-800 text-slate-300 border-slate-700',
+  pre_chorus: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  chorus: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+  climax: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+  bridge: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+  outro: 'bg-teal-500/15 text-teal-300 border-teal-500/30',
+};
 
 export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
   phrases,
@@ -40,16 +66,81 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
   onLoopPhrase,
   onSeekToPhrase,
   onClearLoop,
+  onOpenLyricModal,
+  onUpdatePhraseLyric,
+  onMergeNextPhrase,
+  onSplitPhrase,
+  playbackSpeed = 1.0,
+  onChangeSpeed,
 }) => {
-  const [viewMode, setViewMode] = useState<PhraseViewMode>('timeline_minutes');
+  const [viewMode, setViewMode] = useState<PhraseViewMode>('grid');
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'Dễ' | 'Trung bình' | 'Thử thách'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'unpracticed' | 'needs_work' | 'passed'>('all');
+  const [sectionFilter, setSectionFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [inspectedPhraseIdx, setInspectedPhraseIdx] = useState<number | null>(null);
+  const [editingPhraseIdx, setEditingPhraseIdx] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState('');
 
-  // Filter phrases according to current view mode & difficulty filter
+  // Group contiguous phrases into structural song landmarks ("Biết đang ở đoạn nào")
+  const structuralLandmarks = useMemo(() => {
+    const groups: Array<{
+      id: string;
+      label: string;
+      sectionType: VocalSectionType;
+      startPhraseIdx: number;
+      endPhraseIdx: number;
+      startMs: number;
+      endMs: number;
+    }> = [];
+
+    phrases.forEach((p) => {
+      const label = p.sectionLabel || 'Phiên khúc';
+      const sType = p.sectionType || 'verse';
+      const last = groups[groups.length - 1];
+      if (last && last.label === label) {
+        last.endPhraseIdx = p.phraseIndex;
+        last.endMs = p.endMs;
+      } else {
+        groups.push({
+          id: `sec-${p.phraseIndex}`,
+          label,
+          sectionType: sType,
+          startPhraseIdx: p.phraseIndex,
+          endPhraseIdx: p.phraseIndex,
+          startMs: p.startMs,
+          endMs: p.endMs,
+        });
+      }
+    });
+    return groups;
+  }, [phrases]);
+
+  // Filter & Search phrases
   const filteredPhrases = useMemo(() => {
-    let list = phrases;
+    let list = searchQuery.trim()
+      ? searchAndTracePhrases(phrases, searchQuery)
+      : phrases;
+
+    if (sectionFilter !== 'all') {
+      list = list.filter((p) => (p.sectionLabel || 'Phiên khúc') === sectionFilter);
+    }
+
     if (difficultyFilter !== 'all') {
       list = list.filter((p) => p.difficulty === difficultyFilter);
     }
+
+    if (statusFilter !== 'all') {
+      list = list.filter((p) => {
+        const score = sessionStats.phraseScores[p.phraseIndex];
+        const pct = score && score.total > 0 ? Math.round((score.inTune / score.total) * 100) : null;
+        if (statusFilter === 'unpracticed') return pct === null;
+        if (statusFilter === 'needs_work') return pct !== null && pct < 75;
+        if (statusFilter === 'passed') return pct !== null && pct >= 75;
+        return true;
+      });
+    }
+
     if (viewMode === 'needs_practice') {
       list = list.filter((p) => {
         const score = sessionStats.phraseScores[p.phraseIndex];
@@ -57,13 +148,14 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
         return p.difficulty === 'Thử thách' || pct === null || pct < 75;
       });
     }
+
     return list;
-  }, [phrases, difficultyFilter, viewMode, sessionStats]);
+  }, [phrases, searchQuery, sectionFilter, difficultyFilter, statusFilter, viewMode, sessionStats]);
 
   // Group phrases by 1-minute blocks for 'timeline_minutes' mode
   const minuteGroups = useMemo(() => {
     const groups: Record<number, IVocalPhrase[]> = {};
-    phrases.forEach((phrase) => {
+    filteredPhrases.forEach((phrase) => {
       const minuteIndex = Math.floor(phrase.startMs / 60000);
       if (!groups[minuteIndex]) {
         groups[minuteIndex] = [];
@@ -71,126 +163,435 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
       groups[minuteIndex].push(phrase);
     });
     return groups;
-  }, [phrases]);
+  }, [filteredPhrases]);
+
+  const focusedPhrase = useMemo(() => {
+    const targetIdx = inspectedPhraseIdx ?? selectedPhraseIndex ?? activePhraseIndex;
+    if (!targetIdx) return phrases[0] || null;
+    return phrases.find((p) => p.phraseIndex === targetIdx) || phrases[0] || null;
+  }, [phrases, inspectedPhraseIdx, selectedPhraseIndex, activePhraseIndex]);
+
+  const handleSaveEdit = (phraseIndex: number) => {
+    if (onUpdatePhraseLyric && editDraft.trim()) {
+      onUpdatePhraseLyric(phraseIndex, editDraft.trim());
+    }
+    setEditingPhraseIdx(null);
+  };
 
   return (
-    <div className="p-4 sm:p-5 rounded-3xl bg-slate-950/70 border border-slate-800 shadow-xl space-y-4">
-      
-      {/* Header Bar with View Mode Selectors and Filters */}
+    <div className="p-4 sm:p-5 rounded-3xl bg-slate-950/75 border border-slate-800 shadow-xl space-y-4">
+      {/* 1. Header Bar + Lyric Editor Action + View Mode Switcher */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400">
             <Layers className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <span>Trình Điều Hướng Phân Đoạn &amp; Câu Hát</span>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
+              <span>Trình Điều Hướng Câu Hát, Tra Cứu Lyric &amp; Định Vị Đoạn</span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
-                {phrases.length} câu ({formatTimeMs(durationMs)})
+                {filteredPhrases.length}/{phrases.length} câu ({formatTimeMs(durationMs)})
               </span>
             </h3>
-            <p className="text-[11px] text-slate-400">Chọn câu để tập trung luyện đúng cao độ hoặc bật lặp A-B</p>
+            <p className="text-[11px] text-slate-400">
+              Tìm nhanh theo lời bài hát, âm tiết khẩu hình, đoạn cao trào, số câu hoặc mốc thời gian
+            </p>
           </div>
         </div>
 
-        {/* View Mode Switcher */}
-        <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-900 border border-slate-800 text-xs">
-          <button
-            type="button"
-            onClick={() => setViewMode('timeline_minutes')}
-            className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition ${
-              viewMode === 'timeline_minutes'
-                ? 'bg-sky-500 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-            title="Nhóm các câu theo từng phút"
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span>Theo Phút</span>
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenLyricModal && (
+            <button
+              type="button"
+              onClick={onOpenLyricModal}
+              className="px-3 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 font-bold text-xs flex items-center gap-1.5 transition"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Đồng Bộ / Sửa Toàn Bộ Lyric</span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => setViewMode('grid')}
-            className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition ${
-              viewMode === 'grid'
-                ? 'bg-sky-500 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-            title="Dàn đều tất cả câu thành nhiều hàng"
-          >
-            <Grid3X3 className="w-3.5 h-3.5" />
-            <span>Lưới Đa Hàng</span>
-          </button>
+          {/* View Mode Switcher */}
+          <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-900 border border-slate-800 text-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`px-2.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition ${
+                viewMode === 'grid'
+                  ? 'bg-sky-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Dàn đều các câu kèm lời bài hát"
+            >
+              <Grid3X3 className="w-3.5 h-3.5" />
+              <span>Danh Sách Câu</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setViewMode('needs_practice')}
-            className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition ${
-              viewMode === 'needs_practice'
-                ? 'bg-amber-500 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-            title="Lọc các câu khó hoặc câu cần cải thiện điểm số"
-          >
-            <AlertCircle className="w-3.5 h-3.5" />
-            <span>Cần Luyện Lại</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('timeline_minutes')}
+              className={`px-2.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition ${
+                viewMode === 'timeline_minutes'
+                  ? 'bg-sky-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Nhóm các câu theo từng phút"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>Theo Phút</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode('needs_practice')}
+              className={`px-2.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition ${
+                viewMode === 'needs_practice'
+                  ? 'bg-amber-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Lọc các câu khó hoặc câu cần cải thiện điểm số"
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>Cần Luyện Lại</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Mini-Map Overview Timeline Scrubber */}
-      <div className="space-y-1">
-        <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-          <span>Bản đồ phân đoạn toàn bài (Click vào câu để tua):</span>
-          <span>{formatTimeMs(currentTimeMs)} / {formatTimeMs(durationMs)}</span>
+      {/* 2. Search & Trace Bar + Quick Filters */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
+        {/* Search Input */}
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tra cứu lyric, âm tiết (La/Ơi/Đô), đoạn ('điệp khúc', 'cao trào'), 'câu 3' hoặc mốc '00:12'..."
+            className="w-full pl-9 pr-9 py-2 rounded-2xl bg-slate-900 border border-slate-800 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-sky-400 transition"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              title="Xóa tìm kiếm"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
-        <div className="h-4 w-full bg-slate-900 rounded-xl border border-slate-800 overflow-hidden flex relative p-0.5 gap-0.5">
-          {phrases.map((phrase) => {
-            const widthPct = Math.max(1.5, (phrase.durationMs / durationMs) * 100);
-            const isCurrent = activePhraseIndex === phrase.phraseIndex;
-            const isLoop = isLoopingActive && selectedPhraseIndex === phrase.phraseIndex;
+        {/* Status & Difficulty Filter Pills */}
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <Filter className="w-3.5 h-3.5 text-slate-500 mr-0.5" />
+          {(
+            [
+              { id: 'all', label: 'Tất cả' },
+              { id: 'unpracticed', label: 'Chưa hát' },
+              { id: 'needs_work', label: 'Cần luyện (<75%)' },
+              { id: 'passed', label: 'Đã đạt (≥75%)' },
+            ] as const
+          ).map((st) => (
+            <button
+              key={st.id}
+              type="button"
+              onClick={() => setStatusFilter(st.id)}
+              className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition ${
+                statusFilter === st.id
+                  ? 'bg-sky-500 text-slate-950'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              {st.label}
+            </button>
+          ))}
 
-            const score = sessionStats.phraseScores[phrase.phraseIndex];
-            const hasPracticed = score && score.total > 0;
-            const pct = hasPracticed ? (score.inTune / score.total) * 100 : null;
+          <div className="h-4 w-px bg-slate-800 mx-1 hidden sm:block" />
 
-            let blockColor = 'bg-slate-800/80 hover:bg-slate-700';
-            if (isLoop) {
-              blockColor = 'bg-indigo-500 animate-pulse ring-1 ring-white';
-            } else if (isCurrent) {
-              blockColor = 'bg-sky-400 ring-1 ring-sky-200';
-            } else if (pct !== null) {
-              blockColor = pct >= 80 ? 'bg-emerald-600/70' : pct >= 60 ? 'bg-amber-600/70' : 'bg-rose-600/70';
-            } else if (phrase.difficulty === 'Thử thách') {
-              blockColor = 'bg-rose-950/60 border border-rose-500/30';
-            }
+          {(['all', 'Thử thách'] as const).map((diff) => (
+            <button
+              key={diff}
+              type="button"
+              onClick={() => setDifficultyFilter(difficultyFilter === diff ? 'all' : diff)}
+              className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition ${
+                difficultyFilter === diff && diff !== 'all'
+                  ? 'bg-rose-500 text-slate-950'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              {diff === 'all' ? 'Mọi độ khó' : '🔥 Câu khó'}
+            </button>
+          ))}
+        </div>
+      </div>
 
-            return (
+      {/* 3. Structural Section Landmarks ("Bản đồ Đoạn nhạc - Biết đang ở đoạn nào") */}
+      {structuralLandmarks.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+            <span className="flex items-center gap-1.5">
+              <MapPin className="w-3 h-3 text-indigo-400" />
+              <span>Cấu trúc đoạn bài hát (Nhấn vào đoạn để lọc hoặc nhảy tới):</span>
+            </span>
+            <span>
+              Vị trí hiện tại: <strong className="text-sky-400">{formatTimeMs(currentTimeMs)}</strong> / {formatTimeMs(durationMs)}
+            </span>
+          </div>
+
+          {/* Section Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+            <button
+              type="button"
+              onClick={() => setSectionFilter('all')}
+              className={`px-2.5 py-1 rounded-xl text-[11px] font-bold shrink-0 border transition ${
+                sectionFilter === 'all'
+                  ? 'bg-slate-200 text-slate-950 border-white'
+                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+              }`}
+            >
+              Toàn bài ({phrases.length} câu)
+            </button>
+
+            {structuralLandmarks.map((sec) => {
+              const isPlayingHere =
+                currentTimeMs >= sec.startMs - 200 && currentTimeMs <= sec.endMs + 200;
+              const isSelectedSec = sectionFilter === sec.label;
+              const badgeColor =
+                SECTION_BADGE_STYLE[sec.sectionType] || SECTION_BADGE_STYLE.verse;
+
+              return (
+                <button
+                  key={sec.id}
+                  type="button"
+                  onClick={() => {
+                    setSectionFilter(isSelectedSec ? 'all' : sec.label);
+                    onSeekToPhrase(sec.startMs);
+                  }}
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold shrink-0 border transition flex items-center gap-1.5 ${
+                    isSelectedSec
+                      ? 'ring-2 ring-sky-400 bg-sky-950 text-sky-200 border-sky-400'
+                      : isPlayingHere
+                      ? 'ring-1 ring-emerald-400 bg-emerald-950/60 text-emerald-300 border-emerald-500/50'
+                      : badgeColor
+                  }`}
+                >
+                  {isPlayingHere && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  )}
+                  <span>{sec.label}</span>
+                  <span className="text-[10px] font-mono opacity-75">
+                    (Câu {sec.startPhraseIdx}
+                    {sec.endPhraseIdx > sec.startPhraseIdx ? `–${sec.endPhraseIdx}` : ''})
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Mini-Map Scrubber */}
+          <div className="h-4 w-full bg-slate-900 rounded-xl border border-slate-800 overflow-hidden flex relative p-0.5 gap-0.5">
+            {phrases.map((phrase) => {
+              const widthPct = Math.max(1.5, (phrase.durationMs / Math.max(1, durationMs)) * 100);
+              const isCurrent = activePhraseIndex === phrase.phraseIndex;
+              const isLoop = isLoopingActive && selectedPhraseIndex === phrase.phraseIndex;
+
+              const score = sessionStats.phraseScores[phrase.phraseIndex];
+              const hasPracticed = score && score.total > 0;
+              const pct = hasPracticed ? (score.inTune / score.total) * 100 : null;
+
+              let blockColor = 'bg-slate-800/80 hover:bg-slate-700';
+              if (isLoop) {
+                blockColor = 'bg-indigo-500 animate-pulse ring-1 ring-white';
+              } else if (isCurrent) {
+                blockColor = 'bg-sky-400 ring-1 ring-sky-200';
+              } else if (pct !== null) {
+                blockColor =
+                  pct >= 80
+                    ? 'bg-emerald-600/70'
+                    : pct >= 60
+                    ? 'bg-amber-600/70'
+                    : 'bg-rose-600/70';
+              } else if (phrase.difficulty === 'Thử thách') {
+                blockColor = 'bg-rose-950/60 border border-rose-500/30';
+              }
+
+              return (
+                <button
+                  key={phrase.id}
+                  type="button"
+                  onClick={() => {
+                    setInspectedPhraseIdx(phrase.phraseIndex);
+                    onSeekToPhrase(phrase.startMs);
+                  }}
+                  style={{ width: `${widthPct}%` }}
+                  className={`h-full rounded-md transition-all relative group shrink-0 ${blockColor}`}
+                  title={`Câu ${phrase.phraseIndex} [${phrase.sectionLabel || 'Phiên khúc'}]: "${
+                    phrase.lyricText || phrase.solfegeText
+                  }" (${formatTimeMs(phrase.startMs)} - ${formatTimeMs(phrase.endMs)})`}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 4. SELECTED PHRASE INSPECTOR & WORD-BY-WORD DIAGNOSTIC BAR (Zone 3) */}
+      {focusedPhrase && (
+        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-900/95 via-indigo-950/30 to-slate-900/95 border border-indigo-500/30 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+          <div className="space-y-1.5 flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2 py-0.5 rounded-lg bg-indigo-500 text-slate-950 font-black text-xs">
+                Đang chọn: Câu {focusedPhrase.phraseIndex}
+              </span>
+              <span className="px-2 py-0.5 rounded-lg bg-slate-800 text-sky-300 text-[11px] font-bold">
+                {focusedPhrase.sectionLabel || 'Phiên khúc'}
+              </span>
+              <span className="text-[11px] font-mono text-slate-400">
+                {formatTimeMs(focusedPhrase.startMs)} – {formatTimeMs(focusedPhrase.endMs)} (
+                {focusedPhrase.lowestNote} → {focusedPhrase.highestNote})
+              </span>
+              {focusedPhrase.contourLabel && (
+                <span className="text-[10px] text-amber-300 font-medium">
+                  • {focusedPhrase.contourLabel}
+                </span>
+              )}
+            </div>
+
+            {/* Word-by-word Note & Pitch Accuracy Chips */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              {(focusedPhrase.words || []).map((w) => {
+                const wKey = `${focusedPhrase.phraseIndex}_${w.wordIndex}`;
+                const wStat = sessionStats.wordScores?.[wKey];
+                let chipColor = 'bg-slate-950/80 border-slate-800 text-slate-200';
+                let centsLabel = w.noteName;
+
+                if (wStat && wStat.total > 30) {
+                  const cStr =
+                    wStat.avgCentsDiff > 0 ? `+${wStat.avgCentsDiff}c` : `${wStat.avgCentsDiff}c`;
+                  centsLabel = `${w.noteName} · ${cStr}`;
+                  if (wStat.status === 'in_tune') {
+                    chipColor = 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300';
+                  } else if (wStat.status === 'flat') {
+                    chipColor = 'bg-amber-950/70 border-amber-500/40 text-amber-300';
+                  } else {
+                    chipColor = 'bg-rose-950/70 border-rose-500/40 text-rose-300';
+                  }
+                }
+
+                return (
+                  <button
+                    key={w.wordIndex}
+                    type="button"
+                    onClick={() => onSeekToPhrase(w.startMs)}
+                    className={`px-2 py-1 rounded-xl border text-xs flex items-center gap-1.5 hover:border-sky-400 transition ${chipColor}`}
+                    title={`Tua tới chữ "${w.text}" (${w.solfege})${
+                      w.vowelHint ? ` • Khẩu hình: ${w.vowelHint}` : ''
+                    }`}
+                  >
+                    <span className="font-bold">{w.text}</span>
+                    <span className="text-[10px] font-mono opacity-80">[{centsLabel}]</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {focusedPhrase.focusTip && (
+              <p className="text-[11px] text-slate-400 italic">
+                💡 Mẹo luyện câu này: {focusedPhrase.focusTip}
+              </p>
+            )}
+          </div>
+
+          {/* Right Quick Practice Controls (Speed + Loop + Split/Merge) */}
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+            {onChangeSpeed && (
+              <div className="flex items-center bg-slate-950 p-0.5 rounded-xl border border-slate-800 text-[11px]">
+                {[0.75, 0.85, 1.0].map((spd) => (
+                  <button
+                    key={spd}
+                    type="button"
+                    onClick={() => onChangeSpeed(spd)}
+                    className={`px-2 py-1 rounded-lg font-mono font-bold transition ${
+                      Math.abs(playbackSpeed - spd) < 0.02
+                        ? 'bg-sky-500 text-slate-950'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {spd}x
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => onLoopPhrase(focusedPhrase)}
+              className="px-3 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-black text-xs flex items-center gap-1 transition shadow-md"
+            >
+              <Repeat className="w-3.5 h-3.5" />
+              <span>Luyện Lặp Câu {focusedPhrase.phraseIndex}</span>
+            </button>
+
+            {onSplitPhrase && focusedPhrase.durationMs >= 1200 && (
               <button
-                key={phrase.id}
                 type="button"
-                onClick={() => onSeekToPhrase(phrase.startMs)}
-                style={{ width: `${widthPct}%` }}
-                className={`h-full rounded-md transition-all relative group shrink-0 ${blockColor}`}
-                title={`Câu ${phrase.phraseIndex} (${formatTimeMs(phrase.startMs)} - ${formatTimeMs(phrase.endMs)})`}
-              />
-            );
-          })}
-        </div>
-      </div>
+                onClick={() => onSplitPhrase(focusedPhrase.phraseIndex, currentTimeMs)}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold flex items-center gap-1 transition"
+                title="Tách câu này làm 2 câu nhỏ để dễ luyện hơn"
+              >
+                <Scissors className="w-3 h-3" />
+                <span>Tách câu</span>
+              </button>
+            )}
 
-      {/* VIEW MODE 1: GROUPED BY MINUTES */}
-      {viewMode === 'timeline_minutes' && (
-        <div className="space-y-4 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
+            {onMergeNextPhrase && focusedPhrase.phraseIndex < phrases.length && (
+              <button
+                type="button"
+                onClick={() => onMergeNextPhrase(focusedPhrase.phraseIndex)}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold flex items-center gap-1 transition"
+                title={`Gộp Câu ${focusedPhrase.phraseIndex} với Câu ${focusedPhrase.phraseIndex + 1}`}
+              >
+                <Merge className="w-3 h-3" />
+                <span>Gộp câu sau</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 5. PHRASE CARDS DISPLAY */}
+      {filteredPhrases.length === 0 ? (
+        <div className="p-8 rounded-2xl bg-slate-900/40 border border-slate-800 text-center space-y-2">
+          <p className="text-xs text-slate-400">
+            Không tìm thấy câu hát nào khớp với từ khóa hoặc bộ lọc hiện tại.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery('');
+              setSectionFilter('all');
+              setDifficultyFilter('all');
+              setStatusFilter('all');
+              setViewMode('grid');
+            }}
+            className="px-3 py-1.5 rounded-xl bg-sky-500/20 text-sky-300 text-xs font-bold hover:bg-sky-500/30 transition"
+          >
+            Đặt lại bộ lọc
+          </button>
+        </div>
+      ) : viewMode === 'timeline_minutes' ? (
+        <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1 custom-scrollbar">
           {Object.entries(minuteGroups).map(([minStr, groupPhrases]) => {
             const minNum = Number(minStr);
             const startLabel = `${minNum}:00`;
             const endLabel = `${minNum + 1}:00`;
 
             return (
-              <div key={minStr} className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-2.5">
+              <div
+                key={minStr}
+                className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-2.5"
+              >
                 <div className="flex items-center justify-between text-xs font-mono">
                   <div className="flex items-center gap-2">
                     <Clock className="w-3.5 h-3.5 text-sky-400" />
@@ -201,90 +602,73 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
                   {groupPhrases.map((phrase) => renderPhraseCard(phrase))}
                 </div>
               </div>
             );
           })}
         </div>
-      )}
-
-      {/* VIEW MODE 2: MULTI-ROW RESPONSIVE GRID */}
-      {viewMode === 'grid' && (
+      ) : (
         <div className="space-y-3">
-          {/* Quick difficulty filter pills */}
-          <div className="flex items-center gap-1.5 text-xs">
-            <Filter className="w-3 h-3 text-slate-500" />
-            <span className="text-[10px] uppercase font-mono text-slate-500 mr-1">Lọc:</span>
-            {(['all', 'Dễ', 'Trung bình', 'Thử thách'] as const).map((diff) => (
-              <button
-                key={diff}
-                type="button"
-                onClick={() => setDifficultyFilter(diff)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
-                  difficultyFilter === diff
-                    ? 'bg-slate-200 text-slate-950 font-bold'
-                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                }`}
-              >
-                {diff === 'all' ? 'Tất cả câu' : diff}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
-            {filteredPhrases.map((phrase) => renderPhraseCard(phrase))}
-          </div>
-        </div>
-      )}
-
-      {/* VIEW MODE 3: NEEDS PRACTICE FOCUS */}
-      {viewMode === 'needs_practice' && (
-        <div className="space-y-3">
-          <div className="p-3 rounded-2xl bg-amber-950/30 border border-amber-500/20 text-xs text-amber-200 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          {viewMode === 'needs_practice' && (
+            <div className="p-3 rounded-2xl bg-amber-950/30 border border-amber-500/20 text-xs text-amber-200 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
               <span>
-                Danh sách {filteredPhrases.length} câu thử thách hoặc có tỉ lệ chuẩn dưới 75%. Hãy luyện lặp chậm từng câu!
+                Danh sách {filteredPhrases.length} câu thử thách hoặc có tỉ lệ chuẩn dưới 75%. Hãy bấm Lặp A-B và tập chậm ở 0.75x!
               </span>
             </div>
-          </div>
+          )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 max-h-[380px] overflow-y-auto pr-1 custom-scrollbar">
             {filteredPhrases.map((phrase) => renderPhraseCard(phrase))}
           </div>
         </div>
       )}
-
     </div>
   );
 
-  // Helper to render individual phrase card
+  // Helper to render individual phrase card with Lyric & Section Landmark
   function renderPhraseCard(phrase: IVocalPhrase) {
     const isCurrent = activePhraseIndex === phrase.phraseIndex;
     const isLoop = isLoopingActive && selectedPhraseIndex === phrase.phraseIndex;
+    const isInspected = focusedPhrase?.phraseIndex === phrase.phraseIndex;
+    const isEditing = editingPhraseIdx === phrase.phraseIndex;
 
     const score = sessionStats.phraseScores[phrase.phraseIndex];
     const hasPracticed = score && score.total > 0;
     const pct = hasPracticed ? Math.round((score.inTune / score.total) * 100) : null;
 
-    let cardBorder = 'border-slate-800/90 bg-slate-900/70 hover:border-slate-700';
+    let cardBorder = 'border-slate-800/90 bg-slate-900/75 hover:border-slate-700';
     if (isLoop) {
-      cardBorder = 'border-indigo-500 bg-indigo-950/40 ring-1 ring-indigo-500/60 shadow-lg shadow-indigo-500/10';
+      cardBorder =
+        'border-indigo-500 bg-indigo-950/40 ring-1 ring-indigo-500/60 shadow-lg shadow-indigo-500/10';
     } else if (isCurrent) {
-      cardBorder = 'border-sky-500 bg-sky-950/40 ring-1 ring-sky-500/60 shadow-lg shadow-sky-500/10';
+      cardBorder =
+        'border-sky-500 bg-sky-950/40 ring-1 ring-sky-500/60 shadow-lg shadow-sky-500/10';
+    } else if (isInspected) {
+      cardBorder = 'border-slate-600 bg-slate-900/95';
     }
+
+    const secBadgeClass =
+      SECTION_BADGE_STYLE[phrase.sectionType || 'verse'] || SECTION_BADGE_STYLE.verse;
 
     return (
       <div
         key={phrase.id}
-        className={`p-3 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 ${cardBorder}`}
+        onClick={() => setInspectedPhraseIdx(phrase.phraseIndex)}
+        className={`p-3 rounded-2xl border transition-all flex flex-col justify-between gap-2 cursor-pointer ${cardBorder}`}
       >
+        {/* Top Row: Phrase # + Section Badge + Accuracy */}
         <div className="flex items-start justify-between gap-2">
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-white text-xs">Câu {phrase.phraseIndex}</span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-black text-white text-xs">Câu {phrase.phraseIndex}</span>
+              <span
+                className={`px-1.5 py-0.5 rounded-md border text-[9px] font-bold truncate ${secBadgeClass}`}
+              >
+                {phrase.sectionLabel || 'Phiên khúc'}
+              </span>
               <DifficultyBadge difficulty={phrase.difficulty} />
               {isLoop && (
                 <span className="px-1.5 py-0.2 rounded bg-indigo-500 text-slate-950 text-[9px] font-black uppercase">
@@ -293,38 +677,117 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
               )}
             </div>
             <div className="text-[10px] font-mono text-slate-400 mt-1">
-              <span>{formatTimeMs(phrase.startMs)} – {formatTimeMs(phrase.endMs)}</span>
-              <span className="text-slate-500 ml-1">({Math.round(phrase.durationMs / 1000)}s)</span>
+              <span>
+                {formatTimeMs(phrase.startMs)} – {formatTimeMs(phrase.endMs)}
+              </span>
+              <span className="text-slate-500 ml-1">
+                ({Math.max(1, Math.round(phrase.durationMs / 1000))}s)
+              </span>
             </div>
           </div>
 
           {/* Past accuracy badge */}
           {pct !== null ? (
-            <div className={`text-right ${pct >= 80 ? 'text-emerald-400' : pct >= 60 ? 'text-amber-400' : 'text-rose-400'}`}>
+            <div
+              className={`text-right shrink-0 ${
+                pct >= 75
+                  ? 'text-emerald-400'
+                  : pct >= 55
+                  ? 'text-amber-400'
+                  : 'text-rose-400'
+              }`}
+            >
               <div className="text-xs font-black font-mono">{pct}%</div>
-              <div className="text-[9px] text-slate-500 uppercase font-mono">Đã đạt</div>
+              <div className="text-[9px] text-slate-400 uppercase font-mono">
+                {pct >= 75 ? 'Đạt' : 'Cần luyện'}
+              </div>
             </div>
           ) : (
-            <div className="text-[10px] text-slate-500 italic">Chưa hát</div>
+            <div className="text-[10px] text-slate-500 italic shrink-0">Chưa hát</div>
+          )}
+        </div>
+
+        {/* Middle Row: 1-Line Lyric Preview + Solfege Sub-line */}
+        <div
+          className="p-2 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-0.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {isEditing ? (
+            <div className="flex items-center gap-1">
+              <input
+                type="text"
+                value={editDraft}
+                onChange={(e) => setEditDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveEdit(phrase.phraseIndex);
+                  if (e.key === 'Escape') setEditingPhraseIdx(null);
+                }}
+                autoFocus
+                className="flex-1 px-2 py-1 rounded bg-slate-900 border border-sky-400 text-xs text-white focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => handleSaveEdit(phrase.phraseIndex)}
+                className="p-1 rounded bg-emerald-500 text-slate-950"
+                title="Lưu"
+              >
+                <Check className="w-3 h-3" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-start justify-between gap-1.5">
+              <div className="min-w-0 flex-1">
+                <div
+                  className="text-xs font-bold text-slate-100 truncate"
+                  title={phrase.lyricText || phrase.solfegeText}
+                >
+                  {phrase.lyricText || phrase.solfegeText}
+                </div>
+                <div
+                  className="text-[10px] font-mono text-sky-400/90 truncate"
+                  title={phrase.solfegeText}
+                >
+                  ♫ {phrase.solfegeText || phrase.notes.join(' · ')}
+                </div>
+              </div>
+              {onUpdatePhraseLyric && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditDraft(phrase.lyricText || '');
+                    setEditingPhraseIdx(phrase.phraseIndex);
+                  }}
+                  className="p-1 rounded text-slate-500 hover:text-sky-300 transition shrink-0"
+                  title="Sửa lời câu này"
+                >
+                  <Edit3 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           )}
         </div>
 
         {/* Note span info */}
-        <div className="text-[11px] text-slate-300 flex items-center justify-between pt-1 border-t border-slate-800/60">
-          <span className="text-slate-400 font-mono text-[10px]">
-            Quãng: <strong className="text-sky-300">{phrase.lowestNote}</strong> → <strong className="text-sky-300">{phrase.highestNote}</strong>
+        <div className="text-[10px] text-slate-400 flex items-center justify-between font-mono">
+          <span>
+            Quãng: <strong className="text-sky-300">{phrase.lowestNote}</strong> →{' '}
+            <strong className="text-sky-300">{phrase.highestNote}</strong>
           </span>
-          <span className="text-[10px] text-slate-400 font-mono">
-            Nhảy {phrase.pitchJumpSemitones} bán âm
-          </span>
+          <span>Nhảy {phrase.pitchJumpSemitones} bán âm</span>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-1.5 pt-1">
+        <div
+          className="flex items-center gap-1.5 pt-0.5"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             type="button"
-            onClick={() => onSeekToPhrase(phrase.startMs)}
-            className="flex-1 py-1 px-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 text-[11px] font-bold flex items-center justify-center gap-1 transition"
+            onClick={() => {
+              setInspectedPhraseIdx(phrase.phraseIndex);
+              onSeekToPhrase(phrase.startMs);
+            }}
+            className="flex-1 py-1.5 px-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 text-[11px] font-bold flex items-center justify-center gap-1 transition"
           >
             <Play className="w-3 h-3 fill-slate-300" />
             <span>Tua đến</span>
@@ -333,13 +796,14 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
           <button
             type="button"
             onClick={() => {
+              setInspectedPhraseIdx(phrase.phraseIndex);
               if (isLoop) {
                 onClearLoop();
               } else {
                 onLoopPhrase(phrase);
               }
             }}
-            className={`py-1 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition ${
+            className={`py-1.5 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition ${
               isLoop
                 ? 'bg-rose-950/80 border border-rose-500/40 text-rose-300 hover:bg-rose-900'
                 : 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30'

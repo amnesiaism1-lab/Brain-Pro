@@ -110,19 +110,27 @@ export const ReportTab: React.FC<ReportTabProps> = ({
             return (
               <div
                 key={phrase.id}
-                className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-center justify-between gap-3"
+                className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
               >
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-white text-xs w-16">
-                    Câu {phrase.phraseIndex}
-                  </span>
-                  <DifficultyBadge difficulty={phrase.difficulty} />
-                  <span className="text-[11px] font-mono text-slate-400">
-                    {phrase.lowestNote} – {phrase.highestNote}
-                  </span>
+                <div className="space-y-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-white text-xs">
+                      Câu {phrase.phraseIndex}
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-[10px] font-bold">
+                      {phrase.sectionLabel || 'Phiên khúc'}
+                    </span>
+                    <DifficultyBadge difficulty={phrase.difficulty} />
+                    <span className="text-[11px] font-mono text-slate-400">
+                      ({phrase.lowestNote} – {phrase.highestNote})
+                    </span>
+                  </div>
+                  <div className="text-xs font-bold text-slate-200 truncate">
+                    {phrase.lyricText || phrase.solfegeText}
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0">
                   {pct !== null ? (
                     <span
                       className={`text-xs font-mono font-bold ${

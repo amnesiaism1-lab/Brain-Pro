@@ -18,6 +18,7 @@ export interface ISingSessionAccumulator {
   currentStreakMs: number;
 
   phraseScores: Record<number, { totalMs: number; inTuneMs: number }>;
+  wordScores: Record<string, { totalMs: number; inTuneMs: number; weightedCentsSum: number }>;
 }
 
 export function createSessionAccumulator(): ISingSessionAccumulator {
@@ -33,6 +34,7 @@ export function createSessionAccumulator(): ISingSessionAccumulator {
     highestStreakMs: 0,
     currentStreakMs: 0,
     phraseScores: {},
+    wordScores: {},
   };
 }
 
@@ -46,9 +48,19 @@ export function processPitchScoreFrame(
     centsDiff: number;
     toleranceCents: number;
     activePhraseIndex?: number | null;
+    activeWordKey?: string | null;
   }
 ): void {
-  const { dtMs, isSinging, isTargetVocal, inTune, centsDiff, toleranceCents, activePhraseIndex } = params;
+  const {
+    dtMs,
+    isSinging,
+    isTargetVocal,
+    inTune,
+    centsDiff,
+    toleranceCents,
+    activePhraseIndex,
+    activeWordKey,
+  } = params;
 
   // Only accumulate when both user is singing AND target note is actively playing
   if (!isSinging || !isTargetVocal) {
@@ -87,6 +99,17 @@ export function processPitchScoreFrame(
     acc.phraseScores[activePhraseIndex].totalMs += safeDtMs;
     if (inTune) {
       acc.phraseScores[activePhraseIndex].inTuneMs += safeDtMs;
+    }
+  }
+
+  if (activeWordKey) {
+    if (!acc.wordScores[activeWordKey]) {
+      acc.wordScores[activeWordKey] = { totalMs: 0, inTuneMs: 0, weightedCentsSum: 0 };
+    }
+    acc.wordScores[activeWordKey].totalMs += safeDtMs;
+    acc.wordScores[activeWordKey].weightedCentsSum += centsDiff * safeDtMs;
+    if (inTune) {
+      acc.wordScores[activeWordKey].inTuneMs += safeDtMs;
     }
   }
 }

@@ -11,6 +11,7 @@ import {
   RunwayRenderState,
   IUserPitchPoint,
   SingSessionStats,
+  WordPitchScoreStat,
 } from './types';
 import {
   vocalFileAnalysisService,
@@ -18,6 +19,12 @@ import {
   IVocalPhrase,
   IReferencePitchPoint,
 } from '../../services/vocalFileAnalysisService';
+import {
+  updateSinglePhraseLyric,
+  mergeWithNextPhrase,
+  splitPhraseAtPlayhead,
+} from '../../services/lyricAlignmentService';
+import { LyricEditorModal } from './components/LyricEditorModal';
 import {
   vocalPitchService,
   IVocalPitchReading,
@@ -91,6 +98,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
   const [userReading, setUserReading] = useState<IVocalPitchReading | null>(null);
   const [currentCentsDiff, setCurrentCentsDiff] = useState<number>(0);
   const [isInTuneNow, setIsInTuneNow] = useState<boolean>(false);
+  const [isLyricModalOpen, setIsLyricModalOpen] = useState<boolean>(false);
 
   // Sync Hash & Back Button (Task 1.2)
   useEffect(() => {
@@ -257,11 +265,20 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
       lastFrameTimeRef.current = now;
 
       let activePhraseIdx: number | null = null;
+      let activeWordKey: string | null = null;
       if (store.analysisResult?.phrases) {
         const p = store.analysisResult.phrases.find(
           (ph) => effectiveMs >= ph.startMs && effectiveMs <= ph.endMs
         );
-        if (p) activePhraseIdx = p.phraseIndex;
+        if (p) {
+          activePhraseIdx = p.phraseIndex;
+          const activeWord = p.words?.find(
+            (w) => effectiveMs >= w.startMs - 30 && effectiveMs <= w.endMs + 30
+          );
+          if (activeWord) {
+            activeWordKey = `${p.phraseIndex}_${activeWord.wordIndex}`;
+          }
+        }
       }
 
       processPitchScoreFrame(accumulatorRef.current, {
@@ -272,6 +289,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
         centsDiff: cents,
         toleranceCents: renderStateRef.current.toleranceCents,
         activePhraseIndex: activePhraseIdx,
+        activeWordKey,
       });
 
       const scorePct = calculateScorePercentage(accumulatorRef.current);
@@ -318,6 +336,25 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
           phraseScoresMap[Number(k)] = { total: v.totalMs, inTune: v.inTuneMs };
         });
 
+        const wordScoresMap: Record<string, WordPitchScoreStat> = {};
+        const tol = renderStateRef.current.toleranceCents || 35;
+        Object.entries(acc.wordScores).forEach(([k, v]) => {
+          const avgCents = v.totalMs > 0 ? Math.round(v.weightedCentsSum / v.totalMs) : 0;
+          const inTuneRatio = v.totalMs > 0 ? v.inTuneMs / v.totalMs : 0;
+          const status: 'in_tune' | 'flat' | 'sharp' =
+            inTuneRatio >= 0.55 || Math.abs(avgCents) <= tol
+              ? 'in_tune'
+              : avgCents < 0
+              ? 'flat'
+              : 'sharp';
+          wordScoresMap[k] = {
+            total: v.totalMs,
+            inTune: v.inTuneMs,
+            avgCentsDiff: avgCents,
+            status,
+          };
+        });
+
         const newStats: SingSessionStats = {
           totalVocalFrames: acc.totalVocalFrames,
           inTuneFrames: acc.inTuneFrames,
@@ -325,6 +362,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
           sharpFrames: acc.sharpFrames,
           highestStreak: Math.round(acc.highestStreakMs / 1000),
           phraseScores: phraseScoresMap,
+          wordScores: wordScoresMap,
         };
         store.setSessionStats(newStats);
       }
@@ -529,6 +567,41 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     if (!store.isPlaying) setTimeout(handleStartPlayback, 50);
   };
 
+  const handleApplyUpdatedResult = useCallback(
+    (updated: IVocalAnalysisResult) => {
+      store.setAnalysisResult(updated);
+      renderStateRef.current.noteBars = updated.noteBars;
+    },
+    [store]
+  );
+
+  const handleUpdatePhraseLyric = useCallback(
+    (phraseIndex: number, newText: string) => {
+      if (!store.analysisResult) return;
+      const updated = updateSinglePhraseLyric(store.analysisResult, phraseIndex, newText);
+      handleApplyUpdatedResult(updated);
+    },
+    [store.analysisResult, handleApplyUpdatedResult]
+  );
+
+  const handleMergeNextPhrase = useCallback(
+    (phraseIndex: number) => {
+      if (!store.analysisResult) return;
+      const updated = mergeWithNextPhrase(store.analysisResult, phraseIndex);
+      handleApplyUpdatedResult(updated);
+    },
+    [store.analysisResult, handleApplyUpdatedResult]
+  );
+
+  const handleSplitPhrase = useCallback(
+    (phraseIndex: number, splitTimeMs?: number) => {
+      if (!store.analysisResult) return;
+      const updated = splitPhraseAtPlayhead(store.analysisResult, phraseIndex, splitTimeMs);
+      handleApplyUpdatedResult(updated);
+    },
+    [store.analysisResult, handleApplyUpdatedResult]
+  );
+
   if (!isOpen) return null;
 
   const isTargetNoteActive = Boolean(currentRefPoint && currentRefPoint.isVocal && currentRefPoint.midi > 0);
@@ -668,6 +741,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onLoadDemoTrack={handleLoadDemoTrack}
             onNavigateToSingAlong={() => store.setActiveTab('sing_along')}
             onLoopPhrase={handleLoopPhrase}
+            onOpenLyricModal={() => setIsLyricModalOpen(true)}
           />
         )}
 
@@ -730,6 +804,10 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onToggleWindowLock={() => store.setIsWindowLocked(!store.isWindowLocked)}
             sessionStats={store.sessionStats}
             activePhrase={activePhrase}
+            onOpenLyricModal={() => setIsLyricModalOpen(true)}
+            onUpdatePhraseLyric={handleUpdatePhraseLyric}
+            onMergeNextPhrase={handleMergeNextPhrase}
+            onSplitPhrase={handleSplitPhrase}
           />
         )}
 
@@ -749,6 +827,20 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
           />
         )}
       </div>
+
+      {/* 3. LYRIC SYNC & EDITOR MODAL */}
+      {store.analysisResult && (
+        <LyricEditorModal
+          isOpen={isLyricModalOpen}
+          analysisResult={store.analysisResult}
+          onClose={() => setIsLyricModalOpen(false)}
+          onApplyUpdatedResult={handleApplyUpdatedResult}
+          onPreviewPhraseAudio={(startMs) => {
+            handleSeek(startMs);
+            if (!store.isPlaying) handleStartPlayback();
+          }}
+        />
+      )}
     </div>
   );
 };

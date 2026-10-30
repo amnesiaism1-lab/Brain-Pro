@@ -59,6 +59,8 @@ export interface IQuestionContext {
     streetB?: string;
     bearingDeg?: number;
     distanceKm?: number;
+    schulteMode?: string;
+    gridSize?: number;
 }
 export interface IWrongAnswer {
     id: string;

@@ -11,6 +11,22 @@ import { PitchDetector } from 'pitchy';
 import { auditoryEngine } from './auditoryEngine';
 import { getNoteFrequency } from './musicTheoryService';
 import { NOTE_NAMES, SOLFEGE_NAMES, midiToNoteInfo } from '@brain-exercises/shared';
+import {
+  populateAutomaticSongLyricsAndStructure,
+  type IVocalLyricWord,
+  type LyricCompletenessStatus,
+  type LyricSourceType,
+  type VocalSectionType,
+  type VowelMouthHint,
+} from './lyricAlignmentService';
+
+export type {
+  IVocalLyricWord,
+  LyricCompletenessStatus,
+  LyricSourceType,
+  VocalSectionType,
+  VowelMouthHint,
+};
 
 export interface IReferencePitchPoint {
   timeMs: number;
@@ -35,6 +51,10 @@ export interface IVocalNoteBar {
   avgCentsDiff: number;
   pointsCount: number;
   rmsEnvelope?: number[];
+  /** Synced lyric syllable or acoustic vowel syllable for direct Canvas rendering */
+  lyricSyllable?: string;
+  /** Acoustic mouth opening hint estimated from F1/F2 formants */
+  vowelHint?: VowelMouthHint;
 }
 
 export interface IVocalPhrase {
@@ -52,6 +72,16 @@ export interface IVocalPhrase {
   difficulty: 'Dễ' | 'Trung bình' | 'Thử thách';
   difficultyScore: number;     // 1..10
   pointsCount: number;
+  // --- Lyric & Structural Landmarking ---
+  lyricText?: string;
+  solfegeText?: string;
+  acousticText?: string;
+  sectionType?: VocalSectionType;
+  sectionLabel?: string;
+  contourLabel?: string;
+  focusTip?: string;
+  isInstrumentalOrVocalize?: boolean;
+  words?: IVocalLyricWord[];
 }
 
 export interface IVocalPracticeStep {
@@ -79,6 +109,13 @@ export interface IVocalAnalysisResult {
   pitchTrack: IReferencePitchPoint[];
   noteBars: IVocalNoteBar[];
   phrases: IVocalPhrase[];
+
+  /** Source of the lyrics attached to phrases */
+  lyricSource?: LyricSourceType;
+  /** Completeness status of the lyrics */
+  lyricStatus?: LyricCompletenessStatus;
+  /** Matched song title if found via automatic lookup */
+  matchedTrackTitle?: string;
 
   vocalRange: {
     lowestNote: string;
@@ -335,6 +372,19 @@ class VocalFileAnalysisService {
     // 6. Phrase Segmentation (Tách từng câu hát)
     const phrases = this.segmentPhrases(pitchTrack);
 
+    notify(96, 'Giai đoạn 6/6: Phân tích lời hát (Auto-Lyric & Khẩu hình) và định vị cấu trúc đoạn...');
+    const lyricMeta = await populateAutomaticSongLyricsAndStructure({
+      fileName,
+      durationMs,
+      sampleRate,
+      rawMonoPcm,
+      arrayBuffer,
+      phrases,
+      noteBars,
+      lowestMidi: Math.round(lowestPoint.midi),
+      highestMidi: Math.round(highestPoint.midi),
+    });
+
     // 7. Calculate Vocal Complexity Metrics
     const singingTimeMs = vocalPoints.length * (hopSize / sampleRate) * 1000;
     const singingRatioPercent = durationMs > 0 ? Math.round((singingTimeMs / durationMs) * 100) : 0;
@@ -383,6 +433,9 @@ class VocalFileAnalysisService {
       pitchTrack,
       noteBars,
       phrases,
+      lyricSource: lyricMeta.lyricSource,
+      lyricStatus: lyricMeta.lyricStatus,
+      matchedTrackTitle: lyricMeta.matchedTrackTitle,
       vocalRange: {
         lowestNote: lowestPoint.noteName,
         lowestFreqHz: lowestPoint.freqHz,

@@ -479,14 +479,27 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           ctx.fillStyle = isActive ? 'rgba(255, 255, 255, 0.45)' : 'rgba(253, 186, 116, 0.4)';
           ctx.fillRect(x1 + 2, topY + 1.5, Math.max(2, barW - 4), 2.5);
 
-          // Note text badge on the block
+          // Note text & synced lyric syllable badge on the block
           if (barW >= 22) {
             const oct = Math.floor(barMidi / 12) - 1 + octOffset;
             const displayNoteName = `${barNoteName}${oct}`;
-            ctx.fillStyle = isActive ? '#ffffff' : 'rgba(254, 243, 199, 0.9)';
-            ctx.font = 'bold 10px monospace';
+            const rawSyl = bar.lyricSyllable ? bar.lyricSyllable.trim() : '';
+            const labelText =
+              rawSyl && barW >= 46
+                ? `${rawSyl} · ${displayNoteName}`
+                : rawSyl && barW >= 28 && !rawSyl.startsWith('~')
+                ? rawSyl
+                : displayNoteName;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x1 + 2, topY, Math.max(0, barW - 4), barH);
+            ctx.clip();
+            ctx.fillStyle = isActive ? '#ffffff' : 'rgba(254, 243, 199, 0.95)';
+            ctx.font = isActive ? 'bold 10.5px sans-serif' : 'bold 10px sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(displayNoteName, x1 + 5, barY + 3.5);
+            ctx.fillText(labelText, x1 + 5, barY + 3.5);
+            ctx.restore();
           }
           ctx.restore();
         }

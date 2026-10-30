@@ -17,6 +17,7 @@ import { PitchRunwayCanvas } from '../components/PitchRunwayCanvas';
 import { MiniKeyboardScale } from '../components/MiniKeyboardScale';
 import { TransportBar } from '../controls/TransportBar';
 import { PhraseNavigatorDeck } from '../components/PhraseNavigatorDeck';
+import { KaraokeLyricHud } from '../components/KaraokeLyricHud';
 import { PitchFeedbackDetail } from '../utils/vocalHelpers';
 import { midiToNoteInfo, NOTE_NAMES, SOLFEGE_NAMES } from '@brain-exercises/shared';
 import { ISelectedKeyOverride, useVocalStudioStore } from '../../../store/vocalStudioStore';
@@ -81,6 +82,10 @@ interface SingAlongTabProps {
   // Phrase Deck stats
   sessionStats: SingSessionStats;
   activePhrase: IVocalPhrase | null;
+  onOpenLyricModal?: () => void;
+  onUpdatePhraseLyric?: (phraseIndex: number, newText: string) => void;
+  onMergeNextPhrase?: (phraseIndex: number) => void;
+  onSplitPhrase?: (phraseIndex: number, splitTimeMs?: number) => void;
 }
 
 export const SingAlongTab: React.FC<SingAlongTabProps> = ({
@@ -135,6 +140,10 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   onToggleWindowLock,
   sessionStats,
   activePhrase,
+  onOpenLyricModal,
+  onUpdatePhraseLyric,
+  onMergeNextPhrase,
+  onSplitPhrase,
 }) => {
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
   const micStatus = useVocalStudioStore(s => s.micStatus);
@@ -161,9 +170,24 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
 
   return (
     <div className="w-full max-w-[1850px] mx-auto space-y-4 px-1 sm:px-2">
-      {/* 1. DUAL-TRACK RUNWAY CANVAS CONTAINER */}
-      <div className="relative w-full rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl">
-        <PitchRunwayCanvas renderStateRef={renderStateRef} onSeek={onSeek} />
+      {/* 1. DUAL-TRACK RUNWAY CANVAS + INTEGRATED KARAOKE & SECTION LOCATOR HUD */}
+      <div className="w-full rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl">
+        <KaraokeLyricHud
+          phrases={analysisResult.phrases}
+          currentTimeMs={currentTimeMs}
+          activePhrase={activePhrase}
+          sessionStats={sessionStats}
+          lyricSource={analysisResult.lyricSource}
+          matchedTrackTitle={analysisResult.matchedTrackTitle}
+          isLoopingActive={isLoopingActive}
+          onSeek={onSeek}
+          onLoopPhrase={onLoopPhrase}
+          onOpenLyricModal={() => onOpenLyricModal?.()}
+          onQuickUpdatePhraseLyric={onUpdatePhraseLyric}
+        />
+
+        <div className="relative w-full">
+          <PitchRunwayCanvas renderStateRef={renderStateRef} onSeek={onSeek} />
 
         {/* Missing Mic or Singing Guidance Banner */}
         {isPlaying && !userReading?.isSinging && (
@@ -310,6 +334,7 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
             </span>
           </div>
         </div>
+        </div>
       </div>
 
       {/* 2. MINI-KEYBOARD CHORDS & AUDITORY PREVIEW (Task 1.5) */}
@@ -398,6 +423,12 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         onLoopPhrase={onLoopPhrase}
         onSeekToPhrase={onSeek}
         onClearLoop={onClearLoop}
+        onOpenLyricModal={onOpenLyricModal}
+        onUpdatePhraseLyric={onUpdatePhraseLyric}
+        onMergeNextPhrase={onMergeNextPhrase}
+        onSplitPhrase={onSplitPhrase}
+        playbackSpeed={playbackSpeed}
+        onChangeSpeed={onChangeSpeed}
       />
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Upload,
   Sparkles,
@@ -8,9 +8,16 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  FileText,
+  Search,
+  MapPin,
+  Edit3,
+  X,
 } from 'lucide-react';
 import { IVocalAnalysisResult, IVocalPhrase } from '../../../services/vocalFileAnalysisService';
+import { searchAndTracePhrases } from '../../../services/lyricAlignmentService';
 import { DifficultyBadge } from '../components/DifficultyBadge';
+import { formatTimeMs } from '../utils/vocalHelpers';
 
 interface AnalysisTabProps {
   analysisResult: IVocalAnalysisResult | null;
@@ -21,6 +28,7 @@ interface AnalysisTabProps {
   onLoadDemoTrack: (preset: 'scale' | 'ballad' | 'pentatonic') => void;
   onNavigateToSingAlong: () => void;
   onLoopPhrase: (phrase: IVocalPhrase) => void;
+  onOpenLyricModal?: () => void;
 }
 
 export const AnalysisTab: React.FC<AnalysisTabProps> = ({
@@ -32,9 +40,16 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
   onLoadDemoTrack,
   onNavigateToSingAlong,
   onLoopPhrase,
+  onOpenLyricModal,
 }) => {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [showHelpGuide, setShowHelpGuide] = useState(false);
+  const [lyricSearchQuery, setLyricSearchQuery] = useState('');
+
+  const tracedPhrases = useMemo(() => {
+    if (!analysisResult) return [];
+    return searchAndTracePhrases(analysisResult.phrases, lyricSearchQuery);
+  }, [analysisResult, lyricSearchQuery]);
 
   return (
     <div className="w-full max-w-[1850px] mx-auto space-y-6 px-1 sm:px-3">
@@ -161,9 +176,13 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
                   <span>{analyzeProgress >= 85 ? '✓' : '○'}</span>
                   <span>Cầu nối phụ âm & Triệt tiêu nhiễu kích âm NewTone</span>
                 </div>
-                <div className={`flex items-center gap-2 ${analyzeProgress >= 95 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
-                  <span>{analyzeProgress >= 95 ? '✓' : '○'}</span>
+                <div className={`flex items-center gap-2 ${analyzeProgress >= 92 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
+                  <span>{analyzeProgress >= 92 ? '✓' : '○'}</span>
                   <span>Giải mã Viterbi HMM & Phân đoạn Note Blocks</span>
+                </div>
+                <div className={`flex items-center gap-2 ${analyzeProgress >= 96 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
+                  <span>{analyzeProgress >= 96 ? '✓' : '○'}</span>
+                  <span>Trích xuất lời hát (Auto-Lyric & Khẩu hình) & Định vị đoạn</span>
                 </div>
               </div>
             </div>
@@ -177,22 +196,37 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
           {/* Action: Enter Singing Room Banner */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-3xl bg-gradient-to-r from-sky-950/60 via-indigo-950/60 to-emerald-950/60 border border-sky-500/40 shadow-xl">
             <div className="space-y-1">
-              <div className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+              <div className="text-sm sm:text-base font-bold text-white flex items-center gap-2 flex-wrap">
                 <Sparkles className="w-4 h-4 text-emerald-400" />
-                <span>Phân tích hoàn tất! Đã trích xuất {analysisResult.noteBars.length} nốt NewTone & {analysisResult.phrases.length} câu hát</span>
+                <span>
+                  Phân tích hoàn tất! Đã trích xuất {analysisResult.noteBars.length} nốt NewTone,{' '}
+                  {analysisResult.phrases.length} câu hát &amp; bộ lời/khẩu hình đồng bộ
+                </span>
               </div>
               <p className="text-xs text-slate-300">
-                Đường băng cao độ đã căn chỉnh chuẩn 0ms độ trễ. Bấm nút để bắt đầu luyện hát ngay!
+                Mỗi câu hát đã được gắn mốc thời gian, phân đoạn cấu trúc (Mở đầu, Phiên khúc, Điệp khúc) và khớp âm tiết vào từng nốt nhạc!
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onNavigateToSingAlong}
-              className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-xs sm:text-sm hover:from-emerald-400 hover:to-teal-300 transition shadow-lg flex items-center gap-2 shrink-0 active:scale-95"
-            >
-              <span>Vào Phòng Luyện Hát</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {onOpenLyricModal && (
+                <button
+                  type="button"
+                  onClick={onOpenLyricModal}
+                  className="px-4 py-2.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-sky-500/40 text-sky-300 font-bold text-xs flex items-center gap-1.5 transition"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Đồng Bộ / Sửa Lyric</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onNavigateToSingAlong}
+                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-xs sm:text-sm hover:from-emerald-400 hover:to-teal-300 transition shadow-lg flex items-center gap-2 shrink-0 active:scale-95"
+              >
+                <span>Vào Phòng Luyện Hát</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -240,14 +274,129 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
 
             <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
               <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
-                Số Câu Hát (Phrases)
+                Số Câu Hát &amp; Lyric
               </span>
               <div className="text-sm sm:text-base font-black text-indigo-400 mt-0.5">
-                {analysisResult.phrases.length} câu
+                {analysisResult.phrases.length} câu đã gắn lời
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">
-                Thời lượng: {Math.round(analysisResult.durationMs / 1000)}s
+              <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                {analysisResult.lyricSource === 'demo_builtin'
+                  ? '✓ Lời chuẩn bài mẫu'
+                  : analysisResult.lyricSource === 'auto_lrclib'
+                  ? `✓ Tự động khớp LRCLIB`
+                  : analysisResult.lyricSource === 'embedded_tag'
+                  ? '✓ Trích xuất từ Tag MP3'
+                  : '✓ Lời khẩu hình & Xướng âm tương đối'}
               </div>
+            </div>
+          </div>
+
+          {/* 2.5. Auto-Extracted Lyric & Structural Section Map (Tra cứu & Truy vết nhanh) */}
+          <div className="p-5 rounded-3xl bg-slate-950/75 border border-slate-800 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
+                    <span>Bản Đồ Lời Hát, Khẩu Hình &amp; Định Vị Đoạn Nhạc</span>
+                    <span className="px-2 py-0.5 rounded-full bg-sky-500/15 border border-sky-500/30 text-[10px] text-sky-300 font-semibold">
+                      {analysisResult.lyricSource === 'demo_builtin'
+                        ? 'Lời chuẩn 100%'
+                        : analysisResult.lyricSource === 'auto_lrclib'
+                        ? `Tự động khớp: ${analysisResult.matchedTrackTitle || 'LRCLIB'}`
+                        : analysisResult.lyricSource === 'embedded_tag'
+                        ? 'Lời gốc từ file Audio'
+                        : analysisResult.lyricSource === 'manual'
+                        ? 'Lời đã tùy chỉnh'
+                        : 'AI Phân tích Khẩu hình & Xướng âm tương đối'}
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Mỗi câu hát đã có lời/âm tiết tương đối và nhãn đoạn (Mở đầu, Phiên khúc, Điệp khúc) để bạn tra cứu và nhảy tới tập ngay
+                  </p>
+                </div>
+              </div>
+
+              {onOpenLyricModal && (
+                <button
+                  type="button"
+                  onClick={onOpenLyricModal}
+                  className="px-3.5 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 text-xs font-bold flex items-center gap-1.5 transition"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Nhập file .LRC / Sửa lời bài hát</span>
+                </button>
+              )}
+            </div>
+
+            {/* Search / Trace Input right on Analysis Tab */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={lyricSearchQuery}
+                onChange={(e) => setLyricSearchQuery(e.target.value)}
+                placeholder="Tìm nhanh đoạn muốn tập: Gõ lời hát, âm tiết (La/Ơi/Đô), đoạn ('điệp khúc', 'cao trào'), 'câu 3' hoặc mốc '00:15'..."
+                className="w-full pl-9 pr-9 py-2 rounded-2xl bg-slate-900 border border-slate-800 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-sky-400"
+              />
+              {lyricSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setLyricSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Phrase & Lyric Trace Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-[280px] overflow-y-auto pr-1 custom-scrollbar">
+              {tracedPhrases.map((phrase) => (
+                <div
+                  key={phrase.id}
+                  className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800/90 hover:border-slate-700 flex flex-col justify-between gap-2 transition"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-black text-white">Câu {phrase.phraseIndex}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-[10px] font-bold flex items-center gap-1">
+                        <MapPin className="w-2.5 h-2.5" />
+                        {phrase.sectionLabel || 'Phiên khúc'}
+                      </span>
+                      <DifficultyBadge difficulty={phrase.difficulty} />
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                      {formatTimeMs(phrase.startMs)} – {formatTimeMs(phrase.endMs)}
+                    </span>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800/70">
+                    <div className="text-xs font-bold text-slate-100 truncate" title={phrase.lyricText}>
+                      {phrase.lyricText || phrase.solfegeText}
+                    </div>
+                    <div className="text-[10px] font-mono text-sky-400/90 truncate mt-0.5">
+                      ♫ {phrase.solfegeText}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <span className="text-[10px] font-mono text-slate-400">
+                      Quãng: <strong className="text-sky-300">{phrase.lowestNote}→{phrase.highestNote}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onLoopPhrase(phrase)}
+                      className="px-2.5 py-1 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-[11px] font-bold flex items-center gap-1 transition"
+                    >
+                      <Repeat className="w-3 h-3" />
+                      <span>Tập Câu Này</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
