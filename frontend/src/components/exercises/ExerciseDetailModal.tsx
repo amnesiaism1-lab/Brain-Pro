@@ -128,6 +128,25 @@ export const ExerciseDetailModal: React.FC = () => {
   useEffect(() => {
     setLevelTierTab(exerciseLevel >= 13 ? 'infinity' : 'standard');
   }, [exerciseLevel]);
+
+  const infinityCustomDescription = useMemo(() => {
+    if (exercise.slug === 'schulte-table') {
+      const descriptions: Record<number, string> = {
+        13: 'Bảng chữ cái Latin (5×5, 25 ô): Tìm chữ từ A → B → C... → Y theo thứ tự. Rèn luyện nhận diện ký tự ngoại ngữ và mở rộng tầm nhìn ngoại vi.',
+        14: 'Bảng Đỏ-Đen Gorbov (7×7, 49 ô): Bấm số ĐỎ tăng dần (1→25) xen kẽ số ĐEN giảm dần (24→1). Rèn luyện ức chế tương tranh và phân bổ chú ý kép.',
+        15: 'Số La Mã I–XXV (5×5, 25 ô): Giải mã và tìm các số La Mã từ I đến XXV theo thứ tự. Kích thích giải mã biểu tượng học sâu sắc.',
+        16: 'Quét số giảm dần (7×7, 49 ô): Đếm ngược từ 49 về 1. Đảo ngược thói quen tự nhiên, buộc não tái cấu trúc đường dẫn nhận thức.',
+        17: 'Phantom Fading Ghost (6×6, 36 ô): Sau 2.5 giây đầu, các ô sẽ ẩn dần. Yêu cầu ghi nhớ bản đồ không gian và quét định vị trong tâm trí.',
+        18: 'Fast Rotating Schulte (6×6, 36 ô): Ma trận tự xoay 90° sau mỗi 8 giây. Rèn luyện khả năng tái định hướng không gian thị giác tốc độ cao.',
+        19: 'Rotating + Fading Combo (6×6, 36 ô): Vừa tự xoay ma trận vừa ẩn ô mờ. Xung đột thị giác đa chiều thử thách giới hạn não bộ.',
+        20: 'Fading Latin Alphabet (5×5, 25 ô): Chữ cái Latin A→Y tự động ẩn dần sau 2.5 giây. Kích hoạt bộ nhớ ảnh chụp từ vựng ngoại vi.',
+        21: 'Rotating Gorbov Schulte (7×7, 49 ô): Gorbov Đỏ-Đen kết hợp tự xoay theo chu kỳ. Đỉnh cao của sự chú ý phân bổ và triệt tiêu phân tâm.',
+        22: 'Quantum Chaos Schulte (7×7, 49 ô): Xoay siêu tốc sau mỗi 5 giây kết hợp ẩn hiện. Thử thách tối thượng cho độ dẻo dai thần kinh.'
+      };
+      return descriptions[exerciseLevel] || null;
+    }
+    return null;
+  }, [exercise.slug, exerciseLevel]);
   
   const stageInfo = useMemo(() => {
     if (exerciseLevel >= 13) {
@@ -197,7 +216,7 @@ export const ExerciseDetailModal: React.FC = () => {
   }, [storeActiveTab]);
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-5 animate-fade-in pb-28">
+    <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-5 animate-fade-in pb-36">
       {/* Top Breadcrumb Navigation */}
       <div className="flex items-center justify-between pb-4">
         <button
@@ -253,6 +272,13 @@ export const ExerciseDetailModal: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3 shrink-0 self-start sm:self-center">
+            <button
+              onClick={handleStartGame}
+              className="hidden sm:inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white font-black text-xs sm:text-sm shadow-md shadow-brand-600/30 active:scale-95 transition-all cursor-pointer"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              <span>Luyện Ngay</span>
+            </button>
             <div className="text-right">
               <span className="text-[11px] text-slate-400 block font-medium">Tiến trình thành thạo</span>
               <span className={`text-sm font-black ${exerciseLevel >= 13 ? 'text-purple-600 dark:text-purple-400' : 'text-brand-600 dark:text-brand-400'}`}>
@@ -673,8 +699,12 @@ export const ExerciseDetailModal: React.FC = () => {
                   </div>
                 </div>
                 <p className="text-xs text-purple-200/90 leading-relaxed relative z-10">
-                  {currentConfig.infinityMetadata?.enTheme ? `${currentConfig.infinityMetadata.enTheme}. ` : ''}
-                  Kích hoạt cơ chế mở rộng giới hạn não bộ: xử lý song ngữ, thay đổi quan hệ thực thể cốt lõi, và phản xạ siêu tốc.
+                  {infinityCustomDescription || (
+                    <>
+                      {currentConfig.infinityMetadata?.enTheme ? `${currentConfig.infinityMetadata.enTheme}. ` : ''}
+                      Kích hoạt cơ chế mở rộng giới hạn não bộ: xử lý song ngữ, thay đổi quan hệ thực thể cốt lõi, và phản xạ siêu tốc.
+                    </>
+                  )}
                 </p>
               </div>
             )}
@@ -773,6 +803,24 @@ export const ExerciseDetailModal: React.FC = () => {
                       <strong className="text-amber-600 dark:text-amber-400">{currentConfig.speedWpm} WPM</strong>
                     </div>
                   )}
+                  {(currentConfig.parametersJson as any)?.lineCount && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Số dòng chữ thị giác:</span>
+                      <strong className="text-emerald-600 dark:text-emerald-400">{(currentConfig.parametersJson as any).lineCount} dòng</strong>
+                    </div>
+                  )}
+                  {(currentConfig.parametersJson as any)?.multiDots && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Số điểm neo hội tụ:</span>
+                      <strong className="text-purple-600 dark:text-purple-400">{(currentConfig.parametersJson as any).multiDots} điểm</strong>
+                    </div>
+                  )}
+                  {(currentConfig.parametersJson as any)?.wordLength && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Độ dài từ vựng:</span>
+                      <strong className="text-indigo-600 dark:text-indigo-400">{(currentConfig.parametersJson as any).wordLength} ký tự</strong>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center">
                     <div>
                       <span className="text-slate-500 block">Thời gian mục tiêu:</span>
@@ -824,6 +872,17 @@ export const ExerciseDetailModal: React.FC = () => {
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* Quick Action Start CTA right after Level & Intensity */}
+          <div className="pt-1">
+            <button
+              onClick={handleStartGame}
+              className="w-full py-4 sm:py-5 rounded-3xl bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-700 hover:from-brand-700 hover:to-indigo-700 active:scale-[0.98] text-white font-black text-base sm:text-lg shadow-xl shadow-brand-600/35 flex items-center justify-center gap-2.5 btn-press transition-all cursor-pointer"
+            >
+              <Play className="w-5 h-5 fill-current" />
+              <span>BẮT ĐẦU LUYỆN TẬP (CẤP {exerciseLevel})</span>
+            </button>
           </div>
 
           {/* Section 3: Adaptive Difficulty Engine Card */}
@@ -1077,6 +1136,32 @@ export const ExerciseDetailModal: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Sticky Bottom Action Bar: Always accessible on mobile & desktop without scrolling */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 p-3 sm:p-4 bg-[#F5EFE6]/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-[#D5CBB9] dark:border-slate-800 shadow-[0_-8px_25px_rgba(0,0,0,0.12)]">
+        <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 truncate">
+            <div className="w-10 h-10 rounded-2xl bg-brand-500/10 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 font-black flex items-center justify-center text-sm shrink-0 border border-brand-500/30">
+              {exerciseLevel <= 12 ? exerciseLevel : INFINITY_ROMAN_NUMERALS[exerciseLevel - 13]}
+            </div>
+            <div className="truncate">
+              <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white block truncate">
+                {exercise.title}
+              </span>
+              <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
+                Cấp {exerciseLevel <= 12 ? exerciseLevel : `${getInfinityLabel(exerciseLevel)}`} • {sessionRounds} lượt rèn luyện
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={handleStartGame}
+            className="px-6 sm:px-8 py-3 rounded-2xl bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-700 hover:from-brand-700 hover:to-indigo-700 active:scale-95 text-white font-black text-sm sm:text-base shadow-lg shadow-brand-600/35 flex items-center gap-2 cursor-pointer transition-all shrink-0"
+          >
+            <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
+            <span>Bắt Đầu</span>
+          </button>
+        </div>
+      </div>
 
     </div>
   );

@@ -420,7 +420,10 @@ export const HomeView: React.FC = () => {
                 <p className="text-xs text-slate-500 font-bold mt-0.5">
                   {routine.durationMinutes} phút • {routine.items.length} bài tập
                 </p>
-                <p className="text-[11px] text-slate-400 line-clamp-1 mt-1 font-medium">
+                <p 
+                  title={routine.items.map(item => item.exerciseTitle).join(' • ')}
+                  className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed min-h-[32px] mt-1 font-medium"
+                >
                   {routine.items.map(item => item.exerciseTitle).join(' • ')}
                 </p>
               </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, Layers, Info, Repeat } from 'lucide-react';
+import { Award, Layers, Info, Repeat, AlertCircle } from 'lucide-react';
 import { SingSessionStats } from '../types';
 import { IVocalAnalysisResult, IVocalPhrase } from '../../../services/vocalFileAnalysisService';
 import { DifficultyBadge } from '../components/DifficultyBadge';
@@ -32,6 +32,19 @@ export const ReportTab: React.FC<ReportTabProps> = ({
 
   return (
     <div className="w-full max-w-[1600px] mx-auto space-y-6 px-1 sm:px-3">
+      {/* 0. Missing Microphone / No Voice Warning */}
+      {sessionStats.totalVocalFrames === 0 && (
+        <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-xs text-amber-200 flex items-center gap-3 animate-fade-in">
+          <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+          <div>
+            <div className="font-bold text-amber-300">Chưa ghi nhận tín hiệu âm thanh micro:</div>
+            <p className="text-slate-300 text-[11px] mt-0.5">
+              Hệ thống chưa bắt được cao độ giọng hát trong phiên này. Hãy đảm bảo bạn đã cấp quyền truy cập Microphone cho trình duyệt và hát rõ ràng vào micro.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 1. Overall Score Banner */}
       <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-950/60 via-slate-950 to-indigo-950/50 border border-emerald-500/40 text-center relative overflow-hidden">
         <div className="inline-flex p-3 rounded-2xl bg-emerald-500/10 text-emerald-400 mb-2">
@@ -147,7 +160,9 @@ export const ReportTab: React.FC<ReportTabProps> = ({
         <div className="space-y-1">
           <div className="font-bold text-sky-300">Lời Khuyên Của Huấn Luyện Viên:</div>
           <p className="text-slate-300 leading-relaxed">
-            {sessionStats.flatFrames > sessionStats.sharpFrames
+            {sessionStats.totalVocalFrames === 0
+              ? 'Chưa có dữ liệu cao độ để phân tích giọng hát. Hãy kiểm tra microphone, bấm "Hát Lại Toàn Bài" và cất giọng theo sóng âm mẫu!'
+              : sessionStats.flatFrames > sessionStats.sharpFrames
               ? 'Bạn có xu hướng bị non cao độ (flat) ở các nốt cao. Hãy lấy hơi sâu bằng cơ hoành, giữ thẳng lưng và mở rộng vòm họng để nốt cao thoát âm tự nhiên.'
               : sessionStats.sharpFrames > sessionStats.flatFrames
               ? 'Bạn có xu hướng bị gắt (sharp). Hãy thả lỏng cơ hàm và cơ cổ, tránh tống hơi quá mạnh vào micro.'

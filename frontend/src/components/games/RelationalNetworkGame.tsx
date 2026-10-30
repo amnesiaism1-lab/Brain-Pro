@@ -95,6 +95,7 @@ export const RelationalNetworkGame: React.FC = () => {
   const [predictionEvaluation, setPredictionEvaluation] = useState<IPredictionEvaluation | null>(null);
   const [showPredictionGate, setShowPredictionGate] = useState<boolean>(!!challenge.predictionPrompt);
   const [showOnboardingTutorial, setShowOnboardingTutorial] = useState<boolean>(false);
+  const [hasUserInteracted, setHasUserInteracted] = useState<boolean>(false);
 
   // Telemetry & References
   const relationEventsRef = useRef<IRelationEvent[]>([]);
@@ -121,6 +122,7 @@ export const RelationalNetworkGame: React.FC = () => {
     setTimeLeft(challenge.timeLimitSec);
     setIsGameOver(false);
     setScore(0);
+    setHasUserInteracted(false);
     setPredictionEvaluation(null);
     setShowPredictionGate(!!challenge.predictionPrompt);
     setIsPlaying(!challenge.predictionPrompt);
@@ -204,9 +206,9 @@ export const RelationalNetworkGame: React.FC = () => {
       setBoardState(prevState => {
         const nextState = stepSimulationDynamics(prevState, dt);
 
-        // Check victory condition: All adversary nodes conquered
+        // Check victory condition: All adversary nodes conquered (requires user interaction to prevent passive auto-win)
         const remainingEnemies = nextState.entities.filter(e => e.faction === 'ADVERSARY');
-        if (remainingEnemies.length === 0) {
+        if (remainingEnemies.length === 0 && hasUserInteracted) {
           setIsGameOver(true);
           setIsPlaying(false);
           playSound('victory');
@@ -627,6 +629,7 @@ export const RelationalNetworkGame: React.FC = () => {
         });
         setBoardState(result.nextState);
         setStatusMessage(result.effectDescriptionVi);
+        setHasUserInteracted(true);
         
         // Synthesize musical interval between the two nodes
         const sFreq = dragStartNodeRef.current.soundProps?.freq || 261.63;
@@ -654,6 +657,7 @@ export const RelationalNetworkGame: React.FC = () => {
         });
         setBoardState(result.nextState);
         setStatusMessage(result.effectDescriptionVi);
+        setHasUserInteracted(true);
         
         // Play laser cut sonic snap proportional to cutRatio
         const s = boardState.entities.find(e => e.id === hit.relation.sourceId);

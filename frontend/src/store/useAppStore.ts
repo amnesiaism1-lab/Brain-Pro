@@ -314,6 +314,19 @@ export const useAppStore = create<AppState>((set, get) => {
     if (rawUser) initialAuthUser = JSON.parse(rawUser);
   } catch {}
 
+  let initialWorkoutRoutine: IWorkoutRoutine | null = null;
+  let initialWorkoutStepIndex = 0;
+  try {
+    const savedWorkout = localStorage.getItem('be_active_workout');
+    if (savedWorkout) {
+      const parsed = JSON.parse(savedWorkout);
+      if (parsed?.routine?.items) {
+        initialWorkoutRoutine = parsed.routine;
+        initialWorkoutStepIndex = parsed.stepIndex || 0;
+      }
+    }
+  } catch {}
+
   return {
     ...createWrongAnswerSlice(set, get),
     ...createPersonalAnchorsSlice(set, get),
@@ -659,9 +672,12 @@ export const useAppStore = create<AppState>((set, get) => {
     // Cognitive Snapshots
     cognitiveSnapshots: initialSnapshots,
 
-    activeWorkoutRoutine: null,
-    currentWorkoutStepIndex: 0,
+    activeWorkoutRoutine: initialWorkoutRoutine,
+    currentWorkoutStepIndex: initialWorkoutStepIndex,
     startWorkoutRoutine: (routine) => {
+      try {
+        localStorage.setItem('be_active_workout', JSON.stringify({ routine, stepIndex: 0 }));
+      } catch {}
       set({ 
         activeWorkoutRoutine: routine, 
         currentWorkoutStepIndex: 0,
@@ -673,12 +689,18 @@ export const useAppStore = create<AppState>((set, get) => {
       if (!activeWorkoutRoutine) return;
       const nextIndex = currentWorkoutStepIndex + 1;
       if (nextIndex < activeWorkoutRoutine.items.length) {
+        try {
+          localStorage.setItem('be_active_workout', JSON.stringify({ routine: activeWorkoutRoutine, stepIndex: nextIndex }));
+        } catch {}
         set({
           currentWorkoutStepIndex: nextIndex,
           activeGameSlug: activeWorkoutRoutine.items[nextIndex].exerciseSlug
         });
       } else {
         // Routine completed!
+        try {
+          localStorage.removeItem('be_active_workout');
+        } catch {}
         set({
           activeWorkoutRoutine: null,
           currentWorkoutStepIndex: 0,
@@ -689,6 +711,9 @@ export const useAppStore = create<AppState>((set, get) => {
       }
     },
     cancelWorkoutRoutine: () => {
+      try {
+        localStorage.removeItem('be_active_workout');
+      } catch {}
       set({
         activeWorkoutRoutine: null,
         currentWorkoutStepIndex: 0,
@@ -802,9 +827,17 @@ export const useAppStore = create<AppState>((set, get) => {
       // 3. Weekly Challenge Verification
       let challengeBonusXp = 0;
       const updatedChallenges = state.weeklyChallenges.map(c => {
-        if (!c.isCompleted && c.exerciseSlug === attempt.exerciseSlug && attempt.score >= c.targetScore && currentLevel >= c.targetLevel) {
-          challengeBonusXp += c.xpReward;
-          return { ...c, isCompleted: true };
+        if (!c.isCompleted && c.exerciseSlug === attempt.exerciseSlug) {
+          const scoreMet = attempt.score >= c.targetScore;
+          const levelMet = currentLevel >= c.targetLevel;
+          // For wc-1: require accuracy >= 90 and time <= 50s
+          const accuracyMet = c.id === 'wc-1' ? (attempt.accuracyRate >= 90) : true;
+          const timeMet = c.id === 'wc-1' ? (attempt.timeSpentSec <= 50) : true;
+
+          if (scoreMet && levelMet && accuracyMet && timeMet) {
+            challengeBonusXp += c.xpReward;
+            return { ...c, isCompleted: true };
+          }
         }
         return c;
       });
@@ -823,37 +856,39 @@ export const useAppStore = create<AppState>((set, get) => {
       };
 
       const isCustomSession = state.activeSessionSource === 'custom';
-      let nextLevel = prevMastery.currentLevel;
+      // Base level for adaptive progression is the level that was actually played!
+      const baseLevel = attempt.level || prevMastery.currentLevel;
+      let nextLevel = baseLevel;
       let nextWins = prevMastery.consecutiveWins;
       let nextLosses = prevMastery.consecutiveLosses;
       let levelUpEvent: { exerciseSlug: ExerciseSlug; fromLevel: number; toLevel: number } | null = null;
 
       if (!isCustomSession && state.autoDifficulty) {
         if (attempt.accuracyRate === 100) {
-          // Instant promotion for perfect execution
-          nextLevel = Math.min(22, nextLevel + 1);
+          // Instant promotion for perfect execution (100%)
+          nextLevel = Math.min(22, baseLevel + 1);
           nextWins = 0;
           nextLosses = 0;
         } else if (attempt.accuracyRate >= 90) {
           nextWins += 1;
           nextLosses = 0;
           if (nextWins >= 2) {
-            nextLevel = Math.min(22, nextLevel + 1);
+            nextLevel = Math.min(22, baseLevel + 1);
             nextWins = 0;
           }
         } else if (attempt.accuracyRate < 60) {
           nextLosses += 1;
           nextWins = 0;
           if (nextLosses >= 2) {
-            nextLevel = Math.max(1, nextLevel - 1);
+            nextLevel = Math.max(1, baseLevel - 1);
             nextLosses = 0;
           }
         }
 
-        if (nextLevel > prevMastery.currentLevel) {
+        if (nextLevel > baseLevel) {
           levelUpEvent = {
             exerciseSlug: attempt.exerciseSlug,
-            fromLevel: prevMastery.currentLevel,
+            fromLevel: baseLevel,
             toLevel: nextLevel
           };
         }

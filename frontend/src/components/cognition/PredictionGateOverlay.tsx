@@ -30,13 +30,13 @@ export const PredictionGateOverlay: React.FC<PredictionGateOverlayProps> = ({
   };
 
   const handleSkip = () => {
-    // Allows user to jump directly into the game without being blocked
+    // Allows user to jump directly into the game without being blocked (no prediction bonus awarded)
     const responseMs = Date.now() - startTime;
     onPredictionConfirmed({
-      selectedOptionId: query.correctOptionId,
-      confidence: 0.5,
+      selectedOptionId: null as any,
+      confidence: 0,
       responseMs,
-      isCorrect: true
+      isCorrect: false
     });
   };
 

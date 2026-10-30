@@ -3,7 +3,7 @@ import confetti from 'canvas-confetti';
 import { Trophy, Award, Clock, ArrowRight, RotateCcw, Brain, Lightbulb, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 
-import { IRawMetricsJson, COGNITIVE_RELATIONS, EXERCISE_RELATION_MAP } from '@brain-exercises/shared';
+import { IRawMetricsJson, COGNITIVE_RELATIONS, EXERCISE_RELATION_MAP, EXERCISES_METADATA } from '@brain-exercises/shared';
 
 interface GameResultProps {
   score: number;
@@ -26,6 +26,7 @@ export const GameResultModal: React.FC<GameResultProps> = ({
 }) => {
   const { 
     activeWorkoutRoutine, 
+    currentWorkoutStepIndex,
     nextWorkoutStep, 
     getExerciseLevel,
     autoDifficulty,
@@ -295,7 +296,18 @@ export const GameResultModal: React.FC<GameResultProps> = ({
             onClick={handleNext}
             className="w-full py-3.5 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-extrabold rounded-2xl shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 btn-press"
           >
-            <span>{activeWorkoutRoutine ? 'Bài tiếp theo trong gói' : 'Về trang cấp độ & cài đặt'}</span>
+            <span>
+              {activeWorkoutRoutine
+                ? (() => {
+                    const nextStepIndex = currentWorkoutStepIndex + 1;
+                    const nextItem = activeWorkoutRoutine.items[nextStepIndex];
+                    const nextTitle = nextItem
+                      ? EXERCISES_METADATA.find(e => e.slug === nextItem.exerciseSlug)?.title || 'Bài kế tiếp'
+                      : 'Hoàn thành lộ trình';
+                    return `Chặng tiếp theo (${nextStepIndex + 1}/${activeWorkoutRoutine.items.length}): ${nextTitle}`;
+                  })()
+                : 'Về trang cấp độ & cài đặt'}
+            </span>
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/25 text-white hidden sm:inline-block">Enter ↵</span>
             <ArrowRight className="w-4 h-4" />
           </button>

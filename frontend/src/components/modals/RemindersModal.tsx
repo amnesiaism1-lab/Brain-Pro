@@ -18,6 +18,9 @@ export const RemindersModal: React.FC = () => {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     playSound('correct');
+    if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+      Notification.requestPermission().catch(() => {});
+    }
     addReminder({
       id: `rem-${Date.now()}`,
       reminderTime: time,
@@ -109,6 +112,21 @@ export const RemindersModal: React.FC = () => {
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none"
               />
             </div>
+
+            {'Notification' in window && Notification.permission !== 'granted' && (
+              <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs flex items-center justify-between gap-2">
+                <span className="text-amber-800 dark:text-amber-300 text-[11px]">
+                  Bật quyền nhận thông báo đẩy trên trình duyệt
+                </span>
+                <button
+                  type="button"
+                  onClick={() => Notification.requestPermission()}
+                  className="px-2.5 py-1 rounded-xl bg-amber-500 text-white font-bold text-[10px] hover:bg-amber-600 transition cursor-pointer"
+                >
+                  Cho phép
+                </button>
+              </div>
+            )}
 
             <button
               type="submit"

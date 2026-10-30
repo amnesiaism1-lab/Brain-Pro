@@ -38,6 +38,22 @@ interface GorbovCell {
 const VI_ALPHABET = ['A', 'Ă', 'Â', 'B', 'C', 'D', 'Đ', 'E', 'Ê', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'Ô', 'Ơ', 'P', 'Q', 'R', 'S', 'T', 'U', 'Ư', 'V', 'X', 'Y'];
 const LATIN_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
+export const getAlphabetSequence = (type: 'vi' | 'latin', count: number): string[] => {
+  const base = type === 'vi' ? VI_ALPHABET : LATIN_ALPHABET;
+  if (count <= base.length) {
+    return base.slice(0, count);
+  }
+  const result: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const cycle = Math.floor(i / base.length);
+    const letter = base[i % base.length];
+    result.push(cycle === 0 ? letter : `${letter}${cycle}`);
+  }
+  return result;
+};
+
+const MAX_HINTS_PER_ROUND = 3;
+
 interface RoundResult {
   round: number;
   timeSpentSec: number;
@@ -104,7 +120,7 @@ export const SchulteTableGame: React.FC = () => {
     if (effectiveLevel === 17) return 'fading'; // Phantom fading 6x6
     if (effectiveLevel === 18) return 'rotating'; // Fast rotating 6x6
     if (effectiveLevel === 19) return 'rotating'; // Rotating + fading combo 6x6
-    if (effectiveLevel === 20) return 'fading'; // Fading Latin alphabet 5x5
+    if (effectiveLevel === 20) return 'alphabet'; // Fading Latin alphabet 5x5 (A-Y)
     if (effectiveLevel === 21) return 'gorbov'; // Rotating Gorbov 7x7
     if (effectiveLevel === 22) return 'rotating'; // Quantum chaos 7x7
     if (effectiveLevel === 8) return 'reverse';
@@ -129,7 +145,8 @@ export const SchulteTableGame: React.FC = () => {
     if (effectiveLevel === 20) return 5;
     if (effectiveLevel === 21) return 7;
     if (effectiveLevel === 22) return 7;
-    if (effectiveLevel <= 2) return 3;
+    if (effectiveLevel === 1) return 3;
+    if (effectiveLevel === 2) return 4;
     if (effectiveLevel <= 4) return 5;
     if (effectiveLevel <= 6) return 6;
     if (effectiveLevel <= 9) return 7;
@@ -214,12 +231,16 @@ export const SchulteTableGame: React.FC = () => {
   // Calculate total items
   const totalItems = useMemo(() => {
     if (mode === 'gorbov') return 49;
-    if (mode === 'alphabet') {
-      const activeAlpha = alphabetType === 'vi' ? VI_ALPHABET : LATIN_ALPHABET;
-      return Math.min(activeAlpha.length, gridSize * gridSize);
-    }
     return gridSize * gridSize;
-  }, [mode, gridSize, alphabetType]);
+  }, [mode, gridSize]);
+
+  // Dynamic rotation interval
+  const rotateInterval = useMemo(() => {
+    if (isCustom && typeof resolvedConfig.params?.rotateInterval === 'number') {
+      return resolvedConfig.params.rotateInterval;
+    }
+    return effectiveLevel === 22 ? 5 : effectiveLevel >= 18 ? 8 : 12;
+  }, [isCustom, resolvedConfig.params, effectiveLevel]);
 
   // Items remaining & found count
   const currentFoundCount = useMemo(() => {
@@ -329,9 +350,8 @@ export const SchulteTableGame: React.FC = () => {
       setGorbovGrid(grid);
       setGorbovTarget({ color: 'red', num: 1 });
     } else if (mode === 'alphabet') {
-      const activeAlphabet = alphabetType === 'vi' ? VI_ALPHABET : LATIN_ALPHABET;
-      const totalAvail = Math.min(activeAlphabet.length, gridSize * gridSize);
-      const letters = [...activeAlphabet.slice(0, totalAvail)];
+      const fullSequence = getAlphabetSequence(alphabetType, gridSize * gridSize);
+      const letters = [...fullSequence];
       for (let i = letters.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [letters[i], letters[j]] = [letters[j], letters[i]];
@@ -342,7 +362,7 @@ export const SchulteTableGame: React.FC = () => {
       }
       setAlphabetLetters(grid);
       setAlphabetIndex(0);
-      setCurrentLetterTarget(activeAlphabet[0]);
+      setCurrentLetterTarget(fullSequence[0]);
     } else {
       // Standard / Reverse / Fading / Rotating
       const gen = generateSchulteGrid(gridSize, mode === 'reverse');
@@ -356,7 +376,8 @@ export const SchulteTableGame: React.FC = () => {
 
     // Phantom Fading timer: cells fade after 2.5 seconds
     if (phantomTimerRef.current) clearTimeout(phantomTimerRef.current);
-    if (mode === 'fading') {
+    const willFade = mode === 'fading' || (isInfinity && [17, 19, 20, 22].includes(effectiveLevel));
+    if (willFade) {
       phantomTimerRef.current = setTimeout(() => {
         setIsPhantomFaded(true);
       }, 2500);
@@ -377,10 +398,6 @@ export const SchulteTableGame: React.FC = () => {
       }
 
       // Rotation timer
-      const rotateInterval = isCustom && typeof resolvedConfig.params?.rotateInterval === 'number'
-        ? resolvedConfig.params.rotateInterval
-        : effectiveLevel === 22 ? 5 : effectiveLevel >= 18 ? 8 : 12;
-
       const shouldRotate = mode === 'rotating' || (isInfinity && [18, 19, 21, 22].includes(effectiveLevel));
       if (shouldRotate && sec > 0 && sec % rotateInterval === 0) {
         setRotationDeg(prev => prev + 90);
@@ -554,9 +571,8 @@ export const SchulteTableGame: React.FC = () => {
   const handleAlphabetCellClick = (letter: string, key: string) => {
     if (isFinished || foundKeys.has(key)) return;
 
-    const activeAlphabet = alphabetType === 'vi' ? VI_ALPHABET : LATIN_ALPHABET;
-    const totalAvail = Math.min(activeAlphabet.length, gridSize * gridSize);
-    const expectedLetter = activeAlphabet[alphabetIndex];
+    const fullSequence = getAlphabetSequence(alphabetType, gridSize * gridSize);
+    const expectedLetter = fullSequence[alphabetIndex];
     const isCorrect = letter === expectedLetter;
     const now = Date.now();
     const respMs = Math.min(10000, Math.max(50, now - lastClickTimeRef.current));
@@ -573,11 +589,11 @@ export const SchulteTableGame: React.FC = () => {
       if (newStreak > bestStreak) setBestStreak(newStreak);
 
       const nextIndex = alphabetIndex + 1;
-      if (nextIndex >= totalAvail) {
+      if (nextIndex >= fullSequence.length) {
         handleRoundFinish();
       } else {
         setAlphabetIndex(nextIndex);
-        setCurrentLetterTarget(activeAlphabet[nextIndex]);
+        setCurrentLetterTarget(fullSequence[nextIndex]);
       }
     } else {
       playSound('wrong');
@@ -700,9 +716,9 @@ export const SchulteTableGame: React.FC = () => {
     return null;
   };
 
-  // Manual Hint: clicked by user, penalizes -5 pts, increments user hint count
+  // Manual Hint: clicked by user, penalizes -5 pts, increments user hint count (capped at MAX_HINTS_PER_ROUND)
   const triggerUserHint = () => {
-    if (isFinished) return;
+    if (isFinished || hintCount >= MAX_HINTS_PER_ROUND) return;
     playSound('click');
     setHintCount(prev => prev + 1);
 
@@ -1115,12 +1131,24 @@ export const SchulteTableGame: React.FC = () => {
           <div className="flex flex-col items-center gap-1.5">
             <button
               onClick={triggerUserHint}
-              disabled={isFinished}
-              title="Gợi ý ô tiếp theo (Dùng gợi ý bị trừ nhẹ 5 điểm)"
-              className="p-2 sm:px-3 sm:py-2 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 transition-all btn-press cursor-pointer flex items-center gap-1.5 shadow-sm"
+              disabled={isFinished || hintCount >= MAX_HINTS_PER_ROUND}
+              title={
+                hintCount >= MAX_HINTS_PER_ROUND
+                  ? 'Đã dùng hết 3 lượt gợi ý cho ván này'
+                  : `Gợi ý ô tiếp theo (Dùng gợi ý bị trừ nhẹ 5 điểm, còn ${MAX_HINTS_PER_ROUND - hintCount} lượt)`
+              }
+              className={`p-2 sm:px-3 sm:py-2 rounded-2xl transition-all btn-press flex items-center gap-1.5 shadow-sm ${
+                hintCount >= MAX_HINTS_PER_ROUND
+                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-60'
+                  : 'bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 cursor-pointer'
+              }`}
             >
               <Sparkles className="w-4 h-4" />
-              <span className="text-[11px] font-bold">Gợi ý {hintCount > 0 ? `(${hintCount})` : ''}</span>
+              <span className="text-[11px] font-bold">
+                {hintCount >= MAX_HINTS_PER_ROUND
+                  ? 'Hết gợi ý'
+                  : `Gợi ý (${MAX_HINTS_PER_ROUND - hintCount}/${MAX_HINTS_PER_ROUND})`}
+              </span>
             </button>
             <button
               onClick={() => {
@@ -1152,10 +1180,10 @@ export const SchulteTableGame: React.FC = () => {
               ? `Số giảm dần: Quét ngược từ ${gridSize * gridSize} về 1. Cố định tâm nhìn để bao quát!`
               : mode === 'alphabet'
               ? (alphabetType === 'latin'
-                  ? 'Bảng chữ cái Latin (25 ô): Tìm chữ từ A → B → C... → Y theo thứ tự!'
-                  : 'Bảng chữ cái Tiếng Việt: Tìm chữ từ A → Ă → Â → B → C... theo thứ tự!')
+                  ? `Bảng chữ cái Latin (${gridSize * gridSize} ô): Tìm chữ từ A → B → C... theo thứ tự!`
+                  : `Bảng chữ cái Tiếng Việt (${gridSize * gridSize} ô): Tìm chữ từ A → Ă → Â → B... theo thứ tự!`)
               : mode === 'rotating'
-              ? 'Bảng tự xoay 90° theo chu kỳ để rèn luyện tái định hướng không gian thị giác.'
+              ? `Bảng tự xoay 90° sau mỗi ${rotateInterval} giây để rèn luyện tái định hướng không gian thị giác.`
               : mode === 'fading'
               ? 'Biến thể Ghost Ẩn hiện: Sau 2.5s đầu các ô sẽ ẩn mờ dần, yêu cầu bạn ghi nhớ bản đồ không gian và quét định vị.'
               : 'Quy tắc: Giữ ánh mắt nhìn vào giao điểm tâm lưới. Dùng tầm nhìn ngoại vi mở rộng để nhận diện mục tiêu!'}
@@ -1180,13 +1208,15 @@ export const SchulteTableGame: React.FC = () => {
             transform: `rotate(${rotationDeg}deg)`
           }}
         >
-          {/* Subtle center anchor */}
+          {/* High-contrast precision center fixation reticle (z-30, never washed out) */}
           {showCenterGuide && (
-            <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
-              <div className="relative flex items-center justify-center" style={{ opacity: 0.35 }}>
-                <div className="absolute w-8 h-[1.5px] bg-red-500/80 dark:bg-red-400/80" />
-                <div className="absolute h-8 w-[1.5px] bg-red-500/80 dark:bg-red-400/80" />
-                <div className="absolute w-2 h-2 rounded-full bg-red-600 dark:bg-red-400 ring-2 ring-red-400/30" />
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-30">
+              <div className="relative flex items-center justify-center">
+                <div className="absolute w-10 h-[1.5px] bg-red-500/80 shadow-sm" />
+                <div className="absolute h-10 w-[1.5px] bg-red-500/80 shadow-sm" />
+                <div className="relative w-3.5 h-3.5 rounded-full bg-red-600 border-2 border-white shadow-[0_0_10px_rgba(239,68,68,0.95)] flex items-center justify-center">
+                  <div className="w-1 h-1 rounded-full bg-white" />
+                </div>
               </div>
             </div>
           )}
@@ -1549,7 +1579,14 @@ export const SchulteTableGame: React.FC = () => {
               >
                 <span>
                   {activeWorkoutRoutine
-                    ? `Chặng tiếp theo: ${EXERCISES_METADATA.find(e => e.slug === activeWorkoutRoutine.items[1]?.exerciseSlug)?.title || 'Bài kế tiếp'}`
+                    ? (() => {
+                        const nextStepIndex = (useAppStore.getState().currentWorkoutStepIndex ?? 0) + 1;
+                        const nextItem = activeWorkoutRoutine.items[nextStepIndex];
+                        const nextTitle = nextItem
+                          ? EXERCISES_METADATA.find(e => e.slug === nextItem.exerciseSlug)?.title || 'Bài kế tiếp'
+                          : 'Hoàn thành lộ trình';
+                        return `Chặng tiếp theo (${nextStepIndex + 1}/${activeWorkoutRoutine.items.length}): ${nextTitle}`;
+                      })()
                     : lastLevelUpEvent && lastLevelUpEvent.exerciseSlug === 'schulte-table'
                     ? `🎉 Luyện Cấp ${lastLevelUpEvent.toLevel} Ngay`
                     : 'Về Trang Cấp Độ & Thiết Lập'}

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Bell, X } from 'lucide-react';
 import { useAppStore } from './store/useAppStore';
 import { Header } from './components/layout/Header';
 import { Navbar } from './components/layout/Navbar';
@@ -20,6 +21,7 @@ import { WrongAnswerHistoryView } from './components/wrong-answers/WrongAnswerHi
 import { VocalStudio } from './components/vocal-studio/VocalStudio';
 import { useVocalStudioStore } from './store/vocalStudioStore';
 import { useNavigationSync } from './hooks/useNavigationSync';
+import { useReminderScheduler } from './hooks/useReminderScheduler';
 
 export const App: React.FC = () => {
   const { 
@@ -32,6 +34,7 @@ export const App: React.FC = () => {
   } = useAppStore();
   useOfflineSync();
   useNavigationSync();
+  const { activeAlert, dismissAlert } = useReminderScheduler();
 
   const isVocalStudioOpen = useVocalStudioStore((s) => s.isOpen);
   const closeVocalStudio = useVocalStudioStore((s) => s.closeStudio);
@@ -94,6 +97,27 @@ export const App: React.FC = () => {
           isOpen={isVocalStudioOpen}
           onClose={closeVocalStudio}
         />
+
+        {/* Real-time In-App Reminder Toast */}
+        {activeAlert && (
+          <div className="fixed top-20 right-4 z-50 max-w-sm p-4 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-2xl shadow-2xl border border-white/20 animate-scale-up flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-white/20 text-white shrink-0">
+              <Bell className="w-5 h-5 animate-bounce" />
+            </div>
+            <div className="flex-1">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-amber-200 font-bold block">
+                🔔 Nhắc nhở rèn luyện ({activeAlert.time})
+              </span>
+              <p className="text-xs font-bold text-white mt-0.5">{activeAlert.label}</p>
+            </div>
+            <button
+              onClick={dismissAlert}
+              className="text-white/70 hover:text-white p-1 rounded-lg cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
     </ErrorBoundary>
   );
