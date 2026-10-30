@@ -10,6 +10,8 @@ import {
   updateSinglePhraseLyric,
   buildSmartLyricQueries,
   analyzeDeepNoteBarVowelAndTrajectory,
+  extractVietnameseWordVowel,
+  alignWordsToPhraseNoteBars,
 } from '../lyricAlignmentService';
 import type { IVocalPhrase, IVocalNoteBar, IVocalAnalysisResult } from '../vocalFileAnalysisService';
 
@@ -158,15 +160,20 @@ describe('lyricAlignmentService', () => {
     expect(noteBars[1].lyricSyllable).toBe('nhẹ↗');
   });
 
-  it('extracts smart search queries from complex YouTube/MP3 filenames and analyzes vowel trajectory', () => {
-    const queries = buildSmartLyricQueries(
+  it('extracts smart search queries from complex YouTube/MP3/Stem filenames and analyzes vowel trajectory', () => {
+    const queries1 = buildSmartLyricQueries(
       'Thích Thích - Phương Ly ft. JustaTee | Vụ Nổ Lớn - Phát Phát.mp3'
     );
-    expect(queries[0]).toBe('Thích Thích Phương Ly');
-    expect(queries).toContain('Thích Thích');
+    expect(queries1[0]).toBe('Thích Thích Phương Ly');
+    expect(queries1).toContain('Thích Thích');
+
+    const queries2 = buildSmartLyricQueries(
+      'Hà Anh Tuấn x Phương Linh - Cơn Mưa Tình Yêu_vocals - Part_1.wav'
+    );
+    expect(queries2).toContain('Hà Anh Tuấn Phương Linh Cơn Mưa Tình Yêu');
+    expect(queries2).toContain('Cơn Mưa Tình Yêu');
 
     const { noteBars } = createMockPhrasesAndBars();
-    // Simulate a rising pitch bend within noteBars[1]
     const mockPitchTrack = [
       { timeMs: 1950, freqHz: 325, midi: 63.7, noteName: 'E4', solfegeName: 'Mi 4', clarity: 0.9, volumeDb: -18, isVocal: true },
       { timeMs: 2300, freqHz: 330, midi: 64.0, noteName: 'E4', solfegeName: 'Mi 4', clarity: 0.9, volumeDb: -18, isVocal: true },
@@ -185,7 +192,55 @@ describe('lyricAlignmentService', () => {
     expect(analysis.intraBendCents).toBeGreaterThan(25);
   });
 
-  it('parses LRC timestamps and aligns them to phrases by maximum temporal overlap', () => {
+  it('extracts accurate Vietnamese vowels and assigns checked-stop vs melisma notes via DP', () => {
+    expect(extractVietnameseWordVowel('Từng')?.vowelPhoneme).toBe('Ư');
+    expect(extractVietnameseWordVowel('bước')?.vowelPhoneme).toBe('Ươ');
+    expect(extractVietnameseWordVowel('bước')?.isCheckedStop).toBe(true);
+    expect(extractVietnameseWordVowel('chân')?.vowelPhoneme).toBe('Â');
+    expect(extractVietnameseWordVowel('cuốn')?.vowelPhoneme).toBe('Uô');
+    expect(extractVietnameseWordVowel('đi')?.vowelPhoneme).toBe('I');
+    expect(extractVietnameseWordVowel('mùa')?.vowelPhoneme).toBe('Ua');
+
+    // Test DP word-to-note alignment: 3 words ("Từng bước mùa") on 4 notes
+    // "bước" ends in -c (checked stop), so "mùa" (open phrase-final word) must receive the 2-note melisma!
+    const bars: IVocalNoteBar[] = [
+      { id: 'b1', startTimeMs: 1000, endTimeMs: 1300, durationMs: 300, midi: 63, exactMidi: 63, noteName: 'D#4', solfegeName: 'Rê# 4', avgCentsDiff: 0, pointsCount: 10 },
+      { id: 'b2', startTimeMs: 1330, endTimeMs: 1600, durationMs: 270, midi: 64, exactMidi: 64, noteName: 'E4', solfegeName: 'Mi 4', avgCentsDiff: 0, pointsCount: 10 },
+      { id: 'b3', startTimeMs: 1640, endTimeMs: 2000, durationMs: 360, midi: 63, exactMidi: 63, noteName: 'D#4', solfegeName: 'Rê# 4', avgCentsDiff: 0, pointsCount: 12 },
+      { id: 'b4', startTimeMs: 2020, endTimeMs: 2500, durationMs: 480, midi: 61, exactMidi: 61, noteName: 'C#4', solfegeName: 'Đô# 4', avgCentsDiff: 0, pointsCount: 15 },
+    ];
+    const phrase: IVocalPhrase = {
+      id: 'p1',
+      phraseIndex: 1,
+      startMs: 1000,
+      endMs: 2500,
+      durationMs: 1500,
+      notes: ['D#4', 'E4', 'C#4'],
+      lowestNote: 'C#4',
+      highestNote: 'E4',
+      avgPitchHz: 311,
+      avgMidi: 63,
+      pitchJumpSemitones: 2,
+      difficulty: 'Dễ',
+      difficultyScore: 3,
+      pointsCount: 47,
+    };
+
+    alignWordsToPhraseNoteBars(phrase, bars, 'Từng bước mùa');
+    expect(phrase.words?.length).toBe(3);
+    // "Từng" -> b1 (D#4), "bước" -> b2 (E4, single note), "mùa" -> b3..b4 (D#4->C#4 melisma)
+    expect(phrase.words?.[0].noteName).toBe('D#4');
+    expect(phrase.words?.[0].vowelPhoneme).toBe('Ư');
+    expect(phrase.words?.[1].noteName).toBe('E4');
+    expect(phrase.words?.[1].vowelPhoneme).toBe('Ươ');
+    expect(phrase.words?.[1].endMs).toBe(1600);
+    expect(phrase.words?.[2].noteName).toBe('D#4');
+    expect(phrase.words?.[2].vowelPhoneme).toBe('Ua');
+    expect(phrase.words?.[2].startMs).toBe(1640);
+    expect(phrase.words?.[2].endMs).toBe(2500);
+  });
+
+  it('parses LRC timestamps and re-segments fragmented phrases cleanly without gluing lines together', () => {
     const { phrases, noteBars } = createMockPhrasesAndBars();
     const lrc = `[00:01.10] Bước vào câu mở đầu\n[00:04.20] Vút bay lên điệp khúc\n[00:08.15] Lắng đọng kết bài`;
     const parsed = parseLrcContent(lrc);
@@ -209,19 +264,15 @@ describe('lyricAlignmentService', () => {
       'Chiều mưa rơi\nBầu trời rực sáng\nBình yên cuối ngày'
     );
 
-    // Search by unaccented lyric keyword
     const byLyric = searchAndTracePhrases(phrases, 'chieu mua');
     expect(byLyric.map((p) => p.phraseIndex)).toEqual([1]);
 
-    // Search by section name ("diep khuc" / "cao trao")
     const bySection = searchAndTracePhrases(phrases, 'cao trao');
     expect(bySection.map((p) => p.phraseIndex)).toEqual([2]);
 
-    // Search by phrase number ("câu 3")
     const byNumber = searchAndTracePhrases(phrases, 'câu 3');
     expect(byNumber.map((p) => p.phraseIndex)).toEqual([3]);
 
-    // Search by timestamp ("00:05")
     const byTime = searchAndTracePhrases(phrases, '00:05');
     expect(byTime.map((p) => p.phraseIndex)).toEqual([2]);
   });
@@ -283,4 +334,3 @@ describe('lyricAlignmentService', () => {
     expect(merged.phrases.length).toBe(3);
   });
 });
-

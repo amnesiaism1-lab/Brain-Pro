@@ -472,7 +472,7 @@ class VocalFileAnalysisService {
     let currentPoints: IReferencePitchPoint[] = [];
     let phraseIndex = 1;
     let silenceCounter = 0;
-    const maxSilenceFrames = 12; // ~280ms of silence closes a phrase
+    const maxSilenceFrames = 18; // ~210ms of true breath pause closes a phrase (avoids chopping consonant stops <=190ms)
 
     for (let i = 0; i < pitchTrack.length; i++) {
       const p = pitchTrack[i];

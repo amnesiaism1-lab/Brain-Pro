@@ -2,14 +2,19 @@
  * Deep Vowel Formant (F1/F2), Pitch Trajectory & Lyric Alignment Service (lyricAlignmentService.ts)
  *
  * Implements:
- * 1. Pre-emphasized Goertzel / Multi-Band Spectral Formant Analysis (F1: 250-980Hz, F2: 750-2700Hz)
- *    across 3 sub-windows (Early, Mid, Late) of each sung note to detect pure vowels (/A/, /E-Ê/, /I/, /Ơ-Ư/, /O-Ô/, /U/)
- *    and diphthong transitions (/Ai/, /Ao/, /Ơi/, /Ia/, /Ua/, /Ôi/) without any artificial repeating word cycles.
- * 2. Micro-Pitch Trajectory Analysis on every syllable/word:
- *    - Inter-syllable melodic step (`stepSemitones`: ↑ đi lên, ↘ đi xuống, → đi ngang)
+ * 1. Pre-emphasized Goertzel / Multi-Band Spectral Formant Analysis (F1: 280-900Hz, F2: 880-2580Hz)
+ *    across Early & Late sub-windows of each sung note to detect pure vowels (/A/, /E-Ê/, /I/, /Ơ-Ư/, /O-Ô/, /U/)
+ *    and diphthong transitions (/Ai/, /Ao/, /Ơi/, /Ia/, /Ua/, /Ôi/).
+ * 2. Vietnamese Orthographic + Acoustic Hybrid Vowel Nucleus Extractor (`extractVietnameseWordVowel`)
+ *    so known lyric words always display their exact Vietnamese vowel mouth shape alongside measured F1/F2 formants.
+ * 3. Micro-Pitch Trajectory Analysis on every syllable/word:
+ *    - Inter-syllable melodic step (`stepSemitones`: ↗ đi lên, ↘ đi xuống, → giữ ngang)
  *    - Intra-syllable vowel pitch bend (`pitchTrajectory`: ↗ vuốt lên, ↘ hạ xuống, ⤴ luyến vòm, ⤵ uốn võng, 〰 ngân rung, → giữ phẳng)
- * 3. Multi-candidate smart LRCLIB cloud lyric search (handles complex YouTube/MP3 titles with `|`, `-`, `ft.`)
- * 4. Structural song section landmarking & accent-insensitive search/trace.
+ * 4. Global LRC Time Offset Auto-Calibration + Breath-Snapped 1-to-1 Phrase Re-Segmentation
+ *    so each lyric line matches its exact sung phrase without bleeding into adjacent phrases.
+ * 5. Syllable-Onset NoteBar Subdivision + Phonology-Aware Dynamic Programming (DP) Word-to-Note Alignment
+ *    so every word in a phrase matches its exact NoteBar(s).
+ * 6. Contiguous Musical Block Section Landmarking (`Mở đầu`, `Phiên khúc 1`, `Tiền điệp khúc`, `Điệp khúc`, `Phiên khúc 2`, `Đoạn chuyển`, `Kết bài`).
  */
 
 import { SOLFEGE_NAMES, NOTE_NAMES } from '@brain-exercises/shared';
@@ -59,6 +64,8 @@ export type VowelPitchTrajectory =
   | 'vibrato'
   | 'steady';
 
+export type CoreVowelFamily = 'A' | 'E' | 'I' | 'Ơ' | 'Ô' | 'U';
+
 export interface IVocalLyricWord {
   wordIndex: number;
   text: string;
@@ -67,14 +74,14 @@ export interface IVocalLyricWord {
   midi: number;
   startMs: number;
   endMs: number;
-  /** Detected acoustic vowel phoneme (e.g. "A", "Ê", "I", "Ô", "U", "Ơi", "Ai", "Ao") */
+  /** Detected or orthographic vowel phoneme (e.g. "A", "Ê", "I", "Ô", "U", "Ư", "Ươ", "Uô", "Ơi", "Ai", "Ao") */
   vowelPhoneme?: string;
   vowelHint?: VowelMouthHint;
   /** Estimated formant frequencies [F1_Hz, F2_Hz] */
   formantsHz?: [number, number];
   /** Intra-word pitch contour shape */
   pitchTrajectory?: VowelPitchTrajectory;
-  /** Compact arrow symbol: '↗' | '↘' | '⤴' | '⤵' | '〰' | '→' | '↑' | '↓' */
+  /** Compact arrow symbol: '↗' | '↘' | '⤴' | '⤵' | '〰' | '→' */
   trajectorySymbol?: string;
   /** Human-readable description of how this vowel moves in pitch */
   trajectoryLabel?: string;
@@ -103,7 +110,7 @@ interface ICachedSongLyrics {
   }>;
 }
 
-const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v2_';
+const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v3_';
 
 /**
  * Normalize Vietnamese text for accent-insensitive search & trace
@@ -136,6 +143,194 @@ export function midiToCompactSolfege(midi: number): {
     solfege: `${rawSolfege}${octave}`,
     pureSolfege: rawSolfege,
   };
+}
+
+/**
+ * Extract the exact Vietnamese vowel nucleus, acoustic family, mouth-shape coaching hint,
+ * and checked-stop coda status (`-p, -t, -c, -ch`) from a Vietnamese lyric word.
+ */
+export function extractVietnameseWordVowel(rawWord: string): {
+  vowelPhoneme: string;
+  vowelFamily: CoreVowelFamily;
+  vowelHint: VowelMouthHint;
+  isCheckedStop: boolean;
+} | null {
+  if (!rawWord) return null;
+  // Strip tone marks (acute, grave, hook, tilde, dot below) while preserving vowel diacritics (ă, â, ê, ô, ơ, ư)
+  const lower = rawWord
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300\u0301\u0303\u0309\u0323]/g, '')
+    .normalize('NFC')
+    .replace(/[^a-zà-ỹăâđêôơư]/gi, '');
+
+  if (!lower) return null;
+
+  // Check if word ends in a voiceless stop consonant (-p, -t, -c, -ch) -> short clipped syllable in Vietnamese
+  const isCheckedStop = /(?:p|t|c|ch)$/i.test(lower);
+
+  // Strip initial consonants (including qu-, gi-, ngh-, ng-, nh-, ch-, tr-, th-, ph-, kh-, gh-)
+  const body = lower.replace(/^(?:ngh|ng|nh|ch|tr|th|ph|kh|gh|qu|gi|[bcdđghklmnpqrstvx])/i, '');
+  const target = body || lower;
+
+  // 1. Check Vietnamese Diphthongs & Triphthongs first
+  if (/(?:ươi|ơi)/i.test(target)) {
+    return {
+      vowelPhoneme: 'Ơi',
+      vowelFamily: 'Ơ',
+      vowelHint: 'Nguyên âm đôi (Chuyển khẩu hình)',
+      isCheckedStop,
+    };
+  }
+  if (/(?:ươ|ưa)/i.test(target)) {
+    return {
+      vowelPhoneme: target.includes('ưa') ? 'Ưa' : 'Ươ',
+      vowelFamily: 'Ơ',
+      vowelHint: 'Nguyên âm đôi (Chuyển khẩu hình)',
+      isCheckedStop,
+    };
+  }
+  if (/(?:iê|yê|ia|ya)/i.test(target)) {
+    return {
+      vowelPhoneme: target.includes('ia') || target.includes('ya') ? 'Ia' : 'Iê',
+      vowelFamily: 'I',
+      vowelHint: 'Nguyên âm đôi (Chuyển khẩu hình)',
+      isCheckedStop,
+    };
+  }
+  if (/(?:uôi|ôi|oi)/i.test(target)) {
+    return {
+      vowelPhoneme: target.includes('oi') && !target.includes('ôi') ? 'Oi' : 'Ôi',
+      vowelFamily: 'Ô',
+      vowelHint: 'Nguyên âm đôi (Chuyển khẩu hình)',
+      isCheckedStop,
+    };
+  }
+  if (/(?:uô|ua)/i.test(target)) {
+    return {
+      vowelPhoneme: target.includes('ua') ? 'Ua' : 'Uô',
+      vowelFamily: 'U',
+      vowelHint: 'Nguyên âm đôi (Chuyển khẩu hình)',
+      isCheckedStop,
+    };
+  }
+  if (/(?:oai|oay|uây|ai|ay|ây)/i.test(target)) {
+    return {
+      vowelPhoneme: target.includes('ây') ? 'Ây' : 'Ai',
+      vowelFamily: 'A',
+      vowelHint: 'Nguyên âm đôi (Chuyển khẩu hình)',
+      isCheckedStop,
+    };
+  }
+  if (/(?:ao|au|âu)/i.test(target)) {
+    return {
+      vowelPhoneme: target.includes('âu') ? 'Âu' : 'Ao',
+      vowelFamily: 'A',
+      vowelHint: 'Nguyên âm đôi (Chuyển khẩu hình)',
+      isCheckedStop,
+    };
+  }
+  if (/(?:êu|iu|ưu|ui|ưi)/i.test(target)) {
+    const isU = target.includes('ui') || target.includes('ưi');
+    return {
+      vowelPhoneme: isU ? 'Ui' : 'Iu',
+      vowelFamily: isU ? 'U' : 'I',
+      vowelHint: 'Nguyên âm đôi (Chuyển khẩu hình)',
+      isCheckedStop,
+    };
+  }
+
+  // 2. Check Single Core Vowels (Monophthongs)
+  if (target.includes('ư')) {
+    return {
+      vowelPhoneme: 'Ư',
+      vowelFamily: 'Ơ',
+      vowelHint: 'Ơ/Ư (Mở vừa tự nhiên)',
+      isCheckedStop,
+    };
+  }
+  if (target.includes('ơ')) {
+    return {
+      vowelPhoneme: 'Ơ',
+      vowelFamily: 'Ơ',
+      vowelHint: 'Ơ/Ư (Mở vừa tự nhiên)',
+      isCheckedStop,
+    };
+  }
+  if (target.includes('â')) {
+    return {
+      vowelPhoneme: 'Â',
+      vowelFamily: 'Ơ',
+      vowelHint: 'Ơ/Ư (Mở vừa tự nhiên)',
+      isCheckedStop,
+    };
+  }
+  if (target.includes('ă')) {
+    return {
+      vowelPhoneme: 'Ă',
+      vowelFamily: 'A',
+      vowelHint: 'A (Mở rộng hàm)',
+      isCheckedStop,
+    };
+  }
+  if (target.includes('a')) {
+    return {
+      vowelPhoneme: 'A',
+      vowelFamily: 'A',
+      vowelHint: 'A (Mở rộng hàm)',
+      isCheckedStop,
+    };
+  }
+  if (target.includes('ê')) {
+    return {
+      vowelPhoneme: 'Ê',
+      vowelFamily: 'E',
+      vowelHint: 'E/Ê (Mở ngang)',
+      isCheckedStop,
+    };
+  }
+  if (target.includes('e')) {
+    return {
+      vowelPhoneme: 'E',
+      vowelFamily: 'E',
+      vowelHint: 'E/Ê (Mở ngang)',
+      isCheckedStop,
+    };
+  }
+  if (target.includes('i') || target.includes('y')) {
+    return {
+      vowelPhoneme: 'I',
+      vowelFamily: 'I',
+      vowelHint: 'I (Khép dẹt sáng)',
+      isCheckedStop,
+    };
+  }
+  if (target.includes('ô')) {
+    return {
+      vowelPhoneme: 'Ô',
+      vowelFamily: 'Ô',
+      vowelHint: 'O/Ô (Tròn môi)',
+      isCheckedStop,
+    };
+  }
+  if (target.includes('o')) {
+    return {
+      vowelPhoneme: 'O',
+      vowelFamily: 'Ô',
+      vowelHint: 'O/Ô (Tròn môi)',
+      isCheckedStop,
+    };
+  }
+  if (target.includes('u')) {
+    return {
+      vowelPhoneme: 'U',
+      vowelFamily: 'U',
+      vowelHint: 'U (Chu môi sâu)',
+      isCheckedStop,
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -200,7 +395,7 @@ function goertzelBandEnergy(
   let s2 = 0;
 
   // Apply Hamming window + 1st-order Pre-emphasis (x[n] - 0.97*x[n-1]) on the fly
-  // Pre-emphasis removes -12dB/oct glottal slope so F1 and F2 formants are accurately balanced!
+  // Pre-emphasis removes -12dB/oct glottal slope so F1 and F2 formants are accurately balanced
   for (let i = 0; i < length; i++) {
     const idx = startIdx + i;
     const rawCurr = samples[idx] || 0;
@@ -219,8 +414,8 @@ function goertzelBandEnergy(
 }
 
 /**
- * Estimate F1 (260-960Hz) and F2 (800-2650Hz) formant peaks for a given audio slice
- * and classify into one of the 6 core Vietnamese vowel regions: 'A', 'Ê', 'I', 'Ơ', 'Ô', 'U'.
+ * Estimate F1 (280-900Hz) and F2 (880-2580Hz) formant peaks for a given audio slice
+ * and classify into one of the 6 core Vietnamese vowel regions: 'A', 'E', 'I', 'Ơ', 'Ô', 'U'.
  */
 function estimateSliceVowelFormants(
   rawMonoPcm: Float32Array,
@@ -228,24 +423,21 @@ function estimateSliceVowelFormants(
   endSample: number,
   sampleRate: number,
   fundamentalHz: number
-): { vowel: 'A' | 'E' | 'I' | 'Ơ' | 'Ô' | 'U'; f1Hz: number; f2Hz: number; nasalRatio: number } {
+): { vowel: CoreVowelFamily; f1Hz: number; f2Hz: number; nasalRatio: number } {
   const totalLen = endSample - startSample;
   if (totalLen < 128) {
     return { vowel: 'A', f1Hz: 700, f2Hz: 1350, nasalRatio: 0 };
   }
 
-  // Take a centered analysis window of up to 1024 samples (~23ms at 44.1kHz)
   const winLen = Math.min(1024, totalLen);
   const winStart = startSample + Math.floor((totalLen - winLen) / 2);
 
-  // Probe F1 candidate frequencies (avoiding exact fundamental f0 if f0 > 260Hz)
   const f1Grid = [280, 340, 400, 470, 540, 620, 710, 800, 900];
   let f1WeightedSum = 0;
   let f1WeightTotal = 0;
   let lowNasalEnergy = 0;
 
   for (const freq of f1Grid) {
-    // Attenuate bin if it coincides closely with fundamental pitch f0 to avoid f0 masquerading as F1
     const distFromF0 = Math.abs(freq - fundamentalHz);
     const f0Mask = distFromF0 < 45 ? 0.35 : 1.0;
     const e = goertzelBandEnergy(rawMonoPcm, winStart, winLen, sampleRate, freq) * f0Mask;
@@ -254,7 +446,6 @@ function estimateSliceVowelFormants(
     if (freq <= 340) lowNasalEnergy += e;
   }
 
-  // Probe F2 candidate frequencies (tongue front-back axis: 850Hz to 2600Hz)
   const f2Grid = [880, 1020, 1180, 1350, 1520, 1700, 1900, 2120, 2350, 2580];
   let f2WeightedSum = 0;
   let f2WeightTotal = 0;
@@ -272,14 +463,7 @@ function estimateSliceVowelFormants(
       ? lowNasalEnergy / (f1WeightTotal + f2WeightTotal)
       : 0;
 
-  // Map (F1, F2) in standard Vietnamese acoustic vowel space:
-  // - /I/ (Khép trước): F1 low (< 445Hz), F2 high (> 1820Hz)
-  // - /U/ (Khép sau): F1 low (< 445Hz), F2 low (< 1220Hz)
-  // - /E, Ê/ (Nửa mở trước): F1 mid/high (>= 445Hz), F2 high (> 1720Hz)
-  // - /A/ (Mở rộng): F1 high (>= 600Hz), F2 central (1180..1720Hz)
-  // - /O, Ô/ (Tròn môi sau): F1 mid/high (>= 435Hz), F2 low (< 1220Hz)
-  // - /Ơ, Ư/ (Trung tâm): F1 low/mid (380..600Hz), F2 central (1220..1720Hz)
-  let vowel: 'A' | 'E' | 'I' | 'Ơ' | 'Ô' | 'U' = 'A';
+  let vowel: CoreVowelFamily = 'A';
 
   if (f2Hz >= 1820) {
     vowel = f1Hz < 455 ? 'I' : 'E';
@@ -294,7 +478,7 @@ function estimateSliceVowelFormants(
 
 /**
  * Analyze both the Multi-Slice Vowel Formants (F1/F2 + Diphthong transition)
- * AND the Micro-Pitch Trajectory (cách nguyên âm đi lên/xuống/vòm/rung) for a single NoteBar!
+ * AND the Micro-Pitch Trajectory (cách nguyên âm đi lên/xuống/vòm/rung) for a single NoteBar.
  */
 export function analyzeDeepNoteBarVowelAndTrajectory(params: {
   rawMonoPcm: Float32Array | null;
@@ -304,6 +488,7 @@ export function analyzeDeepNoteBarVowelAndTrajectory(params: {
   pitchTrack: IReferencePitchPoint[];
 }): {
   vowelPhoneme: string;
+  vowelFamily: CoreVowelFamily;
   displayWithContour: string;
   vowelHint: VowelMouthHint;
   formantsHz: [number, number];
@@ -345,7 +530,6 @@ export function analyzeDeepNoteBarVowelAndTrajectory(params: {
     midMidi = avgSlice(barPoints.slice(q2Start, q2End));
     endMidi = avgSlice(barPoints.slice(q3Start));
 
-    // Count direction reversals (vibrato cycles) across consecutive frames
     let prevDelta = 0;
     for (let i = 1; i < n; i++) {
       const d = barPoints[i].midi - barPoints[i - 1].midi;
@@ -414,18 +598,23 @@ export function analyzeDeepNoteBarVowelAndTrajectory(params: {
 
   // 3. Multi-Slice Formant (F1/F2) & Diphthong Transition Analysis
   if (!rawMonoPcm || rawMonoPcm.length === 0 || sampleRate <= 0) {
-    // Pitch-register informed vowel fallback when PCM is not present (e.g. unit tests)
-    const fallbackVowels: Array<{ v: string; h: VowelMouthHint; f: [number, number] }> = [
-      { v: 'A', h: 'A (Mở rộng hàm)', f: [720, 1380] },
-      { v: 'Ơi', h: 'Nguyên âm đôi (Chuyển khẩu hình)', f: [520, 1680] },
-      { v: 'Ê', h: 'E/Ê (Mở ngang)', f: [490, 1980] },
-      { v: 'I', h: 'I (Khép dẹt sáng)', f: [340, 2280] },
-      { v: 'Ô', h: 'O/Ô (Tròn môi)', f: [500, 960] },
-      { v: 'U', h: 'U (Chu môi sâu)', f: [340, 860] },
+    const fallbackVowels: Array<{
+      v: string;
+      fam: CoreVowelFamily;
+      h: VowelMouthHint;
+      f: [number, number];
+    }> = [
+      { v: 'A', fam: 'A', h: 'A (Mở rộng hàm)', f: [720, 1380] },
+      { v: 'Ơi', fam: 'Ơ', h: 'Nguyên âm đôi (Chuyển khẩu hình)', f: [520, 1680] },
+      { v: 'Ê', fam: 'E', h: 'E/Ê (Mở ngang)', f: [490, 1980] },
+      { v: 'I', fam: 'I', h: 'I (Khép dẹt sáng)', f: [340, 2280] },
+      { v: 'Ô', fam: 'Ô', h: 'O/Ô (Tròn môi)', f: [500, 960] },
+      { v: 'U', fam: 'U', h: 'U (Chu môi sâu)', f: [340, 860] },
     ];
     const pick = fallbackVowels[((bar.midi % 12) + 12) % fallbackVowels.length];
     return {
       vowelPhoneme: pick.v,
+      vowelFamily: pick.fam,
       displayWithContour: `${pick.v}${trajectorySymbol}`,
       vowelHint: pick.h,
       formantsHz: pick.f,
@@ -442,7 +631,6 @@ export function analyzeDeepNoteBarVowelAndTrajectory(params: {
   const rawEnd = Math.min(rawMonoPcm.length, Math.ceil((bar.endTimeMs / 1000) * sampleRate));
   const rawLen = rawEnd - rawStart;
 
-  // Trim 12% consonant onset and 10% release tail to isolate the true sung vowel core
   const coreStart = rawStart + Math.floor(rawLen * 0.12);
   const coreEnd = Math.max(coreStart + 128, rawEnd - Math.floor(rawLen * 0.1));
   const coreMid = Math.floor((coreStart + coreEnd) / 2);
@@ -453,9 +641,9 @@ export function analyzeDeepNoteBarVowelAndTrajectory(params: {
   const avgF1 = Math.round((earlyFormant.f1Hz + lateFormant.f1Hz) / 2);
   const avgF2 = Math.round((earlyFormant.f2Hz + lateFormant.f2Hz) / 2);
 
-  // Detect Diphthong transitions (Nguyên âm đôi khi F1/F2 dịch chuyển rõ rệt từ đầu sang cuối âm tiết)
   const f2Shift = lateFormant.f2Hz - earlyFormant.f2Hz;
   let vowelPhoneme: string = earlyFormant.vowel === 'E' ? 'Ê' : earlyFormant.vowel;
+  const vowelFamily: CoreVowelFamily = earlyFormant.vowel;
   let vowelHint: VowelMouthHint = 'A (Mở rộng hàm)';
 
   if (bar.durationMs >= 180 && earlyFormant.vowel !== lateFormant.vowel && Math.abs(f2Shift) >= 240) {
@@ -517,6 +705,7 @@ export function analyzeDeepNoteBarVowelAndTrajectory(params: {
 
   return {
     vowelPhoneme,
+    vowelFamily,
     displayWithContour: `${vowelPhoneme}${trajectorySymbol}`,
     vowelHint,
     formantsHz: [avgF1, avgF2],
@@ -530,8 +719,23 @@ export function analyzeDeepNoteBarVowelAndTrajectory(params: {
 }
 
 /**
- * Classify structural song sections (Intro, Verse, Pre-Chorus, Chorus, Climax, Bridge, Outro)
- * and melodic contour so the user always knows WHERE they are in the song.
+ * Strictly select NoteBars whose temporal center belongs to `phrase`
+ * so adjacent phrases never steal or share boundary notes.
+ */
+function getPhraseNoteBarsStrict(
+  phrase: IVocalPhrase,
+  allNoteBars: IVocalNoteBar[]
+): IVocalNoteBar[] {
+  return allNoteBars.filter((b) => {
+    const mid = (b.startTimeMs + b.endTimeMs) / 2;
+    return mid >= phrase.startMs - 15 && mid <= phrase.endMs + 15;
+  });
+}
+
+/**
+ * Classify structural song sections (Intro, Verse 1, Pre-Chorus, Chorus, Climax, Verse 2, Bridge, Outro)
+ * using Window-Smoothed Pitch/Energy Contours + Lyric Repetition Detection + Contiguous Block Enforcement
+ * so sections form coherent musical blocks rather than flipping on individual phrases.
  */
 export function classifyPhraseSectionsAndContours(
   phrases: IVocalPhrase[],
@@ -553,15 +757,9 @@ export function classifyPhraseSectionsAndContours(
     }
   });
 
-  phrases.forEach((phrase, idx) => {
-    const progressRatio =
-      durationMs > 0 ? phrase.startMs / durationMs : idx / Math.max(1, phrases.length);
-    const relativeHeight = (phrase.avgMidi - lowestMidi) / midiSpan;
-    const phraseBars = noteBars.filter(
-      (b) => b.endTimeMs >= phrase.startMs && b.startTimeMs <= phrase.endMs
-    );
-
-    // Count how many notes go up vs down inside this phrase
+  // 1. Compute per-phrase melodic contour labels
+  phrases.forEach((phrase) => {
+    const phraseBars = getPhraseNoteBarsStrict(phrase, noteBars);
     let upSteps = 0;
     let downSteps = 0;
     for (let i = 1; i < phraseBars.length; i++) {
@@ -585,58 +783,421 @@ export function classifyPhraseSectionsAndContours(
         contourLabel = 'Ngân ngang đều đặn →';
       }
     }
+    phrase.contourLabel = contourLabel;
+  });
 
-    let sectionType: VocalSectionType = 'verse';
-    let sectionLabel = 'Phiên khúc (Verse)';
+  // 2. Short exercises / compact test cases (<= 5 phrases): direct landmarking
+  if (phrases.length <= 5) {
+    phrases.forEach((phrase, idx) => {
+      const progressRatio =
+        durationMs > 0 ? phrase.startMs / durationMs : idx / Math.max(1, phrases.length);
+      const relativeHeight = (phrase.avgMidi - lowestMidi) / midiSpan;
 
-    if (idx === 0 && phrases.length >= 3) {
-      sectionType = 'intro';
-      sectionLabel = 'Mở đầu (Vào bài)';
-    } else if (idx === phrases.length - 1 && phrases.length >= 3) {
-      sectionType = 'outro';
-      sectionLabel = 'Kết bài (Outro)';
-    } else if (phrase.phraseIndex === climaxPhraseIdx && phrases.length >= 4) {
-      sectionType = 'climax';
-      sectionLabel = 'Đỉnh cao trào (Climax)';
-    } else if (relativeHeight >= 0.62 || phrase.difficulty === 'Thử thách') {
-      sectionType = 'chorus';
-      sectionLabel = 'Điệp khúc (Cao trào)';
-    } else if (
-      idx > 0 &&
-      idx < phrases.length - 1 &&
-      phrases[idx + 1] &&
-      (phrases[idx + 1].avgMidi - phrase.avgMidi >= 2.0 ||
-        phrases[idx + 1].difficulty === 'Thử thách')
-    ) {
-      sectionType = 'pre_chorus';
-      sectionLabel = 'Tiền điệp khúc (Dẫn cao trào)';
-    } else if (progressRatio >= 0.68 && relativeHeight < 0.62) {
-      sectionType = 'bridge';
-      sectionLabel = 'Đoạn chuyển (Bridge)';
+      let sectionType: VocalSectionType = 'verse';
+      let sectionLabel = 'Phiên khúc 1 (Tự sự)';
+
+      if (idx === 0 && phrases.length >= 3) {
+        sectionType = 'intro';
+        sectionLabel = 'Mở đầu (Vào bài)';
+      } else if (idx === phrases.length - 1 && phrases.length >= 3) {
+        sectionType = 'outro';
+        sectionLabel = 'Kết bài (Outro)';
+      } else if (phrase.phraseIndex === climaxPhraseIdx && phrases.length >= 4) {
+        sectionType = 'climax';
+        sectionLabel = 'Đỉnh cao trào (Climax)';
+      } else if (relativeHeight >= 0.62 || phrase.difficulty === 'Thử thách') {
+        sectionType = 'chorus';
+        sectionLabel = 'Điệp khúc (Cao trào)';
+      } else if (
+        idx > 0 &&
+        idx < phrases.length - 1 &&
+        phrases[idx + 1] &&
+        (phrases[idx + 1].avgMidi - phrase.avgMidi >= 2.0 ||
+          phrases[idx + 1].difficulty === 'Thử thách')
+      ) {
+        sectionType = 'pre_chorus';
+        sectionLabel = 'Tiền điệp khúc (Dẫn cao trào)';
+      } else if (progressRatio >= 0.68 && relativeHeight < 0.62) {
+        sectionType = 'bridge';
+        sectionLabel = 'Đoạn chuyển (Bridge)';
+      }
+
+      phrase.sectionType = sectionType;
+      phrase.sectionLabel = sectionLabel;
+      phrase.focusTip = buildSectionFocusTip(phrase, sectionType);
+    });
+    return;
+  }
+
+  // 3. Full Song Multi-Phrase Block Section Segmentation (phrases.length >= 6)
+  const N = phrases.length;
+  const rawHeights = phrases.map((p) => (p.avgMidi - lowestMidi) / midiSpan);
+
+  // Detect repeated lyric lines across the song (strong chorus indicator)
+  const normLyrics = phrases.map((p) =>
+    p.lyricText && !p.lyricText.startsWith('Nguyên âm:')
+      ? normalizeVietnameseSearch(p.lyricText)
+      : ''
+  );
+  const isRepeatedLyric = phrases.map((_, i) => {
+    const li = normLyrics[i];
+    if (!li || li.length < 8) return false;
+    return normLyrics.some(
+      (lj, j) => Math.abs(i - j) >= 4 && lj.length >= 8 && (li === lj || li.includes(lj) || lj.includes(li))
+    );
+  });
+
+  // 3-phrase moving window smoothed pitch/energy score
+  const smoothedScore = phrases.map((_, i) => {
+    let sum = 0;
+    let wSum = 0;
+    for (let k = Math.max(0, i - 1); k <= Math.min(N - 1, i + 1); k++) {
+      const w = k === i ? 2.0 : 1.0;
+      const repBonus = isRepeatedLyric[k] ? 0.12 : 0;
+      const diffBonus = phrases[k].difficulty === 'Thử thách' ? 0.08 : 0;
+      sum += (rawHeights[k] + repBonus + diffBonus) * w;
+      wSum += w;
+    }
+    return sum / wSum;
+  });
+
+  // Compute adaptive chorus threshold from median and 68th percentile of smoothedScore
+  const sortedScores = [...smoothedScore].sort((a, b) => a - b);
+  const chorusThreshold = Math.max(
+    0.54,
+    sortedScores[Math.min(N - 1, Math.floor(N * 0.62))]
+  );
+
+  const rawTypes: VocalSectionType[] = new Array(N).fill('verse');
+  const introCount = N >= 16 ? 2 : 1;
+  const outroCount = N >= 16 ? 2 : 1;
+
+  for (let i = 0; i < N; i++) {
+    const progress = durationMs > 0 ? phrases[i].startMs / durationMs : i / N;
+    if (i < introCount) {
+      rawTypes[i] = 'intro';
+    } else if (i >= N - outroCount) {
+      rawTypes[i] = 'outro';
+    } else if (smoothedScore[i] >= chorusThreshold) {
+      rawTypes[i] = 'chorus';
+    } else if (progress >= 0.68 && progress <= 0.88 && smoothedScore[i] < chorusThreshold) {
+      rawTypes[i] = 'bridge';
     } else {
-      const verseNum = idx < phrases.length / 2 ? 1 : 2;
-      sectionType = 'verse';
-      sectionLabel = `Phiên khúc ${verseNum} (Tự sự)`;
+      rawTypes[i] = 'verse';
+    }
+  }
+
+  // Contiguous Block Smoothing Pass: eliminate isolated 1-phrase section flickers
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = introCount; i < N - outroCount; i++) {
+      const prev = rawTypes[i - 1];
+      const curr = rawTypes[i];
+      const next = rawTypes[i + 1];
+      if (curr !== prev && curr !== next) {
+        if (prev === next) {
+          rawTypes[i] = prev;
+        } else if (prev === 'verse' || prev === 'chorus') {
+          rawTypes[i] = prev;
+        }
+      }
+    }
+  }
+
+  // Mark 1-2 phrases right before each contiguous Chorus block as Pre-Chorus (Tiền điệp khúc)
+  for (let i = introCount + 1; i < N - outroCount; i++) {
+    if (rawTypes[i] === 'chorus' && rawTypes[i - 1] === 'verse') {
+      rawTypes[i - 1] = 'pre_chorus';
+      if (i - 2 >= introCount && rawTypes[i - 2] === 'verse' && N >= 14) {
+        rawTypes[i - 2] = 'pre_chorus';
+      }
+    }
+  }
+
+  // Assign human-readable labels with Verse 1 / Verse 2 numbering
+  let seenFirstChorus = false;
+  phrases.forEach((phrase, i) => {
+    let sectionType = rawTypes[i];
+    if (sectionType === 'chorus') seenFirstChorus = true;
+
+    // Highlight the single peak phrase inside Chorus as Climax if it's the highest in the song
+    if (
+      phrase.phraseIndex === climaxPhraseIdx &&
+      sectionType === 'chorus' &&
+      i > introCount &&
+      i < N - outroCount
+    ) {
+      sectionType = 'climax';
     }
 
-    let focusTip = 'Giữ cột hơi đều, phát âm rõ nguyên âm và bám sát hướng đi lên/xuống của từng từ.';
-    if (sectionType === 'climax' || sectionType === 'chorus') {
-      focusTip = `Đoạn cao trào (${phrase.lowestNote} → ${phrase.highestNote}): Mở rộng khẩu hình ở các nguyên âm mở (/A/, /Ơ/) và nén hơi cơ hoành khi vuốt lên nốt ${phrase.highestNote}.`;
-    } else if (phrase.pitchJumpSemitones >= 5) {
-      focusTip = `Có bước nhảy quãng ${phrase.pitchJumpSemitones} bán âm: Chú ý các mũi tên ↗ / ↘ trên từng nguyên âm để chuyển cao độ dứt khoát, không bị trượt giọng.`;
-    } else if (sectionType === 'outro') {
-      focusTip = 'Đoạn kết: Giữ hơi thở sâu ở các nguyên âm cuối câu (↘) để hạ giọng êm mà không bị tụt phô.';
+    let sectionLabel = 'Phiên khúc 1 (Tự sự)';
+    switch (sectionType) {
+      case 'intro':
+        sectionLabel = 'Mở đầu (Vào bài)';
+        break;
+      case 'verse':
+        sectionLabel = seenFirstChorus ? 'Phiên khúc 2 (Tự sự)' : 'Phiên khúc 1 (Tự sự)';
+        break;
+      case 'pre_chorus':
+        sectionLabel = 'Tiền điệp khúc (Dẫn cao trào)';
+        break;
+      case 'chorus':
+        sectionLabel = 'Điệp khúc (Cao trào)';
+        break;
+      case 'climax':
+        sectionLabel = 'Đỉnh cao trào (Climax)';
+        break;
+      case 'bridge':
+        sectionLabel = 'Đoạn chuyển (Bridge)';
+        break;
+      case 'outro':
+        sectionLabel = 'Kết bài (Outro)';
+        break;
     }
 
     phrase.sectionType = sectionType;
     phrase.sectionLabel = sectionLabel;
-    phrase.contourLabel = contourLabel;
-    phrase.focusTip = focusTip;
+    phrase.focusTip = buildSectionFocusTip(phrase, sectionType);
   });
+}
+
+function buildSectionFocusTip(phrase: IVocalPhrase, sectionType: VocalSectionType): string {
+  if (sectionType === 'climax' || sectionType === 'chorus') {
+    return `Đoạn cao trào (${phrase.lowestNote} → ${phrase.highestNote}): Mở rộng khẩu hình ở các nguyên âm mở (/A/, /Ơ/) và nén hơi cơ hoành khi vuốt lên nốt ${phrase.highestNote}.`;
+  }
+  if (phrase.pitchJumpSemitones >= 5) {
+    return `Có bước nhảy quãng ${phrase.pitchJumpSemitones} bán âm: Chú ý các mũi tên ↗ / ↘ trên từng nguyên âm để chuyển cao độ dứt khoát, không bị trượt giọng.`;
+  }
+  if (sectionType === 'outro') {
+    return 'Đoạn kết: Giữ hơi thở sâu ở các nguyên âm cuối câu (↘) để hạ giọng êm mà không bị tụt phô.';
+  }
+  return 'Giữ cột hơi đều, phát âm rõ nguyên âm và bám sát hướng đi lên/xuống của từng từ.';
+}
+
+/**
+ * When a phrase has fewer NoteBars than sung words ($B < W$) because the singer articulated
+ * multiple words on the same sustained pitch, subdivide the longest sustained NoteBars at their
+ * internal consonant/energy dips (or proportional syllable midpoint) so each word gets its own NoteBar.
+ */
+function subdivideSustainedBarsForWords(
+  phraseBars: IVocalNoteBar[],
+  allNoteBars: IVocalNoteBar[],
+  targetWordCount: number,
+  pitchTrack: IReferencePitchPoint[]
+): IVocalNoteBar[] {
+  const workingBars = [...phraseBars];
+
+  while (workingBars.length > 0 && workingBars.length < targetWordCount) {
+    // Pick the longest bar that is at least 180ms long (so each resulting half is >= 90ms)
+    let bestIdx = -1;
+    let maxDur = 179;
+    for (let i = 0; i < workingBars.length; i++) {
+      if (workingBars[i].durationMs > maxDur) {
+        maxDur = workingBars[i].durationMs;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx < 0) break;
+
+    const targetBar = workingBars[bestIdx];
+    const barPts = pitchTrack.filter(
+      (pt) =>
+        pt.isVocal &&
+        pt.midi > 0 &&
+        pt.timeMs >= targetBar.startTimeMs &&
+        pt.timeMs <= targetBar.endTimeMs
+    );
+
+    // Search for an internal syllable consonant valley (minimum volumeDb / bridged clarity) in middle 25%..75%
+    let splitMs = Math.round((targetBar.startTimeMs + targetBar.endTimeMs) / 2);
+    if (barPts.length >= 6) {
+      const minK = Math.max(1, Math.floor(barPts.length * 0.25));
+      const maxK = Math.min(barPts.length - 2, Math.ceil(barPts.length * 0.75));
+      let lowestEnergyScore = Infinity;
+      let bestK = Math.floor(barPts.length / 2);
+      for (let k = minK; k <= maxK; k++) {
+        // Consonant dips have lower volumeDb and/or lower autocorrelation clarity (0.65 when bridged)
+        const energyScore = barPts[k].volumeDb + barPts[k].clarity * 15;
+        if (energyScore < lowestEnergyScore) {
+          lowestEnergyScore = energyScore;
+          bestK = k;
+        }
+      }
+      const candidateMs = barPts[bestK].timeMs;
+      if (
+        candidateMs - targetBar.startTimeMs >= 70 &&
+        targetBar.endTimeMs - candidateMs >= 70
+      ) {
+        splitMs = candidateMs;
+      }
+    }
+
+    const leftPts = barPts.filter((p) => p.timeMs <= splitMs);
+    const rightPts = barPts.filter((p) => p.timeMs > splitMs);
+
+    const calcExactMidi = (pts: IReferencePitchPoint[], fallback: number) =>
+      pts.length > 0
+        ? Math.round((pts.reduce((s, p) => s + p.midi, 0) / pts.length) * 100) / 100
+        : fallback;
+
+    const leftExact = calcExactMidi(leftPts, targetBar.exactMidi);
+    const rightExact = calcExactMidi(rightPts, targetBar.exactMidi);
+    const leftNom = Math.round(leftExact);
+    const rightNom = Math.round(rightExact);
+    const leftInfo = midiToCompactSolfege(leftNom);
+    const rightInfo = midiToCompactSolfege(rightNom);
+
+    const leftBar: IVocalNoteBar = {
+      ...targetBar,
+      id: `${targetBar.id}-a`,
+      endTimeMs: splitMs - 5,
+      durationMs: Math.max(60, splitMs - 5 - targetBar.startTimeMs),
+      midi: leftNom,
+      exactMidi: leftExact,
+      noteName: leftInfo.noteName,
+      solfegeName: leftInfo.solfege.replace(/(\d+)$/, ' $1'),
+      avgCentsDiff: Math.round((leftExact - leftNom) * 100),
+      pointsCount: Math.max(2, leftPts.length),
+    };
+
+    const rightBar: IVocalNoteBar = {
+      ...targetBar,
+      id: `${targetBar.id}-b`,
+      startTimeMs: splitMs + 5,
+      durationMs: Math.max(60, targetBar.endTimeMs - (splitMs + 5)),
+      midi: rightNom,
+      exactMidi: rightExact,
+      noteName: rightInfo.noteName,
+      solfegeName: rightInfo.solfege.replace(/(\d+)$/, ' $1'),
+      avgCentsDiff: Math.round((rightExact - rightNom) * 100),
+      pointsCount: Math.max(2, rightPts.length),
+    };
+
+    workingBars.splice(bestIdx, 1, leftBar, rightBar);
+    const globalIdx = allNoteBars.findIndex((b) => b.id === targetBar.id);
+    if (globalIdx >= 0) {
+      allNoteBars.splice(globalIdx, 1, leftBar, rightBar);
+    }
+  }
+
+  return workingBars;
+}
+
+/**
+ * Phonology & Legato-Aware Dynamic Programming (DP) Partitioner:
+ * Maps $B$ NoteBars ($B \ge W$) onto $W$ Vietnamese words so that:
+ * - Checked-stop words (-p, -t, -c, -ch like "bước", "biết") stay on single notes instead of stealing melismas.
+ * - Words never group bars across a breath/consonant silence gap (> 75ms).
+ * - Open/sonorant words and phrase-ending words naturally receive legato melisma notes.
+ */
+function partitionBarsToWordsDP(
+  phraseBars: IVocalNoteBar[],
+  barAnalysisList: Array<{ vowelFamily: CoreVowelFamily }>,
+  rawTokens: string[]
+): Array<{ startBarIdx: number; endBarIdx: number }> {
+  const W = rawTokens.length;
+  const B = phraseBars.length;
+
+  if (W === 0 || B === 0) return [];
+  if (W === B) {
+    return rawTokens.map((_, i) => ({ startBarIdx: i, endBarIdx: i }));
+  }
+  if (W === 1) {
+    return [{ startBarIdx: 0, endBarIdx: B - 1 }];
+  }
+
+  const wordPhonology = rawTokens.map((tk) => extractVietnameseWordVowel(tk));
+
+  // dp[w][b] = min cost to assign words 0..w using bars 0..b
+  const dp: number[][] = Array.from({ length: W }, () => new Array(B).fill(Infinity));
+  const prevSplit: number[][] = Array.from({ length: W }, () => new Array(B).fill(0));
+
+  const spanCost = (wIdx: number, startBar: number, endBar: number): number => {
+    const span = endBar - startBar + 1;
+    const phon = wordPhonology[wIdx];
+    const ac = barAnalysisList[startBar];
+    let cost = 0;
+
+    // 1. Inter-word gap reward: starting a new word after a clear pause between startBar-1 and startBar
+    if (startBar > 0) {
+      const gapBefore = phraseBars[startBar].startTimeMs - phraseBars[startBar - 1].endTimeMs;
+      if (gapBefore >= 25) {
+        cost -= Math.min(16, gapBefore * 0.12);
+      }
+    }
+
+    // 2. Intra-word gap penalty: grouping multiple bars into 1 word across a silence gap is unnatural
+    for (let j = startBar; j < endBar; j++) {
+      const internalGap = phraseBars[j + 1].startTimeMs - phraseBars[j].endTimeMs;
+      if (internalGap > 70) {
+        cost += (internalGap - 50) * 0.45;
+      }
+    }
+
+    // 3. Melisma (span > 1) phonological constraints
+    if (span > 1) {
+      // Base regularization so 1-note-per-word is preferred unless legato/melisma is natural
+      cost += (span - 1) * 5.0;
+
+      // Checked-stop syllables (-p, -t, -c, -ch like "bước", "thích", "biết") rarely melisma
+      if (phon?.isCheckedStop) {
+        cost += (span - 1) * 18.0;
+      }
+
+      // Phrase-final word or clause-ending word naturally sustains/melismas
+      if (wIdx === W - 1 || /[,.;!?]$/.test(rawTokens[wIdx])) {
+        cost -= 4.5;
+      }
+    }
+
+    // 4. Vowel Formant compatibility bonus
+    if (phon && ac && phon.vowelFamily === ac.vowelFamily) {
+      cost -= 2.5;
+    }
+
+    return cost;
+  };
+
+  // Base case w = 0
+  const maxFirstEnd = B - W;
+  for (let b = 0; b <= maxFirstEnd; b++) {
+    dp[0][b] = spanCost(0, 0, b);
+    prevSplit[0][b] = 0;
+  }
+
+  // Transitions for w = 1 .. W - 1
+  for (let w = 1; w < W; w++) {
+    const minEnd = w;
+    const maxEnd = B - 1 - (W - 1 - w);
+    for (let b = minEnd; b <= maxEnd; b++) {
+      for (let prevB = w - 1; prevB < b; prevB++) {
+        if (dp[w - 1][prevB] === Infinity) continue;
+        const candidate = dp[w - 1][prevB] + spanCost(w, prevB + 1, b);
+        if (candidate < dp[w][b]) {
+          dp[w][b] = candidate;
+          prevSplit[w][b] = prevB + 1;
+        }
+      }
+    }
+  }
+
+  // Backtrack from (W - 1, B - 1)
+  const ranges: Array<{ startBarIdx: number; endBarIdx: number }> = new Array(W);
+  let currEnd = B - 1;
+  for (let w = W - 1; w >= 0; w--) {
+    const start = prevSplit[w][currEnd];
+    ranges[w] = { startBarIdx: start, endBarIdx: currEnd };
+    currEnd = start - 1;
+  }
+
+  return ranges;
 }
 
 /**
  * Align a lyric string (or deep vowel-trajectory tokens) onto the discrete NoteBars belonging to a Phrase.
+ * Combines:
+ * - Syllable-aware NoteBar subdivision when $B < W$
+ * - Phonology & Legato-aware Dynamic Programming when $B \ge W$
+ * - Orthographic + Acoustic Formant hybrid vowel labeling
  */
 export function alignWordsToPhraseNoteBars(
   phrase: IVocalPhrase,
@@ -646,9 +1207,24 @@ export function alignWordsToPhraseNoteBars(
   sampleRate = 44100,
   pitchTrack: IReferencePitchPoint[] = []
 ): void {
-  const phraseBars = allNoteBars.filter(
-    (b) => b.endTimeMs >= phrase.startMs - 40 && b.startTimeMs <= phrase.endMs + 40
-  );
+  const cleanCustomText =
+    lyricText && !lyricText.startsWith('Nguyên âm:') ? lyricText.trim() : '';
+
+  const customTokens =
+    cleanCustomText.length > 0 ? cleanCustomText.split(/\s+/).filter(Boolean) : [];
+
+  let phraseBars = getPhraseNoteBarsStrict(phrase, allNoteBars);
+
+  // If we have real lyric words and fewer NoteBars than words ($B < W$),
+  // subdivide multi-syllable sustained NoteBars at their internal consonant dips!
+  if (customTokens.length > 1 && phraseBars.length > 0 && phraseBars.length < customTokens.length) {
+    phraseBars = subdivideSustainedBarsForWords(
+      phraseBars,
+      allNoteBars,
+      customTokens.length,
+      pitchTrack
+    );
+  }
 
   const solfegeTokens: string[] = [];
   const vowelTrajectoryTokens: string[] = [];
@@ -693,9 +1269,6 @@ export function alignWordsToPhraseNoteBars(
       : `${phrase.lowestNote}→${phrase.highestNote}`;
   phrase.acousticText = `Nguyên âm: ${vowelTrajectoryTokens.join(' · ')} (${contourShort})`;
 
-  const cleanCustomText =
-    lyricText && !lyricText.startsWith('Nguyên âm:') ? lyricText.trim() : '';
-
   const effectiveText =
     cleanCustomText.length > 0
       ? cleanCustomText
@@ -705,10 +1278,9 @@ export function alignWordsToPhraseNoteBars(
 
   phrase.lyricText = effectiveText;
 
-  // Tokenize words/syllables for word-level Karaoke synchronization
   const rawTokens =
-    cleanCustomText.length > 0
-      ? cleanCustomText.split(/\s+/).filter(Boolean)
+    customTokens.length > 0
+      ? customTokens
       : vowelTrajectoryTokens.length > 0
       ? vowelTrajectoryTokens
       : ['A→'];
@@ -720,6 +1292,7 @@ export function alignWordsToPhraseNoteBars(
     const step = totalDur / Math.max(1, rawTokens.length);
     rawTokens.forEach((tk, i) => {
       const info = midiToCompactSolfege(phrase.avgMidi);
+      const ortho = customTokens.length > 0 ? extractVietnameseWordVowel(tk) : null;
       words.push({
         wordIndex: i,
         text: tk,
@@ -728,8 +1301,8 @@ export function alignWordsToPhraseNoteBars(
         midi: Math.round(phrase.avgMidi),
         startMs: Math.round(phrase.startMs + i * step),
         endMs: Math.round(phrase.startMs + (i + 1) * step),
-        vowelPhoneme: 'A',
-        vowelHint: 'A (Mở rộng hàm)',
+        vowelPhoneme: ortho?.vowelPhoneme || 'A',
+        vowelHint: ortho?.vowelHint || 'A (Mở rộng hàm)',
         pitchTrajectory: 'steady',
         trajectorySymbol: '→',
         trajectoryLabel: '→ Giữ độ cao',
@@ -739,18 +1312,22 @@ export function alignWordsToPhraseNoteBars(
       });
     });
   } else if (rawTokens.length <= phraseBars.length) {
-    const barsPerWord = phraseBars.length / rawTokens.length;
+    // Use Phonology & Legato-aware Dynamic Programming to map words onto NoteBars
+    const barRanges = partitionBarsToWordsDP(phraseBars, barAnalysisList, rawTokens);
+
     rawTokens.forEach((tk, i) => {
-      const startBarIdx = Math.min(phraseBars.length - 1, Math.floor(i * barsPerWord));
-      const endBarIdx = Math.min(
-        phraseBars.length - 1,
-        Math.max(startBarIdx, Math.floor((i + 1) * barsPerWord) - 1)
-      );
+      const { startBarIdx, endBarIdx } = barRanges[i] || {
+        startBarIdx: Math.min(i, phraseBars.length - 1),
+        endBarIdx: Math.min(i, phraseBars.length - 1),
+      };
       const firstBar = phraseBars[startBarIdx];
       const lastBar = phraseBars[endBarIdx];
       const ac = barAnalysisList[startBarIdx];
+      const ortho = customTokens.length > 0 ? extractVietnameseWordVowel(tk) : null;
 
-      // If multiple bars span 1 word (melisma / luyến nhiều nốt trên 1 chữ), compute combined trajectory!
+      const resolvedVowel = ortho ? ortho.vowelPhoneme : ac.vowelPhoneme;
+      const resolvedHint = ortho ? ortho.vowelHint : ac.vowelHint;
+
       let melismaSymbol = ac.trajectorySymbol;
       let melismaLabel = ac.trajectoryLabel;
       if (endBarIdx > startBarIdx) {
@@ -759,13 +1336,12 @@ export function alignWordsToPhraseNoteBars(
         melismaLabel = `${melismaSymbol} Luyến ${endBarIdx - startBarIdx + 1} nốt (${firstBar.noteName}→${lastBar.noteName})`;
       }
 
-      // Attach syllable + trajectory arrow onto the noteBars for direct Canvas rendering!
       firstBar.lyricSyllable = tk.includes(melismaSymbol) ? tk : `${tk}${melismaSymbol}`;
-      firstBar.vowelHint = ac.vowelHint;
+      firstBar.vowelHint = resolvedHint;
       for (let bIdx = startBarIdx + 1; bIdx <= endBarIdx; bIdx++) {
         const subAc = barAnalysisList[bIdx];
-        phraseBars[bIdx].lyricSyllable = `~${subAc.vowelPhoneme}${subAc.trajectorySymbol}`;
-        phraseBars[bIdx].vowelHint = subAc.vowelHint;
+        phraseBars[bIdx].lyricSyllable = `~${resolvedVowel}${subAc.trajectorySymbol}`;
+        phraseBars[bIdx].vowelHint = resolvedHint;
       }
 
       words.push({
@@ -776,8 +1352,8 @@ export function alignWordsToPhraseNoteBars(
         midi: firstBar.midi,
         startMs: firstBar.startTimeMs,
         endMs: lastBar.endTimeMs,
-        vowelPhoneme: ac.vowelPhoneme,
-        vowelHint: ac.vowelHint,
+        vowelPhoneme: resolvedVowel,
+        vowelHint: resolvedHint,
         formantsHz: ac.formantsHz,
         pitchTrajectory: ac.pitchTrajectory,
         trajectorySymbol: melismaSymbol,
@@ -788,7 +1364,7 @@ export function alignWordsToPhraseNoteBars(
       });
     });
   } else {
-    // More words than noteBars
+    // Fallback if a bar was shorter than 180ms and could not be subdivided further
     rawTokens.forEach((tk, i) => {
       const mappedBarIdx = Math.min(
         phraseBars.length - 1,
@@ -796,6 +1372,10 @@ export function alignWordsToPhraseNoteBars(
       );
       const bar = phraseBars[mappedBarIdx];
       const ac = barAnalysisList[mappedBarIdx];
+      const ortho = customTokens.length > 0 ? extractVietnameseWordVowel(tk) : null;
+
+      const resolvedVowel = ortho ? ortho.vowelPhoneme : ac.vowelPhoneme;
+      const resolvedHint = ortho ? ortho.vowelHint : ac.vowelHint;
 
       const firstTokenForBar = Math.floor((mappedBarIdx / phraseBars.length) * rawTokens.length);
       const lastTokenForBar = Math.max(
@@ -808,7 +1388,7 @@ export function alignWordsToPhraseNoteBars(
 
       if (subIndex === 0) {
         bar.lyricSyllable = `${tk}${ac.trajectorySymbol}`;
-        bar.vowelHint = ac.vowelHint;
+        bar.vowelHint = resolvedHint;
       } else if (bar.lyricSyllable && !bar.lyricSyllable.includes(' ')) {
         bar.lyricSyllable = `${bar.lyricSyllable} ${tk}`;
       }
@@ -821,8 +1401,8 @@ export function alignWordsToPhraseNoteBars(
         midi: bar.midi,
         startMs: Math.round(bar.startTimeMs + subIndex * subDur),
         endMs: Math.round(bar.startTimeMs + (subIndex + 1) * subDur),
-        vowelPhoneme: ac.vowelPhoneme,
-        vowelHint: ac.vowelHint,
+        vowelPhoneme: resolvedVowel,
+        vowelHint: resolvedHint,
         formantsHz: ac.formantsHz,
         pitchTrajectory: ac.pitchTrajectory,
         trajectorySymbol: ac.trajectorySymbol,
@@ -838,7 +1418,8 @@ export function alignWordsToPhraseNoteBars(
 }
 
 /**
- * Parse LRC formatted text (`[mm:ss.xx] Lyric line`) into timestamped lines
+ * Parse LRC formatted text (`[mm:ss.xx] Lyric line`) into timestamped lines,
+ * automatically filtering out non-sung metadata/credit lines (`[ar:...]`, `Ca sĩ:`, `Sáng tác:`).
  */
 export function parseLrcContent(lrcText: string): ILrcLine[] {
   const lines = lrcText.split(/\r?\n/);
@@ -855,6 +1436,15 @@ export function parseLrcContent(lrcText: string): ILrcLine[] {
       .trim();
 
     if (!textContent) continue;
+
+    // Skip LRC credit/header lines often placed at 00:00..00:05 (e.g. "Bài hát:", "Ca sĩ:", "Nhạc sĩ:", "LRC by")
+    if (
+      /^(?:bài hát|ca sĩ|sáng tác|nhạc sĩ|lời bài hát|lyric by|synced by|biểu diễn|tác giả)\s*[:\-]/i.test(
+        textContent
+      )
+    ) {
+      continue;
+    }
 
     for (const match of matches) {
       const min = parseInt(match[1], 10);
@@ -877,7 +1467,207 @@ export function parseLrcContent(lrcText: string): ILrcLine[] {
 }
 
 /**
- * Align parsed LRC lines onto detected IVocalPhrase[] by maximum temporal overlap / proximity
+ * Auto-calibrate global time offset $\Delta t$ (in ms) between LRC timestamps and actual vocal onsets
+ * in `noteBars` / `phrases` (handles vocal stems or Part_1 cuts that start earlier/later than the LRC).
+ */
+function estimateOptimalLrcOffsetMs(
+  phrases: IVocalPhrase[],
+  noteBars: IVocalNoteBar[],
+  lrcLines: ILrcLine[]
+): number {
+  if (phrases.length === 0 || lrcLines.length === 0) return 0;
+
+  // Collect phrase start times and post-pause noteBar onset times
+  const vocalOnsets: number[] = phrases.map((p) => p.startMs);
+  for (let i = 1; i < noteBars.length; i++) {
+    if (noteBars[i].startTimeMs - noteBars[i - 1].endTimeMs >= 200) {
+      vocalOnsets.push(noteBars[i].startTimeMs);
+    }
+  }
+
+  const candidateOffsets = new Set<number>([0]);
+  // Candidate aligning first vocal phrase with first LRC line
+  const firstDiff = phrases[0].startMs - lrcLines[0].timeMs;
+  if (Math.abs(firstDiff) <= 25000) {
+    candidateOffsets.add(Math.round(firstDiff / 50) * 50);
+  }
+  // Grid search [-10000ms .. +10000ms] in 200ms steps
+  for (let delta = -10000; delta <= 10000; delta += 200) {
+    candidateOffsets.add(delta);
+  }
+
+  let bestOffset = 0;
+  let bestScore = -Infinity;
+
+  for (const offset of candidateOffsets) {
+    let score = -Math.abs(offset) * 0.0015; // Prefer 0 offset when tied
+
+    for (let i = 0; i < lrcLines.length; i++) {
+      const shiftedStart = lrcLines[i].timeMs + offset;
+      const shiftedEnd =
+        i + 1 < lrcLines.length ? lrcLines[i + 1].timeMs + offset : shiftedStart + 4500;
+
+      // 1. Proximity of shiftedStart to nearest vocal onset
+      let minOnsetDist = Infinity;
+      for (const onset of vocalOnsets) {
+        const d = Math.abs(onset - shiftedStart);
+        if (d < minOnsetDist) minOnsetDist = d;
+      }
+      if (minOnsetDist <= 1200) {
+        score += (1200 - minOnsetDist) * 0.025;
+      }
+
+      // 2. Check if this LRC window covers actual sung noteBars
+      const hasBars = noteBars.some((b) => {
+        const mid = (b.startTimeMs + b.endTimeMs) / 2;
+        return mid >= shiftedStart - 150 && mid <= shiftedEnd + 150;
+      });
+      if (hasBars) {
+        score += 12;
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestOffset = offset;
+    }
+  }
+
+  return bestOffset;
+}
+
+/**
+ * Helper to construct a complete IVocalPhrase from a set of NoteBars and a lyric sentence
+ */
+function buildPhraseFromBarsAndLyric(params: {
+  phraseIndex: number;
+  bars: IVocalNoteBar[];
+  fallbackStartMs: number;
+  fallbackEndMs: number;
+  lyricText?: string;
+  isInstrumentalOrVocalize?: boolean;
+  allNoteBars: IVocalNoteBar[];
+  rawMonoPcm?: Float32Array | null;
+  sampleRate: number;
+  pitchTrack: IReferencePitchPoint[];
+}): IVocalPhrase {
+  const {
+    phraseIndex,
+    bars,
+    fallbackStartMs,
+    fallbackEndMs,
+    lyricText,
+    isInstrumentalOrVocalize,
+    allNoteBars,
+    rawMonoPcm,
+    sampleRate,
+    pitchTrack,
+  } = params;
+
+  // If a window has a huge silence gap (> 2600ms) at the tail after the lyric is sung,
+  // trim the trailing instrumental gap so the phrase wraps tightly around the sung lyric!
+  let activeBars = bars;
+  if (bars.length >= 2 && lyricText) {
+    const wordCount = lyricText.trim().split(/\s+/).filter(Boolean).length;
+    for (let i = 0; i < bars.length - 1; i++) {
+      const gap = bars[i + 1].startTimeMs - bars[i].endTimeMs;
+      if (gap >= 2400 && i + 1 >= Math.max(2, Math.floor(wordCount * 0.6))) {
+        activeBars = bars.slice(0, i + 1);
+        break;
+      }
+    }
+  }
+
+  const startMs = activeBars.length > 0 ? activeBars[0].startTimeMs : fallbackStartMs;
+  const endMs =
+    activeBars.length > 0 ? activeBars[activeBars.length - 1].endTimeMs : fallbackEndMs;
+  const durationMs = Math.max(200, endMs - startMs);
+
+  let lowestM = 999;
+  let highestM = -999;
+  let lowestN = 'C4';
+  let highestN = 'C4';
+  let midiSum = 0;
+  let maxLeap = 0;
+  let pointsCount = 0;
+  const distinctNotes: string[] = [];
+
+  if (activeBars.length > 0) {
+    activeBars.forEach((b, idx) => {
+      if (!distinctNotes.includes(b.noteName)) distinctNotes.push(b.noteName);
+      midiSum += b.exactMidi;
+      pointsCount += b.pointsCount;
+      if (b.midi < lowestM) {
+        lowestM = b.midi;
+        lowestN = b.noteName;
+      }
+      if (b.midi > highestM) {
+        highestM = b.midi;
+        highestN = b.noteName;
+      }
+      if (idx > 0) {
+        const leap = Math.abs(b.midi - activeBars[idx - 1].midi);
+        if (leap > maxLeap && leap < 24) maxLeap = leap;
+      }
+    });
+  } else {
+    lowestM = 60;
+    highestM = 60;
+    midiSum = 60;
+    pointsCount = 10;
+    distinctNotes.push('C4');
+  }
+
+  const avgMidi =
+    activeBars.length > 0 ? Math.round((midiSum / activeBars.length) * 10) / 10 : 60;
+  const avgPitchHz = Math.round(440 * Math.pow(2, (avgMidi - 69) / 12));
+  const rangeSpan = Math.round(highestM - lowestM);
+
+  let difficulty: 'Dễ' | 'Trung bình' | 'Thử thách' = 'Dễ';
+  let difficultyScore = 3;
+  if (rangeSpan > 12 || maxLeap > 7 || durationMs > 5500) {
+    difficulty = 'Thử thách';
+    difficultyScore = 8;
+  } else if (rangeSpan > 7 || maxLeap > 4 || durationMs > 3200) {
+    difficulty = 'Trung bình';
+    difficultyScore = 5;
+  }
+
+  const phrase: IVocalPhrase = {
+    id: `phrase-${phraseIndex}`,
+    phraseIndex,
+    startMs,
+    endMs,
+    durationMs,
+    notes: distinctNotes.slice(0, 8),
+    lowestNote: lowestN,
+    highestNote: highestN,
+    avgPitchHz,
+    avgMidi,
+    pitchJumpSemitones: Math.round(maxLeap),
+    difficulty,
+    difficultyScore,
+    pointsCount,
+    isInstrumentalOrVocalize: Boolean(isInstrumentalOrVocalize),
+  };
+
+  alignWordsToPhraseNoteBars(
+    phrase,
+    allNoteBars,
+    lyricText,
+    rawMonoPcm,
+    sampleRate,
+    pitchTrack
+  );
+
+  return phrase;
+}
+
+/**
+ * Align parsed LRC lines onto IVocalPhrase[] using:
+ * 1. Global Audio-to-LRC Time Offset Auto-Calibration
+ * 2. Breath-Snapped LRC Boundary Partitioning (each LRC line becomes 1 clean phrase,
+ *    never gluing two lyric lines together and never letting words bleed into adjacent phrases!)
  */
 export function alignLrcLinesToPhrases(
   phrases: IVocalPhrase[],
@@ -889,53 +1679,147 @@ export function alignLrcLinesToPhrases(
 ): void {
   if (phrases.length === 0 || lrcLines.length === 0) return;
 
-  const assignedTexts: Record<number, string[]> = {};
-  phrases.forEach((p) => {
-    assignedTexts[p.phraseIndex] = [];
-  });
+  const optimalOffsetMs = estimateOptimalLrcOffsetMs(phrases, noteBars, lrcLines);
+  const shiftedLines = lrcLines.map((l) => ({
+    timeMs: Math.max(0, l.timeMs + optimalOffsetMs),
+    text: l.text,
+  }));
 
-  for (let i = 0; i < lrcLines.length; i++) {
-    const line = lrcLines[i];
-    const lineStart = line.timeMs;
-    const lineEnd = i + 1 < lrcLines.length ? lrcLines[i + 1].timeMs : lineStart + 4000;
+  // Compute breath-snapped boundary timestamps B[0..L] between consecutive LRC lines
+  // Snaps each LRC line transition to the clearest inter-note silence gap within ±650ms
+  const L = shiftedLines.length;
+  const boundaries: number[] = new Array(L + 1);
+  boundaries[0] = Math.max(0, shiftedLines[0].timeMs - 350);
 
-    let bestPhrase = phrases[0];
-    let bestScore = -Infinity;
+  for (let i = 1; i < L; i++) {
+    const nominalMs = shiftedLines[i].timeMs;
+    const minWindow = Math.max(
+      shiftedLines[i - 1].timeMs + 250,
+      nominalMs - 650
+    );
+    const maxWindow =
+      i + 1 < L
+        ? Math.min(shiftedLines[i + 1].timeMs - 250, nominalMs + 650)
+        : nominalMs + 650;
 
-    for (const p of phrases) {
-      const overlapStart = Math.max(p.startMs - 350, lineStart);
-      const overlapEnd = Math.min(p.endMs + 350, lineEnd);
-      const overlap = overlapEnd - overlapStart;
+    let bestBoundaryMs = nominalMs;
+    let bestGapScore = -Infinity;
 
-      const pCenter = (p.startMs + p.endMs) / 2;
-      const distPenalty = Math.abs(pCenter - lineStart) * 0.25;
-      const score = overlap - distPenalty;
+    for (let k = 0; k < noteBars.length - 1; k++) {
+      const gapStart = noteBars[k].endTimeMs;
+      const gapEnd = noteBars[k + 1].startTimeMs;
+      const gapMid = Math.round((gapStart + gapEnd) / 2);
+      if (gapMid < minWindow || gapMid > maxWindow) continue;
 
-      if (score > bestScore) {
-        bestScore = score;
-        bestPhrase = p;
+      const gapDur = gapEnd - gapStart;
+      const distPenalty = Math.abs(gapMid - nominalMs) * 0.22;
+      const gapScore = gapDur - distPenalty;
+      if (gapScore > bestGapScore) {
+        bestGapScore = gapScore;
+        bestBoundaryMs = gapMid;
       }
     }
 
-    assignedTexts[bestPhrase.phraseIndex].push(line.text);
+    boundaries[i] = bestBoundaryMs;
   }
 
-  phrases.forEach((p) => {
-    const joined = assignedTexts[p.phraseIndex].join(' / ').trim();
-    p.isInstrumentalOrVocalize = false;
-    alignWordsToPhraseNoteBars(
-      p,
-      noteBars,
-      joined.length > 0 ? joined : undefined,
-      rawMonoPcm,
-      sampleRate,
-      pitchTrack
+  const lastBarEnd =
+    noteBars.length > 0 ? noteBars[noteBars.length - 1].endTimeMs + 500 : shiftedLines[L - 1].timeMs + 5000;
+  boundaries[L] = Math.max(lastBarEnd, shiftedLines[L - 1].timeMs + 4000);
+
+  // If phrase count already matches LRC line count 1-to-1 (e.g. unit tests or pre-segmented tracks),
+  // update each phrase in-place with its exact 1-to-1 LRC line and snapped noteBars!
+  if (phrases.length === L) {
+    phrases.forEach((p, i) => {
+      const bStart = boundaries[i];
+      const bEnd = boundaries[i + 1];
+      const lineBars = noteBars.filter((b) => {
+        const mid = (b.startTimeMs + b.endTimeMs) / 2;
+        return mid >= bStart && mid < bEnd;
+      });
+      if (lineBars.length > 0) {
+        p.startMs = lineBars[0].startTimeMs;
+        p.endMs = lineBars[lineBars.length - 1].endTimeMs;
+        p.durationMs = Math.max(200, p.endMs - p.startMs);
+      }
+      p.isInstrumentalOrVocalize = false;
+      alignWordsToPhraseNoteBars(
+        p,
+        noteBars,
+        shiftedLines[i].text,
+        rawMonoPcm,
+        sampleRate,
+        pitchTrack
+      );
+    });
+    return;
+  }
+
+  // Otherwise, rebuild the phrases array directly from the breath-snapped LRC windows
+  // so every sung lyric sentence is a clean 1-to-1 phrase with zero cross-phrase lyric bleeding!
+  const rebuiltPhrases: IVocalPhrase[] = [];
+  let nextIdx = 1;
+
+  // Check if there are substantial vocalize/intro bars before the first LRC line
+  const introBars = noteBars.filter((b) => (b.startTimeMs + b.endTimeMs) / 2 < boundaries[0]);
+  if (
+    introBars.length >= 2 &&
+    introBars[introBars.length - 1].endTimeMs - introBars[0].startTimeMs >= 1600
+  ) {
+    rebuiltPhrases.push(
+      buildPhraseFromBarsAndLyric({
+        phraseIndex: nextIdx++,
+        bars: introBars,
+        fallbackStartMs: introBars[0].startTimeMs,
+        fallbackEndMs: introBars[introBars.length - 1].endTimeMs,
+        lyricText: undefined,
+        isInstrumentalOrVocalize: true,
+        allNoteBars: noteBars,
+        rawMonoPcm,
+        sampleRate,
+        pitchTrack,
+      })
     );
-  });
+  }
+
+  for (let i = 0; i < L; i++) {
+    const bStart = boundaries[i];
+    const bEnd = boundaries[i + 1];
+    const lineBars = noteBars.filter((b) => {
+      const mid = (b.startTimeMs + b.endTimeMs) / 2;
+      return mid >= bStart && mid < bEnd;
+    });
+
+    // Skip LRC lines that fall completely past the end of the audio file (e.g. Part_1 cut)
+    const maxAudioMs =
+      phrases.length > 0 ? phrases[phrases.length - 1].endMs + 8000 : boundaries[L];
+    if (lineBars.length === 0 && bStart > maxAudioMs) {
+      continue;
+    }
+
+    rebuiltPhrases.push(
+      buildPhraseFromBarsAndLyric({
+        phraseIndex: nextIdx++,
+        bars: lineBars,
+        fallbackStartMs: shiftedLines[i].timeMs,
+        fallbackEndMs: Math.min(bEnd, shiftedLines[i].timeMs + 3800),
+        lyricText: shiftedLines[i].text,
+        isInstrumentalOrVocalize: false,
+        allNoteBars: noteBars,
+        rawMonoPcm,
+        sampleRate,
+        pitchTrack,
+      })
+    );
+  }
+
+  if (rebuiltPhrases.length > 0) {
+    phrases.splice(0, phrases.length, ...rebuiltPhrases);
+  }
 }
 
 /**
- * Align plain multi-line text onto IVocalPhrase[]
+ * Align plain multi-line text onto IVocalPhrase[] without gluing unrelated sentences together
  */
 export function alignPlainTextToPhrases(
   phrases: IVocalPhrase[],
@@ -971,20 +1855,47 @@ export function alignPlainTextToPhrases(
     return;
   }
 
+  // If plainText has fewer lines than acoustic phrases, check if some acoustic phrases
+  // were split by short (< 420ms) pauses and merge them down toward cleanLines.length
+  while (phrases.length > cleanLines.length && phrases.length >= 2) {
+    let minGap = Infinity;
+    let mergeIdx = -1;
+    for (let i = 0; i < phrases.length - 1; i++) {
+      const gap = phrases[i + 1].startMs - phrases[i].endMs;
+      const combinedDur = phrases[i + 1].endMs - phrases[i].startMs;
+      if (gap < minGap && gap <= 480 && combinedDur <= 6500) {
+        minGap = gap;
+        mergeIdx = i;
+      }
+    }
+    if (mergeIdx < 0) break;
+    const first = phrases[mergeIdx];
+    const second = phrases[mergeIdx + 1];
+    first.endMs = second.endMs;
+    first.durationMs = second.endMs - first.startMs;
+    first.notes = Array.from(new Set([...first.notes, ...second.notes])).slice(0, 8);
+    first.pointsCount += second.pointsCount;
+    phrases.splice(mergeIdx + 1, 1);
+    phrases.forEach((p, idx) => {
+      p.id = `phrase-${idx + 1}`;
+      p.phraseIndex = idx + 1;
+    });
+  }
+
   phrases.forEach((p, idx) => {
-    if (cleanLines.length < phrases.length) {
-      const lineText = cleanLines[idx];
-      p.isInstrumentalOrVocalize = !lineText;
-      alignWordsToPhraseNoteBars(p, noteBars, lineText, rawMonoPcm, sampleRate, pitchTrack);
-    } else {
-      const startL = Math.floor((idx / phrases.length) * cleanLines.length);
-      const endL = Math.max(
-        startL + 1,
-        Math.floor(((idx + 1) / phrases.length) * cleanLines.length)
-      );
-      const combined = cleanLines.slice(startL, endL).join(' ');
+    if (idx < cleanLines.length) {
       p.isInstrumentalOrVocalize = false;
-      alignWordsToPhraseNoteBars(p, noteBars, combined, rawMonoPcm, sampleRate, pitchTrack);
+      alignWordsToPhraseNoteBars(
+        p,
+        noteBars,
+        cleanLines[idx],
+        rawMonoPcm,
+        sampleRate,
+        pitchTrack
+      );
+    } else {
+      p.isInstrumentalOrVocalize = true;
+      alignWordsToPhraseNoteBars(p, noteBars, undefined, rawMonoPcm, sampleRate, pitchTrack);
     }
   });
 }
@@ -1039,55 +1950,65 @@ export function extractEmbeddedLyricsFromBuffer(buffer: ArrayBuffer): string | n
 }
 
 /**
- * Generate smart candidate search queries from complex YouTube/MP3 filenames
- * e.g. "Thích Thích - Phương Ly ft. JustaTee | Vụ Nổ Lớn - Phát Phát.mp3"
- * -> ["Thích Thích Phương Ly", "Thích Thích", "Thích Thích Phương Ly JustaTee"]
+ * Generate smart candidate search queries from complex YouTube/MP3/Stem filenames
+ * Handles both "Song Title - Artist" (e.g. "Thích Thích - Phương Ly ft. JustaTee | Vụ Nổ Lớn.mp3")
+ * and "Artist - Song Title_vocals - Part_1.wav" (e.g. "Hà Anh Tuấn x Phương Linh - Cơn Mưa Tình Yêu_vocals - Part_1.wav").
  */
 export function buildSmartLyricQueries(fileName: string): string[] {
   const withoutExt = fileName.replace(/\.[^/.]+$/, '');
-  // Split by pipe '|' or slash '/' first (YouTube titles often put album/channel after '|')
   const primaryPart = withoutExt.split(/[|/]/)[0] || withoutExt;
 
   const stripNoise = (s: string) =>
     s
       .replace(/\[.*?\]|\(.*?\)/g, ' ')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b(?:part|pt|ver|version|track|vol)\s*\d+\b/gi, ' ')
       .replace(
-        /\b(ft\.?|feat\.?|prod\.?|vocal|stem|acapella|karaoke|official|music|video|lyric|lyrics|audio|mv|hd|4k|mp3|wav|128kbps|320kbps|demo|track|record|recording|ghi_am|remix|cover|live)\b/gi,
+        /\b(ft\.?|feat\.?|prod\.?|vocals?|stems?|acapella|accompaniment|instrumental|karaoke|official|music|video|lyrics?|audio|mv|hd|4k|mp3|wav|flac|128kbps|320kbps|demo|record|recording|ghi_am|remix|cover|live)\b/gi,
         ' '
       )
-      .replace(/[_-]+/g, ' ')
+      .replace(/\s+x\s+/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
   const candidates: string[] = [];
-
-  // Candidate 1: Primary part with featuring artist removed (e.g. "Thích Thích - Phương Ly")
-  const beforeFeat = primaryPart.split(/\b(?:ft\.?|feat\.?)\b/i)[0] || primaryPart;
-  const cleanBeforeFeat = stripNoise(beforeFeat);
-  if (cleanBeforeFeat.length >= 3) candidates.push(cleanBeforeFeat);
-
-  // Candidate 2: Just the song title before '-' (e.g. "Thích Thích")
-  const dashParts = beforeFeat.split(/\s*-\s*/);
-  if (dashParts.length >= 2) {
-    const songTitleOnly = stripNoise(dashParts[0]);
-    if (songTitleOnly.length >= 3 && !candidates.includes(songTitleOnly)) {
-      candidates.push(songTitleOnly);
+  const addCandidate = (c: string) => {
+    const cleaned = stripNoise(c);
+    if (
+      cleaned.length >= 3 &&
+      !candidates.includes(cleaned) &&
+      !/^(audio|vocal|bai hat|test|sample|untitled|\d+)$/i.test(cleaned)
+    ) {
+      candidates.push(cleaned);
     }
+  };
+
+  // 1. Primary part with featuring artist removed
+  const beforeFeat = primaryPart.split(/\b(?:ft\.?|feat\.?)\b/i)[0] || primaryPart;
+  addCandidate(beforeFeat);
+
+  // 2. Clean individual dash-separated segments (supports both "Title - Artist" and "Artist - Title - Part_1")
+  const dashParts = beforeFeat
+    .split(/\s*-\s*/)
+    .map((p) => stripNoise(p))
+    .filter((p) => p.length >= 3);
+
+  if (dashParts.length >= 2) {
+    // First segment (Song Title in "Title - Artist")
+    addCandidate(dashParts[0]);
+    // Second segment (Song Title in "Artist - Title")
+    addCandidate(dashParts[1]);
   }
 
-  // Candidate 3: Full primary part cleaned
-  const cleanFull = stripNoise(primaryPart);
-  if (cleanFull.length >= 3 && !candidates.includes(cleanFull)) {
-    candidates.push(cleanFull);
-  }
+  // 3. Full primary part cleaned
+  addCandidate(primaryPart);
 
-  return candidates.filter(
-    (q) => !/^(audio|vocal|bai hat|test|sample|untitled|\d+)$/i.test(q)
-  );
+  return candidates;
 }
 
 /**
  * Query open LRCLIB API (`https://lrclib.net/api/search`) using multi-candidate smart queries
+ * and lexical Title/Artist matching score.
  */
 export async function fetchAutoLyricsFromLrclib(
   fileName: string,
@@ -1097,8 +2018,9 @@ export async function fetchAutoLyricsFromLrclib(
   if (queries.length === 0 || typeof fetch === 'undefined') return null;
 
   const targetDurSec = durationMs / 1000;
+  const normFile = normalizeVietnameseSearch(fileName);
 
-  for (const query of queries.slice(0, 2)) {
+  for (const query of queries.slice(0, 3)) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2400);
 
@@ -1118,8 +2040,19 @@ export async function fetchAutoLyricsFromLrclib(
         .filter((item: any) => item && (item.syncedLyrics || item.plainLyrics))
         .map((item: any) => {
           const durDiff = Math.abs((Number(item.duration) || targetDurSec) - targetDurSec);
-          const hasSyncBonus = item.syncedLyrics ? 30 : 0;
-          return { item, score: hasSyncBonus - durDiff };
+          const hasSyncBonus = item.syncedLyrics ? 45 : 0;
+
+          const normTrack = normalizeVietnameseSearch(String(item.trackName || ''));
+          const normArtist = normalizeVietnameseSearch(String(item.artistName || ''));
+          const titleMatchBonus =
+            normTrack.length >= 3 && normFile.includes(normTrack) ? 80 : 0;
+          const artistMatchBonus =
+            normArtist.length >= 3 && normFile.includes(normArtist) ? 35 : 0;
+
+          return {
+            item,
+            score: hasSyncBonus + titleMatchBonus + artistMatchBonus - durDiff,
+          };
         })
         .sort((a, b) => b.score - a.score);
 
@@ -1183,8 +2116,11 @@ export function loadLyricsFromLocalCache(
 
 /**
  * Master pipeline called during `vocalFileAnalysisService.analyzeVocalAudio`
- * Performs deep multi-pass Formant (F1/F2) Vowel + Micro-Pitch Trajectory analysis
- * and multi-tier automatic lyric resolution!
+ * Performs:
+ * 1. Multi-tier automatic lyric resolution (Cache -> Builtin -> ID3/Vorbis -> LRCLIB -> Acoustic)
+ * 2. LRC-Guided Breath-Snapped Phrase Re-segmentation (1 lyric sentence = 1 phrase, zero bleeding)
+ * 3. Syllable-Onset NoteBar Subdivision & Phonology-Aware DP Word-to-Note Alignment
+ * 4. Contiguous Musical Block Section Landmarking
  */
 export async function populateAutomaticSongLyricsAndStructure(params: {
   fileName: string;
@@ -1217,11 +2153,11 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     onProgress,
   } = params;
 
-  // 1. Classify structural sections & melodic step contours
-  classifyPhraseSectionsAndContours(phrases, noteBars, durationMs, lowestMidi, highestMidi);
+  const finalizeSections = () => {
+    classifyPhraseSectionsAndContours(phrases, noteBars, durationMs, lowestMidi, highestMidi);
+  };
 
-  // 2. Deep Multi-Pass Formant (F1/F2) & Pitch Trajectory Analysis across all phrases
-  // Yield periodically so the user sees genuine deep acoustic analysis progress
+  // 1. Initial acoustic pass across phrases with progress updates
   const totalPhrases = Math.max(1, phrases.length);
   for (let i = 0; i < phrases.length; i++) {
     alignWordsToPhraseNoteBars(
@@ -1233,16 +2169,16 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
       pitchTrack
     );
     if (onProgress && (i % 5 === 0 || i === phrases.length - 1)) {
-      const pct = Math.min(96, 91 + Math.round(((i + 1) / totalPhrases) * 5));
+      const pct = Math.min(95, 91 + Math.round(((i + 1) / totalPhrases) * 4));
       onProgress(
         pct,
         `Giai đoạn 6/7: Quét phổ Formant F1-F2 & Quỹ đạo nguyên âm (↗/↘) câu ${i + 1}/${phrases.length}...`
       );
-      await new Promise((resolve) => setTimeout(resolve, 35));
+      await new Promise((resolve) => setTimeout(resolve, 25));
     }
   }
 
-  // 3. Layer 1A: Check LocalStorage user cache
+  // 2. Layer 1A: Check LocalStorage user cache
   const cached = loadLyricsFromLocalCache(fileName, durationMs);
   if (cached && cached.phrases.length === phrases.length) {
     phrases.forEach((p, idx) => {
@@ -1257,6 +2193,7 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
         pitchTrack
       );
     });
+    finalizeSections();
     return {
       lyricSource: cached.lyricSource,
       lyricStatus: 'complete',
@@ -1264,7 +2201,7 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     };
   }
 
-  // 4. Layer 1B: Check Built-in Demo Tracks
+  // 3. Layer 1B: Check Built-in Demo Tracks
   const baseName = fileName.replace(/\.[^/.]+$/, '');
   if (BUILTIN_DEMO_LYRICS[baseName]) {
     const demoLines = BUILTIN_DEMO_LYRICS[baseName];
@@ -1276,6 +2213,7 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
       sampleRate,
       pitchTrack
     );
+    finalizeSections();
     return {
       lyricSource: 'demo_builtin',
       lyricStatus: 'complete',
@@ -1283,7 +2221,7 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     };
   }
 
-  // 5. Layer 2: Check Embedded ID3v2 / Vorbis Lyrics inside audio file binary
+  // 4. Layer 2: Check Embedded ID3v2 / Vorbis Lyrics inside audio file binary
   const embeddedText = extractEmbeddedLyricsFromBuffer(arrayBuffer);
   if (embeddedText) {
     const lrcLines = parseLrcContent(embeddedText);
@@ -1292,15 +2230,19 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     } else {
       alignPlainTextToPhrases(phrases, noteBars, embeddedText, rawMonoPcm, sampleRate, pitchTrack);
     }
+    finalizeSections();
     return {
       lyricSource: 'embedded_tag',
       lyricStatus: 'complete',
     };
   }
 
-  // 6. Layer 3: Query Open LRCLIB API with multi-stage smart filename queries
+  // 5. Layer 3: Query Open LRCLIB API with multi-stage smart filename queries
   if (onProgress) {
-    onProgress(98, 'Giai đoạn 7/7: Đối chiếu lời bài hát đồng bộ & hoàn tất bản đồ nguyên âm...');
+    onProgress(
+      97,
+      'Giai đoạn 7/7: Đối chiếu lời bài hát đồng bộ, tách nốt theo âm tiết & định vị cấu trúc đoạn...'
+    );
   }
   const autoCloud = await fetchAutoLyricsFromLrclib(fileName, durationMs);
   if (autoCloud && (autoCloud.syncedLyrics || autoCloud.plainLyrics)) {
@@ -1308,6 +2250,7 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
       const lrcLines = parseLrcContent(autoCloud.syncedLyrics);
       if (lrcLines.length > 0) {
         alignLrcLinesToPhrases(phrases, noteBars, lrcLines, rawMonoPcm, sampleRate, pitchTrack);
+        finalizeSections();
         return {
           lyricSource: 'auto_lrclib',
           lyricStatus: 'complete',
@@ -1324,6 +2267,7 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
         sampleRate,
         pitchTrack
       );
+      finalizeSections();
       return {
         lyricSource: 'auto_lrclib',
         lyricStatus: 'complete',
@@ -1332,7 +2276,8 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     }
   }
 
-  // 7. Layer 4: True Formant (F1/F2) Vowel + Micro-Pitch Trajectory relative representation
+  // 6. Layer 4: True Formant (F1/F2) Vowel + Micro-Pitch Trajectory relative representation
+  finalizeSections();
   return {
     lyricSource: 'acoustic_relative',
     lyricStatus: 'relative_auto',
@@ -1419,7 +2364,14 @@ export function updateSinglePhraseLyric(
       ...p,
       isInstrumentalOrVocalize: isInstrumental,
     };
-    alignWordsToPhraseNoteBars(copy, result.noteBars, newLyricText, null, result.sampleRate, result.pitchTrack);
+    alignWordsToPhraseNoteBars(
+      copy,
+      result.noteBars,
+      newLyricText,
+      null,
+      result.sampleRate,
+      result.pitchTrack
+    );
     return copy;
   });
 
