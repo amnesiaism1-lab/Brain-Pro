@@ -228,3 +228,4 @@ export const SCHULTE_TABLE_MODES: IExerciseModeDefinition[] = [
     ]
   }
 ];
+

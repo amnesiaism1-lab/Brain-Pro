@@ -20,7 +20,8 @@ import {
   Zap, 
   Info,
   AlertTriangle,
-  ChevronRight
+  ChevronRight,
+  EyeOff
 } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { numberToRoman } from '../../services/infinityApiService';
@@ -61,7 +62,11 @@ export const SchulteTableGame: React.FC = () => {
     isGamePaused,
     ladderSessionRounds,
     lastLevelUpEvent,
-    clearLevelUpEvent
+    clearLevelUpEvent,
+    autoHintEnabled,
+    setAutoHintEnabled,
+    enableHints,
+    setEnableHints
   } = useAppStore();
 
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
@@ -708,9 +713,12 @@ export const SchulteTableGame: React.FC = () => {
     }
   };
 
-  // Auto Radar: triggers silently after 6 seconds of idle, does NOT increment user hintCount
+  // Auto Radar: triggers silently after 6 seconds of idle ONLY when autoHintEnabled is true!
   useEffect(() => {
-    if (isFinished || isGamePaused) return;
+    if (!autoHintEnabled || isFinished || isGamePaused) {
+      if (autoRadarActive) setAutoRadarActive(null);
+      return;
+    }
     const autoPingInterval = setInterval(() => {
       if (Date.now() - lastClickTimeRef.current >= 6000 && !hintActive && !autoRadarActive) {
         const targetKey = getTargetCellKey();
@@ -720,7 +728,7 @@ export const SchulteTableGame: React.FC = () => {
       }
     }, 1000);
     return () => clearInterval(autoPingInterval);
-  }, [isFinished, isGamePaused, hintActive, autoRadarActive, mode, currentTarget, currentLetterTarget, gorbovTarget]);
+  }, [autoHintEnabled, isFinished, isGamePaused, hintActive, autoRadarActive, mode, currentTarget, currentLetterTarget, gorbovTarget]);
 
   // Share / Export handlers
   const handleCopyResults = () => {
@@ -949,6 +957,22 @@ export const SchulteTableGame: React.FC = () => {
               {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
             </button>
 
+            {/* Auto-Hint Toggle */}
+            <button
+              onClick={() => {
+                playSound('click');
+                setAutoHintEnabled(!autoHintEnabled);
+              }}
+              title={autoHintEnabled ? 'Tự động gợi ý: ĐANG BẬT (Bấm để TẮT hoàn toàn)' : 'Tự động gợi ý: ĐANG TẮT (Bấm để BẬT)'}
+              className={`p-2 rounded-xl transition-all border cursor-pointer ${
+                autoHintEnabled 
+                  ? 'bg-amber-500/15 border-amber-400 text-amber-600 dark:text-amber-400 shadow-sm' 
+                  : 'bg-slate-100 dark:bg-slate-800 border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+              }`}
+            >
+              <EyeOff className="w-4 h-4" />
+            </button>
+
             {/* Reset Board Button */}
             <button
               onClick={() => {
@@ -1088,16 +1112,31 @@ export const SchulteTableGame: React.FC = () => {
             </span>
             <span className="text-[10px] text-slate-400 block font-medium">Lỗi: {missClicks}</span>
           </div>
-          <div className="flex flex-col items-center gap-1">
+          <div className="flex flex-col items-center gap-1.5">
             <button
               onClick={triggerUserHint}
               disabled={isFinished}
               title="Gợi ý ô tiếp theo (Dùng gợi ý bị trừ nhẹ 5 điểm)"
-              className="p-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 transition-all btn-press cursor-pointer"
+              className="p-2 sm:px-3 sm:py-2 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 transition-all btn-press cursor-pointer flex items-center gap-1.5 shadow-sm"
             >
-              <Sparkles className="w-5 h-5" />
+              <Sparkles className="w-4 h-4" />
+              <span className="text-[11px] font-bold">Gợi ý {hintCount > 0 ? `(${hintCount})` : ''}</span>
             </button>
-            <span className="text-[9px] text-slate-400 font-bold">Gợi ý ({hintCount})</span>
+            <button
+              onClick={() => {
+                playSound('click');
+                setAutoHintEnabled(!autoHintEnabled);
+              }}
+              title={autoHintEnabled ? 'Tự động gợi ý khi dừng lâu đang BẬT. Bấm để TẮT hoàn toàn' : 'Tự động gợi ý khi dừng lâu đang TẮT. Bấm để BẬT'}
+              className={`text-[9px] px-2 py-0.5 rounded-md font-bold transition-all cursor-pointer border flex items-center gap-1 ${
+                autoHintEnabled
+                  ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-600 dark:hover:text-slate-200'
+              }`}
+            >
+              <EyeOff className="w-2.5 h-2.5" />
+              <span>{autoHintEnabled ? 'Tự gợi ý: BẬT' : 'Tự gợi ý: TẮT'}</span>
+            </button>
           </div>
         </div>
       </div>

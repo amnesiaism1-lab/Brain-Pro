@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { Volume2, VolumeX, Moon, Sun, Globe, Sparkles, Info } from 'lucide-react';
+import { Volume2, VolumeX, Moon, Sun, Globe, Sparkles, Info, EyeOff } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
   const { 
@@ -10,6 +10,8 @@ export const SettingsView: React.FC = () => {
     setDarkMode, 
     autoDifficulty, 
     setAutoDifficulty,
+    autoHintEnabled,
+    setAutoHintEnabled,
     language,
     setLanguage,
     playSound 
@@ -108,6 +110,37 @@ export const SettingsView: React.FC = () => {
             <span
               className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${
                 autoDifficulty ? 'translate-x-7' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Auto-hint toggle */}
+        <div className="flex items-center justify-between py-2 border-b border-[#D5CBB9]/60 dark:border-slate-700">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400">
+              <EyeOff className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-sm font-bold text-slate-800 dark:text-white block">Tự động gợi ý khi dừng lâu (Auto-Hint)</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Tự động phát hiện và viền sáng ô tiếp theo khi người dùng dừng lại tìm kiếm. Tắt đi để tập trung tối đa tự tìm.</span>
+            </div>
+          </div>
+          <button
+            role="switch"
+            aria-checked={autoHintEnabled}
+            aria-label="Bật hoặc tắt tự động gợi ý khi dừng lâu"
+            onClick={() => {
+              playSound('click');
+              setAutoHintEnabled(!autoHintEnabled);
+            }}
+            className={`w-14 h-7 rounded-full transition-colors relative cursor-pointer ${
+              autoHintEnabled ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'
+            }`}
+          >
+            <span
+              className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${
+                autoHintEnabled ? 'translate-x-7' : 'translate-x-0'
               }`}
             />
           </button>

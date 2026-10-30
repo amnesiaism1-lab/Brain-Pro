@@ -74,6 +74,8 @@ interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, Cus
   setAutoDifficulty: (enabled: boolean) => void;
   enableHints: boolean;
   setEnableHints: (enabled: boolean) => void;
+  autoHintEnabled: boolean;
+  setAutoHintEnabled: (enabled: boolean) => void;
 
   // Per-exercise Mastery & Progression (1 to 22)
   exerciseMasteries: Record<string, IUserExerciseMastery>;
@@ -249,6 +251,8 @@ export const useAppStore = create<AppState>((set, get) => {
   const savedLang = (localStorage.getItem('be_lang') as 'vi' | 'en') || 'vi';
   const savedTonicAnchor = localStorage.getItem('be_tonic_anchor') !== 'false';
   const savedAmbientDrone = localStorage.getItem('be_ambient_drone') === 'true';
+  const savedAutoHints = localStorage.getItem('be_auto_hints') === 'true'; // Mặc định tắt hoàn toàn (false)
+  const savedEnableHints = localStorage.getItem('be_enable_hints') !== 'false';
 
   let initialEarConfusion: Record<string, number> = {};
   try {
@@ -504,8 +508,16 @@ export const useAppStore = create<AppState>((set, get) => {
     setCurrentLevel: (level) => set({ currentLevel: Math.min(22, Math.max(1, level)) }),
     autoDifficulty: true,
     setAutoDifficulty: (enabled) => set({ autoDifficulty: enabled }),
-    enableHints: true,
-    setEnableHints: (enabled) => set({ enableHints: enabled }),
+    enableHints: savedEnableHints,
+    setEnableHints: (enabled) => {
+      localStorage.setItem('be_enable_hints', String(enabled));
+      set({ enableHints: enabled });
+    },
+    autoHintEnabled: savedAutoHints,
+    setAutoHintEnabled: (enabled) => {
+      localStorage.setItem('be_auto_hints', String(enabled));
+      set({ autoHintEnabled: enabled });
+    },
 
     // 12 Cognitive Relationship Masteries
     relationshipMasteries: initialRelationMasteries,
