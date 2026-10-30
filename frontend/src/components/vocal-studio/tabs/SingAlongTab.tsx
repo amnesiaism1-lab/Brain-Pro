@@ -165,7 +165,14 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
 
   const currentTargetOctave =
     currentRefPoint && currentRefPoint.isVocal && currentRefPoint.midi > 0
-      ? midiToNoteInfo(currentRefPoint.midi).octave + (octaveConvention === 'international' ? 0 : 1)
+      ? Math.min(
+          6,
+          Math.max(
+            2,
+            midiToNoteInfo(currentRefPoint.midi).octave +
+              (octaveConvention === 'international' ? 0 : 1)
+          )
+        )
       : 5;
 
   return (

@@ -92,6 +92,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     targetMode: store.targetMode,
     isWindowLocked: store.isWindowLocked,
     latencyOffsetMs: store.latencyOffsetMs,
+    octaveConvention: store.octaveConvention,
   });
 
   const [currentRefPoint, setCurrentRefPoint] = useState<IReferencePitchPoint | null>(null);

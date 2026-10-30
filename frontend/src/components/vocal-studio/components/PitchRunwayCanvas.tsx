@@ -52,17 +52,25 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
     let isMounted = true;
 
     let isMouseDown = false;
+    let isDraggingCanvas = false;
     let mouseDownPos = { x: 0, y: 0 };
+    let lastDragPos = { x: 0, y: 0 };
 
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return; // Only left click
       isMouseDown = true;
+      isDraggingCanvas = false;
       mouseDownPos = { x: e.clientX, y: e.clientY };
+      lastDragPos = { x: e.clientX, y: e.clientY };
     };
 
     const handleMouseUp = (e: MouseEvent) => {
       if (!isMouseDown) return;
       isMouseDown = false;
+      if (isDraggingCanvas) {
+        isDraggingCanvas = false;
+        return;
+      }
       const dist = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
       if (dist >= 8) return; // Ignore drag/swipe
 
@@ -84,6 +92,25 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       const effectiveSpan = manualSpanRef.current ?? (smoothMaxMidiRef.current - smoothMinMidiRef.current);
       const effectiveMin = smoothMinMidiRef.current + manualOffsetRef.current;
       const midiSpan = Math.max(12, effectiveSpan);
+
+      // 0. Clicked on Reset / Auto-Fit Button (when viewport is panned or zoomed away from center)
+      const isCustomPanned =
+        manualOffsetRef.current !== 0 ||
+        manualSpanRef.current !== null ||
+        Date.now() < userInteractedUntilRef.current ||
+        Boolean(state.isWindowLocked);
+      if (isCustomPanned) {
+        const btnX = pianoKeyWidth + 10;
+        const btnY = 10;
+        const btnW = 126;
+        const btnH = 22;
+        if (clickX >= btnX && clickX <= btnX + btnW && clickY >= btnY && clickY <= btnY + btnH) {
+          manualOffsetRef.current = 0;
+          manualSpanRef.current = null;
+          userInteractedUntilRef.current = 0;
+          return;
+        }
+      }
 
       // 1. Clicked on Piano Key column on left: Audition clicked note
       if (clickX < pianoKeyWidth) {
@@ -130,7 +157,34 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const width = canvas.clientWidth || 860;
+      const height = canvas.clientHeight || 280;
       const pianoKeyWidth = width > 1200 ? 46 : 36;
+
+      if (isMouseDown) {
+        const totalDist = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
+        if (totalDist >= 8) {
+          isDraggingCanvas = true;
+          userInteractedUntilRef.current = Date.now() + 4500;
+          const dy = e.clientY - lastDragPos.y; // Dragging down moves viewport lower
+          lastDragPos = { x: e.clientX, y: e.clientY };
+
+          const state = renderStateRef.current;
+          const maxTopMidi = state?.octaveConvention === 'fl_studio' ? 84 : 96;
+          const minBottomMidi = 36;
+          const span = manualSpanRef.current ?? (smoothMaxMidiRef.current - smoothMinMidiRef.current);
+          const curSpan = Math.max(12, Math.min(28, span));
+
+          // Inverted: dragging mouse downwards pulls lower notes into view
+          const deltaMidi = -(dy / height) * curSpan;
+          const proposedOffset = manualOffsetRef.current + deltaMidi;
+          const maxOffset = maxTopMidi - curSpan - smoothMinMidiRef.current;
+          const minOffset = minBottomMidi - smoothMinMidiRef.current;
+          manualOffsetRef.current = Math.max(minOffset, Math.min(maxOffset, proposedOffset));
+          hoverXRef.current = null;
+          return;
+        }
+      }
+
       if (mx >= pianoKeyWidth) {
         hoverXRef.current = mx;
       } else {
@@ -140,21 +194,41 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
 
     const handleMouseLeave = () => {
       isMouseDown = false;
+      isDraggingCanvas = false;
       hoverXRef.current = null;
     };
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       userInteractedUntilRef.current = Date.now() + 4500;
+      const state = renderStateRef.current;
+      // Top ceiling: C7 (end of octave 6). In FL Studio: MIDI 84 (C7); in International: MIDI 96 (C7).
+      const maxTopMidi = state?.octaveConvention === 'fl_studio' ? 84 : 96;
+      const minBottomMidi = 36; // C2
+
       if (e.ctrlKey || e.metaKey) {
         // Zoom vertical span in/out
         const delta = e.deltaY > 0 ? 1 : -1;
         const currentSpan = manualSpanRef.current ?? (smoothMaxMidiRef.current - smoothMinMidiRef.current);
-        manualSpanRef.current = Math.max(10, Math.min(36, currentSpan + delta));
+        const newSpan = Math.max(12, Math.min(28, currentSpan + delta));
+        manualSpanRef.current = newSpan;
+        // Keep within bounds
+        const curMin = smoothMinMidiRef.current + manualOffsetRef.current;
+        if (curMin + newSpan > maxTopMidi) {
+          manualOffsetRef.current = maxTopMidi - newSpan - smoothMinMidiRef.current;
+        }
+        if (curMin < minBottomMidi) {
+          manualOffsetRef.current = minBottomMidi - smoothMinMidiRef.current;
+        }
       } else {
-        // Pan vertical up/down
+        // Pan vertical up/down with strict clamp (cannot scroll above C7 / end of octave 6)
         const delta = e.deltaY > 0 ? -1 : 1;
-        manualOffsetRef.current += delta;
+        const proposedOffset = manualOffsetRef.current + delta;
+        const span = manualSpanRef.current ?? (smoothMaxMidiRef.current - smoothMinMidiRef.current);
+        const curSpan = Math.max(12, Math.min(28, span));
+        const maxOffset = maxTopMidi - curSpan - smoothMinMidiRef.current;
+        const minOffset = minBottomMidi - smoothMinMidiRef.current;
+        manualOffsetRef.current = Math.max(minOffset, Math.min(maxOffset, proposedOffset));
       }
     };
 
@@ -226,6 +300,11 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       const windowStartMs = effectiveTimeMs - pastWindowMs;
       const windowEndMs = effectiveTimeMs + futureWindowMs;
 
+      // Top ceiling: C7 (end of octave 6).
+      // In FL Studio: MIDI 84 (rendered as C7); in International: MIDI 96 (rendered as C7).
+      const maxTopMidi = state.octaveConvention === 'fl_studio' ? 84 : 96;
+      const minBottomMidi = 36; // C2
+
       // 1. Dynamic Pitch Window (Auto-Follow like FL Studio NewTone)
       const now = Date.now();
       const isManualControl = now < userInteractedUntilRef.current || isWindowLocked;
@@ -239,7 +318,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         for (let i = 0; i < noteBars.length; i++) {
           const bar = noteBars[i];
           if (bar.endTimeMs >= windowStartMs && bar.startTimeMs <= windowEndMs) {
-            const m = bar.midi + transposeSemitones;
+            const m = Math.min(maxTopMidi, Math.max(minBottomMidi, bar.midi + transposeSemitones));
             if (m < localMin) localMin = m;
             if (m > localMax) localMax = m;
             notesInWindow++;
@@ -254,22 +333,45 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         if (notesInWindow > 0) {
           const activeRefMidi =
             currentRefPoint && currentRefPoint.isVocal && currentRefPoint.midi > 0
-              ? currentRefPoint.midi + transposeSemitones
+              ? Math.min(maxTopMidi, Math.max(minBottomMidi, currentRefPoint.midi + transposeSemitones))
               : null;
           const melodyCenter = (localMin + localMax) / 2;
-          const center = activeRefMidi !== null ? activeRefMidi * 0.4 + melodyCenter * 0.6 : melodyCenter;
+          // Keep melodyCenter dominant (80%) so momentary noise spikes never jerk the viewport
+          const center = activeRefMidi !== null ? activeRefMidi * 0.2 + melodyCenter * 0.8 : melodyCenter;
           const rawSpan = localMax - localMin + 6;
           const desiredSpan = Math.min(22, Math.max(14, rawSpan));
-          targetMin = Math.max(36, Math.floor(center - desiredSpan / 2));
-          targetMax = Math.min(96, targetMin + desiredSpan);
+
+          let proposedMin = Math.floor(center - desiredSpan / 2);
+          let proposedMax = proposedMin + desiredSpan;
+          if (proposedMax > maxTopMidi) {
+            proposedMax = maxTopMidi;
+            proposedMin = Math.max(minBottomMidi, maxTopMidi - desiredSpan);
+          }
+          if (proposedMin < minBottomMidi) {
+            proposedMin = minBottomMidi;
+            proposedMax = Math.min(maxTopMidi, minBottomMidi + desiredSpan);
+          }
+          targetMin = proposedMin;
+          targetMax = proposedMax;
         } else {
-          // Fallback to song's vocal range with padding
-          const songMin = (lowestMidi || 48) + transposeSemitones;
-          const songMax = (highestMidi || 72) + transposeSemitones;
+          // Fallback to song's vocal range with padding (clamped to maxTopMidi C7)
+          const songMin = Math.max(minBottomMidi, (lowestMidi || 48) + transposeSemitones);
+          const songMax = Math.min(maxTopMidi, (highestMidi || 72) + transposeSemitones);
           const center = (songMin + songMax) / 2;
           const desiredSpan = Math.min(22, Math.max(14, songMax - songMin + 4));
-          targetMin = Math.max(36, Math.floor(center - desiredSpan / 2));
-          targetMax = Math.min(96, targetMin + desiredSpan);
+
+          let proposedMin = Math.floor(center - desiredSpan / 2);
+          let proposedMax = proposedMin + desiredSpan;
+          if (proposedMax > maxTopMidi) {
+            proposedMax = maxTopMidi;
+            proposedMin = Math.max(minBottomMidi, maxTopMidi - desiredSpan);
+          }
+          if (proposedMin < minBottomMidi) {
+            proposedMin = minBottomMidi;
+            proposedMax = Math.min(maxTopMidi, minBottomMidi + desiredSpan);
+          }
+          targetMin = proposedMin;
+          targetMax = proposedMax;
         }
 
         // Deadzone filter: only adapt if difference > 0.08 semitones to avoid micro-jitter
@@ -281,10 +383,23 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         }
       }
 
-      // Smooth floating-point coordinate mapping (NEVER discretely truncated!)
-      const effectiveSpan = manualSpanRef.current ?? (smoothMaxMidiRef.current - smoothMinMidiRef.current);
-      const effectiveMin = smoothMinMidiRef.current + manualOffsetRef.current;
-      const midiSpan = Math.max(12, effectiveSpan);
+      // Hard clamp on smooth references
+      smoothMaxMidiRef.current = Math.min(maxTopMidi, Math.max(minBottomMidi + 12, smoothMaxMidiRef.current));
+      smoothMinMidiRef.current = Math.max(minBottomMidi, Math.min(maxTopMidi - 12, smoothMinMidiRef.current));
+
+      // Smooth floating-point coordinate mapping (strictly bounded inside [minBottomMidi, maxTopMidi])
+      const rawEffectiveSpan = manualSpanRef.current ?? (smoothMaxMidiRef.current - smoothMinMidiRef.current);
+      const midiSpan = Math.min(maxTopMidi - minBottomMidi, Math.max(12, rawEffectiveSpan));
+
+      let effectiveMin = smoothMinMidiRef.current + manualOffsetRef.current;
+      if (effectiveMin + midiSpan > maxTopMidi) {
+        effectiveMin = maxTopMidi - midiSpan;
+        manualOffsetRef.current = effectiveMin - smoothMinMidiRef.current;
+      }
+      if (effectiveMin < minBottomMidi) {
+        effectiveMin = minBottomMidi;
+        manualOffsetRef.current = effectiveMin - smoothMinMidiRef.current;
+      }
 
       const midiToY = (m: number) => height - ((m - effectiveMin) / midiSpan) * height;
 
@@ -311,8 +426,9 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       const pianoKeyWidth = width > 1200 ? 46 : 36;
       const octOffset = state.octaveConvention === 'international' ? 0 : 1;
 
-      const startMidi = Math.floor(effectiveMin) - 1;
-      const endMidi = Math.ceil(effectiveMin + midiSpan) + 1;
+      // Only iterate and draw notes strictly from minBottomMidi up to maxTopMidi (C7 / hết quãng 6)
+      const startMidi = Math.max(minBottomMidi, Math.floor(effectiveMin));
+      const endMidi = Math.min(maxTopMidi, Math.ceil(effectiveMin + midiSpan));
 
       for (let m = startMidi; m <= endMidi; m++) {
         const yTop = midiToY(m + 0.5);
@@ -762,6 +878,38 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       ctx.fillStyle = '#38bdf8';
       ctx.fillText('⚡ 0ms', width - 58, legendY);
       ctx.restore();
+
+      // D. Auto-fit / Snap-to-center button (when user manually panned or zoomed away)
+      const isCustomPanned =
+        manualOffsetRef.current !== 0 ||
+        manualSpanRef.current !== null ||
+        Date.now() < userInteractedUntilRef.current ||
+        Boolean(state.isWindowLocked);
+      if (isCustomPanned) {
+        ctx.save();
+        const btnX = pianoKeyWidth + 10;
+        const btnY = 10;
+        const btnW = 126;
+        const btnH = 22;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (typeof (ctx as any).roundRect === 'function') {
+          (ctx as any).roundRect(btnX, btnY, btnW, btnH, 6);
+        } else {
+          ctx.rect(btnX, btnY, btnW, btnH);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 10px ui-sans-serif, system-ui, sans-serif';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+        ctx.fillText('⟲ Căn giữa nốt hát', btnX + btnW / 2, btnY + btnH / 2);
+        ctx.restore();
+      }
 
       // 11. Click to Seek Hover Time Guide Line
       if (hoverXRef.current !== null && onSeek) {
