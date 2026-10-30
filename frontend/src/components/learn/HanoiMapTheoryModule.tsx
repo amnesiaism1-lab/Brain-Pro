@@ -1,20 +1,20 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  Compass, 
-  Map as MapIcon, 
-  Layers, 
-  Sun, 
-  Eye, 
-  EyeOff, 
-  RotateCw, 
-  ArrowRight, 
-  Sparkles, 
-  CheckCircle2, 
-  XCircle, 
-  Trophy, 
-  Navigation, 
-  ShieldAlert, 
-  Maximize2, 
+import {
+  Compass,
+  Map as MapIcon,
+  Layers,
+  Sun,
+  Eye,
+  EyeOff,
+  RotateCw,
+  ArrowRight,
+  Sparkles,
+  CheckCircle2,
+  XCircle,
+  Trophy,
+  Navigation,
+  ShieldAlert,
+  Maximize2,
   BookOpen,
   Info,
   Clock,
@@ -23,14 +23,14 @@ import {
   Brain
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import { 
-  ALL_HANOI_ENTITIES, 
-  HANOI_WATER_EDGES, 
-  HANOI_BRIDGES, 
-  HANOI_RING_ROADS, 
-  HANOI_RADIAL_CORRIDORS, 
-  HANOI_FRENCH_GRID_STREETS, 
-  HANOI_LANDMARKS, 
+import {
+  ALL_HANOI_ENTITIES,
+  HANOI_WATER_EDGES,
+  HANOI_BRIDGES,
+  HANOI_RING_ROADS,
+  HANOI_RADIAL_CORRIDORS,
+  HANOI_FRENCH_GRID_STREETS,
+  HANOI_LANDMARKS,
   HANOI_JUNCTIONS,
   HANOI_THEORY_CHAPTERS,
   getHanoiSolarAzimuth,
@@ -41,11 +41,11 @@ import {
 import { HanoiMarkdownContent } from './HanoiMarkdownContent';
 
 export const HanoiMapTheoryModule: React.FC = () => {
-  const { 
-    setSelectedExerciseSlug, 
-    setActiveGameSlug, 
-    markTheoryModuleMastered, 
-    masteredTheoryModules 
+  const {
+    setSelectedExerciseSlug,
+    setActiveGameSlug,
+    markTheoryModuleMastered,
+    masteredTheoryModules
   } = useAppStore();
 
   // Active Tab: Map View vs Theory Chapters vs Knowledge Quiz
@@ -169,9 +169,9 @@ export const HanoiMapTheoryModule: React.FC = () => {
               Lý Thuyết & Cách Tư Duy <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-orange-400">Bản Đồ Hà Nội</span>
             </h1>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              Giải mã toàn diện cấu trúc Thủ đô theo mô hình 5 thành phần của Kevin Lynch: 
-              <strong> 3 Tuyến Vành đai Đồng tâm</strong>, <strong>8 Trục Hướng tâm</strong>, 
-              <strong> Chuỗi 6 Cầu Sông Hồng</strong>, <strong>Lưới Phố Pháp Ô Bàn Cờ</strong> và 
+              Giải mã toàn diện cấu trúc Thủ đô theo mô hình 5 thành phần của Kevin Lynch:
+              <strong> 3 Tuyến Vành đai Đồng tâm</strong>, <strong>8 Trục Hướng tâm</strong>,
+              <strong> Chuỗi 6 Cầu Sông Hồng</strong>, <strong>Lưới Phố Pháp Ô Bàn Cờ</strong> và
               <strong> La Bàn Mặt Trời Theo Giờ</strong> để không bao giờ lạc đường.
             </p>
 
@@ -221,33 +221,30 @@ export const HanoiMapTheoryModule: React.FC = () => {
         <div className="mt-8 pt-4 border-t border-white/10 flex flex-wrap gap-2">
           <button
             onClick={() => setActiveMainTab('interactive_map')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all ${
-              activeMainTab === 'interactive_map'
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all ${activeMainTab === 'interactive_map'
                 ? 'bg-amber-400 text-slate-950 shadow-md'
                 : 'bg-white/10 text-white hover:bg-white/15'
-            }`}
+              }`}
           >
             <MapIcon className="w-4 h-4" />
             <span>1. Bản Đồ Tương Tác Vector & Mặt Trời</span>
           </button>
           <button
             onClick={() => setActiveMainTab('theory_chapters')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all ${
-              activeMainTab === 'theory_chapters'
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all ${activeMainTab === 'theory_chapters'
                 ? 'bg-amber-400 text-slate-950 shadow-md'
                 : 'bg-white/10 text-white hover:bg-white/15'
-            }`}
+              }`}
           >
             <BookOpen className="w-4 h-4" />
             <span>2. Giáo Trình 10 Chương Thực Chiến & Không Giới Hạn</span>
           </button>
           <button
             onClick={() => setActiveMainTab('quick_quiz')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all ${
-              activeMainTab === 'quick_quiz'
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all ${activeMainTab === 'quick_quiz'
                 ? 'bg-amber-400 text-slate-950 shadow-md'
                 : 'bg-white/10 text-white hover:bg-white/15'
-            }`}
+              }`}
           >
             <Trophy className="w-4 h-4" />
             <span>3. Kiểm Tra Nhận Thức Nhanh (Quiz)</span>
@@ -269,49 +266,43 @@ export const HanoiMapTheoryModule: React.FC = () => {
               </span>
               <button
                 onClick={() => setShowWater(!showWater)}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                  showWater ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                }`}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${showWater ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                  }`}
               >
                 🌊 Sông & Hồ
               </button>
               <button
                 onClick={() => setShowRings(!showRings)}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                  showRings ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                }`}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${showRings ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                  }`}
               >
                 ⭕ 3 Vành Đai
               </button>
               <button
                 onClick={() => setShowRadials(!showRadials)}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                  showRadials ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                }`}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${showRadials ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                  }`}
               >
                 ⚡ Trục Hướng Tâm
               </button>
               <button
                 onClick={() => setShowBridges(!showBridges)}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                  showBridges ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                }`}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${showBridges ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                  }`}
               >
                 🌉 6 Cầu Sông Hồng
               </button>
               <button
                 onClick={() => setShowLandmarks(!showLandmarks)}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                  showLandmarks ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                }`}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${showLandmarks ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                  }`}
               >
                 🏛️ Điểm Neo (Landmarks)
               </button>
               <button
                 onClick={() => setShowFrenchGrid(!showFrenchGrid)}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                  showFrenchGrid ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                }`}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${showFrenchGrid ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                  }`}
               >
                 📐 Ô Phố Pháp
               </button>
@@ -321,9 +312,8 @@ export const HanoiMapTheoryModule: React.FC = () => {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setSilentMode(!silentMode)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  silentMode ? 'bg-rose-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${silentMode ? 'bg-rose-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
                 title="Ẩn toàn bộ nhãn tên phố để thử thách trí nhớ"
               >
                 {silentMode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -682,8 +672,8 @@ export const HanoiMapTheoryModule: React.FC = () => {
                         ][idx];
 
                         return (
-                          <g 
-                            key={br.id} 
+                          <g
+                            key={br.id}
                             className="cursor-pointer group"
                             onClick={() => setSelectedEntity(br)}
                           >
@@ -878,35 +868,35 @@ export const HanoiMapTheoryModule: React.FC = () => {
                   </h4>
                 </div>
                 <div className="space-y-2 text-xs">
-                  <button 
+                  <button
                     onClick={() => handleLaunchExercise()}
                     className="w-full text-left p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 flex items-center justify-between"
                   >
                     <span><strong>1. Khung Xương:</strong> Vành đai & Cầu</span>
                     <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleLaunchExercise()}
                     className="w-full text-left p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 flex items-center justify-between"
                   >
                     <span><strong>2. Lưới Phố Pháp:</strong> Song song // & Vuông góc ⟂</span>
                     <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleLaunchExercise()}
                     className="w-full text-left p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 flex items-center justify-between"
                   >
                     <span><strong>3. La Bàn Mặt Trời:</strong> Hướng nắng theo giờ</span>
                     <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleLaunchExercise()}
                     className="w-full text-left p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 flex items-center justify-between"
                   >
                     <span><strong>4. Thả Dù Mù:</strong> Dẫn đường né 1 chiều</span>
                     <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleLaunchExercise()}
                     className="w-full text-left p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 flex items-center justify-between"
                   >
@@ -936,11 +926,10 @@ export const HanoiMapTheoryModule: React.FC = () => {
                 <button
                   key={chap.id}
                   onClick={() => setActiveChapterIndex(idx)}
-                  className={`w-full text-left p-4 rounded-2xl transition-all border flex flex-col gap-1.5 ${
-                    isSelected
+                  className={`w-full text-left p-4 rounded-2xl transition-all border flex flex-col gap-1.5 ${isSelected
                       ? 'bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/40 text-amber-950 dark:text-amber-200 shadow-md scale-[1.01]'
                       : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
@@ -1051,7 +1040,7 @@ export const HanoiMapTheoryModule: React.FC = () => {
               </div>
 
               <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-300"
                   style={{ width: `${((quizStep + 1) / QUIZ_QUESTIONS.length) * 100}%` }}
                 />

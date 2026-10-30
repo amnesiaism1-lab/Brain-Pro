@@ -44,7 +44,10 @@ export const ActiveGameContainer: React.FC = () => {
     getExerciseLevel, 
     activeSynergy, 
     suggestedSynergy, 
-    dismissSynergy 
+    dismissSynergy,
+    activeWorkoutRoutine,
+    currentWorkoutStepIndex,
+    cancelWorkoutRoutine
   } = useAppStore();
 
   // Ensure any ambient drone or lingering sound stops when switching games or closing
@@ -141,6 +144,34 @@ export const ActiveGameContainer: React.FC = () => {
 
   return (
     <div className="relative max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-4 w-full transition-all">
+      {/* Active Workout Routine Progress HUD */}
+      {activeWorkoutRoutine && (
+        <div className="mb-4 px-4 py-2.5 bg-gradient-to-r from-emerald-600/95 via-teal-600/95 to-cyan-600/95 text-white rounded-2xl shadow-lg border border-emerald-400/40 backdrop-blur-md flex items-center justify-between transition-all">
+          <div className="flex items-center gap-2.5">
+            <span className="px-2.5 py-1 bg-white/20 rounded-xl font-black text-xs tracking-wider">
+              Chặng {currentWorkoutStepIndex + 1}/{activeWorkoutRoutine.items.length}
+            </span>
+            <div>
+              <span className="text-[11px] uppercase font-extrabold tracking-wider text-emerald-200 block">
+                Lộ Trình: {activeWorkoutRoutine.title} ({activeWorkoutRoutine.durationMinutes} Phút)
+              </span>
+              <p className="text-xs text-white/95">
+                Đang rèn luyện: <strong className="text-white font-bold">{exercise?.title}</strong>
+                {currentWorkoutStepIndex + 1 < activeWorkoutRoutine.items.length && (
+                  <span className="text-emerald-100"> • Kế tiếp: {EXERCISES_METADATA.find(e => e.slug === activeWorkoutRoutine.items[currentWorkoutStepIndex + 1]?.exerciseSlug)?.title}</span>
+                )}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => cancelWorkoutRoutine()}
+            className="text-xs font-semibold px-2.5 py-1 rounded-xl bg-black/20 hover:bg-black/30 active:scale-95 text-white/90 transition-all cursor-pointer"
+          >
+            Thoát lộ trình
+          </button>
+        </div>
+      )}
+
       {/* Top Variant & Mastery HUD Banner */}
       {isSuperTier && levelConfig?.variantName && (
         <div className="mb-4 px-4 py-2.5 bg-gradient-to-r from-purple-600/90 via-indigo-600/90 to-brand-600/90 text-white rounded-2xl shadow-lg border border-purple-400/40 backdrop-blur-md flex items-center justify-between animate-pulse transition-all">

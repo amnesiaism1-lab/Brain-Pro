@@ -33,6 +33,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({ exerciseSlug, on
     deleteCustomPreset,
     setActiveCustomPreset,
     getActiveCustomPreset,
+    setCustomWorkingPreset,
     setActiveSessionSource,
     playSound
   } = useAppStore();
@@ -123,12 +124,12 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({ exerciseSlug, on
   };
 
   const handleStartPractice = () => {
-    // Save current working parameters into active preset (or auto-preset if none selected)
+    const isEditingExistingPreset = Boolean(activePreset && presetsForExercise.some(p => p.id === activePreset.id));
     const presetToUse: ICustomExercisePreset = {
-      id: activePreset?.id || `preset-active-${exerciseSlug}`,
+      id: isEditingExistingPreset ? activePreset!.id : `working-${exerciseSlug}`,
       exerciseSlug,
       modeId: selectedModeId,
-      name: activePreset?.name || 'Tùy chỉnh hiện tại',
+      name: isEditingExistingPreset ? activePreset!.name : 'Phiên tùy chỉnh',
       schemaVersion: activeMode.schema.version,
       params: currentParams,
       session: {
@@ -139,8 +140,13 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({ exerciseSlug, on
       updatedAt: new Date().toISOString()
     };
 
-    saveCustomPreset(presetToUse);
-    setActiveCustomPreset(exerciseSlug, presetToUse.id);
+    if (isEditingExistingPreset) {
+      saveCustomPreset(presetToUse);
+      setActiveCustomPreset(exerciseSlug, presetToUse.id);
+    } else {
+      setCustomWorkingPreset(exerciseSlug, presetToUse);
+    }
+
     setActiveSessionSource('custom');
     onStartCustomGame();
   };

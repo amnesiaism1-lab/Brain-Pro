@@ -47,6 +47,7 @@ export const HomeView: React.FC = () => {
     setActiveTab,
     setSelectedExercisesCategory,
     weeklyChallenges,
+    attemptsHistory,
     playSound 
   } = useAppStore();
 
@@ -74,7 +75,11 @@ export const HomeView: React.FC = () => {
   const lastExercise = lastPlayedSlug 
     ? EXERCISES_METADATA.find(e => e.slug === lastPlayedSlug) 
     : EXERCISES_METADATA.find(e => e.slug === 'schulte-table');
-  const lastExerciseLevel = lastExercise ? getExerciseLevel(lastExercise.slug) : 1;
+  const lastExerciseAttempt = lastExercise 
+    ? [...attemptsHistory].reverse().find(a => a.exerciseSlug === lastExercise.slug) 
+    : null;
+  const lastCompletedLevel = lastExerciseAttempt?.level;
+  const currentAssignedLevel = lastExercise ? getExerciseLevel(lastExercise.slug) : 1;
 
   // 6 Cognitive Pillars configuration
   const cognitivePillars = [
@@ -180,7 +185,11 @@ export const HomeView: React.FC = () => {
                 {lastExercise.title}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Cấp độ hiện tại: <strong className="text-brand-600 dark:text-brand-400 font-bold">Cấp {lastExerciseLevel}</strong> • {lastExercise.subtitle}
+                {lastCompletedLevel ? (
+                  <>Đã đạt chuẩn: <strong className="text-brand-600 dark:text-brand-400 font-bold">Cấp {lastCompletedLevel}</strong> • {lastExercise.subtitle}</>
+                ) : (
+                  <>Cấp độ: <strong className="text-brand-600 dark:text-brand-400 font-bold">Cấp {currentAssignedLevel}</strong> • {lastExercise.subtitle}</>
+                )}
               </p>
             </div>
           </div>
@@ -188,11 +197,11 @@ export const HomeView: React.FC = () => {
           <button
             onClick={() => {
               playSound('click');
-              setActiveGameSlug(lastExercise.slug);
+              setSelectedExerciseSlug(lastExercise.slug);
             }}
-            className="px-5 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-brand-600/25 transition-all btn-press shrink-0"
+            className="px-5 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-brand-600/25 transition-all btn-press shrink-0 cursor-pointer"
           >
-            <span>{lastPlayedSlug ? 'Chơi tiếp ngay' : 'Bắt đầu luyện tập'}</span>
+            <span>{lastPlayedSlug ? 'Vào bài tập ngay' : 'Bắt đầu luyện tập'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

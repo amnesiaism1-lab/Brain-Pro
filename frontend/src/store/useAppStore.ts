@@ -55,6 +55,18 @@ interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, Cus
   isRemindersOpen: boolean;
   setIsRemindersOpen: (open: boolean) => void;
 
+  // Active game pause state (e.g. when exit confirm dialog is open)
+  isGamePaused: boolean;
+  setIsGamePaused: (paused: boolean) => void;
+
+  // Ladder session rounds selection (1, 6, 10, 15)
+  ladderSessionRounds: number;
+  setLadderSessionRounds: (rounds: number) => void;
+
+  // Last level-up event for celebration banners
+  lastLevelUpEvent: { exerciseSlug: ExerciseSlug; fromLevel: number; toLevel: number } | null;
+  clearLevelUpEvent: () => void;
+
   // Exercise settings & state
   currentLevel: number; // Global active level
   setCurrentLevel: (level: number) => void;
@@ -479,6 +491,15 @@ export const useAppStore = create<AppState>((set, get) => {
     isRemindersOpen: false,
     setIsRemindersOpen: (open) => set({ isRemindersOpen: open }),
 
+    isGamePaused: false,
+    setIsGamePaused: (paused) => set({ isGamePaused: paused }),
+
+    ladderSessionRounds: 1,
+    setLadderSessionRounds: (rounds) => set({ ladderSessionRounds: Math.max(1, rounds) }),
+
+    lastLevelUpEvent: null,
+    clearLevelUpEvent: () => set({ lastLevelUpEvent: null }),
+
     currentLevel: 1,
     setCurrentLevel: (level) => set({ currentLevel: Math.min(22, Math.max(1, level)) }),
     autoDifficulty: true,
@@ -530,9 +551,19 @@ export const useAppStore = create<AppState>((set, get) => {
     // Custom Exercise Presets (Personalized training modes)
     customPresets: initialCustomPresets,
     activeCustomPresetIdBySlug: initialActivePresetIds,
+    customWorkingPresetBySlug: {},
     activeSessionSource: 'ladder',
 
     setActiveSessionSource: (source) => set({ activeSessionSource: source }),
+
+    setCustomWorkingPreset: (slug, preset) => {
+      set(state => ({
+        customWorkingPresetBySlug: {
+          ...state.customWorkingPresetBySlug,
+          [slug]: preset
+        }
+      }));
+    },
 
     saveCustomPreset: (preset) => {
       set(state => {
@@ -588,7 +619,11 @@ export const useAppStore = create<AppState>((set, get) => {
       const activeId = state.activeCustomPresetIdBySlug[slug];
       const list = state.customPresets[slug] || [];
       if (activeId) {
-        return list.find(p => p.id === activeId) || null;
+        const found = list.find(p => p.id === activeId);
+        if (found) return found;
+      }
+      if (state.customWorkingPresetBySlug?.[slug]) {
+        return state.customWorkingPresetBySlug[slug];
       }
       return list[0] || null;
     },
@@ -779,9 +814,15 @@ export const useAppStore = create<AppState>((set, get) => {
       let nextLevel = prevMastery.currentLevel;
       let nextWins = prevMastery.consecutiveWins;
       let nextLosses = prevMastery.consecutiveLosses;
+      let levelUpEvent: { exerciseSlug: ExerciseSlug; fromLevel: number; toLevel: number } | null = null;
 
       if (!isCustomSession && state.autoDifficulty) {
-        if (attempt.accuracyRate >= 90) {
+        if (attempt.accuracyRate === 100) {
+          // Instant promotion for perfect execution
+          nextLevel = Math.min(22, nextLevel + 1);
+          nextWins = 0;
+          nextLosses = 0;
+        } else if (attempt.accuracyRate >= 90) {
           nextWins += 1;
           nextLosses = 0;
           if (nextWins >= 2) {
@@ -795,6 +836,14 @@ export const useAppStore = create<AppState>((set, get) => {
             nextLevel = Math.max(1, nextLevel - 1);
             nextLosses = 0;
           }
+        }
+
+        if (nextLevel > prevMastery.currentLevel) {
+          levelUpEvent = {
+            exerciseSlug: attempt.exerciseSlug,
+            fromLevel: prevMastery.currentLevel,
+            toLevel: nextLevel
+          };
         }
       }
 
@@ -868,6 +917,7 @@ export const useAppStore = create<AppState>((set, get) => {
         relationshipMasteries: updatedRelationMasteries,
         activeDebriefEvents: relationEvents && relationEvents.length > 0 ? relationEvents : null,
         currentLevel: nextLevel,
+        lastLevelUpEvent: levelUpEvent,
         lastPlayedSlug: attempt.exerciseSlug,
         activeSynergy: matchedSynergy,
         suggestedSynergy: nextSynergy,

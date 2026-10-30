@@ -31,6 +31,7 @@ export const ExerciseDetailModal: React.FC = () => {
     setExerciseLevel,
     autoDifficulty, 
     setAutoDifficulty,
+    setLadderSessionRounds,
     attemptsHistory,
     playSound 
   } = useAppStore();
@@ -83,6 +84,7 @@ export const ExerciseDetailModal: React.FC = () => {
   const handleStartGame = () => {
     playSound('click');
     auditoryEngine.resumeAudioContext().catch(() => {});
+    setLadderSessionRounds(sessionRounds);
     setActiveSessionSource('ladder');
     setActiveGameSlug(exercise.slug);
   };
@@ -111,10 +113,10 @@ export const ExerciseDetailModal: React.FC = () => {
   };
 
   const exerciseAttempts = attemptsHistory.filter(a => a.exerciseSlug === exercise.slug);
-  const bestScore = exerciseAttempts.length > 0 ? Math.max(...exerciseAttempts.map(a => a.score)) : 450;
+  const bestScore = exerciseAttempts.length > 0 ? Math.max(...exerciseAttempts.map(a => a.score)) : null;
   const avgAccuracy = exerciseAttempts.length > 0 
-    ? Math.round(exerciseAttempts.reduce((s, a) => s + (a.accuracyRate || 95), 0) / exerciseAttempts.length)
-    : 94;
+    ? Math.round(exerciseAttempts.reduce((s, a) => s + (a.accuracyRate || 0), 0) / exerciseAttempts.length)
+    : null;
 
   const allStandardLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   const allInfinityLevels = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
@@ -771,10 +773,20 @@ export const ExerciseDetailModal: React.FC = () => {
                       <strong className="text-amber-600 dark:text-amber-400">{currentConfig.speedWpm} WPM</strong>
                     </div>
                   )}
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Thời gian quy chuẩn:</span>
-                    <strong className="text-slate-800 dark:text-white">{currentConfig.timeLimitSec} giây</strong>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-slate-500 block">Thời gian mục tiêu:</span>
+                      <span className="text-[10px] text-slate-400">Mốc chuẩn tính điểm thưởng tốc độ</span>
+                    </div>
+                    <strong className="text-slate-800 dark:text-white font-mono text-sm">{currentConfig.timeLimitSec} giây</strong>
                   </div>
+                  {/* Explanation for time-compression difficulty step */}
+                  {[4, 6, 8, 11].includes(currentConfig.level) && (
+                    <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-500" />
+                      <span>Cấp độ tăng khó bằng cách siết thời gian mục tiêu nhằm kích hoạt phản xạ ức chế đọc thầm và đẩy tốc độ quét nhanh hơn.</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -790,8 +802,9 @@ export const ExerciseDetailModal: React.FC = () => {
               <p className="text-xs text-slate-500">
                 Chọn số lượt thử thách cho phiên rèn luyện này:
               </p>
-              <div className="grid grid-cols-3 gap-2 pt-1">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                 {[
+                  { count: 1, label: 'Nhanh', sub: '1 lượt lẻ' },
                   { count: 6, label: 'Khởi động', sub: '6 lượt' },
                   { count: 10, label: 'Tiêu chuẩn', sub: '10 lượt' },
                   { count: 15, label: 'Chuyên sâu', sub: '15 lượt' }
@@ -799,7 +812,7 @@ export const ExerciseDetailModal: React.FC = () => {
                   <button
                     key={r.count}
                     onClick={() => handleRoundsChange(r.count)}
-                    className={`p-2.5 rounded-2xl border text-center transition-all btn-press ${
+                    className={`p-2.5 rounded-2xl border text-center transition-all btn-press cursor-pointer ${
                       sessionRounds === r.count
                         ? 'bg-orange-50/80 dark:bg-orange-950/50 border-orange-500 ring-2 ring-orange-500/20 text-orange-950 dark:text-orange-200'
                         : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-700 dark:text-slate-300'
@@ -825,7 +838,7 @@ export const ExerciseDetailModal: React.FC = () => {
                     Tự Động Thích Ứng Độ Khó (Adaptive Engine)
                   </h4>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Hệ thống tự động nâng cấp độ khi độ chính xác ≥ 85% và hạ cấp khi gặp khó khăn liên tiếp.
+                    Tự động tăng cấp khi đạt chính xác 100% trong 1 phiên hoặc ≥90% trong 2 phiên liên tiếp. Tự hạ cấp khi chính xác &lt;60% liên tiếp.
                   </p>
                 </div>
               </div>
@@ -1007,11 +1020,15 @@ export const ExerciseDetailModal: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 rounded-3xl border border-[#D5CBB9] dark:border-slate-800 shadow-sm">
               <span className="text-xs text-slate-500 font-medium">Điểm Kỷ Lục</span>
-              <p className="text-2xl sm:text-3xl font-black text-brand-600 dark:text-brand-400 mt-1">{bestScore}</p>
+              <p className="text-2xl sm:text-3xl font-black text-brand-600 dark:text-brand-400 mt-1">
+                {bestScore !== null ? `${bestScore} Điểm` : '--'}
+              </p>
             </div>
             <div className="bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 rounded-3xl border border-[#D5CBB9] dark:border-slate-800 shadow-sm">
               <span className="text-xs text-slate-500 font-medium">Độ Chính Xác TB</span>
-              <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{avgAccuracy}%</p>
+              <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                {avgAccuracy !== null ? `${avgAccuracy}%` : '--'}
+              </p>
             </div>
             <div className="bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 rounded-3xl border border-[#D5CBB9] dark:border-slate-800 shadow-sm col-span-2 sm:col-span-1">
               <span className="text-xs text-slate-500 font-medium">Số Phiên Đã Tập</span>

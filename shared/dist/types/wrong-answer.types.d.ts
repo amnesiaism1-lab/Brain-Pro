@@ -63,6 +63,8 @@ export interface IQuestionContext {
     streetB?: string;
     bearingDeg?: number;
     distanceKm?: number;
+    schulteMode?: string;
+    gridSize?: number;
 }
 /** Bản ghi một câu làm sai */
 export interface IWrongAnswer {

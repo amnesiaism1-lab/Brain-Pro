@@ -3,6 +3,8 @@ import { ExerciseSlug, ICustomExercisePreset } from '@brain-exercises/shared';
 export interface CustomPresetsSlice {
   customPresets: Record<string, ICustomExercisePreset[]>;
   activeCustomPresetIdBySlug: Record<string, string | null>;
+  customWorkingPresetBySlug: Record<string, ICustomExercisePreset | null>;
+  setCustomWorkingPreset: (slug: ExerciseSlug, preset: ICustomExercisePreset | null) => void;
   activeSessionSource: 'ladder' | 'custom';
   
   setActiveSessionSource: (source: 'ladder' | 'custom') => void;

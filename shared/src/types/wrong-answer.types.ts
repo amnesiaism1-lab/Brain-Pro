@@ -100,6 +100,10 @@ export interface IQuestionContext {
   streetB?: string;
   bearingDeg?: number;
   distanceKm?: number;
+
+  // Schulte Table & Visual Attention
+  schulteMode?: string;
+  gridSize?: number;
 }
 
 /** Bản ghi một câu làm sai */

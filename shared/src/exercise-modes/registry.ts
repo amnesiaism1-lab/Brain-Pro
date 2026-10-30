@@ -5,6 +5,7 @@ import { PITCH_RECALL_MODES } from './modes/pitch-recall';
 import { INTERVAL_IDENTIFY_MODES } from './modes/interval-identify';
 import { CHORD_IDENTIFY_MODES } from './modes/chord-identify';
 import { RHYTHM_RECALL_MODES } from './modes/rhythm-recall';
+import { SCHULTE_TABLE_MODES } from './modes/schulte-table';
 import { createDefaultExerciseMode } from './modes/default';
 
 export const EXERCISE_MODE_REGISTRY: Partial<Record<ExerciseSlug, IExerciseModeDefinition[]>> = {
@@ -12,7 +13,8 @@ export const EXERCISE_MODE_REGISTRY: Partial<Record<ExerciseSlug, IExerciseModeD
   'pitch-recall': PITCH_RECALL_MODES,
   'interval-identify': INTERVAL_IDENTIFY_MODES,
   'chord-identify': CHORD_IDENTIFY_MODES,
-  'rhythm-recall': RHYTHM_RECALL_MODES
+  'rhythm-recall': RHYTHM_RECALL_MODES,
+  'schulte-table': SCHULTE_TABLE_MODES
 };
 
 /**

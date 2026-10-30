@@ -90,7 +90,7 @@ export const SettingsView: React.FC = () => {
             </div>
             <div>
               <span className="text-sm font-bold text-slate-800 dark:text-white block">Thích ứng độ khó động (DDA)</span>
-              <span className="text-xs text-slate-500 dark:text-slate-400">Tự động tăng cấp khi đạt chính xác trên 90%</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Tự động tăng cấp khi đạt chính xác 100% (1 phiên) hoặc ≥90% (2 phiên liên tiếp)</span>
             </div>
           </div>
           <button

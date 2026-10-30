@@ -73,3 +73,4 @@ console.log('\nTop files with theme inconsistencies:');
 sortedFiles.slice(0, 20).forEach(([f, list]) => {
   console.log(`- ${f}: ${list.length} issues`);
 });
+

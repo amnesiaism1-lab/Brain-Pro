@@ -11,6 +11,7 @@ interface WrongAnswerFiltersProps {
 
 const EXERCISE_OPTIONS: Array<{ slug: ExerciseSlug | 'ALL'; label: string }> = [
   { slug: 'ALL', label: 'Tất cả bài tập' },
+  { slug: 'schulte-table', label: 'Bảng Schulte' },
   { slug: 'interval-identify', label: 'Nhận Diện Quãng' },
   { slug: 'chord-identify', label: 'Nhận Diện Hợp Âm' },
   { slug: 'pitch-recall', label: 'Nhớ Cao Độ' },

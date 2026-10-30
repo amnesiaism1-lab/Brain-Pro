@@ -32,6 +32,7 @@ qa-automation/videos/
 qa-automation/screenshots/
 qa-automation/reports/
 coverage/
+evidence/
 *.tsbuildinfo
 .vercel/
 .turbo/

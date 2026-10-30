@@ -31,7 +31,18 @@ exports.LEGACY_VARIANT_TO_MODE = {
     'SWING_GROOVE': 'rhythm.tap-back',
     'POLYRHYTHM_PULSE': 'rhythm.tap-back',
     'TEMPO_WARP': 'rhythm.tap-back',
-    'CHRONO_MAESTRO': 'rhythm.tap-back'
+    'CHRONO_MAESTRO': 'rhythm.tap-back',
+    // Schulte table
+    'GORBOV_RED_BLACK': 'schulte.gorbov',
+    'ROTATING_SCHULTE': 'schulte.dynamic',
+    'FADING_SCHULTE': 'schulte.dynamic',
+    'INF_SCHULTE_ALPHA_EN': 'schulte.alphabet',
+    'INF_SCHULTE_COLOR_CODE': 'schulte.gorbov',
+    'INF_SCHULTE_ROTATING': 'schulte.dynamic',
+    'INF_SCHULTE_ROTATING_COMBO': 'schulte.dynamic',
+    'INF_SCHULTE_ALPHA_FADING': 'schulte.dynamic',
+    'INF_SCHULTE_ROTATING_GORBOV': 'schulte.dynamic',
+    'INF_SCHULTE_CHAOS': 'schulte.dynamic'
 };
 /**
  * Infer the best modeId for a ladder level configuration if not explicitly provided.

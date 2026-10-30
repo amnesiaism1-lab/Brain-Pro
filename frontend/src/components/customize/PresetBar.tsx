@@ -70,7 +70,13 @@ export const PresetBar: React.FC<PresetBarProps> = ({
           <input
             type="text"
             autoFocus
-            placeholder="Tên preset (ví dụ: Khởi Động Scale C, Luyện Quãng 3...)"
+            placeholder={
+              exerciseSlug === 'schulte-table'
+                ? "Tên preset (ví dụ: Quét Nhanh 5×5, Gorbov 7×7 Song Nhận Thức...)"
+                : exerciseSlug.includes('pitch') || exerciseSlug.includes('chord') || exerciseSlug.includes('interval')
+                ? "Tên preset (ví dụ: Khởi Động Scale C, Luyện Quãng 3...)"
+                : "Tên preset lưu cấu hình cá nhân..."
+            }
             value={newPresetName}
             onChange={(e) => setNewPresetName(e.target.value)}
             className="flex-1 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500"

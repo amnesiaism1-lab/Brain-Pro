@@ -7,5 +7,6 @@ export * from './modes/pitch-recall';
 export * from './modes/interval-identify';
 export * from './modes/chord-identify';
 export * from './modes/rhythm-recall';
+export * from './modes/schulte-table';
 export * from './modes/default';
 //# sourceMappingURL=index.d.ts.map
