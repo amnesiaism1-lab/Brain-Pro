@@ -142,6 +142,16 @@ export const HomeView: React.FC = () => {
       gradient: 'from-indigo-500/15 via-purple-500/10 to-transparent',
       border: 'border-indigo-400/30 hover:border-indigo-400',
       badgeColor: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300'
+    },
+    {
+      code: 'SPATIAL_NAVIGATION' as CognitiveCategoryCode,
+      name: 'Định Hướng Không Gian',
+      sub: 'Bản đồ nhận thức, ma trận & tọa độ 3D',
+      count: getCategoryCount('SPATIAL_NAVIGATION'),
+      icon: <Compass className="w-5 h-5 text-teal-500" />,
+      gradient: 'from-teal-500/15 via-emerald-500/10 to-transparent',
+      border: 'border-teal-400/30 hover:border-teal-400',
+      badgeColor: 'bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300'
     }
   ];
 
@@ -274,7 +284,7 @@ export const HomeView: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center justify-between pt-2 border-t border-amber-500/20">
-            <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300">9 Chế độ luyện tập topo</span>
+            <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300">10 Chương học & 5 chế độ tương tác topo</span>
             <button className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-sm group-hover:translate-x-0.5 transition-all">
               <span>Khám phá</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -319,12 +329,12 @@ export const HomeView: React.FC = () => {
         </div>
       </div>
 
-      {/* 6 Khối Năng Lực Nhận Thức (6 Cognitive Pillars Hub) */}
+      {/* 7 Khối Năng Lực Nhận Thức (7 Cognitive Pillars Hub) */}
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
           <div>
             <h2 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">
-              6 Trục Năng Lực Não Bộ
+              7 Trục Năng Lực Não Bộ
             </h2>
             <p className="text-xs sm:text-sm text-slate-500">
               Khám phá toàn bộ {EXERCISES_METADATA.length} bài tập được phân loại theo cấu trúc khoa học thần kinh

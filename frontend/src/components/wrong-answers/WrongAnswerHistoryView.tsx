@@ -137,14 +137,14 @@ export const WrongAnswerHistoryView: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                Lịch Sử Câu Sai & Phát Triển Thính Giác
+                Lịch Sử Câu Sai & Ôn Luyện Nhận Thức
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
-                SRS Memory
+                Spaced Repetition
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-0.5 font-medium">
-              Chuyển hóa sai lầm thành phản xạ cảm âm chuẩn xác thông qua thuật toán lặp lại cách quãng
+              Chuyển hóa sai lầm thành phản xạ nhận thức chuẩn xác thông qua thuật toán lặp lại ngắt quãng (SM-2)
             </p>
           </div>
         </div>
@@ -251,7 +251,7 @@ export const WrongAnswerHistoryView: React.FC = () => {
             }`}
           >
             <Activity className="w-4 h-4" />
-            <span>Tiến bộ thính giác</span>
+            <span>Tiến bộ & Ôn tập</span>
           </button>
         </div>
       </div>

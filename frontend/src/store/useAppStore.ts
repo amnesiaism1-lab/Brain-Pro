@@ -96,6 +96,8 @@ interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, Cus
   // Weekly Challenges
   weeklyChallenges: IWeeklyChallenge[];
   completeWeeklyChallenge: (challengeId: string) => void;
+  lastChallengeBonus: { title: string; bonusXp: number } | null;
+  clearChallengeBonus: () => void;
 
   // Cognitive Snapshots (Long-term progression)
   cognitiveSnapshots: IUserCognitiveSnapshot[];
@@ -654,13 +656,15 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     // Synergies & Combos
-    lastPlayedSlug: null,
+    lastPlayedSlug: (typeof localStorage !== 'undefined' ? localStorage.getItem('be_last_played_slug') as ExerciseSlug | null : null) || null,
     activeSynergy: null,
     suggestedSynergy: null,
     dismissSynergy: () => set({ activeSynergy: null, suggestedSynergy: null }),
 
     // Weekly Challenges
     weeklyChallenges: initialChallenges,
+    lastChallengeBonus: null,
+    clearChallengeBonus: () => set({ lastChallengeBonus: null }),
     completeWeeklyChallenge: (challengeId: string) => {
       set(state => ({
         weeklyChallenges: state.weeklyChallenges.map(c => 
@@ -826,16 +830,22 @@ export const useAppStore = create<AppState>((set, get) => {
 
       // 3. Weekly Challenge Verification
       let challengeBonusXp = 0;
+      let completedChallengeTitle: string | null = null;
       const updatedChallenges = state.weeklyChallenges.map(c => {
         if (!c.isCompleted && c.exerciseSlug === attempt.exerciseSlug) {
+          const isWc1 = c.id === 'wc-1';
           const scoreMet = attempt.score >= c.targetScore;
-          const levelMet = currentLevel >= c.targetLevel;
-          // For wc-1: require accuracy >= 90 and time <= 50s
-          const accuracyMet = c.id === 'wc-1' ? (attempt.accuracyRate >= 90) : true;
-          const timeMet = c.id === 'wc-1' ? (attempt.timeSpentSec <= 50) : true;
+          // For wc-1: strictly require playedLevel === 9 AND Gorbov mode (not Latin Cấp 20!)
+          const levelMet = isWc1 ? (attempt.level === 9) : (currentLevel >= c.targetLevel);
+          const modeMet = isWc1 
+            ? (attempt.rawMetricsJson?.mode === 'gorbov' || attempt.rawMetricsJson?.variantCode === 'GORBOV_RED_BLACK' || attempt.rawMetricsJson?.variantCode === 'GORBOV_TABLE')
+            : true;
+          const accuracyMet = isWc1 ? (attempt.accuracyRate >= 90) : true;
+          const timeMet = isWc1 ? (attempt.timeSpentSec <= 50) : true;
 
-          if (scoreMet && levelMet && accuracyMet && timeMet) {
+          if (scoreMet && levelMet && modeMet && accuracyMet && timeMet) {
             challengeBonusXp += c.xpReward;
+            completedChallengeTitle = c.title;
             return { ...c, isCompleted: true };
           }
         }
@@ -957,14 +967,19 @@ export const useAppStore = create<AppState>((set, get) => {
         });
       } catch {}
       
+      try {
+        localStorage.setItem('be_last_played_slug', attempt.exerciseSlug);
+      } catch {}
+
       set({
         xp: newXp,
         level: newLevel,
         exerciseMasteries: updatedMasteries,
         relationshipMasteries: updatedRelationMasteries,
-        activeDebriefEvents: relationEvents && relationEvents.length > 0 ? relationEvents : null,
+        activeDebriefEvents: !state.activeWorkoutRoutine && relationEvents && relationEvents.length > 0 ? relationEvents : null,
         currentLevel: nextLevel,
         lastLevelUpEvent: levelUpEvent,
+        lastChallengeBonus: challengeBonusXp > 0 && completedChallengeTitle ? { title: completedChallengeTitle, bonusXp: challengeBonusXp } : null,
         lastPlayedSlug: attempt.exerciseSlug,
         activeSynergy: matchedSynergy,
         suggestedSynergy: nextSynergy,

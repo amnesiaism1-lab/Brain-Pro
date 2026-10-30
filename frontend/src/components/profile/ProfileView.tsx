@@ -366,7 +366,7 @@ export const ProfileView: React.FC = () => {
           }`}
         >
           <Trophy className="w-4 h-4" />
-          <span>Toàn Bộ 31 Bài Tập & Biến Thể</span>
+          <span>Toàn Bộ {EXERCISES_METADATA.length} Bài Tập & Biến Thể</span>
         </button>
       </div>
 
@@ -534,7 +534,7 @@ export const ProfileView: React.FC = () => {
               <div>
                 <h3 className="text-lg sm:text-xl font-black text-slate-800 dark:text-white flex items-center gap-2">
                   <Layers className="w-5 h-5 text-brand-600" />
-                  Tiến Trình Toàn Bộ 31 Bài Tập
+                  Tiến Trình Toàn Bộ {EXERCISES_METADATA.length} Bài Tập
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-500">
                   Cấp độ hiện tại, tỷ lệ chính xác và nút chơi nhanh cho từng bài tập
@@ -559,7 +559,7 @@ export const ProfileView: React.FC = () => {
                   onChange={(e) => setExerciseFilterCategory(e.target.value as any)}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white focus:outline-none focus:border-brand-500"
                 >
-                  <option value="ALL">Tất cả danh mục (31)</option>
+                  <option value="ALL">Tất cả danh mục ({EXERCISES_METADATA.length})</option>
                   <option value="SPEED_READING">Đọc nhanh</option>
                   <option value="PERIPHERAL_VISION">Thị giác ngoại vi</option>
                   <option value="ATTENTION">Tập trung</option>

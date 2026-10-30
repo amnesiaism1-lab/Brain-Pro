@@ -118,6 +118,9 @@ export const Header: React.FC = () => {
             <button
               onClick={() => {
                 playSound('click');
+                if (activeGameSlug) {
+                  setIsGamePaused(true);
+                }
                 setIsHowToTrainOpen(true);
               }}
               aria-label="Hướng dẫn bài tập"

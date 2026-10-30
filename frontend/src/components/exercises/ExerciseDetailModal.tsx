@@ -1138,7 +1138,7 @@ export const ExerciseDetailModal: React.FC = () => {
       )}
 
       {/* Sticky Bottom Action Bar: Always accessible on mobile & desktop without scrolling */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 p-3 sm:p-4 bg-[#F5EFE6]/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-[#D5CBB9] dark:border-slate-800 shadow-[0_-8px_25px_rgba(0,0,0,0.12)]">
+      <div className="fixed bottom-14 md:bottom-0 left-0 md:left-64 right-0 z-30 p-3 sm:p-4 bg-[#F5EFE6]/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-[#D5CBB9] dark:border-slate-800 shadow-[0_-8px_25px_rgba(0,0,0,0.12)]">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 truncate">
             <div className="w-10 h-10 rounded-2xl bg-brand-500/10 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 font-black flex items-center justify-center text-sm shrink-0 border border-brand-500/30">

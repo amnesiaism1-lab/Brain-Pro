@@ -3,6 +3,7 @@ import {
   Sparkles,
   Repeat,
   Keyboard,
+  Mic2,
 } from 'lucide-react';
 import {
   RunwayRenderState,
@@ -18,7 +19,7 @@ import { TransportBar } from '../controls/TransportBar';
 import { PhraseNavigatorDeck } from '../components/PhraseNavigatorDeck';
 import { PitchFeedbackDetail } from '../utils/vocalHelpers';
 import { midiToNoteInfo, NOTE_NAMES, SOLFEGE_NAMES } from '@brain-exercises/shared';
-import { ISelectedKeyOverride } from '../../../store/vocalStudioStore';
+import { ISelectedKeyOverride, useVocalStudioStore } from '../../../store/vocalStudioStore';
 
 interface SingAlongTabProps {
   analysisResult: IVocalAnalysisResult;
@@ -136,6 +137,7 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   activePhrase,
 }) => {
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
+  const micStatus = useVocalStudioStore(s => s.micStatus);
 
   const activeScaleNotes = React.useMemo(() => {
     if (selectedKeyOverride) {
@@ -162,6 +164,18 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
       {/* 1. DUAL-TRACK RUNWAY CANVAS CONTAINER */}
       <div className="relative w-full rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl">
         <PitchRunwayCanvas renderStateRef={renderStateRef} onSeek={onSeek} />
+
+        {/* Missing Mic or Singing Guidance Banner */}
+        {isPlaying && !userReading?.isSinging && (
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-2xl bg-slate-900/90 border border-cyan-500/50 text-cyan-200 text-xs shadow-2xl backdrop-blur-md flex items-center gap-2 animate-fade-in pointer-events-none">
+            <Mic2 className="w-4 h-4 text-cyan-400 animate-pulse shrink-0" />
+            <span>
+              {micStatus === 'permission_denied'
+                ? 'Chưa có quyền Micro: Vui lòng nhấn biểu tượng ổ khóa cạnh thanh địa chỉ để cấp quyền micro.'
+                : 'Đang phát nhạc: Hãy ngân vang hoặc hát gần micro để hệ thống đo cao độ và vẽ dải sóng.'}
+            </span>
+          </div>
+        )}
 
         {/* Score & Tuner HUD Overlay (Top Left) */}
         <div className="absolute top-3 left-4 flex flex-wrap items-center gap-2 z-10">

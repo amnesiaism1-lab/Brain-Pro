@@ -290,7 +290,7 @@ export const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
             <p className="text-sm sm:text-base font-bold text-emerald-950 dark:text-emerald-100">
               {cleanDisplayLabel(correctAnswer.label)}
             </p>
-            {correctAnswer.semitones !== undefined && (
+            {typeof correctAnswer.semitones === 'number' && ['interval-identify', 'pitch-recall', 'chord-identify'].includes(wrongAnswer.exerciseSlug) && (
               <p className="text-xs text-emerald-700 dark:text-emerald-300 font-mono mt-0.5">
                 Khoảng cách: {correctAnswer.semitones} bán âm
               </p>
@@ -322,7 +322,7 @@ export const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
             <p className="text-sm sm:text-base font-bold text-rose-950 dark:text-rose-100">
               {cleanDisplayLabel(userAnswer.label)}
             </p>
-            {userAnswer.semitones !== undefined && (
+            {typeof userAnswer.semitones === 'number' && ['interval-identify', 'pitch-recall', 'chord-identify'].includes(wrongAnswer.exerciseSlug) && (
               <p className="text-xs text-rose-700 dark:text-rose-300 font-mono mt-0.5">
                 Khoảng cách: {userAnswer.semitones} bán âm
               </p>

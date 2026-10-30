@@ -155,7 +155,7 @@ export const SettingsView: React.FC = () => {
             <div>
               <span className="text-sm font-bold text-slate-800 dark:text-white block">Ngôn ngữ hiển thị</span>
               <span className="text-xs text-slate-500 dark:text-slate-400">
-                {language === 'vi' ? 'Tiếng Việt (Giao diện chuẩn)' : 'English (Song ngữ / Cognitive Dual)'}
+                {language === 'vi' ? 'Tiếng Việt (Giao diện chuẩn)' : 'Tiếng Việt (Bản English đang hoàn thiện)'}
               </span>
             </div>
           </div>
@@ -165,26 +165,19 @@ export const SettingsView: React.FC = () => {
                 playSound('click');
                 setLanguage('vi');
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                language === 'vi'
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-brand-600 text-white shadow-sm cursor-pointer"
             >
               Tiếng Việt
             </button>
             <button
               onClick={() => {
                 playSound('click');
-                setLanguage('en');
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                language === 'en'
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
+              title="Giao diện tiếng Anh toàn diện đang được biên dịch bản địa hóa (Sắp ra mắt)"
+              className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer flex items-center gap-1.5"
             >
-              English
+              <span>English</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold">Sắp có</span>
             </button>
           </div>
         </div>

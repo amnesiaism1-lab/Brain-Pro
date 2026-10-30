@@ -92,6 +92,18 @@ export function useNavigationSync() {
         return;
       }
 
+      // Route alias: #/theory or #/academy -> #/learn
+      if (root === 'theory' || root === 'academy') {
+        setActiveTab('learn');
+        setSelectedExerciseSlug(null);
+        setActiveGameSlug(null);
+        if (parts[1]) {
+          setActiveTheoryModuleId(parts[1]);
+        }
+        window.history.replaceState(null, '', `#/learn${parts[1] ? `/${parts[1]}` : ''}`);
+        return;
+      }
+
       // Route: other main tabs (wrong-history, settings, user)
       if (VALID_TABS.includes(root as MainNavTab)) {
         setActiveTab(root as MainNavTab);
@@ -100,10 +112,11 @@ export function useNavigationSync() {
         return;
       }
 
-      // Fallback
+      // Fallback for unrecognized routes: explicitly update URL hash to #/home
       setActiveTab('home');
       setSelectedExerciseSlug(null);
       setActiveGameSlug(null);
+      window.history.replaceState(null, '', '#/home');
     } finally {
       setTimeout(() => {
         isHandlingHashChangeRef.current = false;

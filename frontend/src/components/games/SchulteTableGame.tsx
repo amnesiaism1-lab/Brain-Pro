@@ -61,6 +61,7 @@ interface RoundResult {
   pace: number;
   score: number;
   missClicks: number;
+  hintCount: number;
 }
 
 export const SchulteTableGame: React.FC = () => {
@@ -82,7 +83,8 @@ export const SchulteTableGame: React.FC = () => {
     autoHintEnabled,
     setAutoHintEnabled,
     enableHints,
-    setEnableHints
+    setEnableHints,
+    lastChallengeBonus
   } = useAppStore();
 
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
@@ -220,6 +222,15 @@ export const SchulteTableGame: React.FC = () => {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(Date.now());
   const phantomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playedLevelRef = useRef<number>(effectiveLevel);
+
+  useEffect(() => {
+    playedLevelRef.current = effectiveLevel;
+    if (!isCustom) {
+      setMode(initialMode);
+      setGridSize(initialSize);
+    }
+  }, [effectiveLevel, initialMode, initialSize, isCustom]);
 
   // Personal Best key
   const personalBestKey = `be_schulte_best_${mode}_${gridSize}`;
@@ -316,7 +327,10 @@ export const SchulteTableGame: React.FC = () => {
   };
 
   // Initialize or reset game board
-  const initBoard = () => {
+  const initBoard = (overrideMode?: SchulteMode, overrideSize?: number) => {
+    const activeMode = overrideMode || mode;
+    const activeSize = overrideSize || gridSize;
+    playedLevelRef.current = effectiveLevel;
     setFoundKeys(new Set());
     setMissClicks(0);
     setCurrentStreak(0);
@@ -333,7 +347,7 @@ export const SchulteTableGame: React.FC = () => {
 
     startTimeRef.current = Date.now();
 
-    if (mode === 'gorbov') {
+    if (activeMode === 'gorbov') {
       // 25 Red (1-25) + 24 Black (1-24)
       const items: GorbovCell[] = [];
       for (let i = 1; i <= 25; i++) items.push({ num: i, color: 'red' });
@@ -349,34 +363,34 @@ export const SchulteTableGame: React.FC = () => {
       }
       setGorbovGrid(grid);
       setGorbovTarget({ color: 'red', num: 1 });
-    } else if (mode === 'alphabet') {
-      const fullSequence = getAlphabetSequence(alphabetType, gridSize * gridSize);
+    } else if (activeMode === 'alphabet') {
+      const fullSequence = getAlphabetSequence(alphabetType, activeSize * activeSize);
       const letters = [...fullSequence];
       for (let i = letters.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [letters[i], letters[j]] = [letters[j], letters[i]];
       }
       const grid: string[][] = [];
-      for (let r = 0; r < gridSize; r++) {
-        grid.push(letters.slice(r * gridSize, (r + 1) * gridSize));
+      for (let r = 0; r < activeSize; r++) {
+        grid.push(letters.slice(r * activeSize, (r + 1) * activeSize));
       }
       setAlphabetLetters(grid);
       setAlphabetIndex(0);
       setCurrentLetterTarget(fullSequence[0]);
     } else {
       // Standard / Reverse / Fading / Rotating
-      const gen = generateSchulteGrid(gridSize, mode === 'reverse');
+      const gen = generateSchulteGrid(activeSize, activeMode === 'reverse');
       setStandardNumbers(gen.grid);
-      setCurrentTarget(mode === 'reverse' ? gridSize * gridSize : 1);
+      setCurrentTarget(activeMode === 'reverse' ? activeSize * activeSize : 1);
     }
 
     // Refresh saved personal best for current config
-    const saved = localStorage.getItem(`be_schulte_best_${mode}_${gridSize}`);
+    const saved = localStorage.getItem(`be_schulte_best_${activeMode}_${activeSize}`);
     setPersonalBest(saved ? parseFloat(saved) : null);
 
     // Phantom Fading timer: cells fade after 2.5 seconds
     if (phantomTimerRef.current) clearTimeout(phantomTimerRef.current);
-    const willFade = mode === 'fading' || (isInfinity && [17, 19, 20, 22].includes(effectiveLevel));
+    const willFade = activeMode === 'fading' || (isInfinity && [17, 19, 20, 22].includes(effectiveLevel));
     if (willFade) {
       phantomTimerRef.current = setTimeout(() => {
         setIsPhantomFaded(true);
@@ -425,7 +439,8 @@ export const SchulteTableGame: React.FC = () => {
       accuracy: wasTimeout ? Math.min(accuracy, 60) : accuracy,
       pace: currentPace,
       score: currentRoundScore,
-      missClicks
+      missClicks,
+      hintCount
     };
 
     // Update Personal Best if single round or better
@@ -467,8 +482,12 @@ export const SchulteTableGame: React.FC = () => {
         accuracyRate: aggregateAccuracy,
         timeSpentSec: totalTimeSpent,
         xpEarned: totalXp,
-        level: effectiveLevel,
-        rawMetricsJson: getRawMetricsJson()
+        level: playedLevelRef.current,
+        rawMetricsJson: {
+          ...getRawMetricsJson(),
+          mode,
+          variantCode: mode === 'gorbov' ? 'GORBOV_RED_BLACK' : undefined
+        }
       });
 
       setRoundResults(allRounds);
@@ -916,8 +935,13 @@ export const SchulteTableGame: React.FC = () => {
               </div>
             )}
 
-            {/* Grid Size selector: supports 3x3 to 9x9 */}
-            {mode !== 'gorbov' && (
+            {/* Grid Size selector: supports 3x3 to 9x9 or Fixed Badge for Gorbov */}
+            {mode === 'gorbov' ? (
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                <span className="text-red-500 font-black mr-1">7×7</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">(Gorbov 49 ô cố định)</span>
+              </div>
+            ) : (
               <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold overflow-x-auto max-w-[200px] sm:max-w-none">
                 {[3, 4, 5, 6, 7, 8, 9].map(s => (
                   <button
@@ -1179,7 +1203,9 @@ export const SchulteTableGame: React.FC = () => {
               : mode === 'reverse'
               ? `Số giảm dần: Quét ngược từ ${gridSize * gridSize} về 1. Cố định tâm nhìn để bao quát!`
               : mode === 'alphabet'
-              ? (alphabetType === 'latin'
+              ? (gridSize * gridSize > (alphabetType === 'vi' ? VI_ALPHABET.length : LATIN_ALPHABET.length)
+                  ? `Lưới ${gridSize}×${gridSize} (${gridSize * gridSize} ô) vượt quá bảng chữ cái: Sau chữ ${alphabetType === 'vi' ? 'Y' : 'Z'}, vòng lặp tiếp theo được đánh số A1, B1, C1...`
+                  : alphabetType === 'latin'
                   ? `Bảng chữ cái Latin (${gridSize * gridSize} ô): Tìm chữ từ A → B → C... theo thứ tự!`
                   : `Bảng chữ cái Tiếng Việt (${gridSize * gridSize} ô): Tìm chữ từ A → Ă → Â → B... theo thứ tự!`)
               : mode === 'rotating'
@@ -1420,6 +1446,24 @@ export const SchulteTableGame: React.FC = () => {
               </div>
             </div>
 
+            {/* Weekly Challenge Completed Banner */}
+            {lastChallengeBonus && (
+              <div className="p-3.5 bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-yellow-500/20 border-2 border-amber-400 text-slate-800 dark:text-white rounded-2xl shadow-lg text-left animate-bounce">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                    <Trophy className="w-4 h-4 text-amber-500 fill-amber-500" />
+                    Thử Thách Tuần Hoàn Thành!
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-black bg-amber-500 text-white shadow-sm">
+                    +{lastChallengeBonus.bonusXp} XP
+                  </span>
+                </div>
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-1">
+                  {lastChallengeBonus.title}
+                </p>
+              </div>
+            )}
+
             {/* DDA Level-Up Celebration Banner */}
             {lastLevelUpEvent && lastLevelUpEvent.exerciseSlug === 'schulte-table' && (
               <div className="p-3.5 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white rounded-2xl shadow-lg border border-amber-300/40 text-left animate-bounce">
@@ -1453,7 +1497,7 @@ export const SchulteTableGame: React.FC = () => {
                 Quy đổi: (Điểm/8) + {25 * totalRounds} XP chuẩn phiên
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Chế độ: <strong className="text-brand-600 dark:text-brand-400 uppercase">{mode}</strong> ({gridSize}×{gridSize}) • Cấp {effectiveLevel}
+                Chế độ: <strong className="text-brand-600 dark:text-brand-400 uppercase">{mode}</strong> ({gridSize}×{gridSize}) • Cấp {playedLevelRef.current}
               </p>
             </div>
 
@@ -1504,7 +1548,7 @@ export const SchulteTableGame: React.FC = () => {
                 <p className="text-xl font-black text-slate-800 dark:text-white mt-1">
                   {bestStreak} ô
                 </p>
-                <span className="text-[10px] text-slate-400 font-medium">Gợi ý dùng: {hintCount}</span>
+                <span className="text-[10px] text-slate-400 font-medium">Gợi ý dùng: {roundResults.reduce((s, r) => s + (r.hintCount || 0), 0)}</span>
               </div>
             </div>
 
@@ -1566,11 +1610,16 @@ export const SchulteTableGame: React.FC = () => {
                   if (activeWorkoutRoutine) {
                     nextWorkoutStep();
                   } else if (lastLevelUpEvent && lastLevelUpEvent.exerciseSlug === 'schulte-table') {
-                    setExerciseLevel('schulte-table', lastLevelUpEvent.toLevel);
+                    const nextLvl = lastLevelUpEvent.toLevel;
+                    setExerciseLevel('schulte-table', nextLvl);
                     clearLevelUpEvent();
                     setCurrentRound(1);
                     setRoundResults([]);
-                    initBoard();
+                    const targetMode: SchulteMode = nextLvl === 9 || nextLvl === 14 || nextLvl === 21 ? 'gorbov' : (nextLvl >= 13 ? (nextLvl === 13 || nextLvl === 20 ? 'alphabet' : nextLvl === 18 ? 'rotating' : nextLvl === 17 || nextLvl === 19 ? 'fading' : 'standard') : 'standard');
+                    const targetSize = nextLvl === 1 ? 3 : nextLvl === 2 ? 4 : nextLvl <= 4 ? 5 : nextLvl <= 6 ? 6 : nextLvl <= 9 ? 7 : nextLvl <= 11 ? 8 : 9;
+                    setMode(targetMode);
+                    setGridSize(targetSize);
+                    initBoard(targetMode, targetSize);
                   } else {
                     setActiveGameSlug(null);
                   }
@@ -1581,10 +1630,13 @@ export const SchulteTableGame: React.FC = () => {
                   {activeWorkoutRoutine
                     ? (() => {
                         const nextStepIndex = (useAppStore.getState().currentWorkoutStepIndex ?? 0) + 1;
+                        if (nextStepIndex >= activeWorkoutRoutine.items.length) {
+                          return 'Hoàn tất lộ trình luyện tập! 🎉';
+                        }
                         const nextItem = activeWorkoutRoutine.items[nextStepIndex];
                         const nextTitle = nextItem
                           ? EXERCISES_METADATA.find(e => e.slug === nextItem.exerciseSlug)?.title || 'Bài kế tiếp'
-                          : 'Hoàn thành lộ trình';
+                          : 'Hoàn thành';
                         return `Chặng tiếp theo (${nextStepIndex + 1}/${activeWorkoutRoutine.items.length}): ${nextTitle}`;
                       })()
                     : lastLevelUpEvent && lastLevelUpEvent.exerciseSlug === 'schulte-table'

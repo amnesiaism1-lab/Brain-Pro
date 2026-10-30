@@ -430,7 +430,9 @@ export const ExercisesListView: React.FC = () => {
         </div>
 
         <div className="flex items-center justify-between sm:justify-end gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
-          <span>Hiển thị <strong>{filteredExercises.length}</strong> / {EXERCISES_METADATA.length} bài tập</span>
+          <span title="Hệ thống gồm 33 bài tập chuẩn hóa. Một số bài tập liên môn (như Định hướng Hà Nội, Nhớ không gian) xuất hiện ở cả 2 nhóm năng lực tương ứng.">
+            Hiển thị <strong>{filteredExercises.length}</strong> / {EXERCISES_METADATA.length} bài tập chuẩn hóa
+          </span>
           {(searchQuery || selectedCategory !== 'ALL') && (
             <button
               onClick={() => {

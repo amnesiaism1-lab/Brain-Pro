@@ -38,7 +38,9 @@ export const GameResultModal: React.FC<GameResultProps> = ({
     setSelectedExerciseSlug,
     setActiveGameSlug,
     authUser,
-    setIsAuthModalOpen
+    setIsAuthModalOpen,
+    lastChallengeBonus,
+    clearChallengeBonus
   } = useAppStore();
 
   const [showDetailedBreakdown, setShowDetailedBreakdown] = useState(false);
@@ -226,6 +228,23 @@ export const GameResultModal: React.FC<GameResultProps> = ({
           );
         })()}
 
+        {lastChallengeBonus && (
+          <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-yellow-500/15 border-2 border-amber-400 text-left animate-bounce">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                <Trophy className="w-4 h-4 text-amber-500 fill-amber-500" />
+                Thử Thách Tuần Hoàn Thành!
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-black bg-amber-500 text-white shadow-sm">
+                +{lastChallengeBonus.bonusXp} XP
+              </span>
+            </div>
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-1">
+              {lastChallengeBonus.title}
+            </p>
+          </div>
+        )}
+
         {activeSynergy && (
           <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-400/10 to-orange-500/10 border border-amber-400/40 text-left">
             <div className="flex items-center justify-between">
@@ -300,10 +319,13 @@ export const GameResultModal: React.FC<GameResultProps> = ({
               {activeWorkoutRoutine
                 ? (() => {
                     const nextStepIndex = currentWorkoutStepIndex + 1;
+                    if (nextStepIndex >= activeWorkoutRoutine.items.length) {
+                      return 'Hoàn tất lộ trình luyện tập! 🎉';
+                    }
                     const nextItem = activeWorkoutRoutine.items[nextStepIndex];
                     const nextTitle = nextItem
                       ? EXERCISES_METADATA.find(e => e.slug === nextItem.exerciseSlug)?.title || 'Bài kế tiếp'
-                      : 'Hoàn thành lộ trình';
+                      : 'Hoàn thành';
                     return `Chặng tiếp theo (${nextStepIndex + 1}/${activeWorkoutRoutine.items.length}): ${nextTitle}`;
                   })()
                 : 'Về trang cấp độ & cài đặt'}

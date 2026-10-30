@@ -3,6 +3,7 @@ import { Bell, X } from 'lucide-react';
 import { useAppStore } from './store/useAppStore';
 import { Header } from './components/layout/Header';
 import { Navbar } from './components/layout/Navbar';
+import { Footer } from './components/layout/Footer';
 import { HomeView } from './components/home/HomeView';
 import { ExercisesListView } from './components/exercises/ExercisesListView';
 import { ExerciseDetailModal } from './components/exercises/ExerciseDetailModal';
@@ -79,6 +80,7 @@ export const App: React.FC = () => {
         <main className="flex-1 w-full">
           {renderCurrentView()}
         </main>
+        {(!activeGameSlug && !selectedExerciseSlug) && <Footer />}
         <Navbar />
 
         {/* Global Modals */}
