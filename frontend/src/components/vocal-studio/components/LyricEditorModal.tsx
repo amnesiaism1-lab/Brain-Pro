@@ -11,12 +11,17 @@ import {
   Wand2,
   Loader2,
 } from 'lucide-react';
-import { IVocalAnalysisResult } from '../../../services/vocalFileAnalysisService';
+import {
+  IVocalAnalysisResult,
+  IVocalNoteBar,
+  IVocalPhrase,
+} from '../../../services/vocalFileAnalysisService';
 import {
   parseLrcContent,
   alignLrcLinesToPhrases,
   alignPlainTextToPhrases,
   alignWordsToPhraseNoteBars,
+  classifyPhraseSectionsAndContours,
   fetchAutoLyricsFromLrclib,
   saveLyricsToLocalCache,
 } from '../../../services/lyricAlignmentService';
@@ -38,6 +43,8 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
   onPreviewPhraseAudio,
 }) => {
   const [mode, setMode] = useState<'phrase_list' | 'bulk_paste' | 'cloud_search'>('phrase_list');
+  const [workingPhrases, setWorkingPhrases] = useState<IVocalPhrase[]>([]);
+  const [workingBars, setWorkingBars] = useState<IVocalNoteBar[]>([]);
   const [phraseTexts, setPhraseTexts] = useState<Record<number, string>>({});
   const [phraseVocalizeFlags, setPhraseVocalizeFlags] = useState<Record<number, boolean>>({});
   const [bulkText, setBulkText] = useState('');
@@ -58,6 +65,8 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
       lines.push(p.lyricText || '');
     });
 
+    setWorkingPhrases(analysisResult.phrases.map((p) => ({ ...p })));
+    setWorkingBars(analysisResult.noteBars.map((b) => ({ ...b })));
     setPhraseTexts(initMap);
     setPhraseVocalizeFlags(initFlags);
     setBulkText(lines.join('\n'));
@@ -70,24 +79,56 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
 
   if (!isOpen) return null;
 
+  const getRawMonoPcm = (): Float32Array | null =>
+    typeof analysisResult.audioBuffer?.getChannelData === 'function'
+      ? analysisResult.audioBuffer.getChannelData(0)
+      : null;
+
+  const syncStateFromAlignedPhrases = (
+    clonedPhrases: IVocalPhrase[],
+    clonedBars: IVocalNoteBar[]
+  ) => {
+    const nextMap: Record<number, string> = {};
+    const nextFlags: Record<number, boolean> = {};
+    clonedPhrases.forEach((p) => {
+      nextMap[p.phraseIndex] = p.lyricText || '';
+      nextFlags[p.phraseIndex] = Boolean(p.isInstrumentalOrVocalize);
+    });
+    setWorkingPhrases(clonedPhrases);
+    setWorkingBars(clonedBars);
+    setPhraseTexts(nextMap);
+    setPhraseVocalizeFlags(nextFlags);
+    setBulkText(clonedPhrases.map((p) => p.lyricText || '').join('\n'));
+  };
+
   const handleFileImport = async (file: File) => {
     const text = await file.text();
     const lrcLines = parseLrcContent(text);
     const clonedPhrases = analysisResult.phrases.map((p) => ({ ...p }));
     const clonedBars = analysisResult.noteBars.map((b) => ({ ...b }));
+    const rawMonoPcm = getRawMonoPcm();
 
     if (lrcLines.length > 0) {
-      alignLrcLinesToPhrases(clonedPhrases, clonedBars, lrcLines);
+      alignLrcLinesToPhrases(
+        clonedPhrases,
+        clonedBars,
+        lrcLines,
+        rawMonoPcm,
+        analysisResult.sampleRate,
+        analysisResult.pitchTrack
+      );
     } else {
-      alignPlainTextToPhrases(clonedPhrases, clonedBars, text);
+      alignPlainTextToPhrases(
+        clonedPhrases,
+        clonedBars,
+        text,
+        rawMonoPcm,
+        analysisResult.sampleRate,
+        analysisResult.pitchTrack
+      );
     }
 
-    const nextMap: Record<number, string> = {};
-    clonedPhrases.forEach((p) => {
-      nextMap[p.phraseIndex] = p.lyricText || '';
-    });
-    setPhraseTexts(nextMap);
-    setBulkText(clonedPhrases.map((p) => p.lyricText || '').join('\n'));
+    syncStateFromAlignedPhrases(clonedPhrases, clonedBars);
     setMode('phrase_list');
   };
 
@@ -95,18 +136,29 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
     const lrcLines = parseLrcContent(bulkText);
     const clonedPhrases = analysisResult.phrases.map((p) => ({ ...p }));
     const clonedBars = analysisResult.noteBars.map((b) => ({ ...b }));
+    const rawMonoPcm = getRawMonoPcm();
 
     if (lrcLines.length > 0) {
-      alignLrcLinesToPhrases(clonedPhrases, clonedBars, lrcLines);
+      alignLrcLinesToPhrases(
+        clonedPhrases,
+        clonedBars,
+        lrcLines,
+        rawMonoPcm,
+        analysisResult.sampleRate,
+        analysisResult.pitchTrack
+      );
     } else {
-      alignPlainTextToPhrases(clonedPhrases, clonedBars, bulkText);
+      alignPlainTextToPhrases(
+        clonedPhrases,
+        clonedBars,
+        bulkText,
+        rawMonoPcm,
+        analysisResult.sampleRate,
+        analysisResult.pitchTrack
+      );
     }
 
-    const nextMap: Record<number, string> = {};
-    clonedPhrases.forEach((p) => {
-      nextMap[p.phraseIndex] = p.lyricText || '';
-    });
-    setPhraseTexts(nextMap);
+    syncStateFromAlignedPhrases(clonedPhrases, clonedBars);
     setMode('phrase_list');
   };
 
@@ -121,18 +173,28 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
       } else {
         const clonedPhrases = analysisResult.phrases.map((p) => ({ ...p }));
         const clonedBars = analysisResult.noteBars.map((b) => ({ ...b }));
+        const rawMonoPcm = getRawMonoPcm();
         if (found.syncedLyrics) {
           const lrc = parseLrcContent(found.syncedLyrics);
-          alignLrcLinesToPhrases(clonedPhrases, clonedBars, lrc);
+          alignLrcLinesToPhrases(
+            clonedPhrases,
+            clonedBars,
+            lrc,
+            rawMonoPcm,
+            analysisResult.sampleRate,
+            analysisResult.pitchTrack
+          );
         } else if (found.plainLyrics) {
-          alignPlainTextToPhrases(clonedPhrases, clonedBars, found.plainLyrics);
+          alignPlainTextToPhrases(
+            clonedPhrases,
+            clonedBars,
+            found.plainLyrics,
+            rawMonoPcm,
+            analysisResult.sampleRate,
+            analysisResult.pitchTrack
+          );
         }
-        const nextMap: Record<number, string> = {};
-        clonedPhrases.forEach((p) => {
-          nextMap[p.phraseIndex] = p.lyricText || '';
-        });
-        setPhraseTexts(nextMap);
-        setBulkText(clonedPhrases.map((p) => p.lyricText || '').join('\n'));
+        syncStateFromAlignedPhrases(clonedPhrases, clonedBars);
         setCloudMessage(`Đã khớp lời tự động từ bài: "${found.matchedTitle || cloudQuery}"!`);
         setMode('phrase_list');
       }
@@ -179,18 +241,38 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
     recognition.start();
   };
 
+  const activePhrases = workingPhrases.length > 0 ? workingPhrases : analysisResult.phrases;
+
   const handleSaveAll = () => {
-    const clonedBars = analysisResult.noteBars.map((b) => ({ ...b }));
-    const updatedPhrases = analysisResult.phrases.map((p) => {
+    const baseBars = workingBars.length > 0 ? workingBars : analysisResult.noteBars;
+    const clonedBars = baseBars.map((b) => ({ ...b }));
+    const rawMonoPcm = getRawMonoPcm();
+
+    const updatedPhrases = activePhrases.map((p) => {
       const text = phraseTexts[p.phraseIndex] ?? p.lyricText ?? '';
       const isVoc = Boolean(phraseVocalizeFlags[p.phraseIndex]);
       const copy = {
         ...p,
         isInstrumentalOrVocalize: isVoc,
       };
-      alignWordsToPhraseNoteBars(copy, clonedBars, text);
+      alignWordsToPhraseNoteBars(
+        copy,
+        clonedBars,
+        text,
+        rawMonoPcm,
+        analysisResult.sampleRate,
+        analysisResult.pitchTrack
+      );
       return copy;
     });
+
+    classifyPhraseSectionsAndContours(
+      updatedPhrases,
+      clonedBars,
+      analysisResult.durationMs,
+      analysisResult.vocalRange.lowestMidi,
+      analysisResult.vocalRange.highestMidi
+    );
 
     const updatedResult: IVocalAnalysisResult = {
       ...analysisResult,
@@ -215,7 +297,7 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-black text-white">
-                Đồng Bộ &amp; Chỉnh Sửa Lời Bài Hát Theo Câu ({analysisResult.phrases.length} câu)
+                Đồng Bộ &amp; Chỉnh Sửa Lời Bài Hát Theo Câu ({activePhrases.length} câu)
               </h3>
               <p className="text-[11px] text-slate-400">
                 Lời bài hát tự động khớp từng chữ vào các nốt nhạc NewTone để hiển thị Karaoke &amp; tìm kiếm nhanh
@@ -245,7 +327,7 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
               }`}
             >
               <Music2 className="w-3.5 h-3.5" />
-              <span>Theo Từng Câu ({analysisResult.phrases.length})</span>
+              <span>Theo Từng Câu ({activePhrases.length})</span>
             </button>
 
             <button
@@ -306,7 +388,7 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
                   Tra cứu lời bài hát có sẵn mốc thời gian (.LRC)
                 </h4>
                 <p className="text-xs text-slate-400 mt-1">
-                  Nhập tên bài hát (và ca sĩ nếu có). Hệ thống sẽ tự động tải lời chuẩn kèm timestamp và khớp vào {analysisResult.phrases.length} câu hát của bạn.
+                  Nhập tên bài hát (và ca sĩ nếu có). Hệ thống sẽ tự động tải lời chuẩn kèm timestamp và khớp vào {activePhrases.length} câu hát của bạn.
                 </p>
               </div>
 
@@ -350,7 +432,7 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
                   className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition"
                 >
                   <Wand2 className="w-3.5 h-3.5" />
-                  <span>Gán Tự Động Vào {analysisResult.phrases.length} Câu</span>
+                  <span>Gán Tự Động Vào {activePhrases.length} Câu</span>
                 </button>
               </div>
 
@@ -366,7 +448,7 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
 
           {mode === 'phrase_list' && (
             <div className="space-y-2.5">
-              {analysisResult.phrases.map((phrase) => {
+              {activePhrases.map((phrase) => {
                 const isVocalize = Boolean(phraseVocalizeFlags[phrase.phraseIndex]);
                 const isDictating = dictatingPhraseIdx === phrase.phraseIndex;
 

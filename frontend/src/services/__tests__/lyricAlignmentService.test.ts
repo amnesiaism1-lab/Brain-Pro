@@ -11,6 +11,7 @@ import {
   buildSmartLyricQueries,
   analyzeDeepNoteBarVowelAndTrajectory,
   extractVietnameseWordVowel,
+  computeWordIntrinsicDurationWeight,
   alignWordsToPhraseNoteBars,
 } from '../lyricAlignmentService';
 import type { IVocalPhrase, IVocalNoteBar, IVocalAnalysisResult } from '../vocalFileAnalysisService';
@@ -387,5 +388,64 @@ describe('lyricAlignmentService', () => {
 
     const merged = mergeWithNextPhrase(split, 2);
     expect(merged.phrases.length).toBe(3);
+  });
+
+  it('parses Enhanced LRC <mm:ss.xx> word timestamps, weights intrinsic phonetic duration, and splits merged 1-semitone pitch steps', () => {
+    // 1. Intrinsic phonetic duration weights
+    expect(computeWordIntrinsicDurationWeight('bước', false)).toBeLessThan(0.7);
+    expect(computeWordIntrinsicDurationWeight('mùa', true)).toBeGreaterThan(1.5);
+
+    // 2. Enhanced Karaoke LRC inline word timestamps
+    const enhancedLrc = `[00:01.00]<00:01.05>Từng <00:01.35>bước <00:01.70>yêu`;
+    const parsed = parseLrcContent(enhancedLrc);
+    expect(parsed.length).toBe(1);
+    expect(parsed[0].text).toBe('Từng bước yêu');
+    expect(parsed[0].wordTimestamps?.length).toBe(3);
+    expect(parsed[0].wordTimestamps?.[0]).toEqual({ timeMs: 1050, text: 'Từng' });
+    expect(parsed[0].wordTimestamps?.[2]).toEqual({ timeMs: 1700, text: 'yêu' });
+
+    // 3. Stepwise 1-semitone pitch inflection split (63.15 D#4 -> 63.88 E4 merged into 1 bar)
+    const bars: IVocalNoteBar[] = [
+      {
+        id: 'step-bar',
+        startTimeMs: 1000,
+        endTimeMs: 1700,
+        durationMs: 700,
+        midi: 63,
+        exactMidi: 63.5,
+        noteName: 'D#4',
+        solfegeName: 'Rê# 4',
+        avgCentsDiff: 0,
+        pointsCount: 14,
+      },
+    ];
+    const pitchTrack = [
+      { timeMs: 1080, freqHz: 314, midi: 63.15, noteName: 'D#4', solfegeName: 'Rê# 4', clarity: 0.91, volumeDb: -16, isVocal: true },
+      { timeMs: 1200, freqHz: 314, midi: 63.18, noteName: 'D#4', solfegeName: 'Rê# 4', clarity: 0.90, volumeDb: -16, isVocal: true },
+      { timeMs: 1340, freqHz: 315, midi: 63.20, noteName: 'D#4', solfegeName: 'Rê# 4', clarity: 0.86, volumeDb: -18, isVocal: true },
+      { timeMs: 1480, freqHz: 327, midi: 63.86, noteName: 'E4', solfegeName: 'Mi 4', clarity: 0.92, volumeDb: -15, isVocal: true },
+      { timeMs: 1620, freqHz: 328, midi: 63.90, noteName: 'E4', solfegeName: 'Mi 4', clarity: 0.92, volumeDb: -15, isVocal: true },
+    ];
+    const phrase: IVocalPhrase = {
+      id: 'p-step',
+      phraseIndex: 1,
+      startMs: 1000,
+      endMs: 1700,
+      durationMs: 700,
+      notes: ['D#4'],
+      lowestNote: 'D#4',
+      highestNote: 'D#4',
+      avgPitchHz: 318,
+      avgMidi: 63.5,
+      pitchJumpSemitones: 1,
+      difficulty: 'Dễ',
+      difficultyScore: 3,
+      pointsCount: 14,
+    };
+
+    alignWordsToPhraseNoteBars(phrase, bars, 'Từng bước', null, 44100, pitchTrack);
+    expect(phrase.words?.length).toBe(2);
+    expect(phrase.words?.[0].noteName).toBe('D#4');
+    expect(phrase.words?.[1].noteName).toBe('E4');
   });
 });

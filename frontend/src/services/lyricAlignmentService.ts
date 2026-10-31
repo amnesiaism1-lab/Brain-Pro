@@ -116,6 +116,8 @@ export interface IVocalLyricWord {
 export interface ILrcLine {
   timeMs: number;
   text: string;
+  /** Optional inline word-level timestamps parsed from Enhanced Karaoke LRC (`<mm:ss.xx>word`) */
+  wordTimestamps?: Array<{ timeMs: number; text: string }>;
 }
 
 interface ICachedSongLyrics {
@@ -130,7 +132,7 @@ interface ICachedSongLyrics {
   }>;
 }
 
-const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v4_';
+const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v5_';
 
 /**
  * Normalize Vietnamese text for accent-insensitive search & trace
@@ -370,6 +372,45 @@ export function extractVietnameseWordVowel(rawWord: string): {
   }
 
   return null;
+}
+
+/**
+ * Compute expected intrinsic phonetic duration weight of a Vietnamese syllable:
+ * - Checked stops (`-p, -t, -c, -ch` like "bước", "thích", "mắt"): 0.55 (clipped closure)
+ * - Short vowels (`ă, â` in closed syllables): 0.78
+ * - Nasal/sonorant closed syllables (`-m, -n, -ng, -nh`): 1.00
+ * - Open vowels & diphthongs (`-a, -ơ, -i, -u, -ai, -ao, -ơi, -ua, -iê, -ươ`): 1.22
+ * - Clause-ending punctuation (`[,.;!?]$`) or phrase-final word (`isPhraseFinal`): ×1.45
+ */
+export function computeWordIntrinsicDurationWeight(
+  rawWord: string,
+  isPhraseFinal = false
+): number {
+  if (!rawWord) return 1.0;
+  const hasClausePause = /[,.;!?…]$/.test(rawWord.trim());
+  const lower = rawWord
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300\u0301\u0303\u0309\u0323]/g, '')
+    .normalize('NFC')
+    .replace(/[^a-zà-ỹăâđêôơư]/gi, '');
+
+  let weight = 1.0;
+  if (/(?:p|t|c|ch)$/i.test(lower)) {
+    weight = 0.55;
+  } else if (/[ăâ][mn]|(?:ă|â)ng|(?:ă|â)nh/i.test(lower)) {
+    weight = 0.78;
+  } else if (/(?:m|n|ng|nh)$/i.test(lower)) {
+    weight = 1.0;
+  } else {
+    // Open syllable or diphthong ending (-a, -ơ, -i, -u, -ai, -ao, -ơi, -ua, -iê, -ươ)
+    weight = 1.22;
+  }
+
+  if (isPhraseFinal || hasClausePause) {
+    weight *= 1.45;
+  }
+  return Math.round(weight * 100) / 100;
 }
 
 /**
@@ -1013,8 +1054,9 @@ function buildSectionFocusTip(phrase: IVocalPhrase, sectionType: VocalSectionTyp
 }
 
 /**
- * Analyze a single NoteBar's internal acoustic contour to detect whether it contains
- * a genuine syllable re-articulation (consonant dip / bridged gap between two vowel peaks)
+ * Analyze a single NoteBar's internal acoustic contour to detect whether it contains:
+ * 1. A genuine syllable re-articulation (consonant dip / bridged gap between two vowel peaks)
+ * 2. A merged 1-semitone stepwise pitch inflection (`isPitchStepInflection`, e.g. 63.15 D#4 -> 63.85 E4)
  * vs. a single smooth sustained hold (`nốt ngân lâu hơn`).
  */
 function findInternalSyllableDip(
@@ -1024,6 +1066,7 @@ function findInternalSyllableDip(
   splitMs: number;
   prominenceDb: number;
   isBridgedConsonant: boolean;
+  isPitchStepInflection: boolean;
   isSteadyVibrato: boolean;
   dipScore: number;
 } {
@@ -1041,6 +1084,7 @@ function findInternalSyllableDip(
       splitMs: fallbackMidMs,
       prominenceDb: 0,
       isBridgedConsonant: false,
+      isPitchStepInflection: false,
       isSteadyVibrato: false,
       dipScore: 0,
     };
@@ -1065,6 +1109,7 @@ function findInternalSyllableDip(
   let bestDipScore = -Infinity;
   let bestProminenceDb = 0;
   let bestBridged = false;
+  let bestPitchStep = false;
 
   for (let k = minK; k <= maxK; k++) {
     const candidateMs = barPts[k].timeMs;
@@ -1074,28 +1119,49 @@ function findInternalSyllableDip(
 
     let leftPeakDb = -100;
     let leftPeakClarity = 0;
-    for (let l = 0; l < k; l++) {
-      if (barPts[l].volumeDb > leftPeakDb) leftPeakDb = barPts[l].volumeDb;
-      if (barPts[l].clarity > leftPeakClarity) leftPeakClarity = barPts[l].clarity;
+    let leftMidiSum = 0;
+    for (let l = 0; l <= k; l++) {
+      if (l < k) {
+        if (barPts[l].volumeDb > leftPeakDb) leftPeakDb = barPts[l].volumeDb;
+        if (barPts[l].clarity > leftPeakClarity) leftPeakClarity = barPts[l].clarity;
+      }
+      leftMidiSum += barPts[l].midi;
     }
 
     let rightPeakDb = -100;
     let rightPeakClarity = 0;
+    let rightMidiSum = 0;
     for (let r = k + 1; r < barPts.length; r++) {
       if (barPts[r].volumeDb > rightPeakDb) rightPeakDb = barPts[r].volumeDb;
       if (barPts[r].clarity > rightPeakClarity) rightPeakClarity = barPts[r].clarity;
+      rightMidiSum += barPts[r].midi;
     }
+
+    const leftMeanMidi = leftMidiSum / (k + 1);
+    const rightMeanMidi = rightMidiSum / Math.max(1, barPts.length - k - 1);
+    const pitchStepDiff = Math.abs(rightMeanMidi - leftMeanMidi);
+    const localPitchSlope = Math.abs(
+      barPts[Math.min(barPts.length - 1, k + 1)].midi - barPts[k].midi
+    );
+    const isPitchStepInflection =
+      !isSteadyVibrato &&
+      pitchStepDiff >= 0.65 &&
+      Math.round(rightMeanMidi) !== Math.round(leftMeanMidi);
 
     const valleyDb = barPts[k].volumeDb;
     const valleyClarity = barPts[k].clarity;
     // Prominence requires BOTH left and right sides to have higher energy than the valley (bimodal syllable envelope)
-    const prominenceDb = Math.max(0, Math.min(leftPeakDb, rightPeakDb) - valleyDb);
+    const prominenceDb =
+      leftPeakDb > -99 && rightPeakDb > -99
+        ? Math.max(0, Math.min(leftPeakDb, rightPeakDb) - valleyDb)
+        : 0;
     const isBridgedConsonant =
       valleyClarity <= 0.66 && leftPeakClarity >= 0.76 && rightPeakClarity >= 0.76;
 
     const score =
       prominenceDb * 2.4 +
       (isBridgedConsonant ? 14.0 : 0) +
+      (isPitchStepInflection ? pitchStepDiff * 8.5 + localPitchSlope * 6.0 : 0) +
       Math.max(0, 0.85 - valleyClarity) * 10 -
       (isSteadyVibrato && !isBridgedConsonant ? 8.0 : 0);
 
@@ -1104,6 +1170,7 @@ function findInternalSyllableDip(
       bestK = k;
       bestProminenceDb = prominenceDb;
       bestBridged = isBridgedConsonant;
+      bestPitchStep = isPitchStepInflection;
     }
   }
 
@@ -1114,6 +1181,7 @@ function findInternalSyllableDip(
     splitMs,
     prominenceDb: bestProminenceDb,
     isBridgedConsonant: bestBridged,
+    isPitchStepInflection: bestPitchStep,
     isSteadyVibrato,
     dipScore: Math.max(0, bestDipScore),
   };
@@ -1284,7 +1352,7 @@ function subdivideSustainedBarsForWords(
       if (workingBars[i].durationMs < 320) continue;
       const dip = findInternalSyllableDip(workingBars[i], pitchTrack);
       if (
-        (dip.isBridgedConsonant || dip.prominenceDb >= 4.5) &&
+        (dip.isBridgedConsonant || dip.prominenceDb >= 4.5 || dip.isPitchStepInflection) &&
         (!bestDip || dip.dipScore > bestDip.dipScore)
       ) {
         bestDip = dip;
@@ -1341,7 +1409,8 @@ function partitionBarsToWordsDP(
     intraBendCents: number;
   }>,
   rawTokens: string[],
-  pitchTrack: IReferencePitchPoint[] = []
+  pitchTrack: IReferencePitchPoint[] = [],
+  wordTimestamps?: Array<{ timeMs: number; text: string }>
 ): Array<{ startBarIdx: number; endBarIdx: number }> {
   const W = rawTokens.length;
   const B = phraseBars.length;
@@ -1356,6 +1425,11 @@ function partitionBarsToWordsDP(
 
   const wordPhonology = rawTokens.map((tk) => extractVietnameseWordVowel(tk));
   const wordTones = rawTokens.map((tk) => extractVietnameseToneContour(tk));
+  const wordIntrinsicWeights = rawTokens.map((tk, idx) =>
+    computeWordIntrinsicDurationWeight(tk, idx === W - 1)
+  );
+  const totalIntrinsicWeight = wordIntrinsicWeights.reduce((s, w) => s + w, 0) || 1;
+  const totalPhraseBarDur = phraseBars.reduce((s, b) => s + b.durationMs, 0) || 1000;
 
   // Compute median bar duration in this phrase to identify long sustained notes (`nốt ngân lâu hơn`)
   const sortedDurs = phraseBars.map((b) => b.durationMs).sort((a, b) => a - b);
@@ -1471,7 +1545,7 @@ function partitionBarsToWordsDP(
       }
     }
 
-    // 4. Sustained Note Matching (`nốt ngân lâu hơn`)
+    // 4. Sustained Note Matching (`nốt ngân lâu hơn`) & Intrinsic Phonetic Duration Proportionality
     const isLongSustain = totalSpanDur >= Math.max(580, medianBarDur * 1.45);
     if (isLongSustain) {
       if (phon?.isCheckedStop) {
@@ -1486,7 +1560,22 @@ function partitionBarsToWordsDP(
       }
     }
 
-    // 5. Vowel Formant & Lexical Tone Step compatibility bonus
+    const expectedDurMs = (wordIntrinsicWeights[wIdx] / totalIntrinsicWeight) * totalPhraseBarDur;
+    const relDurDiff = Math.abs(totalSpanDur - expectedDurMs) / Math.max(240, expectedDurMs);
+    cost += Math.min(4.5, relDurDiff * 1.65);
+
+    // 5. Optional Enhanced LRC Word Timestamp (`<mm:ss.xx>word`) Anchor Bonus
+    const wordTs = wordTimestamps?.[wIdx];
+    if (wordTs && Number.isFinite(wordTs.timeMs)) {
+      const startDiffMs = Math.abs(phraseBars[startBar].startTimeMs - wordTs.timeMs);
+      if (startDiffMs <= 450) {
+        cost -= (450 - startDiffMs) * 0.028;
+      } else {
+        cost += Math.min(14, (startDiffMs - 450) * 0.015);
+      }
+    }
+
+    // 6. Vowel Formant & Lexical Tone Step compatibility bonus
     if (phon && ac && phon.vowelFamily === ac.vowelFamily) {
       cost -= 2.5;
     }
@@ -1549,7 +1638,8 @@ export function alignWordsToPhraseNoteBars(
   lyricText?: string,
   rawMonoPcm?: Float32Array | null,
   sampleRate = 44100,
-  pitchTrack: IReferencePitchPoint[] = []
+  pitchTrack: IReferencePitchPoint[] = [],
+  wordTimestamps?: Array<{ timeMs: number; text: string }>
 ): void {
   const cleanCustomText =
     lyricText && !lyricText.startsWith('Nguyên âm:') ? lyricText.trim() : '';
@@ -1663,7 +1753,13 @@ export function alignWordsToPhraseNoteBars(
     });
   } else if (rawTokens.length <= phraseBars.length) {
     // Use Phonology, Sustain & Legato-aware Dynamic Programming to map words onto NoteBars
-    const barRanges = partitionBarsToWordsDP(phraseBars, barAnalysisList, rawTokens, pitchTrack);
+    const barRanges = partitionBarsToWordsDP(
+      phraseBars,
+      barAnalysisList,
+      rawTokens,
+      pitchTrack,
+      wordTimestamps
+    );
 
     rawTokens.forEach((tk, i) => {
       const { startBarIdx, endBarIdx } = barRanges[i] || {
@@ -1871,14 +1967,39 @@ export function parseLrcContent(lrcText: string): ILrcLine[] {
   const lines = lrcText.split(/\r?\n/);
   const result: ILrcLine[] = [];
   const timeRegex = /\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
+  const inlineWordRegex = /<(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?>\s*([^<]+)/g;
 
   for (const rawLine of lines) {
     const matches = [...rawLine.matchAll(timeRegex)];
     if (matches.length === 0) continue;
 
-    const textContent = rawLine
-      .replace(timeRegex, '')
-      .replace(/<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>/g, '')
+    const withoutLineTags = rawLine.replace(timeRegex, '').trim();
+    const inlineMatches = [...withoutLineTags.matchAll(inlineWordRegex)];
+    let parsedWordTimestamps: Array<{ timeMs: number; text: string }> | undefined;
+
+    if (inlineMatches.length > 0) {
+      parsedWordTimestamps = [];
+      for (const wm of inlineMatches) {
+        const wMin = parseInt(wm[1], 10);
+        const wSec = parseInt(wm[2], 10);
+        const wFrac = wm[3] || '0';
+        const wMs =
+          wFrac.length === 1
+            ? parseInt(wFrac, 10) * 100
+            : wFrac.length === 2
+            ? parseInt(wFrac, 10) * 10
+            : parseInt(wFrac.slice(0, 3), 10);
+        const wTimeMs = wMin * 60000 + wSec * 1000 + wMs;
+        const subWords = wm[4].trim().split(/\s+/).filter(Boolean);
+        subWords.forEach((sw, idx) => {
+          parsedWordTimestamps!.push({ timeMs: wTimeMs + idx * 140, text: sw });
+        });
+      }
+    }
+
+    const textContent = withoutLineTags
+      .replace(/<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
 
     if (!textContent) continue;
@@ -1904,7 +2025,13 @@ export function parseLrcContent(lrcText: string): ILrcLine[] {
           : parseInt(fracStr.slice(0, 3), 10);
 
       const timeMs = min * 60000 + sec * 1000 + ms;
-      result.push({ timeMs, text: textContent });
+      result.push({
+        timeMs,
+        text: textContent,
+        ...(parsedWordTimestamps && parsedWordTimestamps.length > 0
+          ? { wordTimestamps: parsedWordTimestamps }
+          : {}),
+      });
     }
   }
 
@@ -1996,6 +2123,7 @@ function buildPhraseFromBarsAndLyric(params: {
   rawMonoPcm?: Float32Array | null;
   sampleRate: number;
   pitchTrack: IReferencePitchPoint[];
+  wordTimestamps?: Array<{ timeMs: number; text: string }>;
 }): IVocalPhrase {
   const {
     phraseIndex,
@@ -2008,6 +2136,7 @@ function buildPhraseFromBarsAndLyric(params: {
     rawMonoPcm,
     sampleRate,
     pitchTrack,
+    wordTimestamps,
   } = params;
 
   // Trim leading leftover tail bar or trailing pickup/instrumental bars across breath pauses
@@ -2116,7 +2245,8 @@ function buildPhraseFromBarsAndLyric(params: {
     lyricText,
     rawMonoPcm,
     sampleRate,
-    pitchTrack
+    pitchTrack,
+    wordTimestamps
   );
 
   return phrase;
@@ -2142,6 +2272,10 @@ export function alignLrcLinesToPhrases(
   const shiftedLines = lrcLines.map((l) => ({
     timeMs: Math.max(0, l.timeMs + optimalOffsetMs),
     text: l.text,
+    wordTimestamps: l.wordTimestamps?.map((wt) => ({
+      timeMs: Math.max(0, wt.timeMs + optimalOffsetMs),
+      text: wt.text,
+    })),
   }));
 
   // Compute breath-snapped boundary timestamps B[0..L] between consecutive LRC lines
@@ -2208,7 +2342,8 @@ export function alignLrcLinesToPhrases(
         shiftedLines[i].text,
         rawMonoPcm,
         sampleRate,
-        pitchTrack
+        pitchTrack,
+        shiftedLines[i].wordTimestamps
       );
     });
     return;
@@ -2268,6 +2403,7 @@ export function alignLrcLinesToPhrases(
         rawMonoPcm,
         sampleRate,
         pitchTrack,
+        wordTimestamps: shiftedLines[i].wordTimestamps,
       })
     );
   }
@@ -2817,6 +2953,10 @@ export function updateSinglePhraseLyric(
   newLyricText: string,
   isInstrumental = false
 ): IVocalAnalysisResult {
+  const rawMonoPcm =
+    typeof result.audioBuffer?.getChannelData === 'function'
+      ? result.audioBuffer.getChannelData(0)
+      : null;
   const updatedPhrases = result.phrases.map((p) => {
     if (p.phraseIndex !== phraseIndex) return p;
     const copy: IVocalPhrase = {
@@ -2827,7 +2967,7 @@ export function updateSinglePhraseLyric(
       copy,
       result.noteBars,
       newLyricText,
-      null,
+      rawMonoPcm,
       result.sampleRate,
       result.pitchTrack
     );
@@ -2853,6 +2993,11 @@ export function mergeWithNextPhrase(
 ): IVocalAnalysisResult {
   const idx = result.phrases.findIndex((p) => p.phraseIndex === phraseIndex);
   if (idx < 0 || idx >= result.phrases.length - 1) return result;
+
+  const rawMonoPcm =
+    typeof result.audioBuffer?.getChannelData === 'function'
+      ? result.audioBuffer.getChannelData(0)
+      : null;
 
   const first = result.phrases[idx];
   const second = result.phrases[idx + 1];
@@ -2886,7 +3031,7 @@ export function mergeWithNextPhrase(
     mergedPhrase,
     result.noteBars,
     mergedText || undefined,
-    null,
+    rawMonoPcm,
     result.sampleRate,
     result.pitchTrack
   );
@@ -2931,6 +3076,11 @@ export function splitPhraseAtPlayhead(
   const target = result.phrases[idx];
   if (target.durationMs < 800) return result;
 
+  const rawMonoPcm =
+    typeof result.audioBuffer?.getChannelData === 'function'
+      ? result.audioBuffer.getChannelData(0)
+      : null;
+
   const defaultMid = Math.round((target.startMs + target.endMs) / 2);
   const splitMs =
     playheadTimeMs &&
@@ -2968,7 +3118,7 @@ export function splitPhraseAtPlayhead(
     leftPhrase,
     result.noteBars,
     leftText,
-    null,
+    rawMonoPcm,
     result.sampleRate,
     result.pitchTrack
   );
@@ -2976,7 +3126,7 @@ export function splitPhraseAtPlayhead(
     rightPhrase,
     result.noteBars,
     rightText,
-    null,
+    rawMonoPcm,
     result.sampleRate,
     result.pitchTrack
   );
