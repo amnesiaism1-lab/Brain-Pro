@@ -3076,6 +3076,9 @@ export function buildSmartLyricQueries(fileName: string): string[] {
         ' '
       )
       .replace(/\s+x\s+/gi, ' ')
+      // Remove leftover unmatched brackets/punctuation (e.g. "CẦN GÌ NÓI IU (" after splitting on "feat.")
+      // which otherwise trigger LRCLIB FTS5 syntax errors / 503 ServerOverloaded
+      .replace(/[()[\]{}|"“”!?,;:]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
@@ -3210,26 +3213,73 @@ export async function fetchAutoLyricsFromLrclib(
     queryKey: string;
   } | null = null;
 
-  for (const query of queries.slice(0, 6)) {
-    const normQuery = normalizeVietnameseSearch(query);
+  // Build request plan:
+  // 1. Structured `track_name` + `artist_name` searches parsed from "Artist - Title" / "Title - Artist"
+  //    (indexed column lookup — far less likely to hit LRCLIB's FTS5 `503 ServerOverloaded` than `q=`)
+  // 2. Free-text `q=` searches from smart filename candidates
+  const requestPlan: Array<{ url: string; normQuery: string }> = [];
+  const pushRequest = (url: string, normQuery: string) => {
+    if (!requestPlan.some((r) => r.url === url)) requestPlan.push({ url, normQuery });
+  };
+  const cleanSegment = (s: string) =>
+    s
+      .replace(/\.(?:mp3|wav|flac|m4a|ogg|aac|webm|mp4)$/i, '')
+      .replace(/\[.*?\]|\(.*?\)/g, ' ')
+      .replace(/\b(?:ft\.?|feat\.?)\s.*$/i, ' ')
+      .replace(/[_()[\]{}|"“”!?,;:]+/g, ' ')
+      .replace(
+        /\b(?:official|music|video|mv|lyrics?|audio|hd|4k|vocals?|stems?|karaoke|beat|full|instrumental|acapella|remix|cover|live|y2mate|snapsave|savefrom)\b/gi,
+        ' '
+      )
+      .replace(/\s+/g, ' ')
+      .trim();
+  const dashSegments = fileName
+    .replace(/\.(?:mp3|wav|flac|m4a|ogg|aac|webm|mp4)$/i, '')
+    .split(/\s+[-–—|]\s+/)
+    .map(cleanSegment)
+    .filter((s) => s.length >= 2);
+  if (dashSegments.length >= 2) {
+    const [a, b] = dashSegments;
+    pushRequest(
+      `https://lrclib.net/api/search?track_name=${encodeURIComponent(b)}&artist_name=${encodeURIComponent(a)}`,
+      normalizeVietnameseSearch(`${a} ${b}`)
+    );
+    pushRequest(
+      `https://lrclib.net/api/search?track_name=${encodeURIComponent(a)}&artist_name=${encodeURIComponent(b)}`,
+      normalizeVietnameseSearch(`${a} ${b}`)
+    );
+  }
+  queries.slice(0, 6).forEach((q) => {
+    pushRequest(
+      `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`,
+      normalizeVietnameseSearch(q)
+    );
+  });
+
+  // Overall time budget so a busy LRCLIB never blocks analysis forever
+  const deadline = Date.now() + 28000;
+
+  for (const req of requestPlan) {
+    if (Date.now() > deadline) break;
+    const normQuery = req.normQuery;
     const normQueryTokens = normQuery.split(/\s+/).filter((t) => t.length >= 2);
 
     let list: any[] | null = null;
 
-    // Automatic retry with backoff on HTTP 503 (LRCLIB ServerOverloaded) or 429
-    for (let attempt = 0; attempt < 2; attempt++) {
+    // Automatic retry with exponential backoff on HTTP 503 (LRCLIB ServerOverloaded), 429,
+    // or network/CORS failures (browser 503 responses can surface as TypeError)
+    for (let attempt = 0; attempt < 4 && Date.now() < deadline; attempt++) {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 5000);
+      const timer = setTimeout(() => controller.abort(), 6000);
       try {
-        const url = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
-        const res = await fetch(url, {
+        const res = await fetch(req.url, {
           signal: controller.signal,
           headers: { Accept: 'application/json' },
         });
         clearTimeout(timer);
 
-        if (res.status === 503 || res.status === 429) {
-          await new Promise((r) => setTimeout(r, 380 * (attempt + 1)));
+        if (res.status === 503 || res.status === 429 || res.status >= 500) {
+          await new Promise((r) => setTimeout(r, 450 * Math.pow(1.8, attempt)));
           continue;
         }
         if (!res.ok) break;
@@ -3241,9 +3291,7 @@ export async function fetchAutoLyricsFromLrclib(
         break;
       } catch {
         clearTimeout(timer);
-        if (attempt === 0) {
-          await new Promise((r) => setTimeout(r, 300));
-        }
+        await new Promise((r) => setTimeout(r, 400 * Math.pow(1.8, attempt)));
       }
     }
 
@@ -3251,6 +3299,20 @@ export async function fetchAutoLyricsFromLrclib(
 
     const scored = list
       .filter((item: any) => item && (item.syncedLyrics || item.plainLyrics))
+      // Reject results whose track title does not appear in the filename/query
+      // (prevents an artist-only query like "Wxrdie" from returning a different song)
+      .filter((item: any) => {
+        const coreTokens = normalizeVietnameseSearch(
+          String(item.trackName || '').replace(/\[.*?\]|\(.*?\)/g, ' ')
+        )
+          .split(/\s+/)
+          .filter((t) => t.length >= 2 && !/^(feat|ft|official|mv|video|audio|lyrics?)$/.test(t));
+        if (coreTokens.length === 0) return false;
+        const hits = coreTokens.filter(
+          (t) => normFileTokens.includes(t) || normQueryTokens.includes(t)
+        ).length;
+        return hits / coreTokens.length >= 0.6;
+      })
       .map((item: any) => {
         const durDiff = Math.abs((Number(item.duration) || targetDurSec) - targetDurSec);
         // Timestamped syncedLyrics is strongly prioritized (+350) over plainLyrics

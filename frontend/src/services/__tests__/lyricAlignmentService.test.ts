@@ -583,6 +583,11 @@ describe('lyricAlignmentService', () => {
     expect(queries[0]).toBe('anhs ems');
     expect(queries).toContain('anhs và ems');
 
+    // YouTube MV filenames with "(feat. X)" must not leave dangling "(" (LRCLIB 503 trigger)
+    const mvQueries = buildSmartLyricQueries('Wxrdie - CẦN GÌ NÓI IU (feat. 2pillz) - OFFICIAL MV.mp3');
+    expect(mvQueries[0]).toBe('Wxrdie CẦN GÌ NÓI IU');
+    expect(mvQueries.every((q) => !/[()]/.test(q))).toBe(true);
+
     // 2. Deterministic synced LRC resolution for both tracks regardless of filename variation
     const resAnhs = await fetchAutoLyricsFromLrclib('anhs và ems.mp3', 265000);
     expect(resAnhs?.syncedLyrics).toContain('[00:15.89]Anh là người đàn ông may mắn');
