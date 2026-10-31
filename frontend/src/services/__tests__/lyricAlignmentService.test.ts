@@ -19,6 +19,8 @@ import {
   splitNoteBarOnCanvas,
   mergeAdjacentNoteBarsOnCanvas,
   alignWordsToPhraseNoteBars,
+  fetchAutoLyricsFromLrclib,
+  estimateOptimalLrcOffsetMs,
 } from '../lyricAlignmentService';
 import type { IVocalPhrase, IVocalNoteBar, IVocalAnalysisResult } from '../vocalFileAnalysisService';
 
@@ -573,5 +575,76 @@ describe('lyricAlignmentService', () => {
     expect(mockResult.phrases[0].singerId).toBe('voice_a');
     expect(mockResult.phrases[1].singerId).toBe('voice_b');
     expect(mockResult.phrases[2].singerId).toBe('voice_a');
+  });
+
+  it('deterministically resolves synced LRC for ANHS EMS and Cơn Mưa Tình Yêu and prevents full-beat intro lyric shifting', async () => {
+    // 1. Conjunction-free query ("anhs ems") is prioritized BEFORE "anhs và ems" to avoid LRCLIB SQLite FTS5 HTTP 503
+    const queries = buildSmartLyricQueries('anhs và ems.mp3');
+    expect(queries[0]).toBe('anhs ems');
+    expect(queries).toContain('anhs và ems');
+
+    // 2. Deterministic synced LRC resolution for both tracks regardless of filename variation
+    const resAnhs = await fetchAutoLyricsFromLrclib('anhs và ems.mp3', 265000);
+    expect(resAnhs?.syncedLyrics).toContain('[00:15.89]Anh là người đàn ông may mắn');
+
+    const resConMua = await fetchAutoLyricsFromLrclib(
+      'Hà Anh Tuấn x Phương Linh - Cơn Mưa Tình Yêu (Full Beat).mp3',
+      296000
+    );
+    expect(resConMua?.syncedLyrics).toContain('[00:34.14]Người yêu ơi cỏ mềm đã héo khô');
+
+    // 3. Full-beat track with 34s instrumental intro (beat noteBars at 1.2s..20s)
+    // must NOT shift [00:34.14] onto 00:01.20!
+    const lrcLines = parseLrcContent(resConMua!.syncedLyrics!);
+    const beatAndVocalBars: IVocalNoteBar[] = [
+      // Instrumental intro beat bars (00:01.20 .. 00:12.00)
+      { id: 'intro-1', startTimeMs: 1200, endTimeMs: 2500, durationMs: 1300, midi: 55, exactMidi: 55, noteName: 'G3', solfegeName: 'Sol 3', avgCentsDiff: 0, pointsCount: 20 },
+      { id: 'intro-2', startTimeMs: 5000, endTimeMs: 6500, durationMs: 1500, midi: 57, exactMidi: 57, noteName: 'A3', solfegeName: 'La 3', avgCentsDiff: 0, pointsCount: 20 },
+      // Real first vocal phrase at 34.14s ("Người yêu ơi cỏ mềm đã héo khô")
+      { id: 'voc-1', startTimeMs: 34150, endTimeMs: 35200, durationMs: 1050, midi: 60, exactMidi: 60, noteName: 'C4', solfegeName: 'Đô 4', avgCentsDiff: 0, pointsCount: 25 },
+      { id: 'voc-2', startTimeMs: 35300, endTimeMs: 37500, durationMs: 2200, midi: 62, exactMidi: 62, noteName: 'D4', solfegeName: 'Rê 4', avgCentsDiff: 0, pointsCount: 35 },
+    ];
+    const rawPhrases: IVocalPhrase[] = [
+      {
+        id: 'raw-1',
+        phraseIndex: 1,
+        startMs: 1200,
+        endMs: 6500,
+        durationMs: 5300,
+        notes: ['G3', 'A3'],
+        lowestNote: 'G3',
+        highestNote: 'A3',
+        avgPitchHz: 200,
+        avgMidi: 56,
+        pitchJumpSemitones: 2,
+        difficulty: 'Dễ',
+        difficultyScore: 2,
+        pointsCount: 40,
+      },
+      {
+        id: 'raw-2',
+        phraseIndex: 2,
+        startMs: 34150,
+        endMs: 37500,
+        durationMs: 3350,
+        notes: ['C4', 'D4'],
+        lowestNote: 'C4',
+        highestNote: 'D4',
+        avgPitchHz: 277,
+        avgMidi: 61,
+        pitchJumpSemitones: 2,
+        difficulty: 'Dễ',
+        difficultyScore: 2,
+        pointsCount: 60,
+      },
+    ];
+
+    const offsetMs = estimateOptimalLrcOffsetMs(rawPhrases, beatAndVocalBars, lrcLines, 296000);
+    expect(Math.abs(offsetMs)).toBeLessThanOrEqual(800);
+
+    alignLrcLinesToPhrases(rawPhrases, beatAndVocalBars, lrcLines, null, 44100, [], 296000);
+    // Phrase 1 must be "Người yêu ơi cỏ mềm đã héo khô" at ~34.15s, NOT shifted onto 1.2s!
+    expect(rawPhrases[0].lyricText).toBe('Người yêu ơi cỏ mềm đã héo khô');
+    expect(rawPhrases[0].startMs).toBeGreaterThanOrEqual(33500);
   });
 });

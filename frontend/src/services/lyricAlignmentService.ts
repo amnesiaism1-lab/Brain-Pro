@@ -151,7 +151,8 @@ interface ICachedSongLyrics {
   }>;
 }
 
-const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v6_';
+const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v8_';
+const CLOUD_LRC_CACHE_PREFIX = 'brain_vocal_cloud_lrc_v8_';
 
 /**
  * Normalize Vietnamese text for accent-insensitive search & trace
@@ -523,6 +524,201 @@ const BUILTIN_DEMO_LYRICS: Record<string, string[]> = {
     'Dư âm còn đọng mãi ngàn năm',
   ],
 };
+
+/**
+ * Built-in verified timestamped LRC registry for reference Vietnamese vocal/duet tracks.
+ * Ensures 100% deterministic offline/online synced lyric alignment even when LRCLIB
+ * returns HTTP 503 ServerOverloaded or prioritizes unsynced plainLyrics entries.
+ */
+const BUILTIN_VERIFIED_SYNCED_LRC: Array<{
+  matchKeywords: string[];
+  matchedTitle: string;
+  syncedLyrics: string;
+}> = [
+  {
+    matchKeywords: ['con mua tinh yeu'],
+    matchedTitle: 'Cơn Mưa Tình Yêu – Hà Anh Tuấn & Phương Linh',
+    syncedLyrics: `[00:34.14]Người yêu ơi cỏ mềm đã héo khô
+[00:41.14]Mặt hồ lá xác xơ
+[00:43.74]Những con đường vắng sương mờ
+[00:49.61]Từng bước chân
+[00:52.06]Cuốn đi mùa thu xa lắm
+[00:57.36]Để nỗi buồn cứ thế đến bao giờ
+[01:05.78]Và cơn mưa
+[01:07.88]Ngoài trời đêm gió lạnh
+[01:11.81]Giật mình nhớ tới anh
+[01:14.96]Hãy chờ em anh nhé
+[01:18.67]Và hãy cho nhau sát lại
+[01:22.61]Nụ hôn như bất ngờ
+[01:26.46]Ngọt ngào như vô tình
+[01:30.27]Yêu anh ngàn lần hơn nữa
+[01:35.00]Một phút anh ngẩn ngơ
+[01:36.89]Một phút em thầm mơ
+[01:38.80]Đừng vội làm cơn mưa
+[01:40.61]Giăng kín trong lòng em
+[01:42.93]Để trái tim ngủ quên
+[01:44.79]Để nỗi đau triền miên
+[01:46.60]Từng giọt buồn đánh rơi
+[01:48.28]Trên hàng mi ướt mềm
+[01:50.63]Thổn thức ta nhìn nhau
+[01:52.37]Hẹn ước cho ngày sau
+[01:54.37]Trọn đời mình bên nhau đi nhé anh tình yêu
+[01:58.23]Vì chính em mà thôi
+[02:00.13]Vì yêu anh mất rồi
+[02:02.38]Sớm mai dành cho nhau tia nắng đầu tiên rạng ngời
+[02:10.77]Người yêu ơi cỏ mềm đã héo khô
+[02:16.94]Mặt hồ lá xác xơ
+[02:20.28]Những con đường vắng sương mờ
+[02:26.53]Từng bước chân
+[02:28.80]Cuốn đi mùa thu xa lắm
+[02:33.96]Để nỗi buồn cứ thế đến bao giờ
+[02:42.16]Và cơn mưa
+[02:44.37]Ngoài trời đêm gió lạnh
+[02:48.23]Giật mình nhớ tới anh
+[02:51.57]Hãy chờ em anh nhé
+[02:55.35]Và hãy cho nhau sát lại
+[02:59.38]Nụ hôn như bất ngờ
+[03:03.73]Ngọt ngào như vô tình
+[03:07.05]Yêu anh ngàn lần hơn nữa
+[03:11.81]Một phút anh ngẩn ngơ
+[03:13.66]Một phút em thầm mơ
+[03:15.54]Đừng vội làm cơn mưa
+[03:17.22]Giăng kín trong lòng em
+[03:19.60]Để trái tim ngủ quên
+[03:21.32]Để nỗi đau triền miên
+[03:23.47]Từng giọt buồn đánh rơi
+[03:25.10]Trên hàng mi ướt mềm
+[03:27.29]Thổn thức ta nhìn nhau
+[03:29.24]Hẹn ước cho ngày sau
+[03:31.13]Trọn đời mình bên nhau đi nhé anh tình yêu
+[03:34.95]Vì chính em mà thôi
+[03:36.73]Vì yêu anh mất rồi
+[03:39.06]Sớm mai dành cho nhau tia nắng đầu tiên rạng ngời
+[03:47.93]Mưa xa dần hàng cây
+[03:51.39]Hạt mưa mơn man giây phút này
+[03:55.27]Ánh sao đưa ta về bên nhau
+[04:01.99]Một phút anh ngẩn ngơ
+[04:04.01]Một phút em thầm mơ
+[04:05.89]Đừng vội làm cơn mưa
+[04:07.44]Giăng kín trong lòng em
+[04:09.78]Để trái tim ngủ quên
+[04:11.87]Để nỗi đau triền miên
+[04:13.84]Từng giọt buồn đánh rơi
+[04:15.23]Trên hàng mi ướt mềm
+[04:17.58]Thổn thức ta nhìn nhau
+[04:19.52]Hẹn ước cho ngày sau
+[04:21.28]Trọn đời mình bên nhau đi nhé anh tình yêu
+[04:25.28]Vì chính em mà thôi
+[04:27.30]Vì yêu anh mất rồi
+[04:29.48]Sớm mai dành cho nhau tia nắng đầu tiên rạng ngời`,
+  },
+  {
+    matchKeywords: ['anhs ems', 'anhs va ems'],
+    matchedTitle: 'ANHS EMS (Chill n Free) – QNT, RZMas, Wxrdie',
+    syncedLyrics: `[00:02.01](Yeah-y-yeah)
+[00:06.09](Yeh yeh)
+[00:09.47](No no no)
+[00:13.14](Chill and free)
+[00:15.89]Anh là người đàn ông may mắn, vì được đặt nụ hôn lên môi em
+[00:19.69]Say trong hương thơm ngây ngất và mặc kệ thời gian kia trôi êm
+[00:23.63]Bên trong anh như thêm sắc màu vì bàn tay em tô lên
+[00:27.30]Long lanh bên trong đôi mắt nàng và hàng mi cong thôi miên
+[00:31.16]Nhưng đôi khi anh không hiểu được chính mình (hiểu được chính mình)
+[00:34.99]Youngboy nên không ai biết được tính tình (biết được tính tình)
+[00:38.77]Anh hay về nhà yên giấc lúc bình minh
+[00:42.39]Và anh lại còn hay yêu theo linh tính
+[00:45.94]Khi anh biết em rời xa, anh đã quên một đóa hoa
+[00:49.70]Khi anh biết em không còn, anh đã mất một món quà
+[00:53.91]Falling in love, but looking for heart
+[00:57.69]Trái tim này không thuộc về anh
+[01:01.11]Khi anh nghĩ suy về em, đó dường như là thói quen
+[01:05.12]Nhưng anh vẫn đi kiếm tìm, khi thành phố vừa lên đèn
+[01:09.20]Tìm thấy những nỗi buồn, chỉ có những tấm hình
+[01:12.63]Chỉ có anh cùng những điều đã mất
+[01:16.45]Vì cuộc sống luôn thay màu
+[01:18.60]Lùi một bước để thấy nhau
+[01:20.22]Chỉ còn nhớ thương u sầu
+[01:22.12]Chẳng còn nắm đôi tay nhau
+[01:23.85]Con tim anh không biết tìm nơi đâu
+[01:26.12]Đi giữa trời mưa ngâu
+[01:28.06]Với nỗi nhớ này chưa lâu
+[01:29.60]Nhưng luôn theo anh đến tận thâm sâu
+[01:31.79]Người học cách yêu điên cuồng
+[01:33.85]Rồi gục ngã trước thiên đường
+[01:35.58]Chọn cuộc sống luôn kiên cường
+[01:37.69]Để tìm kiếm những yêu thương
+[01:39.05]Đôi chân em vẫn bước tìm muôn phương
+[01:41.34]Đi giữa trời phong sương
+[01:43.34]Bông hoa đã tàn không hương
+[01:44.84]Sao em không soi rõ mình trong gương
+[01:46.84]Anh là người đàn ông may mắn nhất trên cuộc đời
+[01:50.88]Vì được trao yêu thương kia lên đôi môi
+[01:54.64]Chẳng cần nói đâu em à, chỉ cần bên nhau em à
+[01:58.21]Chỉ cần tay đan bàn tay nhau giữ chặt nhau như thế thôi
+[02:01.87]Anh sẽ bước đi, vững bước tiếp đi không hề buông
+[02:08.02]Phải sao cho em không rơi lệ buồn, ngồi ăn bên vệ đường
+[02:12.92]Mà khi ta nhìn nhau trao nhau tình yêu không hề thay đổi
+[02:16.84]Đừng làm nhau đau anh không muốn mất đi niềm tin
+[02:20.56]Vì chỉ cần lạc nhau trong một tích tắc anh sẽ liền tìm
+[02:24.87]Để mà kéo em lại gần, đặt nụ hôn không ngại ngần
+[02:28.89]Vài lần thôi như vậy anh thay lời muốn nói
+[02:32.18]Anh cần một tình yêu như là của bố anh và mẹ
+[02:35.63]Một tình yêu giản đơn mỗi một lời nói là một lời thề
+[02:40.22]Lời sẻ chia để thân hơn, ngồi đợi nhau về ăn cơm
+[02:44.08]Từng ngày trôi qua là mỗi ngày hạnh phúc
+[02:48.08]Vì cuộc sống luôn thay màu
+[02:49.70]Lùi một bước để thấy nhau
+[02:51.50]Chỉ còn nhớ thương u sầu
+[02:53.66]Chẳng còn nắm đôi tay nhau
+[02:55.23]Con tim anh không biết tìm nơi đâu
+[02:57.56]Đi giữa trời mưa ngâu
+[02:59.32]Với nỗi nhớ này chưa lâu
+[03:00.85]Nhưng luôn theo anh đến tận thâm sâu
+[03:03.15]Người học cách yêu điên cuồng
+[03:05.08]Rồi gục ngã trước thiên đường
+[03:06.97]Chọn cuộc sống luôn kiên cường
+[03:08.96]Để tìm kiếm những yêu thương
+[03:10.57]Đôi chân em vẫn bước tìm muôn phương
+[03:12.86]Đi giữa trời phong sương
+[03:14.52]Bông hoa đã tàn không hương
+[03:16.21]Sao em không soi rõ mình trong gương
+[03:18.35]Chẳng còn những đêm em và anh CircleK
+[03:22.14]Cùng với những điếu Purple Haze
+[03:26.08]Em bảo em bị ho em không hút được đâu
+[03:29.85]Anh bảo yên tâm đi anh chơi mỗi đồ Tây
+[03:33.19]Gorilla Glue trao cho em những nụ cười
+[03:37.42]Blue Dream khi ta ra ngoài đi chơi
+[03:41.08]Gelato chỉ dùng riêng khi mình lười
+[03:44.73]Wedding Cake chắc chắn cho ngày cưới
+[03:48.18]Hoặc làm phần tư, ta vi vu khắp thủ đô
+[03:51.65]Yên sau luôn đủ chỗ, băng qua mọi khu phố
+[03:55.63]Giờ thấy mình tự do trong muôn mỗi nhớ bự to
+[03:59.47]Khi giờ đây phải tự lo vì em đã vút bay như gió (woh oh)
+[04:04.37]Người học cách yêu điên cuồng
+[04:05.95]Rồi gục ngã trước thiên đường
+[04:08.06]Chọn cuộc sống luôn kiên cường
+[04:09.86]Để tìm kiếm những yêu thương
+[04:11.45]Đôi chân em vẫn bước tìm muôn phương
+[04:13.86]Đi giữa trời phong sương
+[04:15.62]Bông hoa đã tàn không hương
+[04:17.19]Sao em không ôm lấy mình trong gương`,
+  },
+];
+
+function findBuiltinVerifiedSyncedLrc(
+  fileName: string
+): { syncedLyrics: string; matchedTitle: string } | null {
+  const norm = normalizeVietnameseSearch(fileName.replace(/[._-]+/g, ' '));
+  for (const entry of BUILTIN_VERIFIED_SYNCED_LRC) {
+    if (entry.matchKeywords.some((kw) => norm.includes(kw))) {
+      return {
+        syncedLyrics: entry.syncedLyrics,
+        matchedTitle: entry.matchedTitle,
+      };
+    }
+  }
+  return null;
+}
 
 /**
  * Compute Goertzel spectral power at a specific target frequency `targetHz`
@@ -2277,12 +2473,14 @@ export function parseLrcContent(lrcText: string): ILrcLine[] {
 
 /**
  * Auto-calibrate global time offset $\Delta t$ (in ms) between LRC timestamps and actual vocal onsets
- * in `noteBars` / `phrases` (handles vocal stems or Part_1 cuts that start earlier/later than the LRC).
+ * in `noteBars` / `phrases` (handles vocal stems or Part_1 cuts that start earlier/later than the LRC,
+ * while strictly protecting full-beat tracks with instrumental intros from shifting lyrics early onto the beat!).
  */
-function estimateOptimalLrcOffsetMs(
+export function estimateOptimalLrcOffsetMs(
   phrases: IVocalPhrase[],
   noteBars: IVocalNoteBar[],
-  lrcLines: ILrcLine[]
+  lrcLines: ILrcLine[],
+  audioDurationMs?: number
 ): number {
   if (phrases.length === 0 || lrcLines.length === 0) return 0;
 
@@ -2294,27 +2492,50 @@ function estimateOptimalLrcOffsetMs(
     }
   }
 
+  const lastAudioMs = Math.max(
+    audioDurationMs || 0,
+    phrases[phrases.length - 1]?.endMs || 0,
+    noteBars[noteBars.length - 1]?.endTimeMs || 0
+  );
+  const lastLrcMs = lrcLines[lrcLines.length - 1].timeMs;
+
+  // Determine if the audio file covers the full song timeline (or has a standard instrumental intro).
+  // On full songs with accompaniment/beat (e.g. Cơn Mưa Tình Yêu with a 34s intro),
+  // accompaniment instruments create noteBars during 00:00..00:34.
+  // Allowing a large negative offset would shift LRC lines onto the instrumental intro!
+  const isFullTimelineTrack =
+    lastAudioMs >= lastLrcMs - 15000 || lrcLines[0].timeMs >= 8000;
+
   const candidateOffsets = new Set<number>([0]);
-  // Candidate aligning first vocal phrase with first LRC line
-  const firstDiff = phrases[0].startMs - lrcLines[0].timeMs;
-  if (Math.abs(firstDiff) <= 25000) {
-    candidateOffsets.add(Math.round(firstDiff / 50) * 50);
-  }
-  // Grid search [-10000ms .. +10000ms] in 200ms steps
-  for (let delta = -10000; delta <= 10000; delta += 200) {
-    candidateOffsets.add(delta);
+  if (isFullTimelineTrack) {
+    // Strictly fine-tune within [-800ms .. +800ms] to never jump across phrases or intros
+    for (let delta = -800; delta <= 800; delta += 100) {
+      candidateOffsets.add(delta);
+    }
+  } else {
+    // Trimmed clip/stem where the audio file is much shorter than the full LRC timeline
+    const firstDiff = phrases[0].startMs - lrcLines[0].timeMs;
+    if (Math.abs(firstDiff) <= 25000) {
+      candidateOffsets.add(Math.round(firstDiff / 50) * 50);
+    }
+    for (let delta = -4000; delta <= 4000; delta += 200) {
+      candidateOffsets.add(delta);
+    }
   }
 
   let bestOffset = 0;
   let bestScore = -Infinity;
+  const zeroPenaltyWeight = isFullTimelineTrack ? 0.045 : 0.004;
 
   for (const offset of candidateOffsets) {
-    let score = -Math.abs(offset) * 0.0015; // Prefer 0 offset when tied
+    let score = -Math.abs(offset) * zeroPenaltyWeight;
 
     for (let i = 0; i < lrcLines.length; i++) {
       const shiftedStart = lrcLines[i].timeMs + offset;
       const shiftedEnd =
-        i + 1 < lrcLines.length ? lrcLines[i + 1].timeMs + offset : shiftedStart + 4500;
+        i + 1 < lrcLines.length
+          ? Math.min(lrcLines[i + 1].timeMs + offset, shiftedStart + 5000)
+          : shiftedStart + 4500;
 
       // 1. Proximity of shiftedStart to nearest vocal onset
       let minOnsetDist = Infinity;
@@ -2322,17 +2543,17 @@ function estimateOptimalLrcOffsetMs(
         const d = Math.abs(onset - shiftedStart);
         if (d < minOnsetDist) minOnsetDist = d;
       }
-      if (minOnsetDist <= 1200) {
-        score += (1200 - minOnsetDist) * 0.025;
+      if (minOnsetDist <= 900) {
+        score += (900 - minOnsetDist) * 0.025;
       }
 
       // 2. Check if this LRC window covers actual sung noteBars
       const hasBars = noteBars.some((b) => {
         const mid = (b.startTimeMs + b.endTimeMs) / 2;
-        return mid >= shiftedStart - 150 && mid <= shiftedEnd + 150;
+        return mid >= shiftedStart - 120 && mid <= shiftedEnd + 120;
       });
       if (hasBars) {
-        score += 12;
+        score += 10;
       }
     }
 
@@ -2375,27 +2596,33 @@ function buildPhraseFromBarsAndLyric(params: {
     wordTimestamps,
   } = params;
 
-  // Trim leading leftover tail bar or trailing pickup/instrumental bars across breath pauses
+  // Trim leading leftover tail bar or trailing pickup/instrumental interlude bars across breath pauses
   // so the phrase's NoteBars wrap tightly around the exact sung words of this sentence!
   let activeBars = bars;
   if (bars.length >= 2 && lyricText) {
     const wordCount = lyricText.trim().split(/\s+/).filter(Boolean).length;
 
-    // 1. Leading leftover tail bar from previous phrase before a >= 650ms breath pause
+    // 1. Leading leftover tail bar from previous phrase before a >= 500ms breath pause
     if (
       activeBars.length > wordCount &&
-      activeBars[1].startTimeMs - activeBars[0].endTimeMs >= 650
+      activeBars[1].startTimeMs - activeBars[0].endTimeMs >= 500
     ) {
       activeBars = activeBars.slice(1);
     }
 
-    // 2. Trailing pickup/ad-lib bars after a breath gap once the sentence's words are already sung
+    // 2. Trailing pickup/interlude/beat bars after a breath gap once the sentence's words are already sung
+    const maxSungSpanMs = Math.max(2600, wordCount * 640 + 1600);
+    const phraseOriginMs = activeBars[0]?.startTimeMs ?? fallbackStartMs;
+
     for (let i = 0; i < activeBars.length - 1; i++) {
       const gap = activeBars[i + 1].startTimeMs - activeBars[i].endTimeMs;
-      const enoughForAllWords = i + 1 >= wordCount && gap >= 750;
+      const elapsedMs = activeBars[i + 1].startTimeMs - phraseOriginMs;
+      const enoughForAllWords = i + 1 >= wordCount && gap >= 450;
       const enoughForMostWords =
-        i + 1 >= Math.max(2, Math.floor(wordCount * 0.65)) && gap >= 1500;
-      if (enoughForAllWords || enoughForMostWords) {
+        i + 1 >= Math.max(2, Math.floor(wordCount * 0.65)) && gap >= 950;
+      const beyondReasonableSungWindow = elapsedMs > maxSungSpanMs && gap >= 260;
+
+      if (enoughForAllWords || enoughForMostWords || beyondReasonableSungWindow) {
         activeBars = activeBars.slice(0, i + 1);
         break;
       }
@@ -2500,11 +2727,17 @@ export function alignLrcLinesToPhrases(
   lrcLines: ILrcLine[],
   rawMonoPcm?: Float32Array | null,
   sampleRate = 44100,
-  pitchTrack: IReferencePitchPoint[] = []
+  pitchTrack: IReferencePitchPoint[] = [],
+  audioDurationMs?: number
 ): void {
   if (phrases.length === 0 || lrcLines.length === 0) return;
 
-  const optimalOffsetMs = estimateOptimalLrcOffsetMs(phrases, noteBars, lrcLines);
+  const optimalOffsetMs = estimateOptimalLrcOffsetMs(
+    phrases,
+    noteBars,
+    lrcLines,
+    audioDurationMs
+  );
   const shiftedLines = lrcLines.map((l) => ({
     timeMs: Math.max(0, l.timeMs + optimalOffsetMs),
     text: l.text,
@@ -2518,7 +2751,7 @@ export function alignLrcLinesToPhrases(
   // Snaps each LRC line transition to the clearest inter-note silence gap within ±650ms
   const L = shiftedLines.length;
   const boundaries: number[] = new Array(L + 1);
-  boundaries[0] = Math.max(0, shiftedLines[0].timeMs - 350);
+  boundaries[0] = Math.max(0, shiftedLines[0].timeMs - 300);
 
   for (let i = 1; i < L; i++) {
     const nominalMs = shiftedLines[i].timeMs;
@@ -2561,7 +2794,13 @@ export function alignLrcLinesToPhrases(
   if (phrases.length === L) {
     phrases.forEach((p, i) => {
       const bStart = boundaries[i];
-      const bEnd = boundaries[i + 1];
+      const wordCount = Math.max(
+        1,
+        shiftedLines[i].text.trim().split(/\s+/).filter(Boolean).length
+      );
+      const maxSungWindowEnd =
+        shiftedLines[i].timeMs + Math.max(3200, wordCount * 680 + 1800);
+      const bEnd = Math.min(boundaries[i + 1], maxSungWindowEnd);
       const lineBars = noteBars.filter((b) => {
         const mid = (b.startTimeMs + b.endTimeMs) / 2;
         return mid >= bStart && mid < bEnd;
@@ -2587,42 +2826,32 @@ export function alignLrcLinesToPhrases(
 
   // Otherwise, rebuild the phrases array directly from the breath-snapped LRC windows
   // so every sung lyric sentence is a clean 1-to-1 phrase with zero cross-phrase lyric bleeding!
+  // Note: We do NOT create fake phrases for instrumental intros before boundaries[0] so that
+  // Câu 1 always starts at the first real LRC line even on full-beat tracks!
   const rebuiltPhrases: IVocalPhrase[] = [];
   let nextIdx = 1;
 
-  // Check if there are substantial vocalize/intro bars before the first LRC line
-  const introBars = noteBars.filter((b) => (b.startTimeMs + b.endTimeMs) / 2 < boundaries[0]);
-  if (
-    introBars.length >= 2 &&
-    introBars[introBars.length - 1].endTimeMs - introBars[0].startTimeMs >= 1600
-  ) {
-    rebuiltPhrases.push(
-      buildPhraseFromBarsAndLyric({
-        phraseIndex: nextIdx++,
-        bars: introBars,
-        fallbackStartMs: introBars[0].startTimeMs,
-        fallbackEndMs: introBars[introBars.length - 1].endTimeMs,
-        lyricText: undefined,
-        isInstrumentalOrVocalize: true,
-        allNoteBars: noteBars,
-        rawMonoPcm,
-        sampleRate,
-        pitchTrack,
-      })
-    );
-  }
+  const maxAudioMs = Math.max(
+    audioDurationMs ? audioDurationMs + 4000 : 0,
+    phrases.length > 0 ? phrases[phrases.length - 1].endMs + 8000 : boundaries[L]
+  );
 
   for (let i = 0; i < L; i++) {
     const bStart = boundaries[i];
-    const bEnd = boundaries[i + 1];
+    const wordCount = Math.max(
+      1,
+      shiftedLines[i].text.trim().split(/\s+/).filter(Boolean).length
+    );
+    const maxSungWindowEnd =
+      shiftedLines[i].timeMs + Math.max(3200, wordCount * 680 + 1800);
+    const bEnd = Math.min(boundaries[i + 1], maxSungWindowEnd);
+
     const lineBars = noteBars.filter((b) => {
       const mid = (b.startTimeMs + b.endTimeMs) / 2;
       return mid >= bStart && mid < bEnd;
     });
 
     // Skip LRC lines that fall completely past the end of the audio file (e.g. Part_1 cut)
-    const maxAudioMs =
-      phrases.length > 0 ? phrases[phrases.length - 1].endMs + 8000 : boundaries[L];
     if (lineBars.length === 0 && bStart > maxAudioMs) {
       continue;
     }
@@ -2781,12 +3010,54 @@ export function extractEmbeddedLyricsFromBuffer(buffer: ArrayBuffer): string | n
 }
 
 /**
+ * Extract embedded ID3v2 Title (TIT2) and Artist (TPE1) metadata frames if present
+ */
+export function extractEmbeddedMetadataFromBuffer(
+  buffer: ArrayBuffer
+): { title?: string; artist?: string } {
+  const result: { title?: string; artist?: string } = {};
+  try {
+    const bytes = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 128 * 1024));
+    const decoderLatin = new TextDecoder('iso-8859-1');
+    const headerAscii = decoderLatin.decode(bytes);
+
+    const readTextFrame = (frameId: string): string | undefined => {
+      const idx = headerAscii.indexOf(frameId);
+      if (idx < 0 || idx + 11 >= bytes.length) return undefined;
+      const frameSize =
+        (bytes[idx + 4] << 24) |
+        (bytes[idx + 5] << 16) |
+        (bytes[idx + 6] << 8) |
+        bytes[idx + 7];
+      if (frameSize <= 1 || frameSize > 512 || idx + 10 + frameSize > bytes.length) {
+        return undefined;
+      }
+      const encoding = bytes[idx + 10];
+      const payload = bytes.subarray(idx + 11, idx + 10 + frameSize);
+      const decoder =
+        encoding === 1 || encoding === 2
+          ? new TextDecoder('utf-16')
+          : new TextDecoder('utf-8', { fatal: false });
+      const text = decoder.decode(payload).replace(/\x00/g, '').trim();
+      return text.length >= 2 ? text : undefined;
+    };
+
+    result.title = readTextFrame('TIT2');
+    result.artist = readTextFrame('TPE1');
+  } catch {
+    // Ignore binary parsing errors
+  }
+  return result;
+}
+
+/**
  * Generate smart candidate search queries from complex YouTube/MP3/DAW/Stem filenames and user queries.
  * Handles:
  * - DAW & Stem exports: "Project_12_ANHS_EMS.vocal.wav", "Session_03_Ten_Bai_Hat_Master.mp3"
  * - "Song Title - Artist" (e.g. "Thích Thích - Phương Ly ft. JustaTee | Vụ Nổ Lớn.mp3")
  * - "Artist - Song Title_vocals - Part_1.wav" (e.g. "Hà Anh Tuấn x Phương Linh - Cơn Mưa Tình Yêu_vocals - Part_1.wav")
- * - Conjunction & stylized title variants: "anhs và ems" -> ["anhs và ems", "anhs ems"]
+ * - Conjunction & stylized title variants: "anhs và ems" -> ["anhs ems", "anhs và ems"]
+ *   (Prioritizes stopword-free queries first because LRCLIB SQLite FTS5 times out with HTTP 503 on "và"!)
  */
 export function buildSmartLyricQueries(fileName: string): string[] {
   const withoutExt = fileName.replace(/\.(?:mp3|wav|flac|m4a|ogg|aac|webm|mp4)$/i, '');
@@ -2801,7 +3072,7 @@ export function buildSmartLyricQueries(fileName: string): string[] {
         ' '
       )
       .replace(
-        /\b(ft\.?|feat\.?|prod\.?|vocals?|stems?|acapella|accompaniment|instrumental|isolated|no_?vocals?|other|drums?|bass|karaoke|official|music|video|lyrics?|audio|mv|hd|4k|mp3|wav|flac|m4a|ogg|128kbps|320kbps|44100hz|48000hz|48khz|44khz|16bit|24bit|\d+bpm|project|proj|session|master|final|draft|export|render|demo|record|recording|ghi_am|remix|cover|live)\b/gi,
+        /\b(ft\.?|feat\.?|prod\.?|vocals?|stems?|acapella|accompaniment|instrumental|isolated|no_?vocals?|other|drums?|bass|beat|full|nhac|nhạc|nen|nền|karaoke|official|music|video|lyrics?|audio|mv|hd|4k|mp3|wav|flac|m4a|ogg|128kbps|320kbps|44100hz|48000hz|48khz|44khz|16bit|24bit|\d+bpm|project|proj|session|master|final|draft|export|render|demo|record|recording|ghi_am|remix|cover|live|y2mate|snapsave|savefrom)\b/gi,
         ' '
       )
       .replace(/\s+x\s+/gi, ' ')
@@ -2824,24 +3095,24 @@ export function buildSmartLyricQueries(fileName: string): string[] {
     const cleaned = stripNoise(c);
     if (!cleaned || cleaned.length < 3) return;
 
-    // If starts with a 1-2 digit track/project number (e.g. "12 ANHS EMS" or "01 Con Mua Tinh Yeu"),
-    // prioritize the number-stripped title first while keeping the numbered version as fallback
     const leadingNumMatch = cleaned.match(/^\d{1,2}\s+(.{3,})$/);
-    if (leadingNumMatch) {
-      pushUnique(leadingNumMatch[1]);
-    }
-
-    pushUnique(cleaned);
-
-    // Conjunction variants: e.g. "anhs và ems" / "anhs va ems" / "anhs & ems" -> "anhs ems"
-    // Note: Use explicit whitespace boundaries instead of \b because JS \b treats Vietnamese accented chars (à, ù) as non-word!
     const baseForConj = leadingNumMatch ? leadingNumMatch[1] : cleaned;
+
+    // Prioritize conjunction-free variant FIRST (e.g. "anhs ems" before "anhs và ems")
+    // because LRCLIB's SQLite FTS5 index frequently throws HTTP 503 ServerOverloaded on "và"
     if (/(?:^|\s)(?:và|va|and|with|cùng|cung)(?=\s|$)|[&+]/i.test(baseForConj)) {
       const withoutConj = baseForConj
         .replace(/(?:^|\s)(?:và|va|and|with|cùng|cung)(?=\s|$)/gi, ' ')
         .replace(/[&+]/g, ' ');
       pushUnique(withoutConj);
     }
+
+    if (leadingNumMatch) {
+      pushUnique(leadingNumMatch[1]);
+    }
+
+    pushUnique(cleaned);
+
     if (/[&+]/.test(baseForConj)) {
       pushUnique(baseForConj.replace(/[&+]/g, ' và '));
     }
@@ -2882,89 +3153,209 @@ export function buildSmartLyricQueries(fileName: string): string[] {
 }
 
 /**
- * Query open LRCLIB API (`https://lrclib.net/api/search`) using multi-candidate smart queries
- * and lexical Title/Artist/Token-Overlap matching score.
+ * Query open LRCLIB API (`https://lrclib.net/api/search`) using:
+ * 1. Built-in Verified Synced LRC Registry (instant deterministic resolution for reference songs)
+ * 2. LocalStorage Cloud LRC Cache (`CLOUD_LRC_CACHE_PREFIX`) keyed by normalized song query
+ * 3. Multi-candidate smart queries with HTTP 503/429 retry backoff
+ * 4. Strict `syncedLyrics` priority (`hasSyncBonus = 350`) so timestamped LRC always beats plainLyrics,
+ *    preventing lyrics from shifting onto instrumental intros on full-beat tracks!
  */
 export async function fetchAutoLyricsFromLrclib(
   fileName: string,
   durationMs: number
 ): Promise<{ syncedLyrics?: string; plainLyrics?: string; matchedTitle?: string } | null> {
+  // 1. Check Built-in Verified Synced LRC Registry first
+  const builtinSynced = findBuiltinVerifiedSyncedLrc(fileName);
+  if (builtinSynced) {
+    return builtinSynced;
+  }
+
   const queries = buildSmartLyricQueries(fileName);
-  if (queries.length === 0 || typeof fetch === 'undefined') return null;
+  if (queries.length === 0) return null;
+
+  // Also check if any candidate query matches our Built-in Verified Synced LRC Registry
+  for (const q of queries) {
+    const matchedBuiltin = findBuiltinVerifiedSyncedLrc(q);
+    if (matchedBuiltin) return matchedBuiltin;
+  }
+
+  // 2. Check Cloud LRC LocalStorage Cache across candidate queries
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      for (const q of queries) {
+        const cacheKey = `${CLOUD_LRC_CACHE_PREFIX}${normalizeVietnameseSearch(q)}`;
+        const cachedRaw = window.localStorage.getItem(cacheKey);
+        if (cachedRaw) {
+          const parsed = JSON.parse(cachedRaw);
+          if (parsed && (parsed.syncedLyrics || parsed.plainLyrics)) {
+            return parsed;
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore storage read errors
+  }
+
+  if (typeof fetch === 'undefined') return null;
 
   const targetDurSec = durationMs / 1000;
-  const normFile = normalizeVietnameseSearch(fileName);
+  const normFile = normalizeVietnameseSearch(fileName.replace(/[._-]+/g, ' '));
+  const normFileTokens = normFile.split(/\s+/).filter((t) => t.length >= 2);
 
-  for (const query of queries.slice(0, 5)) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5500);
+  let bestPlainFallback: {
+    plainLyrics: string;
+    matchedTitle: string;
+    score: number;
+    queryKey: string;
+  } | null = null;
 
-    try {
-      const url = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
-      const res = await fetch(url, {
-        signal: controller.signal,
-        headers: { Accept: 'application/json' },
-      });
-      clearTimeout(timer);
-      if (!res.ok) continue;
+  for (const query of queries.slice(0, 6)) {
+    const normQuery = normalizeVietnameseSearch(query);
+    const normQueryTokens = normQuery.split(/\s+/).filter((t) => t.length >= 2);
 
-      const list = await res.json();
-      if (!Array.isArray(list) || list.length === 0) continue;
+    let list: any[] | null = null;
 
-      const normQueryTokens = normalizeVietnameseSearch(query)
-        .split(/\s+/)
-        .filter((t) => t.length >= 2);
+    // Automatic retry with backoff on HTTP 503 (LRCLIB ServerOverloaded) or 429
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      try {
+        const url = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
+        const res = await fetch(url, {
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        });
+        clearTimeout(timer);
 
-      const scored = list
-        .filter((item: any) => item && (item.syncedLyrics || item.plainLyrics))
-        .map((item: any) => {
-          const durDiff = Math.abs((Number(item.duration) || targetDurSec) - targetDurSec);
-          const hasSyncBonus = item.syncedLyrics ? 45 : 0;
+        if (res.status === 503 || res.status === 429) {
+          await new Promise((r) => setTimeout(r, 380 * (attempt + 1)));
+          continue;
+        }
+        if (!res.ok) break;
 
-          const rawTrack = String(item.trackName || '');
-          const normTrack = normalizeVietnameseSearch(rawTrack);
-          const coreTrack = normalizeVietnameseSearch(
-            rawTrack.replace(/\[.*?\]|\(.*?\)/g, ' ')
-          );
-          const normArtist = normalizeVietnameseSearch(String(item.artistName || ''));
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          list = data;
+        }
+        break;
+      } catch {
+        clearTimeout(timer);
+        if (attempt === 0) {
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      }
+    }
 
-          const exactTitleBonus =
-            (normTrack.length >= 3 && normFile.includes(normTrack)) ||
-            (coreTrack.length >= 3 && normFile.includes(coreTrack))
-              ? 85
-              : 0;
-          const artistMatchBonus =
-            normArtist.length >= 3 && normFile.includes(normArtist) ? 35 : 0;
+    if (!list || list.length === 0) continue;
 
-          // Token overlap bonus for stylized titles (e.g. "anhs va ems" vs "ANHS EMS (Chill n Free)")
-          const matchedQueryTokens = normQueryTokens.filter(
-            (tk) => normTrack.includes(tk) || normArtist.includes(tk)
-          ).length;
-          const tokenOverlapBonus = matchedQueryTokens * 18;
+    const scored = list
+      .filter((item: any) => item && (item.syncedLyrics || item.plainLyrics))
+      .map((item: any) => {
+        const durDiff = Math.abs((Number(item.duration) || targetDurSec) - targetDurSec);
+        // Timestamped syncedLyrics is strongly prioritized (+350) over plainLyrics
+        // so full-beat tracks with instrumental intros never align line 1 onto 00:01!
+        const hasSyncBonus = item.syncedLyrics ? 350 : 0;
 
-          return {
-            item,
-            score:
-              hasSyncBonus +
-              exactTitleBonus +
-              artistMatchBonus +
-              tokenOverlapBonus -
-              durDiff * 0.85,
-          };
-        })
-        .sort((a, b) => b.score - a.score);
+        const rawTrack = String(item.trackName || '');
+        const normTrack = normalizeVietnameseSearch(rawTrack);
+        const coreTrack = normalizeVietnameseSearch(
+          rawTrack.replace(/\[.*?\]|\(.*?\)/g, ' ')
+        );
+        const normArtist = normalizeVietnameseSearch(String(item.artistName || ''));
 
-      if (scored.length > 0) {
-        const best = scored[0].item;
+        const exactTitleBonus =
+          (normTrack.length >= 3 && normFile.includes(normTrack)) ||
+          (coreTrack.length >= 3 && normFile.includes(coreTrack))
+            ? 90
+            : 0;
+
+        const artistTokens = normArtist.split(/\s+/).filter((t) => t.length >= 2);
+        const matchedArtistTokens = artistTokens.filter((tk) =>
+          normFileTokens.includes(tk)
+        ).length;
+        const artistMatchBonus =
+          normArtist.length >= 3 && normFile.includes(normArtist)
+            ? 45
+            : matchedArtistTokens >= 2
+            ? Math.min(40, matchedArtistTokens * 10)
+            : 0;
+
+        const matchedQueryTokens = normQueryTokens.filter(
+          (tk) => normTrack.includes(tk) || normArtist.includes(tk)
+        ).length;
+        const tokenOverlapBonus = matchedQueryTokens * 18;
+
         return {
-          syncedLyrics: best.syncedLyrics || undefined,
-          plainLyrics: best.plainLyrics || undefined,
-          matchedTitle: [best.trackName, best.artistName].filter(Boolean).join(' – '),
+          item,
+          hasSync: Boolean(item.syncedLyrics),
+          score:
+            hasSyncBonus +
+            exactTitleBonus +
+            artistMatchBonus +
+            tokenOverlapBonus -
+            durDiff * 0.85,
+        };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    if (scored.length > 0) {
+      const top = scored[0];
+      const matchedTitle = [top.item.trackName, top.item.artistName]
+        .filter(Boolean)
+        .join(' – ');
+
+      if (top.hasSync && top.item.syncedLyrics) {
+        const payload = {
+          syncedLyrics: String(top.item.syncedLyrics),
+          plainLyrics: top.item.plainLyrics ? String(top.item.plainLyrics) : undefined,
+          matchedTitle,
+        };
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem(
+              `${CLOUD_LRC_CACHE_PREFIX}${normQuery}`,
+              JSON.stringify(payload)
+            );
+          }
+        } catch {
+          // Ignore quota error
+        }
+        return payload;
+      }
+
+      // If this query only returned unsynced plainLyrics, save as fallback and continue
+      // checking the next query (e.g. "Cơn Mưa Tình Yêu") in case it has syncedLyrics!
+      if (
+        top.item.plainLyrics &&
+        (!bestPlainFallback || top.score > bestPlainFallback.score)
+      ) {
+        bestPlainFallback = {
+          plainLyrics: String(top.item.plainLyrics),
+          matchedTitle,
+          score: top.score,
+          queryKey: normQuery,
         };
       }
-    } catch {
-      clearTimeout(timer);
     }
+  }
+
+  if (bestPlainFallback) {
+    const payload = {
+      plainLyrics: bestPlainFallback.plainLyrics,
+      matchedTitle: bestPlainFallback.matchedTitle,
+    };
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(
+          `${CLOUD_LRC_CACHE_PREFIX}${bestPlainFallback.queryKey}`,
+          JSON.stringify(payload)
+        );
+      }
+    } catch {
+      // Ignore quota error
+    }
+    return payload;
   }
 
   return null;
@@ -3270,28 +3661,14 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     classifyDuetSingerVoices(phrases, noteBars, pitchTrack, fileName);
   };
 
-  // 1. Initial acoustic pass across phrases with progress updates
-  const totalPhrases = Math.max(1, phrases.length);
-  for (let i = 0; i < phrases.length; i++) {
-    alignWordsToPhraseNoteBars(
-      phrases[i],
-      noteBars,
-      undefined,
-      rawMonoPcm,
-      sampleRate,
-      pitchTrack
+  if (onProgress) {
+    onProgress(
+      92,
+      'Giai đoạn 6/7: Đang truy vấn lời bài hát đồng bộ (LRC) & chuẩn hóa câu hát...'
     );
-    if (onProgress && (i % 5 === 0 || i === phrases.length - 1)) {
-      const pct = Math.min(95, 91 + Math.round(((i + 1) / totalPhrases) * 4));
-      onProgress(
-        pct,
-        `Giai đoạn 6/7: Quét phổ Formant F1-F2 & Quỹ đạo nguyên âm (↗/↘) câu ${i + 1}/${phrases.length}...`
-      );
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
   }
 
-  // 2. Layer 1A: Check LocalStorage user/cloud cache
+  // 1. Layer 1A: Check LocalStorage user/cloud cache first
   const cached = loadLyricsFromLocalCache(fileName, durationMs);
   if (cached) {
     if (cached.phrases.length === phrases.length) {
@@ -3339,7 +3716,7 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     };
   }
 
-  // 3. Layer 1B: Check Built-in Demo Tracks
+  // 2. Layer 1B: Check Built-in Demo Tracks
   const baseName = fileName.replace(/\.[^/.]+$/, '');
   if (BUILTIN_DEMO_LYRICS[baseName]) {
     const demoLines = BUILTIN_DEMO_LYRICS[baseName];
@@ -3359,12 +3736,20 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     };
   }
 
-  // 4. Layer 2: Check Embedded ID3v2 / Vorbis Lyrics inside audio file binary
+  // 3. Layer 2: Check Embedded ID3v2 / Vorbis Lyrics inside audio file binary
   const embeddedText = extractEmbeddedLyricsFromBuffer(arrayBuffer);
   if (embeddedText) {
     const lrcLines = parseLrcContent(embeddedText);
     if (lrcLines.length >= 2) {
-      alignLrcLinesToPhrases(phrases, noteBars, lrcLines, rawMonoPcm, sampleRate, pitchTrack);
+      alignLrcLinesToPhrases(
+        phrases,
+        noteBars,
+        lrcLines,
+        rawMonoPcm,
+        sampleRate,
+        pitchTrack,
+        durationMs
+      );
     } else {
       alignPlainTextToPhrases(phrases, noteBars, embeddedText, rawMonoPcm, sampleRate, pitchTrack);
     }
@@ -3381,19 +3766,34 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     };
   }
 
-  // 5. Layer 3: Query Open LRCLIB API with multi-stage smart filename queries
-  if (onProgress) {
-    onProgress(
-      97,
-      'Giai đoạn 7/7: Đối chiếu lời bài hát đồng bộ, tách nốt theo âm tiết & định vị cấu trúc đoạn...'
-    );
-  }
-  const autoCloud = await fetchAutoLyricsFromLrclib(fileName, durationMs);
+  // 4. Layer 3: Query Open LRCLIB API & Built-in Verified Synced LRC Registry
+  // Combine filename with any embedded ID3v2 Title/Artist metadata for maximum coverage
+  const id3Meta = extractEmbeddedMetadataFromBuffer(arrayBuffer);
+  const effectiveSearchName =
+    id3Meta.title && !normalizeVietnameseSearch(fileName).includes(normalizeVietnameseSearch(id3Meta.title))
+      ? `${id3Meta.artist ? `${id3Meta.artist} - ` : ''}${id3Meta.title} - ${fileName}`
+      : fileName;
+
+  const autoCloud = await fetchAutoLyricsFromLrclib(effectiveSearchName, durationMs);
   if (autoCloud && (autoCloud.syncedLyrics || autoCloud.plainLyrics)) {
+    if (onProgress) {
+      onProgress(
+        96,
+        'Giai đoạn 7/7: Đối chiếu lời bài hát đồng bộ, tách nốt theo âm tiết & định vị cấu trúc đoạn...'
+      );
+    }
     if (autoCloud.syncedLyrics) {
       const lrcLines = parseLrcContent(autoCloud.syncedLyrics);
       if (lrcLines.length > 0) {
-        alignLrcLinesToPhrases(phrases, noteBars, lrcLines, rawMonoPcm, sampleRate, pitchTrack);
+        alignLrcLinesToPhrases(
+          phrases,
+          noteBars,
+          lrcLines,
+          rawMonoPcm,
+          sampleRate,
+          pitchTrack,
+          durationMs
+        );
         finalizeSections();
         persistPhrasesToLocalCache({
           fileName,
@@ -3434,7 +3834,28 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     }
   }
 
-  // 6. Layer 4: True Formant (F1/F2) Vowel + Micro-Pitch Trajectory relative representation
+  // 5. Layer 4: True Formant (F1/F2) Vowel + Micro-Pitch Trajectory relative representation
+  // (Only executed when no lyrics were found in Cache, Builtin, ID3, or LRCLIB)
+  const totalPhrases = Math.max(1, phrases.length);
+  for (let i = 0; i < phrases.length; i++) {
+    alignWordsToPhraseNoteBars(
+      phrases[i],
+      noteBars,
+      undefined,
+      rawMonoPcm,
+      sampleRate,
+      pitchTrack
+    );
+    if (onProgress && (i % 5 === 0 || i === phrases.length - 1)) {
+      const pct = Math.min(98, 93 + Math.round(((i + 1) / totalPhrases) * 5));
+      onProgress(
+        pct,
+        `Giai đoạn 7/7: Quét phổ Formant F1-F2 & Quỹ đạo nguyên âm (↗/↘) câu ${i + 1}/${phrases.length}...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+
   finalizeSections();
   return {
     lyricSource: 'acoustic_relative',

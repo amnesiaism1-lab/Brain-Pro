@@ -211,13 +211,17 @@ class VocalFileAnalysisService {
     const totalSamples = audioBuffer.length;
     const durationMs = Math.round((totalSamples / sampleRate) * 1000);
 
-    // Mid-side conditioning: extract center vocal channel (L+R)*0.5 to attenuate side-panned stereo instruments
+    // Mid-side conditioning: extract center vocal channel (L+R)*0.5 and side accompaniment channel (L-R)*0.5
     const rawMonoPcm = new Float32Array(totalSamples);
+    const sideChannelPcm = numChannels >= 2 ? new Float32Array(totalSamples) : null;
     if (numChannels >= 2) {
       const left = audioBuffer.getChannelData(0);
       const right = audioBuffer.getChannelData(1);
       for (let i = 0; i < totalSamples; i++) {
         rawMonoPcm[i] = (left[i] + right[i]) * 0.5;
+        if (sideChannelPcm) {
+          sideChannelPcm[i] = (left[i] - right[i]) * 0.5;
+        }
       }
     } else {
       rawMonoPcm.set(audioBuffer.getChannelData(0));
@@ -228,6 +232,9 @@ class VocalFileAnalysisService {
 
     // Apply steep 4th-order Butterworth Biquad bandpass filter (95Hz to 880Hz) to kill kick drum rumble and cymbal sizzle
     const filteredPcm = this.applyVocalBandpassFilter(rawMonoPcm, sampleRate);
+    const filteredSidePcm = sideChannelPcm
+      ? this.applyVocalBandpassFilter(sideChannelPcm, sampleRate)
+      : null;
 
     const bufferSize = 2048;
     const hopSize = 512; // ~11.6ms high-density hop step (86 frames/sec at 44.1kHz, 10.7ms at 48kHz)
@@ -249,7 +256,7 @@ class VocalFileAnalysisService {
       const r = Math.sqrt(sqSum / chunkLen);
       if (r > maxRms) maxRms = r;
     }
-    const dynamicNoiseFloorRms = Math.max(0.003, maxRms * 0.04);
+    const dynamicNoiseFloorRms = Math.max(0.003, maxRms * 0.045);
 
     let sampleCursor = 0;
     const totalFrames = Math.floor((totalSamples - bufferSize) / hopSize);
@@ -260,23 +267,35 @@ class VocalFileAnalysisService {
       // Window center timestamping (+bufferSize/2) to align exact acoustic physical center with audio playback
       const timeMs = Math.round(((sampleCursor + bufferSize / 2) / sampleRate) * 1000);
 
-      // Extract window from bandpassed signal
+      // Extract window from bandpassed signal and compare Mid (center vocal) vs Side (stereo accompaniment)
       let sumSquares = 0;
+      let sideSumSquares = 0;
       for (let j = 0; j < bufferSize; j++) {
         const val = filteredPcm[sampleCursor + j];
         frameBuffer[j] = val;
         sumSquares += val * val;
+        if (filteredSidePcm) {
+          const sVal = filteredSidePcm[sampleCursor + j];
+          sideSumSquares += sVal * sVal;
+        }
       }
 
       const rms = Math.sqrt(sumSquares / bufferSize);
+      const sideRms = filteredSidePcm ? Math.sqrt(sideSumSquares / bufferSize) : 0;
       const db = rms > 0 ? 20 * Math.log10(rms) : -100;
 
-      if (rms >= dynamicNoiseFloorRms && db >= -46) {
+      // Center-channel dominance gate: lead vocals sit in the stereo center (Mid >= Side * 0.90),
+      // whereas stereo accompaniment instruments / beat intros have strong side energy
+      const isCenterVocalDominant = !filteredSidePcm || rms >= sideRms * 0.90;
+
+      if (rms >= dynamicNoiseFloorRms && db >= -44 && isCenterVocalDominant) {
         const [rawPitch, clarity] = detector.findPitch(frameBuffer, sampleRate);
 
-        // Vocal singing frequencies between 75Hz (D#2/E2) and 1250Hz (D#6)
-        // With clarity >= 0.30, real singing in mixed MP3 accompaniment is reliably captured!
-        if (clarity >= 0.30 && rawPitch >= 75 && rawPitch <= 1250) {
+        // Require higher harmonic clarity (0.58) in the bass-guitar/kick region (<130Hz)
+        // and >= 0.40 in the main vocal range to reject accompaniment beat bleed
+        const minRequiredClarity = rawPitch < 130 ? 0.58 : 0.40;
+
+        if (clarity >= minRequiredClarity && rawPitch >= 75 && rawPitch <= 1250) {
           const exactMidi = 12 * Math.log2(rawPitch / 440) + 69;
           const noteInfo = this.midiToNoteInfo(exactMidi);
 
@@ -478,7 +497,7 @@ class VocalFileAnalysisService {
     let currentPoints: IReferencePitchPoint[] = [];
     let phraseIndex = 1;
     let silenceCounter = 0;
-    const maxSilenceFrames = 18; // ~210ms of true breath pause closes a phrase (avoids chopping consonant stops <=190ms)
+    const maxSilenceFrames = 26; // ~300ms of true breath pause closes a phrase (avoids chopping consonant stops <=260ms)
 
     for (let i = 0; i < pitchTrack.length; i++) {
       const p = pitchTrack[i];
@@ -490,9 +509,9 @@ class VocalFileAnalysisService {
       } else if (inPhrase) {
         silenceCounter++;
         if (silenceCounter >= maxSilenceFrames || i === pitchTrack.length - 1) {
-          // Finish current phrase if it lasted at least 350ms
+          // Finish current phrase if it lasted at least 140ms (12 frames)
           const vocalOnly = currentPoints.filter((pt) => pt.isVocal && pt.freqHz > 0);
-          if (vocalOnly.length >= 10) {
+          if (vocalOnly.length >= 12) {
             const startMs = vocalOnly[0].timeMs;
             const endMs = vocalOnly[vocalOnly.length - 1].timeMs;
             const durationMs = endMs - startMs;
@@ -559,6 +578,40 @@ class VocalFileAnalysisService {
         }
       }
     }
+
+    // Post-pass: Merge fragmented micro-phrases separated by < 380ms when combined duration <= 4800ms
+    for (let i = 0; i < phrases.length - 1; i++) {
+      const curr = phrases[i];
+      const next = phrases[i + 1];
+      const gapMs = next.startMs - curr.endMs;
+      const combinedDur = next.endMs - curr.startMs;
+      if (
+        gapMs <= 380 &&
+        combinedDur <= 4800 &&
+        (curr.durationMs < 1400 || next.durationMs < 1400)
+      ) {
+        curr.endMs = next.endMs;
+        curr.durationMs = combinedDur;
+        curr.notes = Array.from(new Set([...curr.notes, ...next.notes])).slice(0, 8);
+        const totalPts = curr.pointsCount + next.pointsCount;
+        curr.avgMidi =
+          Math.round(
+            ((curr.avgMidi * curr.pointsCount + next.avgMidi * next.pointsCount) /
+              Math.max(1, totalPts)) *
+              10
+          ) / 10;
+        curr.avgPitchHz = Math.round(440 * Math.pow(2, (curr.avgMidi - 69) / 12));
+        curr.pointsCount = totalPts;
+        curr.pitchJumpSemitones = Math.max(curr.pitchJumpSemitones, next.pitchJumpSemitones);
+        phrases.splice(i + 1, 1);
+        i--;
+      }
+    }
+
+    phrases.forEach((p, idx) => {
+      p.id = `phrase-${idx + 1}`;
+      p.phraseIndex = idx + 1;
+    });
 
     return phrases;
   }
