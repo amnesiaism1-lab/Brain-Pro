@@ -21,6 +21,7 @@ import {
   alignLrcLinesToPhrases,
   alignPlainTextToPhrases,
   alignWordsToPhraseNoteBars,
+  buildSmartLyricQueries,
   classifyPhraseSectionsAndContours,
   fetchAutoLyricsFromLrclib,
   saveLyricsToLocalCache,
@@ -70,10 +71,10 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
     setPhraseTexts(initMap);
     setPhraseVocalizeFlags(initFlags);
     setBulkText(lines.join('\n'));
-    setCloudQuery(
-      analysisResult.matchedTrackTitle ||
-        analysisResult.fileName.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ')
-    );
+    const smartDefaultQuery =
+      buildSmartLyricQueries(analysisResult.fileName)[0] ||
+      analysisResult.fileName.replace(/\.[^/.]+$/, '').replace(/[._-]+/g, ' ');
+    setCloudQuery(analysisResult.matchedTrackTitle || smartDefaultQuery);
     setCloudMessage(null);
   }, [isOpen, analysisResult]);
 

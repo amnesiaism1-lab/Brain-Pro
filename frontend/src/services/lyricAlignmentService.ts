@@ -132,7 +132,7 @@ interface ICachedSongLyrics {
   }>;
 }
 
-const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v5_';
+const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v6_';
 
 /**
  * Normalize Vietnamese text for accent-insensitive search & trace
@@ -1999,6 +1999,7 @@ export function parseLrcContent(lrcText: string): ILrcLine[] {
 
     const textContent = withoutLineTags
       .replace(/<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>/g, ' ')
+      .replace(/^\(([^()]+)\)$/, '$1')
       .replace(/\s+/g, ' ')
       .trim();
 
@@ -2545,21 +2546,27 @@ export function extractEmbeddedLyricsFromBuffer(buffer: ArrayBuffer): string | n
 }
 
 /**
- * Generate smart candidate search queries from complex YouTube/MP3/Stem filenames
- * Handles both "Song Title - Artist" (e.g. "Thích Thích - Phương Ly ft. JustaTee | Vụ Nổ Lớn.mp3")
- * and "Artist - Song Title_vocals - Part_1.wav" (e.g. "Hà Anh Tuấn x Phương Linh - Cơn Mưa Tình Yêu_vocals - Part_1.wav").
+ * Generate smart candidate search queries from complex YouTube/MP3/DAW/Stem filenames and user queries.
+ * Handles:
+ * - DAW & Stem exports: "Project_12_ANHS_EMS.vocal.wav", "Session_03_Ten_Bai_Hat_Master.mp3"
+ * - "Song Title - Artist" (e.g. "Thích Thích - Phương Ly ft. JustaTee | Vụ Nổ Lớn.mp3")
+ * - "Artist - Song Title_vocals - Part_1.wav" (e.g. "Hà Anh Tuấn x Phương Linh - Cơn Mưa Tình Yêu_vocals - Part_1.wav")
+ * - Conjunction & stylized title variants: "anhs và ems" -> ["anhs và ems", "anhs ems"]
  */
 export function buildSmartLyricQueries(fileName: string): string[] {
-  const withoutExt = fileName.replace(/\.[^/.]+$/, '');
+  const withoutExt = fileName.replace(/\.(?:mp3|wav|flac|m4a|ogg|aac|webm|mp4)$/i, '');
   const primaryPart = withoutExt.split(/[|/]/)[0] || withoutExt;
 
   const stripNoise = (s: string) =>
     s
       .replace(/\[.*?\]|\(.*?\)/g, ' ')
-      .replace(/[_-]+/g, ' ')
-      .replace(/\b(?:part|pt|ver|version|track|vol)\s*\d+\b/gi, ' ')
+      .replace(/[._-]+/g, ' ')
       .replace(
-        /\b(ft\.?|feat\.?|prod\.?|vocals?|stems?|acapella|accompaniment|instrumental|karaoke|official|music|video|lyrics?|audio|mv|hd|4k|mp3|wav|flac|128kbps|320kbps|demo|record|recording|ghi_am|remix|cover|live)\b/gi,
+        /(?:^|\s)(?:project|proj|session|take|mix|stem|cut|bai|bài|no|file|track|part|pt|ver|version|vol|tap|tập|draft|final|master|export|render)\s*\d+(?=\s|$)/gi,
+        ' '
+      )
+      .replace(
+        /\b(ft\.?|feat\.?|prod\.?|vocals?|stems?|acapella|accompaniment|instrumental|isolated|no_?vocals?|other|drums?|bass|karaoke|official|music|video|lyrics?|audio|mv|hd|4k|mp3|wav|flac|m4a|ogg|128kbps|320kbps|44100hz|48000hz|48khz|44khz|16bit|24bit|\d+bpm|project|proj|session|master|final|draft|export|render|demo|record|recording|ghi_am|remix|cover|live)\b/gi,
         ' '
       )
       .replace(/\s+x\s+/gi, ' ')
@@ -2567,20 +2574,47 @@ export function buildSmartLyricQueries(fileName: string): string[] {
       .trim();
 
   const candidates: string[] = [];
-  const addCandidate = (c: string) => {
-    const cleaned = stripNoise(c);
+  const pushUnique = (raw: string) => {
+    const cleaned = raw.replace(/\s+/g, ' ').trim();
     if (
       cleaned.length >= 3 &&
-      !candidates.includes(cleaned) &&
+      !candidates.some((c) => c.toLowerCase() === cleaned.toLowerCase()) &&
       !/^(audio|vocal|bai hat|test|sample|untitled|\d+)$/i.test(cleaned)
     ) {
       candidates.push(cleaned);
     }
   };
 
+  const addCandidateWithVariants = (c: string) => {
+    const cleaned = stripNoise(c);
+    if (!cleaned || cleaned.length < 3) return;
+
+    // If starts with a 1-2 digit track/project number (e.g. "12 ANHS EMS" or "01 Con Mua Tinh Yeu"),
+    // prioritize the number-stripped title first while keeping the numbered version as fallback
+    const leadingNumMatch = cleaned.match(/^\d{1,2}\s+(.{3,})$/);
+    if (leadingNumMatch) {
+      pushUnique(leadingNumMatch[1]);
+    }
+
+    pushUnique(cleaned);
+
+    // Conjunction variants: e.g. "anhs và ems" / "anhs va ems" / "anhs & ems" -> "anhs ems"
+    // Note: Use explicit whitespace boundaries instead of \b because JS \b treats Vietnamese accented chars (à, ù) as non-word!
+    const baseForConj = leadingNumMatch ? leadingNumMatch[1] : cleaned;
+    if (/(?:^|\s)(?:và|va|and|with|cùng|cung)(?=\s|$)|[&+]/i.test(baseForConj)) {
+      const withoutConj = baseForConj
+        .replace(/(?:^|\s)(?:và|va|and|with|cùng|cung)(?=\s|$)/gi, ' ')
+        .replace(/[&+]/g, ' ');
+      pushUnique(withoutConj);
+    }
+    if (/[&+]/.test(baseForConj)) {
+      pushUnique(baseForConj.replace(/[&+]/g, ' và '));
+    }
+  };
+
   // 1. Primary part with featuring artist removed
   const beforeFeat = primaryPart.split(/\b(?:ft\.?|feat\.?)\b/i)[0] || primaryPart;
-  addCandidate(beforeFeat);
+  addCandidateWithVariants(beforeFeat);
 
   // 2. Clean individual dash-separated segments (supports both "Title - Artist" and "Artist - Title - Part_1")
   const dashParts = beforeFeat
@@ -2590,20 +2624,31 @@ export function buildSmartLyricQueries(fileName: string): string[] {
 
   if (dashParts.length >= 2) {
     // First segment (Song Title in "Title - Artist")
-    addCandidate(dashParts[0]);
+    addCandidateWithVariants(dashParts[0]);
     // Second segment (Song Title in "Artist - Title")
-    addCandidate(dashParts[1]);
+    addCandidateWithVariants(dashParts[1]);
   }
 
   // 3. Full primary part cleaned
-  addCandidate(primaryPart);
+  addCandidateWithVariants(primaryPart);
+
+  // 4. If no dashes were present and the cleaned primary candidate has >= 4 words (e.g. "QNT RZMas ANHS EMS"),
+  // also add the last 2-3 words and first 2-3 words as fallback queries
+  if (dashParts.length < 2 && candidates.length > 0) {
+    const words = candidates[0].split(/\s+/).filter(Boolean);
+    if (words.length >= 4) {
+      pushUnique(words.slice(-2).join(' '));
+      pushUnique(words.slice(-3).join(' '));
+      pushUnique(words.slice(0, 3).join(' '));
+    }
+  }
 
   return candidates;
 }
 
 /**
  * Query open LRCLIB API (`https://lrclib.net/api/search`) using multi-candidate smart queries
- * and lexical Title/Artist matching score.
+ * and lexical Title/Artist/Token-Overlap matching score.
  */
 export async function fetchAutoLyricsFromLrclib(
   fileName: string,
@@ -2615,9 +2660,9 @@ export async function fetchAutoLyricsFromLrclib(
   const targetDurSec = durationMs / 1000;
   const normFile = normalizeVietnameseSearch(fileName);
 
-  for (const query of queries.slice(0, 3)) {
+  for (const query of queries.slice(0, 5)) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2400);
+    const timer = setTimeout(() => controller.abort(), 5500);
 
     try {
       const url = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
@@ -2631,22 +2676,45 @@ export async function fetchAutoLyricsFromLrclib(
       const list = await res.json();
       if (!Array.isArray(list) || list.length === 0) continue;
 
+      const normQueryTokens = normalizeVietnameseSearch(query)
+        .split(/\s+/)
+        .filter((t) => t.length >= 2);
+
       const scored = list
         .filter((item: any) => item && (item.syncedLyrics || item.plainLyrics))
         .map((item: any) => {
           const durDiff = Math.abs((Number(item.duration) || targetDurSec) - targetDurSec);
           const hasSyncBonus = item.syncedLyrics ? 45 : 0;
 
-          const normTrack = normalizeVietnameseSearch(String(item.trackName || ''));
+          const rawTrack = String(item.trackName || '');
+          const normTrack = normalizeVietnameseSearch(rawTrack);
+          const coreTrack = normalizeVietnameseSearch(
+            rawTrack.replace(/\[.*?\]|\(.*?\)/g, ' ')
+          );
           const normArtist = normalizeVietnameseSearch(String(item.artistName || ''));
-          const titleMatchBonus =
-            normTrack.length >= 3 && normFile.includes(normTrack) ? 80 : 0;
+
+          const exactTitleBonus =
+            (normTrack.length >= 3 && normFile.includes(normTrack)) ||
+            (coreTrack.length >= 3 && normFile.includes(coreTrack))
+              ? 85
+              : 0;
           const artistMatchBonus =
             normArtist.length >= 3 && normFile.includes(normArtist) ? 35 : 0;
 
+          // Token overlap bonus for stylized titles (e.g. "anhs va ems" vs "ANHS EMS (Chill n Free)")
+          const matchedQueryTokens = normQueryTokens.filter(
+            (tk) => normTrack.includes(tk) || normArtist.includes(tk)
+          ).length;
+          const tokenOverlapBonus = matchedQueryTokens * 18;
+
           return {
             item,
-            score: hasSyncBonus + titleMatchBonus + artistMatchBonus - durDiff,
+            score:
+              hasSyncBonus +
+              exactTitleBonus +
+              artistMatchBonus +
+              tokenOverlapBonus -
+              durDiff * 0.85,
           };
         })
         .sort((a, b) => b.score - a.score);
@@ -2668,16 +2736,30 @@ export async function fetchAutoLyricsFromLrclib(
 }
 
 /**
- * Save user-edited or imported lyrics & phrase boundaries to localStorage
+ * Helper to persist phrases & lyric source into localStorage
  */
-export function saveLyricsToLocalCache(result: IVocalAnalysisResult): void {
+function persistPhrasesToLocalCache(params: {
+  fileName: string;
+  durationMs: number;
+  lyricSource: LyricSourceType;
+  matchedTrackTitle?: string;
+  phrases: IVocalPhrase[];
+}): void {
   try {
     if (typeof window === 'undefined' || !window.localStorage) return;
-    const key = `${LYRIC_CACHE_PREFIX}${result.fileName}_${Math.round(result.durationMs / 1000)}`;
+    const hasRealLyric = params.phrases.some(
+      (p) =>
+        p.lyricText &&
+        !p.lyricText.startsWith('Nguyên âm:') &&
+        !p.lyricText.startsWith('🎵')
+    );
+    if (!hasRealLyric) return;
+
+    const key = `${LYRIC_CACHE_PREFIX}${params.fileName}_${Math.round(params.durationMs / 1000)}`;
     const payload: ICachedSongLyrics = {
-      lyricSource: result.lyricSource || 'manual',
-      matchedTrackTitle: result.matchedTrackTitle,
-      phrases: result.phrases.map((p) => ({
+      lyricSource: params.lyricSource,
+      matchedTrackTitle: params.matchedTrackTitle,
+      phrases: params.phrases.map((p) => ({
         phraseIndex: p.phraseIndex,
         startMs: p.startMs,
         endMs: p.endMs,
@@ -2692,7 +2774,20 @@ export function saveLyricsToLocalCache(result: IVocalAnalysisResult): void {
 }
 
 /**
- * Load cached lyrics for a song if previously customized by user
+ * Save user-edited or imported lyrics & phrase boundaries to localStorage
+ */
+export function saveLyricsToLocalCache(result: IVocalAnalysisResult): void {
+  persistPhrasesToLocalCache({
+    fileName: result.fileName,
+    durationMs: result.durationMs,
+    lyricSource: result.lyricSource || 'manual',
+    matchedTrackTitle: result.matchedTrackTitle,
+    phrases: result.phrases,
+  });
+}
+
+/**
+ * Load cached lyrics for a song if previously customized or fetched from LRCLIB
  */
 export function loadLyricsFromLocalCache(
   fileName: string,
@@ -2703,7 +2798,18 @@ export function loadLyricsFromLocalCache(
     const key = `${LYRIC_CACHE_PREFIX}${fileName}_${Math.round(durationMs / 1000)}`;
     const raw = window.localStorage.getItem(key);
     if (!raw) return null;
-    return JSON.parse(raw) as ICachedSongLyrics;
+    const parsed = JSON.parse(raw) as ICachedSongLyrics;
+    if (!parsed || !Array.isArray(parsed.phrases) || parsed.phrases.length === 0) {
+      return null;
+    }
+    // Never treat pure acoustic vowel fallbacks ("Nguyên âm: ...") as cached lyrics
+    const hasRealLyric = parsed.phrases.some(
+      (p) =>
+        p.lyricText &&
+        !p.lyricText.startsWith('Nguyên âm:') &&
+        !p.lyricText.startsWith('🎵')
+    );
+    return hasRealLyric ? parsed : null;
   } catch {
     return null;
   }
@@ -2773,21 +2879,46 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     }
   }
 
-  // 2. Layer 1A: Check LocalStorage user cache
+  // 2. Layer 1A: Check LocalStorage user/cloud cache
   const cached = loadLyricsFromLocalCache(fileName, durationMs);
-  if (cached && cached.phrases.length === phrases.length) {
-    phrases.forEach((p, idx) => {
-      const cp = cached.phrases[idx];
-      p.isInstrumentalOrVocalize = cp.isInstrumentalOrVocalize;
-      alignWordsToPhraseNoteBars(
-        p,
-        noteBars,
-        cp.lyricText,
-        rawMonoPcm,
-        sampleRate,
-        pitchTrack
-      );
-    });
+  if (cached) {
+    if (cached.phrases.length === phrases.length) {
+      phrases.forEach((p, idx) => {
+        const cp = cached.phrases[idx];
+        p.isInstrumentalOrVocalize = cp.isInstrumentalOrVocalize;
+        alignWordsToPhraseNoteBars(
+          p,
+          noteBars,
+          cp.lyricText,
+          rawMonoPcm,
+          sampleRate,
+          pitchTrack
+        );
+      });
+    } else {
+      // Rebuild phrases from cached LRC/custom phrase boundaries
+      const rebuiltCached = cached.phrases.map((cp, idx) => {
+        const lineBars = noteBars.filter((b) => {
+          const mid = (b.startTimeMs + b.endTimeMs) / 2;
+          return mid >= cp.startMs - 80 && mid <= cp.endMs + 80;
+        });
+        return buildPhraseFromBarsAndLyric({
+          phraseIndex: idx + 1,
+          bars: lineBars,
+          fallbackStartMs: cp.startMs,
+          fallbackEndMs: cp.endMs,
+          lyricText: cp.lyricText,
+          isInstrumentalOrVocalize: cp.isInstrumentalOrVocalize,
+          allNoteBars: noteBars,
+          rawMonoPcm,
+          sampleRate,
+          pitchTrack,
+        });
+      });
+      if (rebuiltCached.length > 0) {
+        phrases.splice(0, phrases.length, ...rebuiltCached);
+      }
+    }
     finalizeSections();
     return {
       lyricSource: cached.lyricSource,
@@ -2826,6 +2957,12 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
       alignPlainTextToPhrases(phrases, noteBars, embeddedText, rawMonoPcm, sampleRate, pitchTrack);
     }
     finalizeSections();
+    persistPhrasesToLocalCache({
+      fileName,
+      durationMs,
+      lyricSource: 'embedded_tag',
+      phrases,
+    });
     return {
       lyricSource: 'embedded_tag',
       lyricStatus: 'complete',
@@ -2846,6 +2983,13 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
       if (lrcLines.length > 0) {
         alignLrcLinesToPhrases(phrases, noteBars, lrcLines, rawMonoPcm, sampleRate, pitchTrack);
         finalizeSections();
+        persistPhrasesToLocalCache({
+          fileName,
+          durationMs,
+          lyricSource: 'auto_lrclib',
+          matchedTrackTitle: autoCloud.matchedTitle,
+          phrases,
+        });
         return {
           lyricSource: 'auto_lrclib',
           lyricStatus: 'complete',
@@ -2863,6 +3007,13 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
         pitchTrack
       );
       finalizeSections();
+      persistPhrasesToLocalCache({
+        fileName,
+        durationMs,
+        lyricSource: 'auto_lrclib',
+        matchedTrackTitle: autoCloud.matchedTitle,
+        phrases,
+      });
       return {
         lyricSource: 'auto_lrclib',
         lyricStatus: 'complete',

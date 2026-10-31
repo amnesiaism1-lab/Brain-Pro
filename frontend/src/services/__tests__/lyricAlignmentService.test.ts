@@ -174,6 +174,15 @@ describe('lyricAlignmentService', () => {
     expect(queries2).toContain('Hà Anh Tuấn Phương Linh Cơn Mưa Tình Yêu');
     expect(queries2).toContain('Cơn Mưa Tình Yêu');
 
+    // DAW Project prefix + .vocal.wav multi-dot extension ("Project_12_ANHS_EMS.vocal.wav")
+    const queries3 = buildSmartLyricQueries('Project_12_ANHS_EMS.vocal.wav');
+    expect(queries3[0]).toBe('ANHS EMS');
+
+    // Conjunction variants ("anhs và ems" -> ["anhs và ems", "anhs ems"])
+    const queries4 = buildSmartLyricQueries('anhs và ems');
+    expect(queries4).toContain('anhs và ems');
+    expect(queries4).toContain('anhs ems');
+
     const { noteBars } = createMockPhrasesAndBars();
     const mockPitchTrack = [
       { timeMs: 1950, freqHz: 325, midi: 63.7, noteName: 'E4', solfegeName: 'Mi 4', clarity: 0.9, volumeDb: -18, isVocal: true },
