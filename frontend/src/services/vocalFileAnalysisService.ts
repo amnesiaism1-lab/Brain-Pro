@@ -509,67 +509,70 @@ class VocalFileAnalysisService {
       } else if (inPhrase) {
         silenceCounter++;
         if (silenceCounter >= maxSilenceFrames || i === pitchTrack.length - 1) {
-          // Finish current phrase if it lasted at least 140ms (12 frames)
+          // Finish current phrase if it lasted at least 30 frames (~350ms) and duration >= 350ms
+          // This eliminates beat/percussion transients (e.g. 0:07 - 0:07) that chop rap/RnB tracks into 76 micro-phrases
           const vocalOnly = currentPoints.filter((pt) => pt.isVocal && pt.freqHz > 0);
-          if (vocalOnly.length >= 12) {
+          if (vocalOnly.length >= 30) {
             const startMs = vocalOnly[0].timeMs;
             const endMs = vocalOnly[vocalOnly.length - 1].timeMs;
             const durationMs = endMs - startMs;
 
-            const distinctNotes = Array.from(new Set(vocalOnly.map((pt) => pt.noteName)));
-            let lowestM = 999;
-            let highestM = -999;
-            let lowestN = vocalOnly[0].noteName;
-            let highestN = vocalOnly[0].noteName;
-            let midiSum = 0;
-            let maxLeap = 0;
+            if (durationMs >= 350) {
+              const distinctNotes = Array.from(new Set(vocalOnly.map((pt) => pt.noteName)));
+              let lowestM = 999;
+              let highestM = -999;
+              let lowestN = vocalOnly[0].noteName;
+              let highestN = vocalOnly[0].noteName;
+              let midiSum = 0;
+              let maxLeap = 0;
 
-            for (let j = 0; j < vocalOnly.length; j++) {
-              const pt = vocalOnly[j];
-              midiSum += pt.midi;
-              if (pt.midi < lowestM) {
-                lowestM = pt.midi;
-                lowestN = pt.noteName;
+              for (let j = 0; j < vocalOnly.length; j++) {
+                const pt = vocalOnly[j];
+                midiSum += pt.midi;
+                if (pt.midi < lowestM) {
+                  lowestM = pt.midi;
+                  lowestN = pt.noteName;
+                }
+                if (pt.midi > highestM) {
+                  highestM = pt.midi;
+                  highestN = pt.noteName;
+                }
+                if (j > 0) {
+                  const leap = Math.abs(pt.midi - vocalOnly[j - 1].midi);
+                  if (leap > maxLeap && leap < 24) maxLeap = leap;
+                }
               }
-              if (pt.midi > highestM) {
-                highestM = pt.midi;
-                highestN = pt.noteName;
+
+              const rangeSpan = Math.round(highestM - lowestM);
+              let difficulty: 'Dễ' | 'Trung bình' | 'Thử thách' = 'Dễ';
+              let diffScore = 3;
+
+              if (rangeSpan > 12 || maxLeap > 7 || durationMs > 5000) {
+                difficulty = 'Thử thách';
+                diffScore = 8;
+              } else if (rangeSpan > 7 || maxLeap > 4 || durationMs > 3000) {
+                difficulty = 'Trung bình';
+                diffScore = 5;
               }
-              if (j > 0) {
-                const leap = Math.abs(pt.midi - vocalOnly[j - 1].midi);
-                if (leap > maxLeap && leap < 24) maxLeap = leap;
-              }
+
+              phrases.push({
+                id: `phrase-${phraseIndex}`,
+                phraseIndex,
+                startMs,
+                endMs,
+                durationMs,
+                notes: distinctNotes.slice(0, 8),
+                lowestNote: lowestN,
+                highestNote: highestN,
+                avgPitchHz: Math.round(440 * Math.pow(2, (midiSum / vocalOnly.length - 69) / 12)),
+                avgMidi: Math.round((midiSum / vocalOnly.length) * 10) / 10,
+                pitchJumpSemitones: Math.round(maxLeap),
+                difficulty,
+                difficultyScore: diffScore,
+                pointsCount: vocalOnly.length,
+              });
+              phraseIndex++;
             }
-
-            const rangeSpan = Math.round(highestM - lowestM);
-            let difficulty: 'Dễ' | 'Trung bình' | 'Thử thách' = 'Dễ';
-            let diffScore = 3;
-
-            if (rangeSpan > 12 || maxLeap > 7 || durationMs > 5000) {
-              difficulty = 'Thử thách';
-              diffScore = 8;
-            } else if (rangeSpan > 7 || maxLeap > 4 || durationMs > 3000) {
-              difficulty = 'Trung bình';
-              diffScore = 5;
-            }
-
-            phrases.push({
-              id: `phrase-${phraseIndex}`,
-              phraseIndex,
-              startMs,
-              endMs,
-              durationMs,
-              notes: distinctNotes.slice(0, 8),
-              lowestNote: lowestN,
-              highestNote: highestN,
-              avgPitchHz: Math.round(440 * Math.pow(2, (midiSum / vocalOnly.length - 69) / 12)),
-              avgMidi: Math.round((midiSum / vocalOnly.length) * 10) / 10,
-              pitchJumpSemitones: Math.round(maxLeap),
-              difficulty,
-              difficultyScore: diffScore,
-              pointsCount: vocalOnly.length,
-            });
-            phraseIndex++;
           }
 
           inPhrase = false;
@@ -579,16 +582,16 @@ class VocalFileAnalysisService {
       }
     }
 
-    // Post-pass: Merge fragmented micro-phrases separated by < 380ms when combined duration <= 4800ms
+    // Post-pass: Merge fragmented micro-phrases separated by <= 550ms when combined duration <= 5500ms
     for (let i = 0; i < phrases.length - 1; i++) {
       const curr = phrases[i];
       const next = phrases[i + 1];
       const gapMs = next.startMs - curr.endMs;
       const combinedDur = next.endMs - curr.startMs;
       if (
-        gapMs <= 380 &&
-        combinedDur <= 4800 &&
-        (curr.durationMs < 1400 || next.durationMs < 1400)
+        gapMs <= 550 &&
+        combinedDur <= 5500 &&
+        (curr.durationMs < 1600 || next.durationMs < 1600)
       ) {
         curr.endMs = next.endMs;
         curr.durationMs = combinedDur;
@@ -605,6 +608,13 @@ class VocalFileAnalysisService {
         curr.pitchJumpSemitones = Math.max(curr.pitchJumpSemitones, next.pitchJumpSemitones);
         phrases.splice(i + 1, 1);
         i--;
+      }
+    }
+
+    // Eliminate any leftover transient micro-fragments under 400ms
+    for (let i = phrases.length - 1; i >= 0; i--) {
+      if (phrases[i].durationMs < 400) {
+        phrases.splice(i, 1);
       }
     }
 

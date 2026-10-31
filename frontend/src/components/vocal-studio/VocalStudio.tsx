@@ -103,6 +103,16 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
   const [currentCentsDiff, setCurrentCentsDiff] = useState<number>(0);
   const [isInTuneNow, setIsInTuneNow] = useState<boolean>(false);
   const [isLyricModalOpen, setIsLyricModalOpen] = useState<boolean>(false);
+  const [lyricModalInitialMode, setLyricModalInitialMode] = useState<
+    'phrase_list' | 'bulk_paste' | 'cloud_search'
+  >('phrase_list');
+
+  const handleOpenLyricModal = (
+    initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search'
+  ) => {
+    setLyricModalInitialMode(initialMode || 'phrase_list');
+    setIsLyricModalOpen(true);
+  };
 
   // Sync Hash & Back Button (Task 1.2)
   useEffect(() => {
@@ -818,7 +828,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onLoadDemoTrack={handleLoadDemoTrack}
             onNavigateToSingAlong={() => store.setActiveTab('sing_along')}
             onLoopPhrase={handleLoopPhrase}
-            onOpenLyricModal={() => setIsLyricModalOpen(true)}
+            onOpenLyricModal={handleOpenLyricModal}
           />
         )}
 
@@ -881,7 +891,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onToggleWindowLock={() => store.setIsWindowLocked(!store.isWindowLocked)}
             sessionStats={store.sessionStats}
             activePhrase={activePhrase}
-            onOpenLyricModal={() => setIsLyricModalOpen(true)}
+            onOpenLyricModal={handleOpenLyricModal}
             onUpdatePhraseLyric={handleUpdatePhraseLyric}
             onMergeNextPhrase={handleMergeNextPhrase}
             onSplitPhrase={handleSplitPhrase}
@@ -913,6 +923,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
         <LyricEditorModal
           isOpen={isLyricModalOpen}
           analysisResult={store.analysisResult}
+          initialMode={lyricModalInitialMode}
           onClose={() => setIsLyricModalOpen(false)}
           onApplyUpdatedResult={handleApplyUpdatedResult}
           onPreviewPhraseAudio={(startMs) => {

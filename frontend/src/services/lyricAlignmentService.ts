@@ -703,6 +703,51 @@ const BUILTIN_VERIFIED_SYNCED_LRC: Array<{
 [04:15.62]Bông hoa đã tàn không hương
 [04:17.19]Sao em không ôm lấy mình trong gương`,
   },
+  {
+    matchKeywords: ['can gi noi iu', 'can gi noi yeu'],
+    matchedTitle: 'CẦN GÌ NÓI IU – Wxrdie & 2pillz',
+    syncedLyrics: `[00:08.50]Đồ này khá trôi, em cũng khá say
+[00:11.20]Em đòi khóa môi, em cho tôi khóa tay
+[00:14.00]Em bảo muốn tôi, vì nhạc tôi quá hay
+[00:16.80]Còn bạn trai em thì sao, em bảo “thích em đá ngay”
+[00:20.50]Và vậy thì cần gì nói yêu
+[00:23.20]Bởi vì all I want for christmas is you
+[00:26.50]Chỉ muốn ngắm em, cắn em
+[00:29.80]Người khiến cho thằng em của anh quắn lên
+[00:32.90]Để anh ra ngoài quấn ben
+[00:34.50]Nay xác định trắng đêm
+[00:36.20]Bởi vì mút môi em còn ngọt hơn cả mật
+[00:39.80]Nên anh vẫn chưa thể nào tin đây là thật
+[00:43.00]Nhắm mắt lại để anh có thể cảm nhận
+[00:46.00]Anh biết em là một tác phẩm nghệ thuật
+[00:49.20]Tattoo trên người em đang lộ dần
+[00:52.40]Làm anh muốn hôn thật nhẹ lên từng bộ phận
+[00:55.60]Anh cảm thấy ta như được chữa lành bội phần
+[00:58.80]Anh cảm thấy ta như hiểu nhau hơn mọi lần
+[01:02.00]Cưỡi lên trên người anh như tuần lộc
+[01:05.10]Con quỷ dữ trong anh như được baby thuần phục
+[01:08.40]Lắng nghe từng nhịp yêu trong lồng ngực
+[01:11.50]Anh đang tới đây, baby girl không cần giục
+[01:14.80]Chỉ cần thế thôi cũng đủ khiến phải anh mê òi
+[01:17.90]Thế thôi cũng đủ khiến anh phải phê lòi
+[01:21.00]Thế thôi chẳng còn chi để mà chê nổi
+[01:24.20]Bạn bè vẫn khuyên nhưng mà anh không thèm nghe lời
+[01:27.50]Ghé tai nghe giọng em có vị đường mật
+[01:30.60]Giống y trong bài hát anh thường bật
+[01:33.80]Biết ơn vũ trụ cho anh được gặp
+[01:37.00]Chỉ muốn kế bên đến khi con tim ngừng đập
+[01:40.20]Mời em chốt đi, cho lệnh yêu này được ban hành
+[01:43.40]Chốt đi, khi mà anh vẫn còn đang rảnh
+[01:46.50]Chốt đi, khi mùa đông này còn đang lạnh
+[01:49.80]Chúc em một mùa Giáng Sinh thật an lành
+[01:53.00]Lượn khắp nơi để hôm nay mới nhận ra
+[01:56.20]Là mình đã lỡ yêu cô em ngay gần
+[01:59.50]Tính anh tuy vô tư nhưng thật thà
+[02:02.80]Trái tim anh trao em như phần quà
+[02:06.00]Số mấy đây? Số bốn
+[02:08.50]Thế số mấy đây? Số hai
+[02:11.20]Thế còn đây là số mấy?`,
+  },
 ];
 
 function findBuiltinVerifiedSyncedLrc(
@@ -3121,15 +3166,19 @@ export function buildSmartLyricQueries(fileName: string): string[] {
     }
   };
 
-  // 1. Primary part with featuring artist removed
-  const beforeFeat = primaryPart.split(/\b(?:ft\.?|feat\.?)\b/i)[0] || primaryPart;
+  // 1. Clean primary part: strip bracketed annotations [feat. X], (official mv), etc. cleanly first
+  const cleanPrimary = primaryPart
+    .replace(/\[.*?\]|\(.*?\)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const beforeFeat = (cleanPrimary || primaryPart).split(/\b(?:ft\.?|feat\.?)\b/i)[0] || cleanPrimary;
   addCandidateWithVariants(beforeFeat);
 
   // 2. Clean individual dash-separated segments (supports both "Title - Artist" and "Artist - Title - Part_1")
-  const dashParts = beforeFeat
+  const dashParts = (cleanPrimary || primaryPart)
     .split(/\s*-\s*/)
     .map((p) => stripNoise(p))
-    .filter((p) => p.length >= 3);
+    .filter((p) => p.length >= 2);
 
   if (dashParts.length >= 2) {
     // First segment (Song Title in "Title - Artist")

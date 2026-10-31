@@ -31,6 +31,7 @@ import { formatTimeMs } from '../utils/vocalHelpers';
 interface LyricEditorModalProps {
   isOpen: boolean;
   analysisResult: IVocalAnalysisResult;
+  initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search';
   onClose: () => void;
   onApplyUpdatedResult: (updated: IVocalAnalysisResult) => void;
   onPreviewPhraseAudio?: (startMs: number) => void;
@@ -39,11 +40,14 @@ interface LyricEditorModalProps {
 export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
   isOpen,
   analysisResult,
+  initialMode,
   onClose,
   onApplyUpdatedResult,
   onPreviewPhraseAudio,
 }) => {
-  const [mode, setMode] = useState<'phrase_list' | 'bulk_paste' | 'cloud_search'>('phrase_list');
+  const [mode, setMode] = useState<'phrase_list' | 'bulk_paste' | 'cloud_search'>(
+    initialMode || 'phrase_list'
+  );
   const [workingPhrases, setWorkingPhrases] = useState<IVocalPhrase[]>([]);
   const [workingBars, setWorkingBars] = useState<IVocalNoteBar[]>([]);
   const [phraseTexts, setPhraseTexts] = useState<Record<number, string>>({});
@@ -56,14 +60,27 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
 
   useEffect(() => {
     if (!isOpen || !analysisResult) return;
+    if (initialMode) {
+      setMode(initialMode);
+    }
     const initMap: Record<number, string> = {};
     const initFlags: Record<number, boolean> = {};
     const lines: string[] = [];
 
+    const isPureFallback = analysisResult.phrases.every(
+      (p) =>
+        !p.lyricText ||
+        p.lyricText.startsWith('Nguyên âm:') ||
+        p.lyricText.startsWith('🎵') ||
+        p.isInstrumentalOrVocalize
+    );
+
     analysisResult.phrases.forEach((p) => {
       initMap[p.phraseIndex] = p.lyricText || '';
       initFlags[p.phraseIndex] = Boolean(p.isInstrumentalOrVocalize);
-      lines.push(p.lyricText || '');
+      if (!isPureFallback) {
+        lines.push(p.lyricText || '');
+      }
     });
 
     setWorkingPhrases(analysisResult.phrases.map((p) => ({ ...p })));
@@ -76,7 +93,7 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
       analysisResult.fileName.replace(/\.[^/.]+$/, '').replace(/[._-]+/g, ' ');
     setCloudQuery(analysisResult.matchedTrackTitle || smartDefaultQuery);
     setCloudMessage(null);
-  }, [isOpen, analysisResult]);
+  }, [isOpen, analysisResult, initialMode]);
 
   if (!isOpen) return null;
 

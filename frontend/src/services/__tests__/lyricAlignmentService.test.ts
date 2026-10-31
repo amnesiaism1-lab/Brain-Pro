@@ -583,14 +583,21 @@ describe('lyricAlignmentService', () => {
     expect(queries[0]).toBe('anhs ems');
     expect(queries).toContain('anhs và ems');
 
-    // YouTube MV filenames with "(feat. X)" must not leave dangling "(" (LRCLIB 503 trigger)
-    const mvQueries = buildSmartLyricQueries('Wxrdie - CẦN GÌ NÓI IU (feat. 2pillz) - OFFICIAL MV.mp3');
+    // YouTube MV filenames with "[feat. X]" or "(feat. X)" must not leave dangling "[" or "(" (LRCLIB 503 trigger)
+    const mvQueries = buildSmartLyricQueries('Wxrdie - CẦN GÌ NÓI IU [feat. 2pillz] - OFFICIAL MV.mp3');
     expect(mvQueries[0]).toBe('Wxrdie CẦN GÌ NÓI IU');
-    expect(mvQueries.every((q) => !/[()]/.test(q))).toBe(true);
+    expect(mvQueries.every((q) => !/[()[\]]/.test(q))).toBe(true);
 
-    // 2. Deterministic synced LRC resolution for both tracks regardless of filename variation
+    // 2. Deterministic synced LRC resolution for all tracks regardless of filename variation
     const resAnhs = await fetchAutoLyricsFromLrclib('anhs và ems.mp3', 265000);
     expect(resAnhs?.syncedLyrics).toContain('[00:15.89]Anh là người đàn ông may mắn');
+
+    const resCanGiNoiIu = await fetchAutoLyricsFromLrclib(
+      'Wxrdie - CẦN GÌ NÓI IU [feat. 2pillz] - OFFICIAL MV.mp3',
+      160000
+    );
+    expect(resCanGiNoiIu?.syncedLyrics).toContain('[00:08.50]Đồ này khá trôi, em cũng khá say');
+    expect(resCanGiNoiIu?.syncedLyrics).toContain('Bởi vì all I want for christmas is you');
 
     const resConMua = await fetchAutoLyricsFromLrclib(
       'Hà Anh Tuấn x Phương Linh - Cơn Mưa Tình Yêu (Full Beat).mp3',

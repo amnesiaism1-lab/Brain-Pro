@@ -24,7 +24,7 @@ interface KaraokeLyricHudProps {
   isLoopingActive: boolean;
   onSeek: (timeMs: number) => void;
   onLoopPhrase: (phrase: IVocalPhrase) => void;
-  onOpenLyricModal: () => void;
+  onOpenLyricModal: (initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search') => void;
   onQuickUpdatePhraseLyric?: (phraseIndex: number, newText: string) => void;
 }
 
@@ -264,9 +264,21 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
             <span className="hidden sm:inline">Lặp câu</span>
           </button>
 
+          {lyricSource === 'acoustic_relative' && (
+            <button
+              type="button"
+              onClick={() => onOpenLyricModal('bulk_paste')}
+              className="px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-bold flex items-center gap-1 shadow-sm transition"
+              title="Dán nhanh lời bài hát để AI căng đều theo nốt nhạc"
+            >
+              <Sparkles className="w-3 h-3 text-slate-950" />
+              <span>Dán Lời</span>
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={onOpenLyricModal}
+            onClick={() => onOpenLyricModal('phrase_list')}
             className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-300 text-[11px] font-bold flex items-center gap-1 transition"
             title="Nhập / Đồng bộ lời bài hát hoặc tra cứu .LRC"
           >

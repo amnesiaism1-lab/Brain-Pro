@@ -38,7 +38,7 @@ interface PhraseNavigatorDeckProps {
   onLoopPhrase: (phrase: IVocalPhrase) => void;
   onSeekToPhrase: (timeMs: number) => void;
   onClearLoop: () => void;
-  onOpenLyricModal?: () => void;
+  onOpenLyricModal?: (initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search') => void;
   onUpdatePhraseLyric?: (phraseIndex: number, newText: string) => void;
   onMergeNextPhrase?: (phraseIndex: number) => void;
   onSplitPhrase?: (phraseIndex: number, splitTimeMs?: number) => void;
@@ -83,6 +83,17 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
   const [inspectedPhraseIdx, setInspectedPhraseIdx] = useState<number | null>(null);
   const [editingPhraseIdx, setEditingPhraseIdx] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState('');
+
+  const isFallbackAcoustic = useMemo(() => {
+    if (phrases.length === 0) return false;
+    return phrases.every(
+      (p) =>
+        !p.lyricText ||
+        p.lyricText.startsWith('Nguyên âm:') ||
+        p.lyricText.startsWith('🎵') ||
+        p.isInstrumentalOrVocalize
+    );
+  }, [phrases]);
 
   const hasDuetVoices = useMemo(
     () =>
@@ -228,7 +239,7 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
           {onOpenLyricModal && (
             <button
               type="button"
-              onClick={onOpenLyricModal}
+              onClick={() => onOpenLyricModal('phrase_list')}
               className="px-3 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 font-bold text-xs flex items-center gap-1.5 transition"
             >
               <FileText className="w-3.5 h-3.5" />
@@ -282,6 +293,47 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Smart Fallback / Quick Paste Banner when lyrics are purely acoustic formants */}
+      {isFallbackAcoustic && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-slate-900 border border-amber-500/30 text-amber-200 shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-amber-200">
+                Chưa có lời chữ tự động (Máy chủ lyric trực tuyến bận hoặc tên file chưa chuẩn hóa)
+              </p>
+              <p className="text-[11px] text-amber-300/80">
+                Đang hiển thị khẩu hình nguyên âm âm học. Bạn có thể dán nhanh lời bài hát để AI tự động căng đều theo {phrases.length} câu hát!
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+            {onOpenLyricModal && (
+              <button
+                type="button"
+                onClick={() => onOpenLyricModal('bulk_paste')}
+                className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition cursor-pointer active:scale-95"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>📋 Dán lời bài hát ngay</span>
+              </button>
+            )}
+            {onOpenLyricModal && (
+              <button
+                type="button"
+                onClick={() => onOpenLyricModal('cloud_search')}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span>🔍 Tìm lại lời</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 2. Search & Trace Bar + Quick Filters */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">

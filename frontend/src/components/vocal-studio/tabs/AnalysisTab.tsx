@@ -28,7 +28,7 @@ interface AnalysisTabProps {
   onLoadDemoTrack: (preset: 'scale' | 'ballad' | 'pentatonic') => void;
   onNavigateToSingAlong: () => void;
   onLoopPhrase: (phrase: IVocalPhrase) => void;
-  onOpenLyricModal?: () => void;
+  onOpenLyricModal?: (initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search') => void;
 }
 
 export const AnalysisTab: React.FC<AnalysisTabProps> = ({
@@ -211,7 +211,7 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
               {onOpenLyricModal && (
                 <button
                   type="button"
-                  onClick={onOpenLyricModal}
+                  onClick={() => onOpenLyricModal('phrase_list')}
                   className="px-4 py-2.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-sky-500/40 text-sky-300 font-bold text-xs flex items-center gap-1.5 transition"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
@@ -320,14 +320,26 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
               </div>
 
               {onOpenLyricModal && (
-                <button
-                  type="button"
-                  onClick={onOpenLyricModal}
-                  className="px-3.5 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 text-xs font-bold flex items-center gap-1.5 transition"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Nhập file .LRC / Sửa lời bài hát</span>
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {analysisResult.lyricSource === 'acoustic_relative' && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenLyricModal('bulk_paste')}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>📋 Dán Nhanh Lời</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onOpenLyricModal('phrase_list')}
+                    className="px-3.5 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Nhập file .LRC / Sửa lời bài hát</span>
+                  </button>
+                </div>
               )}
             </div>
 
