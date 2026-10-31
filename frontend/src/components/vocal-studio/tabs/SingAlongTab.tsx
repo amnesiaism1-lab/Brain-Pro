@@ -86,6 +86,9 @@ interface SingAlongTabProps {
   onUpdatePhraseLyric?: (phraseIndex: number, newText: string) => void;
   onMergeNextPhrase?: (phraseIndex: number) => void;
   onSplitPhrase?: (phraseIndex: number, splitTimeMs?: number) => void;
+  onAdjustBarBoundary?: (leftBarId: string, rightBarId: string, newBoundaryMs: number) => void;
+  onSplitBarAtMs?: (barId: string, splitTimeMs: number) => void;
+  onMergeAdjacentBars?: (leftBarId: string, rightBarId: string) => void;
 }
 
 export const SingAlongTab: React.FC<SingAlongTabProps> = ({
@@ -144,6 +147,9 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   onUpdatePhraseLyric,
   onMergeNextPhrase,
   onSplitPhrase,
+  onAdjustBarBoundary,
+  onSplitBarAtMs,
+  onMergeAdjacentBars,
 }) => {
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
   const micStatus = useVocalStudioStore(s => s.micStatus);
@@ -194,7 +200,13 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         />
 
         <div className="relative w-full">
-          <PitchRunwayCanvas renderStateRef={renderStateRef} onSeek={onSeek} />
+          <PitchRunwayCanvas
+            renderStateRef={renderStateRef}
+            onSeek={onSeek}
+            onAdjustBarBoundary={onAdjustBarBoundary}
+            onSplitBarAtMs={onSplitBarAtMs}
+            onMergeAdjacentBars={onMergeAdjacentBars}
+          />
 
         {/* Missing Mic or Singing Guidance Banner */}
         {isPlaying && !userReading?.isSinging && (

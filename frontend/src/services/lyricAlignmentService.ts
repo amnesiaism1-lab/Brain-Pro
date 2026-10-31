@@ -66,6 +66,25 @@ export type VowelPitchTrajectory =
 
 export type CoreVowelFamily = 'A' | 'E' | 'I' | 'Ơ' | 'Ô' | 'U';
 
+export type DuetSingerId = 'voice_a' | 'voice_b' | 'both' | 'solo';
+
+export type VietnamesePhoneticState =
+  | 'SIL'
+  | 'STOP_FRIC'
+  | 'NASAL_LIQUID'
+  | 'V_A'
+  | 'V_E'
+  | 'V_I'
+  | 'V_O_UNROUND'
+  | 'V_O_ROUND'
+  | 'V_U';
+
+export interface IVietnameseWordPhoneticDecomposition {
+  onsetState: 'NONE' | 'STOP_FRIC' | 'NASAL_LIQUID';
+  nucleusState: 'V_A' | 'V_E' | 'V_I' | 'V_O_UNROUND' | 'V_O_ROUND' | 'V_U';
+  codaState: 'NONE' | 'STOP_FRIC' | 'NASAL_LIQUID';
+}
+
 export interface IVocalLyricWord {
   wordIndex: number;
   text: string;
@@ -411,6 +430,55 @@ export function computeWordIntrinsicDurationWeight(
     weight *= 1.45;
   }
   return Math.round(weight * 100) / 100;
+}
+
+/**
+ * Decompose a Vietnamese word into its 3 sub-syllable acoustic-phonetic HMM/CTC states:
+ * `[onsetState, nucleusState, codaState]` for Forced Alignment boundary scoring.
+ */
+export function decomposeVietnameseWordPhoneticStates(
+  rawWord: string
+): IVietnameseWordPhoneticDecomposition {
+  const clean = (rawWord || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300\u0301\u0303\u0309\u0323]/g, '')
+    .normalize('NFC')
+    .replace(/[^a-zà-ỹăâđêôơư]/gi, '');
+
+  let onsetState: IVietnameseWordPhoneticDecomposition['onsetState'] = 'NONE';
+  if (/^(?:ngh|ng|nh|m|n|l|r|v|d|gi|y)/i.test(clean)) {
+    onsetState = 'NASAL_LIQUID';
+  } else if (/^(?:ch|gh|kh|ph|qu|th|tr|b|c|đ|g|h|k|p|s|t|x)/i.test(clean)) {
+    onsetState = 'STOP_FRIC';
+  }
+
+  let codaState: IVietnameseWordPhoneticDecomposition['codaState'] = 'NONE';
+  if (/(?:ch|p|t|c)$/i.test(clean)) {
+    codaState = 'STOP_FRIC';
+  } else if (/(?:ng|nh|m|n)$/i.test(clean)) {
+    codaState = 'NASAL_LIQUID';
+  }
+
+  const vowelInfo = extractVietnameseWordVowel(rawWord);
+  const family = vowelInfo?.vowelFamily || 'A';
+  const nucleusMap: Record<
+    CoreVowelFamily,
+    IVietnameseWordPhoneticDecomposition['nucleusState']
+  > = {
+    A: 'V_A',
+    E: 'V_E',
+    I: 'V_I',
+    Ơ: 'V_O_UNROUND',
+    Ô: 'V_O_ROUND',
+    U: 'V_U',
+  };
+
+  return {
+    onsetState,
+    nucleusState: nucleusMap[family] || 'V_A',
+    codaState,
+  };
 }
 
 /**
@@ -1054,18 +1122,63 @@ function buildSectionFocusTip(phrase: IVocalPhrase, sectionType: VocalSectionTyp
 }
 
 /**
+ * Measure the Sub-Band Oral-to-Nasal Energy Ratio (in dB) at `timeMs`:
+ * $$R_{\text{oral/nasal}}(t) = 10 \log_{10} \left( \frac{E_{600\text{–}2400\text{Hz}}(t)}{E_{200\text{–}360\text{Hz}}(t)} \right)$$
+ * During voiced nasal/liquid consonants (`m, n, ng, nh, l` as in "đi mùa", "anh em"),
+ * $f_0$ remains continuous ($>0.85$ clarity) while oral formant energy ($600\text{–}2400\text{Hz}$)
+ * drops sharply relative to the low-frequency nasal murmur band ($200\text{–}360\text{Hz}$).
+ */
+export function computeOralToNasalRatioDbAtMs(
+  rawMonoPcm: Float32Array | null | undefined,
+  sampleRate: number,
+  timeMs: number
+): number {
+  if (!rawMonoPcm || rawMonoPcm.length < 256 || sampleRate <= 0) return 0;
+  const centerSample = Math.round((timeMs / 1000) * sampleRate);
+  const winLen = Math.min(768, Math.max(256, Math.round(sampleRate * 0.018)));
+  const startSample = Math.max(
+    0,
+    Math.min(rawMonoPcm.length - winLen, centerSample - Math.floor(winLen / 2))
+  );
+  if (startSample + winLen > rawMonoPcm.length) return 0;
+
+  const nasalFreqs = [225, 285, 345];
+  const oralFreqs = [720, 1120, 1600, 2100];
+
+  let nasalEnergy = 0;
+  for (const f of nasalFreqs) {
+    nasalEnergy += goertzelBandEnergy(rawMonoPcm, startSample, winLen, sampleRate, f);
+  }
+  nasalEnergy /= nasalFreqs.length;
+
+  let oralEnergy = 0;
+  for (const f of oralFreqs) {
+    oralEnergy += goertzelBandEnergy(rawMonoPcm, startSample, winLen, sampleRate, f);
+  }
+  oralEnergy /= oralFreqs.length;
+
+  const eps = 1e-12;
+  return 10 * Math.log10((oralEnergy + eps) / (nasalEnergy + eps));
+}
+
+/**
  * Analyze a single NoteBar's internal acoustic contour to detect whether it contains:
  * 1. A genuine syllable re-articulation (consonant dip / bridged gap between two vowel peaks)
- * 2. A merged 1-semitone stepwise pitch inflection (`isPitchStepInflection`, e.g. 63.15 D#4 -> 63.85 E4)
+ * 2. A Sub-Band Nasal Murmur consonant boundary (`m, n, ng, nh, l` where $E_{600-2400}/E_{200-360}$ drops $\ge 3.5\text{dB}$)
+ * 3. A merged 1-semitone stepwise pitch inflection (`isPitchStepInflection`, e.g. 63.15 D#4 -> 63.85 E4)
  * vs. a single smooth sustained hold (`nốt ngân lâu hơn`).
  */
 function findInternalSyllableDip(
   targetBar: IVocalNoteBar,
-  pitchTrack: IReferencePitchPoint[]
+  pitchTrack: IReferencePitchPoint[],
+  rawMonoPcm?: Float32Array | null,
+  sampleRate = 44100
 ): {
   splitMs: number;
   prominenceDb: number;
   isBridgedConsonant: boolean;
+  isNasalConsonantDip: boolean;
+  nasalDipDb: number;
   isPitchStepInflection: boolean;
   isSteadyVibrato: boolean;
   dipScore: number;
@@ -1084,11 +1197,18 @@ function findInternalSyllableDip(
       splitMs: fallbackMidMs,
       prominenceDb: 0,
       isBridgedConsonant: false,
+      isNasalConsonantDip: false,
+      nasalDipDb: 0,
       isPitchStepInflection: false,
       isSteadyVibrato: false,
       dipScore: 0,
     };
   }
+
+  const hasPcm = Boolean(rawMonoPcm && rawMonoPcm.length >= 256);
+  const oralNasalProfile = hasPcm
+    ? barPts.map((pt) => computeOralToNasalRatioDbAtMs(rawMonoPcm, sampleRate, pt.timeMs))
+    : [];
 
   // Count vibrato oscillations across the bar to avoid chopping a single held vibrato note
   let vibratoOscillations = 0;
@@ -1109,6 +1229,8 @@ function findInternalSyllableDip(
   let bestDipScore = -Infinity;
   let bestProminenceDb = 0;
   let bestBridged = false;
+  let bestNasalDip = false;
+  let bestNasalDipDb = 0;
   let bestPitchStep = false;
 
   for (let k = minK; k <= maxK; k++) {
@@ -1120,10 +1242,14 @@ function findInternalSyllableDip(
     let leftPeakDb = -100;
     let leftPeakClarity = 0;
     let leftMidiSum = 0;
+    let leftPeakOralNasal = -100;
     for (let l = 0; l <= k; l++) {
       if (l < k) {
         if (barPts[l].volumeDb > leftPeakDb) leftPeakDb = barPts[l].volumeDb;
         if (barPts[l].clarity > leftPeakClarity) leftPeakClarity = barPts[l].clarity;
+        if (hasPcm && oralNasalProfile[l] > leftPeakOralNasal) {
+          leftPeakOralNasal = oralNasalProfile[l];
+        }
       }
       leftMidiSum += barPts[l].midi;
     }
@@ -1131,9 +1257,13 @@ function findInternalSyllableDip(
     let rightPeakDb = -100;
     let rightPeakClarity = 0;
     let rightMidiSum = 0;
+    let rightPeakOralNasal = -100;
     for (let r = k + 1; r < barPts.length; r++) {
       if (barPts[r].volumeDb > rightPeakDb) rightPeakDb = barPts[r].volumeDb;
       if (barPts[r].clarity > rightPeakClarity) rightPeakClarity = barPts[r].clarity;
+      if (hasPcm && oralNasalProfile[r] > rightPeakOralNasal) {
+        rightPeakOralNasal = oralNasalProfile[r];
+      }
       rightMidiSum += barPts[r].midi;
     }
 
@@ -1158,18 +1288,28 @@ function findInternalSyllableDip(
     const isBridgedConsonant =
       valleyClarity <= 0.66 && leftPeakClarity >= 0.76 && rightPeakClarity >= 0.76;
 
+    const nasalDipDb =
+      hasPcm && leftPeakOralNasal > -99 && rightPeakOralNasal > -99
+        ? Math.max(0, Math.min(leftPeakOralNasal, rightPeakOralNasal) - oralNasalProfile[k])
+        : 0;
+    const isNasalConsonantDip =
+      nasalDipDb >= 3.5 && leftPeakClarity >= 0.72 && rightPeakClarity >= 0.72;
+
     const score =
       prominenceDb * 2.4 +
       (isBridgedConsonant ? 14.0 : 0) +
+      (isNasalConsonantDip ? 10.5 + nasalDipDb * 1.4 : 0) +
       (isPitchStepInflection ? pitchStepDiff * 8.5 + localPitchSlope * 6.0 : 0) +
       Math.max(0, 0.85 - valleyClarity) * 10 -
-      (isSteadyVibrato && !isBridgedConsonant ? 8.0 : 0);
+      (isSteadyVibrato && !isBridgedConsonant && !isNasalConsonantDip ? 8.0 : 0);
 
     if (score > bestDipScore) {
       bestDipScore = score;
       bestK = k;
       bestProminenceDb = prominenceDb;
       bestBridged = isBridgedConsonant;
+      bestNasalDip = isNasalConsonantDip;
+      bestNasalDipDb = nasalDipDb;
       bestPitchStep = isPitchStepInflection;
     }
   }
@@ -1181,6 +1321,8 @@ function findInternalSyllableDip(
     splitMs,
     prominenceDb: bestProminenceDb,
     isBridgedConsonant: bestBridged,
+    isNasalConsonantDip: bestNasalDip,
+    nasalDipDb: bestNasalDipDb,
     isPitchStepInflection: bestPitchStep,
     isSteadyVibrato,
     dipScore: Math.max(0, bestDipScore),
@@ -1327,7 +1469,9 @@ function subdivideSustainedBarsForWords(
   phraseBars: IVocalNoteBar[],
   allNoteBars: IVocalNoteBar[],
   targetWordCount: number,
-  pitchTrack: IReferencePitchPoint[]
+  pitchTrack: IReferencePitchPoint[],
+  rawMonoPcm?: Float32Array | null,
+  sampleRate = 44100
 ): IVocalNoteBar[] {
   const workingBars = fuseMicroScoopAndTailBars(phraseBars, allNoteBars, targetWordCount);
   if (workingBars.length === 0 || targetWordCount <= 1) return workingBars;
@@ -1350,9 +1494,12 @@ function subdivideSustainedBarsForWords(
 
     for (let i = 0; i < workingBars.length; i++) {
       if (workingBars[i].durationMs < 320) continue;
-      const dip = findInternalSyllableDip(workingBars[i], pitchTrack);
+      const dip = findInternalSyllableDip(workingBars[i], pitchTrack, rawMonoPcm, sampleRate);
       if (
-        (dip.isBridgedConsonant || dip.prominenceDb >= 4.5 || dip.isPitchStepInflection) &&
+        (dip.isBridgedConsonant ||
+          dip.isNasalConsonantDip ||
+          dip.prominenceDb >= 4.5 ||
+          dip.isPitchStepInflection) &&
         (!bestDip || dip.dipScore > bestDip.dipScore)
       ) {
         bestDip = dip;
@@ -1374,7 +1521,7 @@ function subdivideSustainedBarsForWords(
     for (let i = 0; i < workingBars.length; i++) {
       const bar = workingBars[i];
       if (bar.durationMs < 180) continue;
-      const dip = findInternalSyllableDip(bar, pitchTrack);
+      const dip = findInternalSyllableDip(bar, pitchTrack, rawMonoPcm, sampleRate);
       // Combine acoustic syllable valley score with duration weight
       const durationFactor = Math.min(9.0, bar.durationMs / 160);
       const compositeScore = dip.dipScore * 1.8 + durationFactor;
@@ -1410,7 +1557,9 @@ function partitionBarsToWordsDP(
   }>,
   rawTokens: string[],
   pitchTrack: IReferencePitchPoint[] = [],
-  wordTimestamps?: Array<{ timeMs: number; text: string }>
+  wordTimestamps?: Array<{ timeMs: number; text: string }>,
+  rawMonoPcm?: Float32Array | null,
+  sampleRate = 44100
 ): Array<{ startBarIdx: number; endBarIdx: number }> {
   const W = rawTokens.length;
   const B = phraseBars.length;
@@ -1424,6 +1573,7 @@ function partitionBarsToWordsDP(
   }
 
   const wordPhonology = rawTokens.map((tk) => extractVietnameseWordVowel(tk));
+  const wordPhoneticStates = rawTokens.map((tk) => decomposeVietnameseWordPhoneticStates(tk));
   const wordTones = rawTokens.map((tk) => extractVietnameseToneContour(tk));
   const wordIntrinsicWeights = rawTokens.map((tk, idx) =>
     computeWordIntrinsicDurationWeight(tk, idx === W - 1)
@@ -1434,6 +1584,7 @@ function partitionBarsToWordsDP(
   // Compute median bar duration in this phrase to identify long sustained notes (`nốt ngân lâu hơn`)
   const sortedDurs = phraseBars.map((b) => b.durationMs).sort((a, b) => a - b);
   const medianBarDur = sortedDurs[Math.floor(sortedDurs.length / 2)] || 300;
+  const hasPcm = Boolean(rawMonoPcm && rawMonoPcm.length >= 256);
 
   // Precompute acoustic boundary transitions between adjacent bars (j -> j + 1)
   const transitions = phraseBars.slice(0, B - 1).map((barJ, j) => {
@@ -1455,9 +1606,23 @@ function partitionBarsToWordsDP(
       }
     }
 
+    let hasNasalTransition = false;
+    if (hasPcm && gapMs <= 45) {
+      const junctionMs = Math.round((barJ.endTimeMs + barNext.startTimeMs) / 2);
+      const leftMidMs = Math.round((barJ.startTimeMs + barJ.endTimeMs) / 2);
+      const rightMidMs = Math.round((barNext.startTimeMs + barNext.endTimeMs) / 2);
+      const jRatio = computeOralToNasalRatioDbAtMs(rawMonoPcm, sampleRate, junctionMs);
+      const lRatio = computeOralToNasalRatioDbAtMs(rawMonoPcm, sampleRate, leftMidMs);
+      const rRatio = computeOralToNasalRatioDbAtMs(rawMonoPcm, sampleRate, rightMidMs);
+      if (Math.min(lRatio, rRatio) - jRatio >= 2.8) {
+        hasNasalTransition = true;
+      }
+    }
+
     const isLegatoSlur =
       gapMs <= 25 &&
       !hasConsonantBoundary &&
+      !hasNasalTransition &&
       !samePitch &&
       Math.abs(pitchStep) >= 1 &&
       Math.abs(pitchStep) <= 8;
@@ -1468,6 +1633,7 @@ function partitionBarsToWordsDP(
       samePitch,
       sameVowelFamily,
       hasConsonantBoundary,
+      hasNasalTransition,
       isLegatoSlur,
     };
   });
@@ -1479,11 +1645,12 @@ function partitionBarsToWordsDP(
   const spanCost = (wIdx: number, startBar: number, endBar: number): number => {
     const span = endBar - startBar + 1;
     const phon = wordPhonology[wIdx];
+    const pState = wordPhoneticStates[wIdx];
     const tone = wordTones[wIdx];
     const ac = barAnalysisList[startBar];
     let cost = 0;
 
-    // 1. Inter-word onset alignment (between startBar - 1 and startBar)
+    // 1. Inter-word onset & coda phonetic state alignment (between startBar - 1 and startBar)
     if (startBar > 0) {
       const prevTr = transitions[startBar - 1];
       if (prevTr.gapMs >= 22 || prevTr.hasConsonantBoundary) {
@@ -1491,6 +1658,21 @@ function partitionBarsToWordsDP(
       } else if (prevTr.isLegatoSlur && prevTr.sameVowelFamily) {
         // Breaking a continuous same-vowel legato slur across two different words has a mild penalty
         cost += 3.2;
+      }
+
+      if (pState.onsetState === 'STOP_FRIC' && (prevTr.gapMs >= 18 || prevTr.hasConsonantBoundary)) {
+        cost -= 2.2;
+      } else if (pState.onsetState === 'NASAL_LIQUID' && (prevTr.hasNasalTransition || prevTr.gapMs <= 30)) {
+        cost -= prevTr.hasNasalTransition ? 2.6 : 1.0;
+      }
+    }
+
+    if (endBar < B - 1) {
+      const nextTr = transitions[endBar];
+      if (pState.codaState === 'STOP_FRIC' && (nextTr.gapMs >= 18 || nextTr.hasConsonantBoundary)) {
+        cost -= 2.0;
+      } else if (pState.codaState === 'NASAL_LIQUID' && nextTr.hasNasalTransition) {
+        cost -= 2.0;
       }
     }
 
@@ -1639,7 +1821,8 @@ export function alignWordsToPhraseNoteBars(
   rawMonoPcm?: Float32Array | null,
   sampleRate = 44100,
   pitchTrack: IReferencePitchPoint[] = [],
-  wordTimestamps?: Array<{ timeMs: number; text: string }>
+  wordTimestamps?: Array<{ timeMs: number; text: string }>,
+  preserveCanvasBars = false
 ): void {
   const cleanCustomText =
     lyricText && !lyricText.startsWith('Nguyên âm:') ? lyricText.trim() : '';
@@ -1650,12 +1833,15 @@ export function alignWordsToPhraseNoteBars(
   let phraseBars = getPhraseNoteBarsStrict(phrase, allNoteBars);
 
   // Run intelligent syllable-dip subdivision & micro-scoop fusion whenever we have multi-word lyrics
-  if (customTokens.length > 1 && phraseBars.length > 0) {
+  // (skipped when preserveCanvasBars === true so manual Canvas split/merge/drag is respected)
+  if (!preserveCanvasBars && customTokens.length > 1 && phraseBars.length > 0) {
     phraseBars = subdivideSustainedBarsForWords(
       phraseBars,
       allNoteBars,
       customTokens.length,
-      pitchTrack
+      pitchTrack,
+      rawMonoPcm,
+      sampleRate
     );
   }
 
@@ -1758,7 +1944,9 @@ export function alignWordsToPhraseNoteBars(
       barAnalysisList,
       rawTokens,
       pitchTrack,
-      wordTimestamps
+      wordTimestamps,
+      rawMonoPcm,
+      sampleRate
     );
 
     rawTokens.forEach((tk, i) => {
@@ -1881,60 +2069,107 @@ export function alignWordsToPhraseNoteBars(
       });
     });
   } else {
-    // Fallback if a bar was shorter than 180ms and could not be subdivided further
-    rawTokens.forEach((tk, i) => {
+    // Sub-bar Frame-Level Phonetic-Duration & Energy-Valley Viterbi Alignment
+    // when multiple rapid words share a NoteBar ($W > B$)
+    const barWordGroups: number[][] = Array.from({ length: phraseBars.length }, () => []);
+    rawTokens.forEach((_, i) => {
       const mappedBarIdx = Math.min(
         phraseBars.length - 1,
         Math.floor((i / rawTokens.length) * phraseBars.length)
       );
+      barWordGroups[mappedBarIdx].push(i);
+    });
+
+    barWordGroups.forEach((tokenIndices, mappedBarIdx) => {
+      if (tokenIndices.length === 0) return;
       const bar = phraseBars[mappedBarIdx];
       const ac = barAnalysisList[mappedBarIdx];
-      const ortho = customTokens.length > 0 ? extractVietnameseWordVowel(tk) : null;
-
-      const resolvedVowel = ortho ? ortho.vowelPhoneme : ac.vowelPhoneme;
-      const resolvedHint = ortho ? ortho.vowelHint : ac.vowelHint;
-
-      const firstTokenForBar = Math.floor((mappedBarIdx / phraseBars.length) * rawTokens.length);
-      const lastTokenForBar = Math.max(
-        firstTokenForBar,
-        Math.ceil(((mappedBarIdx + 1) / phraseBars.length) * rawTokens.length) - 1
+      const weights = tokenIndices.map((tIdx) =>
+        computeWordIntrinsicDurationWeight(rawTokens[tIdx], tIdx === rawTokens.length - 1)
       );
-      const countInBar = Math.max(1, lastTokenForBar - firstTokenForBar + 1);
-      const subIndex = Math.max(0, i - firstTokenForBar);
-      const subDur = bar.durationMs / countInBar;
+      const totalWeight = weights.reduce((s, w) => s + w, 0) || 1;
+      const barPts = pitchTrack.filter(
+        (pt) => pt.timeMs >= bar.startTimeMs && pt.timeMs <= bar.endTimeMs
+      );
 
-      if (subIndex === 0) {
-        bar.lyricSyllable = `${tk}${ac.trajectorySymbol}`;
-        bar.vowelHint = resolvedHint;
-      } else if (bar.lyricSyllable && !bar.lyricSyllable.includes(' ')) {
-        bar.lyricSyllable = `${bar.lyricSyllable} ${tk}`;
+      // Compute optimal internal boundaries [bar.startTimeMs, b_1, ..., b_{k-1}, bar.endTimeMs]
+      const boundaries: number[] = [bar.startTimeMs];
+      let accumWeight = 0;
+      for (let subIdx = 0; subIdx < tokenIndices.length - 1; subIdx++) {
+        accumWeight += weights[subIdx];
+        const expectedBoundaryMs =
+          bar.startTimeMs + (accumWeight / totalWeight) * bar.durationMs;
+        const prevBound = boundaries[boundaries.length - 1];
+        const minAllowMs = prevBound + 35;
+        const maxAllowMs =
+          bar.endTimeMs - (tokenIndices.length - 1 - subIdx) * 35;
+
+        let snappedMs = Math.round(
+          Math.max(minAllowMs, Math.min(maxAllowMs, expectedBoundaryMs))
+        );
+        const searchWindowMs = Math.max(25, (bar.durationMs / tokenIndices.length) * 0.35);
+
+        if (barPts.length >= 3) {
+          let bestValleyScore = -Infinity;
+          for (const pt of barPts) {
+            if (
+              pt.timeMs < Math.max(minAllowMs, expectedBoundaryMs - searchWindowMs) ||
+              pt.timeMs > Math.min(maxAllowMs, expectedBoundaryMs + searchWindowMs)
+            ) {
+              continue;
+            }
+            const distPenalty = Math.abs(pt.timeMs - expectedBoundaryMs) * 0.04;
+            const valleyScore =
+              -pt.volumeDb * 0.8 + (1 - pt.clarity) * 12 - distPenalty;
+            if (valleyScore > bestValleyScore) {
+              bestValleyScore = valleyScore;
+              snappedMs = Math.round(pt.timeMs);
+            }
+          }
+        }
+        boundaries.push(snappedMs);
       }
+      boundaries.push(bar.endTimeMs);
 
-      const wStart = Math.round(bar.startTimeMs + subIndex * subDur);
-      const wEnd = Math.round(bar.startTimeMs + (subIndex + 1) * subDur);
+      tokenIndices.forEach((i, subIndex) => {
+        const tk = rawTokens[i];
+        const ortho = customTokens.length > 0 ? extractVietnameseWordVowel(tk) : null;
+        const resolvedVowel = ortho ? ortho.vowelPhoneme : ac.vowelPhoneme;
+        const resolvedHint = ortho ? ortho.vowelHint : ac.vowelHint;
 
-      words.push({
-        wordIndex: i,
-        text: tk,
-        solfege: ac.solfege,
-        noteName: ac.noteName,
-        midi: bar.midi,
-        startMs: wStart,
-        endMs: wEnd,
-        durationMs: Math.max(50, wEnd - wStart),
-        noteSequence: [ac.noteName],
-        solfegeSequence: [ac.solfege],
-        melismaNotesCount: 1,
-        glideSemitones: 0,
-        vowelPhoneme: resolvedVowel,
-        vowelHint: resolvedHint,
-        formantsHz: ac.formantsHz,
-        pitchTrajectory: ac.pitchTrajectory,
-        trajectorySymbol: ac.trajectorySymbol,
-        trajectoryLabel: ac.trajectoryLabel,
-        stepSemitones: subIndex === 0 ? ac.stepSemitones : 0,
-        intraBendCents: ac.intraBendCents,
-        pitchCurveCents: ac.pitchCurveCents,
+        if (subIndex === 0) {
+          bar.lyricSyllable = `${tk}${ac.trajectorySymbol}`;
+          bar.vowelHint = resolvedHint;
+        } else if (bar.lyricSyllable && !bar.lyricSyllable.includes(` ${tk}`)) {
+          bar.lyricSyllable = `${bar.lyricSyllable} ${tk}`;
+        }
+
+        const wStart = boundaries[subIndex];
+        const wEnd = Math.max(wStart + 30, boundaries[subIndex + 1]);
+
+        words.push({
+          wordIndex: i,
+          text: tk,
+          solfege: ac.solfege,
+          noteName: ac.noteName,
+          midi: bar.midi,
+          startMs: wStart,
+          endMs: wEnd,
+          durationMs: Math.max(40, wEnd - wStart),
+          noteSequence: [ac.noteName],
+          solfegeSequence: [ac.solfege],
+          melismaNotesCount: 1,
+          glideSemitones: 0,
+          vowelPhoneme: resolvedVowel,
+          vowelHint: resolvedHint,
+          formantsHz: ac.formantsHz,
+          pitchTrajectory: ac.pitchTrajectory,
+          trajectorySymbol: ac.trajectorySymbol,
+          trajectoryLabel: ac.trajectoryLabel,
+          stepSemitones: subIndex === 0 ? ac.stepSemitones : 0,
+          intraBendCents: ac.intraBendCents,
+          pitchCurveCents: ac.pitchCurveCents,
+        });
       });
     });
   }
@@ -2736,6 +2971,182 @@ export async function fetchAutoLyricsFromLrclib(
 }
 
 /**
+ * Duet Singer Diarization (`classifyDuetSingerVoices`):
+ * Clusters phrase feature vectors `[avgMidi, meanF1Hz, meanF2Hz, pitchSpread]` using 2-Means (K=2)
+ * into `voice_a` (Giọng A - Nam/Trầm ấm), `voice_b` (Giọng B - Nữ/Cao sáng), `both` (Song ca / Hòa giọng),
+ * or `solo` (Đơn ca).
+ */
+export function classifyDuetSingerVoices(
+  phrases: IVocalPhrase[],
+  noteBars: IVocalNoteBar[],
+  _pitchTrack: IReferencePitchPoint[] = [],
+  fileName = ''
+): void {
+  if (phrases.length === 0) return;
+
+  const vocalPhrases = phrases.filter((p) => !p.isInstrumentalOrVocalize);
+  if (vocalPhrases.length < 2) {
+    phrases.forEach((p) => {
+      p.singerId = 'solo';
+      p.singerLabel = 'Đơn ca';
+    });
+    return;
+  }
+
+  // Extract acoustic-formant feature vector per phrase
+  const features = vocalPhrases.map((p) => {
+    const pBars = noteBars.filter((b) => {
+      const mid = (b.startTimeMs + b.endTimeMs) / 2;
+      return mid >= p.startMs - 60 && mid <= p.endMs + 60;
+    });
+    const minMidi = pBars.length > 0 ? Math.min(...pBars.map((b) => b.midi)) : p.avgMidi;
+    const maxMidi = pBars.length > 0 ? Math.max(...pBars.map((b) => b.midi)) : p.avgMidi;
+    const spreadSemitones = Math.max(0, maxMidi - minMidi);
+
+    let f1Sum = 0;
+    let f2Sum = 0;
+    let fCount = 0;
+    (p.words || []).forEach((w) => {
+      if (w.formantsHz && w.formantsHz[0] > 0 && w.formantsHz[1] > 0) {
+        f1Sum += w.formantsHz[0];
+        f2Sum += w.formantsHz[1];
+        fCount++;
+      }
+    });
+    const meanF1 = fCount > 0 ? f1Sum / fCount : 540;
+    const meanF2 = fCount > 0 ? f2Sum / fCount : 1480;
+
+    // Composite vocal register index combining F0 (MIDI) and vocal-tract length (F1/F2 formants)
+    const registerIndex =
+      p.avgMidi + (meanF2 - 1450) / 150 + (meanF1 - 530) / 110;
+
+    return {
+      phrase: p,
+      avgMidi: p.avgMidi,
+      meanF1,
+      meanF2,
+      spreadSemitones,
+      registerIndex,
+    };
+  });
+
+  const sortedIndices = [...features]
+    .map((f) => f.registerIndex)
+    .sort((a, b) => a - b);
+  let centroidLow = sortedIndices[Math.floor(sortedIndices.length * 0.22)];
+  let centroidHigh = sortedIndices[Math.min(sortedIndices.length - 1, Math.floor(sortedIndices.length * 0.78))];
+
+  // 1D K-Means (K = 2) on registerIndex
+  for (let iter = 0; iter < 8; iter++) {
+    let sumLow = 0;
+    let countLow = 0;
+    let sumHigh = 0;
+    let countHigh = 0;
+
+    for (const f of features) {
+      if (Math.abs(f.registerIndex - centroidLow) <= Math.abs(f.registerIndex - centroidHigh)) {
+        sumLow += f.registerIndex;
+        countLow++;
+      } else {
+        sumHigh += f.registerIndex;
+        countHigh++;
+      }
+    }
+
+    if (countLow > 0) centroidLow = sumLow / countLow;
+    if (countHigh > 0) centroidHigh = sumHigh / countHigh;
+  }
+
+  if (centroidLow > centroidHigh) {
+    const tmp = centroidLow;
+    centroidLow = centroidHigh;
+    centroidHigh = tmp;
+  }
+
+  const lowGroup = features.filter(
+    (f) => Math.abs(f.registerIndex - centroidLow) <= Math.abs(f.registerIndex - centroidHigh)
+  );
+  const highGroup = features.filter(
+    (f) => Math.abs(f.registerIndex - centroidLow) > Math.abs(f.registerIndex - centroidHigh)
+  );
+
+  const meanMidiLow =
+    lowGroup.length > 0
+      ? lowGroup.reduce((s, f) => s + f.avgMidi, 0) / lowGroup.length
+      : centroidLow;
+  const meanMidiHigh =
+    highGroup.length > 0
+      ? highGroup.reduce((s, f) => s + f.avgMidi, 0) / highGroup.length
+      : centroidHigh;
+
+  const midiSeparation = meanMidiHigh - meanMidiLow;
+  const registerSeparation = centroidHigh - centroidLow;
+  const hasDuetFilenameCue =
+    /(?:^|[\s_\-.])(?:x|ft|feat|va|và|song\s*ca|duet)(?=[\s_\-.]|$)/i.test(fileName) ||
+    fileName.includes('&');
+
+  const minClusterSize = vocalPhrases.length >= 6 ? Math.max(2, Math.floor(vocalPhrases.length * 0.14)) : 1;
+  const isDuetTrack =
+    lowGroup.length >= minClusterSize &&
+    highGroup.length >= minClusterSize &&
+    (registerSeparation >= 4.2 || midiSeparation >= 4.0 || (hasDuetFilenameCue && registerSeparation >= 2.8));
+
+  if (!isDuetTrack) {
+    phrases.forEach((p) => {
+      p.singerId = 'solo';
+      p.singerLabel = 'Đơn ca';
+    });
+    return;
+  }
+
+  const labelA = meanMidiLow <= 59.5 ? 'Giọng A (Nam / Trầm)' : 'Giọng A (Trầm ấm)';
+  const labelB = meanMidiHigh >= 61.5 ? 'Giọng B (Nữ / Cao)' : 'Giọng B (Cao sáng)';
+  const midRegister = (centroidLow + centroidHigh) / 2;
+
+  features.forEach((f) => {
+    const isChorusOrClimax =
+      f.phrase.sectionType === 'chorus' || f.phrase.sectionType === 'climax';
+    // Harmony / rapid duet exchange phrase spanning both registers
+    if (
+      f.spreadSemitones >= 9 &&
+      (isChorusOrClimax || Math.abs(f.registerIndex - midRegister) <= 1.8)
+    ) {
+      f.phrase.singerId = 'both';
+      f.phrase.singerLabel = 'Song ca (Hòa giọng)';
+    } else if (f.registerIndex <= midRegister) {
+      f.phrase.singerId = 'voice_a';
+      f.phrase.singerLabel = labelA;
+    } else {
+      f.phrase.singerId = 'voice_b';
+      f.phrase.singerLabel = labelB;
+    }
+  });
+
+  // Temporal smoothing for isolated 1-phrase boundary jitter within the same section
+  for (let i = 1; i < vocalPhrases.length - 1; i++) {
+    const prev = vocalPhrases[i - 1];
+    const curr = vocalPhrases[i];
+    const next = vocalPhrases[i + 1];
+    if (
+      curr.singerId !== 'both' &&
+      prev.singerId === next.singerId &&
+      curr.singerId !== prev.singerId &&
+      curr.sectionType === prev.sectionType &&
+      Math.abs(curr.avgMidi - prev.avgMidi) <= 1.8
+    ) {
+      curr.singerId = prev.singerId;
+      curr.singerLabel = prev.singerLabel;
+    }
+  }
+
+  phrases.forEach((p) => {
+    if (!p.singerId) {
+      p.singerId = 'solo';
+      p.singerLabel = 'Nhạc dạo / Ngân';
+    }
+  });
+}
+/**
  * Helper to persist phrases & lyric source into localStorage
  */
 function persistPhrasesToLocalCache(params: {
@@ -2856,6 +3267,7 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
 
   const finalizeSections = () => {
     classifyPhraseSectionsAndContours(phrases, noteBars, durationMs, lowestMidi, highestMidi);
+    classifyDuetSingerVoices(phrases, noteBars, pitchTrack, fileName);
   };
 
   // 1. Initial acoustic pass across phrases with progress updates
@@ -3084,6 +3496,7 @@ export function searchAndTracePhrases(phrases: IVocalPhrase[], rawQuery: string)
         p.acousticText || '',
         wordVowels,
         p.sectionLabel || '',
+        p.singerLabel || '',
         p.contourLabel || '',
         p.difficulty || '',
         p.lowestNote,
@@ -3204,6 +3617,7 @@ export function mergeWithNextPhrase(
     result.vocalRange.lowestMidi,
     result.vocalRange.highestMidi
   );
+  classifyDuetSingerVoices(newPhrases, result.noteBars, result.pitchTrack, result.fileName);
 
   const updatedResult: IVocalAnalysisResult = {
     ...result,
@@ -3300,10 +3714,210 @@ export function splitPhraseAtPlayhead(
     result.vocalRange.lowestMidi,
     result.vocalRange.highestMidi
   );
+  classifyDuetSingerVoices(newPhrases, result.noteBars, result.pitchTrack, result.fileName);
 
   const updatedResult: IVocalAnalysisResult = {
     ...result,
     phrases: newPhrases,
+  };
+  saveLyricsToLocalCache(updatedResult);
+  return updatedResult;
+}
+
+/**
+ * Interactive Canvas Word-Edge Handle:
+ * Drag the boundary between two adjacent NoteBars (`leftBarId` and `rightBarId`) to `newBoundaryMs`
+ * and automatically re-synchronize all words in overlapping phrases.
+ */
+export function adjustAdjacentNoteBarBoundary(
+  result: IVocalAnalysisResult,
+  leftBarId: string,
+  rightBarId: string,
+  newBoundaryMs: number
+): IVocalAnalysisResult {
+  const clonedBars = result.noteBars.map((b) => ({ ...b }));
+  const leftIdx = clonedBars.findIndex((b) => b.id === leftBarId);
+  const rightIdx = clonedBars.findIndex((b) => b.id === rightBarId);
+  if (leftIdx < 0 || rightIdx < 0) return result;
+
+  const leftBar = clonedBars[leftIdx];
+  const rightBar = clonedBars[rightIdx];
+  const minBoundary = leftBar.startTimeMs + 60;
+  const maxBoundary = rightBar.endTimeMs - 60;
+  if (minBoundary >= maxBoundary) return result;
+
+  const clampedMs = Math.round(Math.max(minBoundary, Math.min(maxBoundary, newBoundaryMs)));
+  leftBar.endTimeMs = Math.max(leftBar.startTimeMs + 50, clampedMs - 4);
+  leftBar.durationMs = leftBar.endTimeMs - leftBar.startTimeMs;
+
+  rightBar.startTimeMs = Math.min(rightBar.endTimeMs - 50, clampedMs + 4);
+  rightBar.durationMs = rightBar.endTimeMs - rightBar.startTimeMs;
+
+  const rawMonoPcm =
+    typeof result.audioBuffer?.getChannelData === 'function'
+      ? result.audioBuffer.getChannelData(0)
+      : null;
+
+  const updatedPhrases = result.phrases.map((p) => {
+    if (p.endMs < leftBar.startTimeMs - 100 || p.startMs > rightBar.endTimeMs + 100) {
+      return p;
+    }
+    const copy: IVocalPhrase = { ...p };
+    const customLyric =
+      copy.lyricText && !copy.lyricText.startsWith('Nguyên âm:') ? copy.lyricText : undefined;
+    alignWordsToPhraseNoteBars(
+      copy,
+      clonedBars,
+      customLyric,
+      rawMonoPcm,
+      result.sampleRate,
+      result.pitchTrack,
+      undefined,
+      true
+    );
+    return copy;
+  });
+
+  const updatedResult: IVocalAnalysisResult = {
+    ...result,
+    noteBars: clonedBars,
+    phrases: updatedPhrases,
+  };
+  saveLyricsToLocalCache(updatedResult);
+  return updatedResult;
+}
+
+/**
+ * Interactive Canvas Note Split:
+ * Double-clicking inside a NoteBar on `PitchRunwayCanvas` splits that NoteBar at `splitTimeMs`
+ * and re-aligns the containing phrase's words onto the newly subdivided bars.
+ */
+export function splitNoteBarOnCanvas(
+  result: IVocalAnalysisResult,
+  barId: string,
+  splitTimeMs: number
+): IVocalAnalysisResult {
+  const clonedBars = result.noteBars.map((b) => ({ ...b }));
+  const barIdx = clonedBars.findIndex((b) => b.id === barId);
+  if (barIdx < 0) return result;
+
+  const targetBar = clonedBars[barIdx];
+  if (targetBar.durationMs < 140) return result;
+
+  const clampedSplitMs = Math.round(
+    Math.max(
+      targetBar.startTimeMs + 60,
+      Math.min(targetBar.endTimeMs - 60, splitTimeMs)
+    )
+  );
+
+  const dummyWorking = [targetBar];
+  splitSingleBarAtMs(dummyWorking, clonedBars, 0, clampedSplitMs, result.pitchTrack);
+
+  const rawMonoPcm =
+    typeof result.audioBuffer?.getChannelData === 'function'
+      ? result.audioBuffer.getChannelData(0)
+      : null;
+
+  const updatedPhrases = result.phrases.map((p) => {
+    if (p.endMs < targetBar.startTimeMs - 100 || p.startMs > targetBar.endTimeMs + 100) {
+      return p;
+    }
+    const copy: IVocalPhrase = { ...p };
+    const customLyric =
+      copy.lyricText && !copy.lyricText.startsWith('Nguyên âm:') ? copy.lyricText : undefined;
+    alignWordsToPhraseNoteBars(
+      copy,
+      clonedBars,
+      customLyric,
+      rawMonoPcm,
+      result.sampleRate,
+      result.pitchTrack,
+      undefined,
+      true
+    );
+    return copy;
+  });
+
+  const updatedResult: IVocalAnalysisResult = {
+    ...result,
+    noteBars: clonedBars,
+    phrases: updatedPhrases,
+  };
+  saveLyricsToLocalCache(updatedResult);
+  return updatedResult;
+}
+
+/**
+ * Interactive Canvas Note Merge:
+ * Double-clicking on the boundary handle between two adjacent NoteBars (`leftBarId` and `rightBarId`)
+ * merges them into a single sustained/legato NoteBar and re-aligns the containing phrase's words.
+ */
+export function mergeAdjacentNoteBarsOnCanvas(
+  result: IVocalAnalysisResult,
+  leftBarId: string,
+  rightBarId: string
+): IVocalAnalysisResult {
+  const clonedBars = result.noteBars.map((b) => ({ ...b }));
+  const leftIdx = clonedBars.findIndex((b) => b.id === leftBarId);
+  const rightIdx = clonedBars.findIndex((b) => b.id === rightBarId);
+  if (leftIdx < 0 || rightIdx < 0 || rightIdx !== leftIdx + 1) return result;
+
+  const leftBar = clonedBars[leftIdx];
+  const rightBar = clonedBars[rightIdx];
+  const totalDur = Math.max(1, leftBar.durationMs + rightBar.durationMs);
+  const weightedExactMidi =
+    Math.round(
+      ((leftBar.exactMidi * leftBar.durationMs + rightBar.exactMidi * rightBar.durationMs) /
+        totalDur) *
+        100
+    ) / 100;
+  const mergedNomMidi = Math.round(weightedExactMidi);
+  const info = midiToCompactSolfege(mergedNomMidi);
+
+  const mergedBar: IVocalNoteBar = {
+    ...leftBar,
+    endTimeMs: rightBar.endTimeMs,
+    durationMs: rightBar.endTimeMs - leftBar.startTimeMs,
+    midi: mergedNomMidi,
+    exactMidi: weightedExactMidi,
+    noteName: info.noteName,
+    solfegeName: info.solfege.replace(/(\d+)$/, ' $1'),
+    avgCentsDiff: Math.round((weightedExactMidi - mergedNomMidi) * 100),
+    pointsCount: leftBar.pointsCount + rightBar.pointsCount,
+  };
+
+  clonedBars.splice(leftIdx, 2, mergedBar);
+
+  const rawMonoPcm =
+    typeof result.audioBuffer?.getChannelData === 'function'
+      ? result.audioBuffer.getChannelData(0)
+      : null;
+
+  const updatedPhrases = result.phrases.map((p) => {
+    if (p.endMs < mergedBar.startTimeMs - 100 || p.startMs > mergedBar.endTimeMs + 100) {
+      return p;
+    }
+    const copy: IVocalPhrase = { ...p };
+    const customLyric =
+      copy.lyricText && !copy.lyricText.startsWith('Nguyên âm:') ? copy.lyricText : undefined;
+    alignWordsToPhraseNoteBars(
+      copy,
+      clonedBars,
+      customLyric,
+      rawMonoPcm,
+      result.sampleRate,
+      result.pitchTrack,
+      undefined,
+      true
+    );
+    return copy;
+  });
+
+  const updatedResult: IVocalAnalysisResult = {
+    ...result,
+    noteBars: clonedBars,
+    phrases: updatedPhrases,
   };
   saveLyricsToLocalCache(updatedResult);
   return updatedResult;

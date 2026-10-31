@@ -7,6 +7,9 @@ interface PitchRunwayCanvasProps {
   renderStateRef: React.MutableRefObject<RunwayRenderState>;
   className?: string;
   onSeek?: (timeMs: number) => void;
+  onAdjustBarBoundary?: (leftBarId: string, rightBarId: string, newBoundaryMs: number) => void;
+  onSplitBarAtMs?: (barId: string, splitTimeMs: number) => void;
+  onMergeAdjacentBars?: (leftBarId: string, rightBarId: string) => void;
 }
 
 const ACCIDENTAL_SEMITONES = new Set([1, 3, 6, 8, 10]);
@@ -27,12 +30,22 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
   renderStateRef,
   className = '',
   onSeek,
+  onAdjustBarBoundary,
+  onSplitBarAtMs,
+  onMergeAdjacentBars,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const onSeekRef = useRef(onSeek);
+  const onAdjustBarBoundaryRef = useRef(onAdjustBarBoundary);
+  const onSplitBarAtMsRef = useRef(onSplitBarAtMs);
+  const onMergeAdjacentBarsRef = useRef(onMergeAdjacentBars);
+
   useEffect(() => {
     onSeekRef.current = onSeek;
-  }, [onSeek]);
+    onAdjustBarBoundaryRef.current = onAdjustBarBoundary;
+    onSplitBarAtMsRef.current = onSplitBarAtMs;
+    onMergeAdjacentBarsRef.current = onMergeAdjacentBars;
+  }, [onSeek, onAdjustBarBoundary, onSplitBarAtMs, onMergeAdjacentBars]);
 
   const manualOffsetRef = useRef(0);
   const manualSpanRef = useRef<number | null>(null);
@@ -55,6 +68,84 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
     let isDraggingCanvas = false;
     let mouseDownPos = { x: 0, y: 0 };
     let lastDragPos = { x: 0, y: 0 };
+    let draggingBoundary: {
+      leftBarId: string;
+      rightBarId: string;
+      minMs: number;
+      maxMs: number;
+      currentMs: number;
+    } | null = null;
+    let hoveredBoundaryKey: string | null = null;
+
+    const getCanvasMetrics = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      const width = canvas.clientWidth || 860;
+      const height = canvas.clientHeight || 280;
+      const pianoKeyWidth = width > 1200 ? 46 : 36;
+      const state = renderStateRef.current;
+      const latencyOffsetMs = state.latencyOffsetMs ?? 45;
+      const effectiveTimeMs = Math.max(0, state.currentTimeMs - latencyOffsetMs);
+      const pastWindowMs = 1500;
+      const futureWindowMs = 3500;
+      const totalWindowMs = pastWindowMs + futureWindowMs;
+      const playheadX = (pastWindowMs / totalWindowMs) * width;
+      const effectiveSpan =
+        manualSpanRef.current ?? (smoothMaxMidiRef.current - smoothMinMidiRef.current);
+      const effectiveMin = smoothMinMidiRef.current + manualOffsetRef.current;
+      const midiSpan = Math.max(12, effectiveSpan);
+      const clickedTimeMs = effectiveTimeMs + ((clickX - playheadX) / width) * totalWindowMs;
+      const clickedMidi = effectiveMin + (1 - clickY / height) * midiSpan;
+      return {
+        clickX,
+        clickY,
+        width,
+        height,
+        pianoKeyWidth,
+        state,
+        effectiveTimeMs,
+        totalWindowMs,
+        playheadX,
+        effectiveMin,
+        midiSpan,
+        clickedTimeMs,
+        clickedMidi,
+      };
+    };
+
+    const findHitBoundaryHandle = (e: MouseEvent) => {
+      const {
+        clickX,
+        width,
+        pianoKeyWidth,
+        state,
+        effectiveTimeMs,
+        totalWindowMs,
+        playheadX,
+        clickedMidi,
+      } = getCanvasMetrics(e);
+      if (clickX < pianoKeyWidth || !state.noteBars || state.noteBars.length < 2) return null;
+      const transpose = state.transposeSemitones || 0;
+
+      for (let i = 0; i < state.noteBars.length - 1; i++) {
+        const leftBar = state.noteBars[i];
+        const rightBar = state.noteBars[i + 1];
+        if (rightBar.startTimeMs - leftBar.endTimeMs > 280) continue;
+        const boundMs = (leftBar.endTimeMs + rightBar.startTimeMs) / 2;
+        const boundX = playheadX + ((boundMs - effectiveTimeMs) / totalWindowMs) * width;
+        if (Math.abs(clickX - boundX) <= 9) {
+          const leftMidi = leftBar.midi + transpose;
+          const rightMidi = rightBar.midi + transpose;
+          const minM = Math.min(leftMidi, rightMidi) - 1.1;
+          const maxM = Math.max(leftMidi, rightMidi) + 1.1;
+          if (clickedMidi >= minM && clickedMidi <= maxM) {
+            return { leftBar, rightBar, boundMs: Math.round(boundMs) };
+          }
+        }
+      }
+      return null;
+    };
 
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return; // Only left click
@@ -62,11 +153,41 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       isDraggingCanvas = false;
       mouseDownPos = { x: e.clientX, y: e.clientY };
       lastDragPos = { x: e.clientX, y: e.clientY };
+
+      const hitBound = findHitBoundaryHandle(e);
+      if (
+        hitBound &&
+        hitBound.leftBar.startTimeMs + 60 < hitBound.rightBar.endTimeMs - 60
+      ) {
+        draggingBoundary = {
+          leftBarId: hitBound.leftBar.id,
+          rightBarId: hitBound.rightBar.id,
+          minMs: hitBound.leftBar.startTimeMs + 60,
+          maxMs: hitBound.rightBar.endTimeMs - 60,
+          currentMs: hitBound.boundMs,
+        };
+        userInteractedUntilRef.current = Date.now() + 4500;
+      } else {
+        draggingBoundary = null;
+      }
     };
 
     const handleMouseUp = (e: MouseEvent) => {
       if (!isMouseDown) return;
       isMouseDown = false;
+
+      if (draggingBoundary) {
+        const committed = draggingBoundary;
+        draggingBoundary = null;
+        canvas.style.cursor = 'pointer';
+        onAdjustBarBoundaryRef.current?.(
+          committed.leftBarId,
+          committed.rightBarId,
+          committed.currentMs
+        );
+        return;
+      }
+
       if (isDraggingCanvas) {
         isDraggingCanvas = false;
         return;
@@ -160,6 +281,25 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       const height = canvas.clientHeight || 280;
       const pianoKeyWidth = width > 1200 ? 46 : 36;
 
+      if (draggingBoundary) {
+        const { state, clickedTimeMs } = getCanvasMetrics(e);
+        const clampedMs = Math.round(
+          Math.max(draggingBoundary.minMs, Math.min(draggingBoundary.maxMs, clickedTimeMs))
+        );
+        draggingBoundary.currentMs = clampedMs;
+        // Live visual preview on noteBars at 60fps
+        const leftBar = state.noteBars?.find((b) => b.id === draggingBoundary?.leftBarId);
+        const rightBar = state.noteBars?.find((b) => b.id === draggingBoundary?.rightBarId);
+        if (leftBar && rightBar) {
+          leftBar.endTimeMs = Math.max(leftBar.startTimeMs + 50, clampedMs - 4);
+          leftBar.durationMs = leftBar.endTimeMs - leftBar.startTimeMs;
+          rightBar.startTimeMs = Math.min(rightBar.endTimeMs - 50, clampedMs + 4);
+          rightBar.durationMs = rightBar.endTimeMs - rightBar.startTimeMs;
+        }
+        canvas.style.cursor = 'ew-resize';
+        return;
+      }
+
       if (isMouseDown) {
         const totalDist = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
         if (totalDist >= 8) {
@@ -185,6 +325,15 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         }
       }
 
+      const hitBound = findHitBoundaryHandle(e);
+      if (hitBound) {
+        hoveredBoundaryKey = `${hitBound.leftBar.id}:${hitBound.rightBar.id}`;
+        canvas.style.cursor = 'ew-resize';
+      } else {
+        hoveredBoundaryKey = null;
+        canvas.style.cursor = 'pointer';
+      }
+
       if (mx >= pianoKeyWidth) {
         hoverXRef.current = mx;
       } else {
@@ -195,6 +344,8 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
     const handleMouseLeave = () => {
       isMouseDown = false;
       isDraggingCanvas = false;
+      draggingBoundary = null;
+      hoveredBoundaryKey = null;
       hoverXRef.current = null;
     };
 
@@ -232,8 +383,34 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       }
     };
 
-    const handleDblClick = () => {
-      // Double click resets to Auto-Follow
+    const handleDblClick = (e: MouseEvent) => {
+      // 1. Double click on a boundary handle between two adjacent NoteBars -> Merge them!
+      const hitBound = findHitBoundaryHandle(e);
+      if (hitBound && onMergeAdjacentBarsRef.current) {
+        onMergeAdjacentBarsRef.current(hitBound.leftBar.id, hitBound.rightBar.id);
+        return;
+      }
+
+      // 2. Double click inside a NoteBar (>= 160ms) -> Split the NoteBar at clicked timestamp!
+      const { clickX, pianoKeyWidth, state, clickedTimeMs, clickedMidi } = getCanvasMetrics(e);
+      if (clickX >= pianoKeyWidth && state.noteBars && onSplitBarAtMsRef.current) {
+        const transpose = state.transposeSemitones || 0;
+        for (let i = 0; i < state.noteBars.length; i++) {
+          const bar = state.noteBars[i];
+          const barMidi = bar.midi + transpose;
+          if (
+            bar.durationMs >= 160 &&
+            clickedTimeMs >= bar.startTimeMs + 60 &&
+            clickedTimeMs <= bar.endTimeMs - 60 &&
+            Math.abs(barMidi - clickedMidi) <= 0.85
+          ) {
+            onSplitBarAtMsRef.current(bar.id, Math.round(clickedTimeMs));
+            return;
+          }
+        }
+      }
+
+      // 3. Otherwise, double click on background resets to Auto-Follow
       manualOffsetRef.current = 0;
       manualSpanRef.current = null;
       userInteractedUntilRef.current = 0;
@@ -637,6 +814,70 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
             ctx.textAlign = 'left';
             ctx.fillText(labelText, x1 + 5, barY + 3.5);
             ctx.restore();
+          }
+
+          // Interactive Word-Edge / Note-Boundary Grip Handle between consecutive bars (within 280ms)
+          if (i < noteBars.length - 1) {
+            const nextBar = noteBars[i + 1];
+            const gapToNext = nextBar.startTimeMs - bar.endTimeMs;
+            if (gapToNext <= 280 && nextBar.startTimeMs <= windowEndMs) {
+              const boundMs = (bar.endTimeMs + nextBar.startTimeMs) / 2;
+              const boundX =
+                playheadX + ((boundMs - effectiveTimeMs) / totalWindowMs) * width;
+              const nextBarY = midiToY(nextBar.midi + transposeSemitones);
+              const handleCenterY = (barY + nextBarY) / 2;
+              const boundKey = `${bar.id}:${nextBar.id}`;
+              const isHandleActive =
+                hoveredBoundaryKey === boundKey ||
+                (draggingBoundary &&
+                  draggingBoundary.leftBarId === bar.id &&
+                  draggingBoundary.rightBarId === nextBar.id);
+
+              ctx.save();
+              ctx.strokeStyle = isHandleActive
+                ? '#22d3ee'
+                : 'rgba(56, 189, 248, 0.45)';
+              ctx.lineWidth = isHandleActive ? 2.2 : 1.2;
+              ctx.setLineDash(isHandleActive ? [] : [2, 2]);
+              ctx.beginPath();
+              ctx.moveTo(boundX, Math.min(barY, nextBarY) - barH * 0.65);
+              ctx.lineTo(boundX, Math.max(barY, nextBarY) + barH * 0.65);
+              ctx.stroke();
+              ctx.setLineDash([]);
+
+              // Diamond handle grip
+              const r = isHandleActive ? 5 : 3.2;
+              ctx.fillStyle = isHandleActive ? '#22d3ee' : 'rgba(15, 23, 42, 0.9)';
+              ctx.strokeStyle = isHandleActive ? '#ffffff' : 'rgba(56, 189, 248, 0.85)';
+              ctx.lineWidth = 1.3;
+              ctx.beginPath();
+              ctx.moveTo(boundX, handleCenterY - r);
+              ctx.lineTo(boundX + r, handleCenterY);
+              ctx.lineTo(boundX, handleCenterY + r);
+              ctx.lineTo(boundX - r, handleCenterY);
+              ctx.closePath();
+              ctx.fill();
+              ctx.stroke();
+
+              if (isHandleActive) {
+                const tipText = draggingBoundary
+                  ? `Biên từ: ${(boundMs / 1000).toFixed(2)}s`
+                  : 'Kéo ↔ chỉnh biên từ · Đúp gộp nốt';
+                ctx.font = 'bold 9.5px sans-serif';
+                const tw = ctx.measureText(tipText).width + 10;
+                const tx = Math.max(pianoKeyWidth + 4, Math.min(width - tw - 4, boundX - tw / 2));
+                const ty = Math.max(8, Math.min(barY, nextBarY) - barH * 0.65 - 20);
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+                ctx.strokeStyle = 'rgba(34, 211, 238, 0.8)';
+                ctx.lineWidth = 1;
+                ctx.fillRect(tx, ty, tw, 16);
+                ctx.strokeRect(tx, ty, tw, 16);
+                ctx.fillStyle = '#e0f2fe';
+                ctx.textAlign = 'left';
+                ctx.fillText(tipText, tx + 5, ty + 11.5);
+              }
+              ctx.restore();
+            }
           }
           ctx.restore();
         }

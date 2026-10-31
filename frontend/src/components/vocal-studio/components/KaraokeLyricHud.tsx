@@ -159,6 +159,26 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
             </span>
           </div>
 
+          {/* Duet Singer Voice Badge */}
+          {currentOrUpcomingPhrase.singerId &&
+            currentOrUpcomingPhrase.singerId !== 'solo' && (
+              <span
+                className={`px-2 py-0.5 rounded-xl border text-[10px] font-bold ${
+                  currentOrUpcomingPhrase.singerId === 'voice_a'
+                    ? 'bg-cyan-950/80 border-cyan-500/40 text-cyan-300'
+                    : currentOrUpcomingPhrase.singerId === 'voice_b'
+                    ? 'bg-pink-950/80 border-pink-500/40 text-pink-300'
+                    : 'bg-purple-950/80 border-purple-500/40 text-purple-300'
+                }`}
+              >
+                {currentOrUpcomingPhrase.singerId === 'voice_a'
+                  ? `🎤 ${currentOrUpcomingPhrase.singerLabel || 'Giọng A'}`
+                  : currentOrUpcomingPhrase.singerId === 'voice_b'
+                  ? `✨ ${currentOrUpcomingPhrase.singerLabel || 'Giọng B'}`
+                  : `👥 ${currentOrUpcomingPhrase.singerLabel || 'Song ca'}`}
+              </span>
+            )}
+
           {/* Melodic Contour Tag */}
           {currentOrUpcomingPhrase.contourLabel && (
             <span className="hidden md:inline-flex px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-[10px] text-slate-300 font-medium">

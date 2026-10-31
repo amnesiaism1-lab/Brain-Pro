@@ -23,6 +23,9 @@ import {
   updateSinglePhraseLyric,
   mergeWithNextPhrase,
   splitPhraseAtPlayhead,
+  adjustAdjacentNoteBarBoundary,
+  splitNoteBarOnCanvas,
+  mergeAdjacentNoteBarsOnCanvas,
 } from '../../services/lyricAlignmentService';
 import { LyricEditorModal } from './components/LyricEditorModal';
 import {
@@ -644,6 +647,38 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     [store.analysisResult, handleApplyUpdatedResult]
   );
 
+  const handleAdjustBarBoundary = useCallback(
+    (leftBarId: string, rightBarId: string, newBoundaryMs: number) => {
+      if (!store.analysisResult) return;
+      const updated = adjustAdjacentNoteBarBoundary(
+        store.analysisResult,
+        leftBarId,
+        rightBarId,
+        newBoundaryMs
+      );
+      handleApplyUpdatedResult(updated);
+    },
+    [store.analysisResult, handleApplyUpdatedResult]
+  );
+
+  const handleSplitBarAtMs = useCallback(
+    (barId: string, splitTimeMs: number) => {
+      if (!store.analysisResult) return;
+      const updated = splitNoteBarOnCanvas(store.analysisResult, barId, splitTimeMs);
+      handleApplyUpdatedResult(updated);
+    },
+    [store.analysisResult, handleApplyUpdatedResult]
+  );
+
+  const handleMergeAdjacentBars = useCallback(
+    (leftBarId: string, rightBarId: string) => {
+      if (!store.analysisResult) return;
+      const updated = mergeAdjacentNoteBarsOnCanvas(store.analysisResult, leftBarId, rightBarId);
+      handleApplyUpdatedResult(updated);
+    },
+    [store.analysisResult, handleApplyUpdatedResult]
+  );
+
   if (!isOpen) return null;
 
   const isTargetNoteActive = Boolean(currentRefPoint && currentRefPoint.isVocal && currentRefPoint.midi > 0);
@@ -850,6 +885,9 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onUpdatePhraseLyric={handleUpdatePhraseLyric}
             onMergeNextPhrase={handleMergeNextPhrase}
             onSplitPhrase={handleSplitPhrase}
+            onAdjustBarBoundary={handleAdjustBarBoundary}
+            onSplitBarAtMs={handleSplitBarAtMs}
+            onMergeAdjacentBars={handleMergeAdjacentBars}
           />
         )}
 

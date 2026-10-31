@@ -13,6 +13,7 @@ import { getNoteFrequency } from './musicTheoryService';
 import { NOTE_NAMES, SOLFEGE_NAMES, midiToNoteInfo } from '@brain-exercises/shared';
 import {
   populateAutomaticSongLyricsAndStructure,
+  type DuetSingerId,
   type IVocalLyricWord,
   type LyricCompletenessStatus,
   type LyricSourceType,
@@ -21,6 +22,7 @@ import {
 } from './lyricAlignmentService';
 
 export type {
+  DuetSingerId,
   IVocalLyricWord,
   LyricCompletenessStatus,
   LyricSourceType,
@@ -81,6 +83,10 @@ export interface IVocalPhrase {
   contourLabel?: string;
   focusTip?: string;
   isInstrumentalOrVocalize?: boolean;
+  /** Duet / multi-register singer cluster ID ('voice_a' | 'voice_b' | 'both' | 'solo') */
+  singerId?: DuetSingerId;
+  /** Human-readable singer register label (e.g. "Giọng A (Trầm/Ấm)", "Giọng B (Cao/Sáng)", "Song ca") */
+  singerLabel?: string;
   words?: IVocalLyricWord[];
 }
 

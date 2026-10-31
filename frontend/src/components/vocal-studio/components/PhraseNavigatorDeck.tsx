@@ -6,6 +6,7 @@ import { DifficultyBadge } from './DifficultyBadge';
 import {
   searchAndTracePhrases,
   VocalSectionType,
+  DuetSingerId,
 } from '../../../services/lyricAlignmentService';
 import {
   Layers,
@@ -77,10 +78,19 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'Dễ' | 'Trung bình' | 'Thử thách'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unpracticed' | 'needs_work' | 'passed'>('all');
   const [sectionFilter, setSectionFilter] = useState<string>('all');
+  const [singerFilter, setSingerFilter] = useState<'all' | DuetSingerId>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [inspectedPhraseIdx, setInspectedPhraseIdx] = useState<number | null>(null);
   const [editingPhraseIdx, setEditingPhraseIdx] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState('');
+
+  const hasDuetVoices = useMemo(
+    () =>
+      phrases.some(
+        (p) => p.singerId === 'voice_a' || p.singerId === 'voice_b' || p.singerId === 'both'
+      ),
+    [phrases]
+  );
 
   // Group contiguous phrases into structural song landmarks ("Biết đang ở đoạn nào")
   const structuralLandmarks = useMemo(() => {
@@ -126,6 +136,12 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
       list = list.filter((p) => (p.sectionLabel || 'Phiên khúc') === sectionFilter);
     }
 
+    if (singerFilter !== 'all') {
+      list = list.filter(
+        (p) => p.singerId === singerFilter || (singerFilter !== 'both' && p.singerId === 'both')
+      );
+    }
+
     if (difficultyFilter !== 'all') {
       list = list.filter((p) => p.difficulty === difficultyFilter);
     }
@@ -150,7 +166,16 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
     }
 
     return list;
-  }, [phrases, searchQuery, sectionFilter, difficultyFilter, statusFilter, viewMode, sessionStats]);
+  }, [
+    phrases,
+    searchQuery,
+    sectionFilter,
+    singerFilter,
+    difficultyFilter,
+    statusFilter,
+    viewMode,
+    sessionStats,
+  ]);
 
   // Group phrases by 1-minute blocks for 'timeline_minutes' mode
   const minuteGroups = useMemo(() => {
@@ -323,6 +348,39 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
               {diff === 'all' ? 'Mọi độ khó' : '🔥 Câu khó'}
             </button>
           ))}
+
+          {hasDuetVoices && (
+            <>
+              <div className="h-4 w-px bg-slate-800 mx-1 hidden sm:block" />
+              {(
+                [
+                  { id: 'all', label: 'Tất cả giọng' },
+                  { id: 'voice_a', label: '🎤 Giọng A (Trầm)' },
+                  { id: 'voice_b', label: '✨ Giọng B (Cao)' },
+                  { id: 'both', label: '👥 Song ca' },
+                ] as const
+              ).map((sg) => (
+                <button
+                  key={sg.id}
+                  type="button"
+                  onClick={() => setSingerFilter(singerFilter === sg.id ? 'all' : sg.id)}
+                  className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition ${
+                    singerFilter === sg.id && sg.id !== 'all'
+                      ? sg.id === 'voice_a'
+                        ? 'bg-cyan-500 text-slate-950'
+                        : sg.id === 'voice_b'
+                        ? 'bg-pink-500 text-slate-950'
+                        : 'bg-purple-500 text-slate-950'
+                      : singerFilter === 'all' && sg.id === 'all'
+                      ? 'bg-slate-800 text-white border border-slate-700'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  {sg.label}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       </div>
 
@@ -447,6 +505,23 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
               <span className="px-2 py-0.5 rounded-lg bg-slate-800 text-sky-300 text-[11px] font-bold">
                 {focusedPhrase.sectionLabel || 'Phiên khúc'}
               </span>
+              {focusedPhrase.singerId && focusedPhrase.singerId !== 'solo' && (
+                <span
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
+                    focusedPhrase.singerId === 'voice_a'
+                      ? 'bg-cyan-950/80 border-cyan-500/40 text-cyan-300'
+                      : focusedPhrase.singerId === 'voice_b'
+                      ? 'bg-pink-950/80 border-pink-500/40 text-pink-300'
+                      : 'bg-purple-950/80 border-purple-500/40 text-purple-300'
+                  }`}
+                >
+                  {focusedPhrase.singerId === 'voice_a'
+                    ? `🎤 ${focusedPhrase.singerLabel || 'Giọng A'}`
+                    : focusedPhrase.singerId === 'voice_b'
+                    ? `✨ ${focusedPhrase.singerLabel || 'Giọng B'}`
+                    : `👥 ${focusedPhrase.singerLabel || 'Song ca'}`}
+                </span>
+              )}
               <span className="text-[11px] font-mono text-slate-400">
                 {formatTimeMs(focusedPhrase.startMs)} – {formatTimeMs(focusedPhrase.endMs)} (
                 {focusedPhrase.lowestNote} → {focusedPhrase.highestNote})
@@ -770,6 +845,23 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
               >
                 {phrase.sectionLabel || 'Phiên khúc'}
               </span>
+              {phrase.singerId && phrase.singerId !== 'solo' && (
+                <span
+                  className={`px-1.5 py-0.5 rounded-md border text-[9px] font-bold truncate ${
+                    phrase.singerId === 'voice_a'
+                      ? 'bg-cyan-500/15 border-cyan-500/35 text-cyan-300'
+                      : phrase.singerId === 'voice_b'
+                      ? 'bg-pink-500/15 border-pink-500/35 text-pink-300'
+                      : 'bg-purple-500/15 border-purple-500/35 text-purple-300'
+                  }`}
+                >
+                  {phrase.singerId === 'voice_a'
+                    ? '🎤 Giọng A'
+                    : phrase.singerId === 'voice_b'
+                    ? '✨ Giọng B'
+                    : '👥 Song ca'}
+                </span>
+              )}
               <DifficultyBadge difficulty={phrase.difficulty} />
               {isLoop && (
                 <span className="px-1.5 py-0.2 rounded bg-indigo-500 text-slate-950 text-[9px] font-black uppercase">

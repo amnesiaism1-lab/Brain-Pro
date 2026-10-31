@@ -12,6 +12,12 @@ import {
   analyzeDeepNoteBarVowelAndTrajectory,
   extractVietnameseWordVowel,
   computeWordIntrinsicDurationWeight,
+  decomposeVietnameseWordPhoneticStates,
+  computeOralToNasalRatioDbAtMs,
+  classifyDuetSingerVoices,
+  adjustAdjacentNoteBarBoundary,
+  splitNoteBarOnCanvas,
+  mergeAdjacentNoteBarsOnCanvas,
   alignWordsToPhraseNoteBars,
 } from '../lyricAlignmentService';
 import type { IVocalPhrase, IVocalNoteBar, IVocalAnalysisResult } from '../vocalFileAnalysisService';
@@ -456,5 +462,116 @@ describe('lyricAlignmentService', () => {
     expect(phrase.words?.length).toBe(2);
     expect(phrase.words?.[0].noteName).toBe('D#4');
     expect(phrase.words?.[1].noteName).toBe('E4');
+  });
+
+  it('implements Next-Frontier Capabilities: Phonetic States, Nasal Murmur Ratio, Interactive Canvas Handles, and Duet Singer Diarization', () => {
+    // 1. Capability 1: Phonetic state decomposition
+    expect(decomposeVietnameseWordPhoneticStates('bước')).toEqual({
+      onsetState: 'STOP_FRIC',
+      nucleusState: 'V_O_UNROUND',
+      codaState: 'STOP_FRIC',
+    });
+    expect(decomposeVietnameseWordPhoneticStates('mình')).toEqual({
+      onsetState: 'NASAL_LIQUID',
+      nucleusState: 'V_I',
+      codaState: 'NASAL_LIQUID',
+    });
+    expect(decomposeVietnameseWordPhoneticStates('em')).toEqual({
+      onsetState: 'NONE',
+      nucleusState: 'V_E',
+      codaState: 'NASAL_LIQUID',
+    });
+
+    // 2. Capability 2: Sub-Band Oral-to-Nasal Energy Ratio (E_600..2400Hz / E_200..360Hz)
+    const sr = 16000;
+    const pcm = new Float32Array(sr); // 1.0s buffer
+    // 0.0..0.35s: Vowel with strong oral formant (1120Hz) + fundamental (285Hz)
+    // 0.35..0.65s: Nasal murmur consonant ("m/n") with only low 285Hz murmur and suppressed oral formants
+    // 0.65..1.0s: Vowel with strong oral formant (1600Hz) + fundamental (285Hz)
+    for (let n = 0; n < pcm.length; n++) {
+      const t = n / sr;
+      const f0Wave = 0.4 * Math.sin(2 * Math.PI * 285 * t);
+      if (t < 0.35) {
+        pcm[n] = f0Wave + 0.45 * Math.sin(2 * Math.PI * 1120 * t);
+      } else if (t < 0.65) {
+        pcm[n] = f0Wave + 0.02 * Math.sin(2 * Math.PI * 1120 * t);
+      } else {
+        pcm[n] = f0Wave + 0.45 * Math.sin(2 * Math.PI * 1600 * t);
+      }
+    }
+    const vowelRatioDb = computeOralToNasalRatioDbAtMs(pcm, sr, 200);
+    const nasalRatioDb = computeOralToNasalRatioDbAtMs(pcm, sr, 500);
+    expect(vowelRatioDb - nasalRatioDb).toBeGreaterThan(6.0);
+
+    // 3. Capability 3: Interactive Canvas Word-Edge Drag, Split & Merge
+    const { phrases, noteBars } = createMockPhrasesAndBars();
+    alignPlainTextToPhrases(phrases, noteBars, 'Chiều nhẹ\nĐỉnh cao trào\nKhép câu');
+    const mockResult: IVocalAnalysisResult = {
+      fileName: 'Hà Anh Tuấn x Phương Linh - Cơn Mưa Tình Yêu.wav',
+      durationMs: 11000,
+      sampleRate: 44100,
+      audioBuffer: {} as AudioBuffer,
+      audioBlobUrl: '',
+      pitchTrack: [],
+      noteBars,
+      phrases,
+      vocalRange: {
+        lowestNote: 'C4',
+        lowestFreqHz: 261.6,
+        lowestMidi: 60,
+        highestNote: 'C5',
+        highestFreqHz: 523.2,
+        highestMidi: 72,
+        spanSemitones: 12,
+        recommendedVoiceType: 'Duet',
+      },
+      estimatedKey: {
+        key: 'Đô Trưởng (C Major)',
+        root: 'C',
+        mode: 'major',
+        confidence: 0.9,
+        scaleNotes: ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+      },
+      vocalMetrics: {
+        singingTimeMs: 6600,
+        singingRatioPercent: 60,
+        avgClarity: 0.85,
+        avgRmsDb: -20,
+        densityNotesPerSec: 1.2,
+        maxIntervalSemitones: 5,
+        overallDifficulty: 'Trung bình',
+      },
+      practicePlan: {
+        title: 'Plan',
+        summaryVi: 'Summary',
+        recommendedSteps: [],
+      },
+    };
+
+    const dragged = adjustAdjacentNoteBarBoundary(mockResult, 'nb-1', 'nb-2', 2050);
+    expect(dragged.noteBars[0].endTimeMs).toBe(2046);
+    expect(dragged.noteBars[1].startTimeMs).toBe(2054);
+    expect(dragged.phrases[0].words?.[0].endMs).toBe(2046);
+    expect(dragged.phrases[0].words?.[1].startMs).toBe(2054);
+
+    const initialCount = dragged.noteBars.length;
+    const splitCanvas = splitNoteBarOnCanvas(dragged, 'nb-1', 1400);
+    expect(splitCanvas.noteBars.length).toBe(initialCount + 1);
+
+    const mergedCanvas = mergeAdjacentNoteBarsOnCanvas(splitCanvas, 'nb-1-a', 'nb-1-b');
+    expect(mergedCanvas.noteBars.length).toBe(initialCount);
+    expect(mergedCanvas.noteBars[0].startTimeMs).toBe(1000);
+    expect(mergedCanvas.noteBars[0].endTimeMs).toBe(2046);
+
+    // 4. Capability 4: Duet Singer Diarization (Giọng A Nam/Trầm vs Giọng B Nữ/Cao)
+    classifyDuetSingerVoices(
+      mockResult.phrases,
+      mockResult.noteBars,
+      mockResult.pitchTrack,
+      mockResult.fileName
+    );
+    expect(mockResult.phrases[0].singerId).toBe('voice_a');
+    expect(mockResult.phrases[1].singerId).toBe('voice_b');
+    expect(mockResult.phrases[2].singerId).toBe('voice_a');
   });
 });
