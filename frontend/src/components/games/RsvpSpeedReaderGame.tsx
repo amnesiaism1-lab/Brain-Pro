@@ -8,7 +8,7 @@ import { ReadingTextSourceModal } from '../common/ReadingTextSourceModal';
 import { readingContentService, ENGLISH_INFINITY_READING_TEXTS } from '../../services/readingContentService';
 
 export const RsvpSpeedReaderGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const effectiveLevel = getExerciseLevel('rsvp-speed-reader') || currentLevel;
 
@@ -94,7 +94,7 @@ export const RsvpSpeedReaderGame: React.FC = () => {
   }, [wordIndex, isPlaying]);
 
   useEffect(() => {
-    if (!isPlaying) {
+    if (!isPlaying || isGamePaused) {
       if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
@@ -134,7 +134,7 @@ export const RsvpSpeedReaderGame: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, wpm, words.length, userChunkSize, effectiveLevel, currentArticle.title, currentArticle.questions, emitTrialEvent]);
+  }, [isPlaying, isGamePaused, wpm, words.length, userChunkSize, effectiveLevel, currentArticle.title, currentArticle.questions, emitTrialEvent]);
 
   // Handle words to display
   const rawWord = words[wordIndex] || 'START';
@@ -521,9 +521,10 @@ export const RsvpSpeedReaderGame: React.FC = () => {
       {isFinished && (
         <GameResultModal
           score={Math.round((words.length * (wpm / 100)) + 300 + ((quizScore ?? 90) * 2))}
-          accuracyRate={quizScore ?? 95}
+          accuracyRate={quizScore ?? 100}
           timeSpentSec={Math.round(elapsedSec)}
           effectiveWpm={effectiveWpm}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={handleRestart}
           onClose={() => setActiveGameSlug(null)}

@@ -15,7 +15,11 @@ export type AuditoryErrorCategory =
   | 'GRID_TOPOLOGY_ERROR'     // Sai quan hệ song song //, vuông góc ⟂, giao điểm
   | 'ROUTING_ONEWAY_TRAP'     // Đi vào đường một chiều / cấm rẽ giờ cao điểm
   | 'LANDMARK_TRIANGULATION_ERROR' // Định vị sai điểm neo tòa nhà / mốc chân trời
-  | 'BEARING_DISTANCE_ERROR'; // Ước lượng sai góc la bàn 360° hoặc cự ly km
+  | 'BEARING_DISTANCE_ERROR'  // Ước lượng sai góc la bàn 360° hoặc cự ly km
+  | 'GLYPH_CONFUSION'         // Nhầm ký tự/chữ cái (VD: O ↔ 0, C ↔ G, d ↔ b, dấu thanh)
+  | 'NUMBER_SEARCH_ERROR'     // Bấm nhầm số mục tiêu
+  | 'WORD_SEARCH_MISMATCH'    // Khoanh sai từ hoặc nhầm từ bẫy
+  | 'TEXT_SCAN_INHIBITION';   // Bấm nhầm từ không phải từ khóa mục tiêu
 
 /** Mức độ nghiêm trọng của lỗi */
 export type ErrorSeverity = 'minor' | 'moderate' | 'critical';
@@ -104,6 +108,15 @@ export interface IQuestionContext {
   // Schulte Table & Visual Attention
   schulteMode?: string;
   gridSize?: number;
+
+  // Visual Scanning & Letter Search
+  prompt?: string;
+  distractor?: string;
+  targetWord?: string;
+  targetWords?: string[];
+  challengeType?: string;
+  matrixSize?: string;
+  articleTitle?: string;
 }
 
 /** Bản ghi một câu làm sai */

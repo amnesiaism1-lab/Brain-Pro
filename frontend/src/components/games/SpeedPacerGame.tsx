@@ -8,7 +8,7 @@ import { ReadingTextSourceModal } from '../common/ReadingTextSourceModal';
 import { readingContentService } from '../../services/readingContentService';
 
 export const SpeedPacerGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const effectiveLevel = getExerciseLevel('reading-pacer') || currentLevel;
   const isInfinity = effectiveLevel >= 13;
@@ -50,7 +50,7 @@ export const SpeedPacerGame: React.FC = () => {
   }, [highlightWordIndex, isPlaying]);
 
   useEffect(() => {
-    if (!isPlaying) {
+    if (!isPlaying || isGamePaused) {
       if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
@@ -82,7 +82,7 @@ export const SpeedPacerGame: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, words.length, pacerWpm, currentArticle.title, effectiveLevel, emitTrialEvent]);
+  }, [isPlaying, isGamePaused, words.length, pacerWpm, currentArticle.title, effectiveLevel, emitTrialEvent]);
 
   const handleSelectNewArticle = (article: IReadingText) => {
     setCurrentArticle(article);
@@ -273,9 +273,10 @@ export const SpeedPacerGame: React.FC = () => {
       {isFinished && (
         <GameResultModal
           score={pacerWpm * 2}
-          accuracyRate={95}
+          accuracyRate={Math.min(100, Math.round(((highlightWordIndex + 1) / Math.max(1, words.length)) * 100))}
           timeSpentSec={Math.round((words.length / pacerWpm) * 60) || 30}
           effectiveWpm={pacerWpm}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

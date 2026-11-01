@@ -1,25 +1,58 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { calculateGameScore } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
+import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { readingContentService } from '../../services/readingContentService';
-import { RotateCcw, Sparkles } from 'lucide-react';
+import { RotateCcw, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 export const FindLetterGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
-  const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
-  const lastClickRef = React.useRef<number>(Date.now());
-  const effectiveLevel = getExerciseLevel('find-letter') || currentLevel;
-  const isInfinity = effectiveLevel >= 13;
-  const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
+  const { 
+    currentLevel, 
+    getExerciseLevel, 
+    setActiveGameSlug, 
+    playSound,
+    isGamePaused,
+    ladderSessionRounds
+  } = useAppStore();
 
-  const gridSize = effectiveLevel >= 20 ? 10 : effectiveLevel >= 17 ? 9 : effectiveLevel >= 13 ? 8 : effectiveLevel <= 2 ? 5 : effectiveLevel <= 5 ? 6 : effectiveLevel <= 8 ? 7 : 8;
-  const targetCount = effectiveLevel >= 20 ? 10 : effectiveLevel >= 16 ? 8 : effectiveLevel >= 13 ? 6 : effectiveLevel <= 2 ? 3 : effectiveLevel <= 5 ? 4 : effectiveLevel <= 8 ? 5 : 7;
+  const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
+  const { trackWrongAnswer } = useWrongAnswerTracker('find-letter');
+  const { sessionConfig: resolvedConfig, isCustom } = useExerciseSessionConfig('find-letter');
+
+  const effectiveLevel = getExerciseLevel('find-letter') || currentLevel;
+  // Hold the level played during this session to avoid sudden re-render wipes if DDA updates store
+  const playedLevelRef = useRef<number>(effectiveLevel);
+  const sessionIdRef = useRef<string>(`fl-${Date.now()}`);
+  const lastClickRef = useRef<number>(Date.now());
+
+  const playedLevel = playedLevelRef.current;
+  const isInfinity = playedLevel >= 13;
+
+  // Rounds configuration
+  const totalRounds = useMemo(() => {
+    if (isCustom && resolvedConfig.rounds && resolvedConfig.rounds > 0) {
+      return resolvedConfig.rounds;
+    }
+    return ladderSessionRounds || 1;
+  }, [isCustom, resolvedConfig.rounds, ladderSessionRounds]);
+
+  const [currentRound, setCurrentRound] = useState<number>(1);
+  const [roundResults, setRoundResults] = useState<Array<{ score: number; accuracy: number; timeSpentSec: number }>>([]);
+  const [roundTransition, setRoundTransition] = useState<{ roundDone: number } | null>(null);
+
+  // Custom countdown timer if timeLimitSec is set in custom mode
+  const isCustomCountdown = Boolean(isCustom && resolvedConfig.timeLimitSec && resolvedConfig.timeLimitSec > 0);
+  const customTimeLimit = isCustomCountdown ? (resolvedConfig.timeLimitSec || 30) : 0;
+
+  const gridSize = playedLevel >= 20 ? 10 : playedLevel >= 17 ? 9 : playedLevel >= 13 ? 8 : playedLevel <= 2 ? 5 : playedLevel <= 5 ? 6 : playedLevel <= 8 ? 7 : 8;
+  const targetCount = playedLevel >= 20 ? 10 : playedLevel >= 16 ? 8 : playedLevel >= 13 ? 6 : playedLevel <= 2 ? 3 : playedLevel <= 5 ? 4 : playedLevel <= 8 ? 5 : 7;
 
   // Challenge mode: 'all' | 'vowel_tones' | 'confusable'
   const [challengeMode, setChallengeMode] = useState<'all' | 'vowel_tones' | 'confusable'>(() => {
-    if (effectiveLevel >= 13) return 'confusable';
+    if (playedLevel >= 13) return 'confusable';
     return 'all';
   });
   
@@ -37,6 +70,7 @@ export const FindLetterGame: React.FC = () => {
     mirror?: boolean;
     scale?: number;
     colorClass?: string;
+    driftOffset?: { x: number; y: number };
   }
 
   const [grid, setGrid] = useState<LetterCellItem[]>([]);
@@ -45,12 +79,20 @@ export const FindLetterGame: React.FC = () => {
   const [missCount, setMissCount] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [errorCellId, setErrorCellId] = useState<number | null>(null);
+  const [finalScore, setFinalScore] = useState<number>(0);
+  const [finalAccuracy, setFinalAccuracy] = useState<number>(100);
+  const [finalTimeSpentSec, setFinalTimeSpentSec] = useState<number>(0);
 
   const MATH_SYMBOLS = ['∑', 'π', 'Ω', 'δ', '∞', 'λ', 'θ', 'ψ', 'Δ', 'β', '≈', '≠', '√', '∫'];
   const FONTS = ['sans-serif', 'serif', 'monospace', 'cursive'];
   const CAMOUFLAGE_COLORS = [
-    'text-rose-500', 'text-blue-500', 'text-emerald-500', 
-    'text-amber-500', 'text-purple-500', 'text-cyan-500', 'text-pink-500'
+    'text-rose-500 dark:text-rose-400', 
+    'text-blue-500 dark:text-blue-400', 
+    'text-emerald-500 dark:text-emerald-400', 
+    'text-amber-500 dark:text-amber-400', 
+    'text-purple-500 dark:text-purple-400', 
+    'text-cyan-500 dark:text-cyan-400', 
+    'text-pink-500 dark:text-pink-400'
   ];
 
   const initGridWithChallenge = useCallback((currentChallenge: typeof challenge) => {
@@ -67,11 +109,11 @@ export const FindLetterGame: React.FC = () => {
     let distractorPool = [...distractors];
 
     // ∞-VII & ∞-X: Symbol invasion
-    if (effectiveLevel === 19 || effectiveLevel === 22) {
+    if (playedLevel === 19 || playedLevel === 22) {
       distractorPool = [...distractorPool, ...MATH_SYMBOLS];
     }
     // ∞-I: Latin letters mix
-    if (effectiveLevel === 13) {
+    if (playedLevel === 13) {
       distractorPool = [...distractorPool, 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'R', 'S', 'T'];
     }
 
@@ -79,20 +121,27 @@ export const FindLetterGame: React.FC = () => {
 
     for (let i = 0; i < totalCells; i++) {
       const isTarget = targetIndices.has(i);
-      const rotationDeg = (effectiveLevel === 14 || effectiveLevel === 21 || effectiveLevel === 22) 
+      const rotationDeg = (playedLevel === 14 || playedLevel === 21 || playedLevel === 22) 
         ? rotations[Math.floor(Math.random() * rotations.length)] 
         : 0;
-      const fontFamily = (effectiveLevel === 16 || effectiveLevel === 22) 
+      const fontFamily = (playedLevel === 16 || playedLevel === 22) 
         ? FONTS[Math.floor(Math.random() * FONTS.length)] 
         : undefined;
-      const mirror = (effectiveLevel === 15 || effectiveLevel === 21 || effectiveLevel === 22) 
+      const mirror = (playedLevel === 15 || playedLevel === 21 || playedLevel === 22) 
         ? Math.random() < 0.5 
         : false;
-      const scale = effectiveLevel === 17 
+      const scale = playedLevel === 17 
         ? +(0.7 + Math.random() * 0.6).toFixed(2) 
         : undefined;
-      const colorClass = (effectiveLevel === 20 || effectiveLevel === 22)
+
+      // Color Stroop conflict: Level 12 (standard Stroop) or Level 20/22 (Infinity Camouflage)
+      const colorClass = (playedLevel === 12 || playedLevel === 20 || playedLevel === 22)
         ? CAMOUFLAGE_COLORS[Math.floor(Math.random() * CAMOUFLAGE_COLORS.length)]
+        : undefined;
+
+      // Level 10: Moving grid drift offset
+      const driftOffset = playedLevel === 10
+        ? { x: Math.floor(Math.random() * 7) - 3, y: Math.floor(Math.random() * 7) - 3 }
         : undefined;
 
       items.push({
@@ -104,15 +153,15 @@ export const FindLetterGame: React.FC = () => {
         fontFamily,
         mirror,
         scale,
-        colorClass
+        colorClass,
+        driftOffset
       });
     }
     setGrid(items);
     setFoundCount(0);
     setMissCount(0);
     setElapsedSec(0);
-    setIsFinished(false);
-  }, [gridSize, targetCount, effectiveLevel]);
+  }, [gridSize, targetCount, playedLevel]);
 
   const handleNewChallenge = (mode = challengeMode) => {
     playSound('click');
@@ -121,13 +170,97 @@ export const FindLetterGame: React.FC = () => {
     initGridWithChallenge(nextChallenge);
   };
 
+  // Initial grid creation
   useEffect(() => {
     initGridWithChallenge(challenge);
-    const timer = setInterval(() => setElapsedSec(s => s + 1), 1000);
+  }, [initGridWithChallenge]);
+
+  // Handle Round Completion (advance to next round or finish session)
+  const completeRound = useCallback((timedOut = false) => {
+    const totalClicks = foundCount + missCount;
+    const roundAcc = timedOut
+      ? (totalClicks > 0 ? Math.round((foundCount / totalClicks) * 100) : 0)
+      : (totalClicks > 0 ? Math.round((foundCount / totalClicks) * 100) : 100);
+
+    const roundScore = calculateGameScore({
+      level: playedLevel,
+      accuracyRate: roundAcc,
+      timeLimitSec: isCustomCountdown ? customTimeLimit : (isInfinity ? 60 : 40),
+      timeSpentSec: elapsedSec
+    });
+
+    const newResult = {
+      score: roundScore,
+      accuracy: roundAcc,
+      timeSpentSec: elapsedSec
+    };
+
+    const nextAllResults = [...roundResults, newResult];
+    setRoundResults(nextAllResults);
+
+    if (currentRound < totalRounds) {
+      // Transition to next round
+      setRoundTransition({ roundDone: currentRound });
+      playSound('correct');
+    } else {
+      // Final round done: Aggregate score and freeze!
+      const aggScore = nextAllResults.reduce((sum, r) => sum + r.score, 0);
+      const aggAcc = Math.round(nextAllResults.reduce((sum, r) => sum + r.accuracy, 0) / nextAllResults.length);
+      const aggTime = nextAllResults.reduce((sum, r) => sum + r.timeSpentSec, 0);
+
+      setFinalScore(aggScore);
+      setFinalAccuracy(aggAcc);
+      setFinalTimeSpentSec(aggTime);
+      setIsFinished(true);
+      playSound('victory');
+    }
+  }, [
+    foundCount, 
+    missCount, 
+    playedLevel, 
+    isCustomCountdown, 
+    customTimeLimit, 
+    isInfinity, 
+    elapsedSec, 
+    roundResults, 
+    currentRound, 
+    totalRounds, 
+    playSound
+  ]);
+
+  // Main Timer Effect (pauses on isGamePaused, roundTransition, isFinished)
+  useEffect(() => {
+    if (isFinished || isGamePaused || Boolean(roundTransition)) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setElapsedSec(s => {
+        const nextSec = s + 1;
+        // Check timeout in custom countdown mode
+        if (isCustomCountdown && nextSec >= customTimeLimit) {
+          clearInterval(timer);
+          completeRound(true);
+          return customTimeLimit;
+        }
+        return nextSec;
+      });
+    }, 1000);
+
     return () => clearInterval(timer);
-  }, [currentLevel, gridSize, challenge, initGridWithChallenge]);
+  }, [isFinished, isGamePaused, roundTransition, isCustomCountdown, customTimeLimit, completeRound]);
+
+  const advanceNextRound = () => {
+    playSound('click');
+    setRoundTransition(null);
+    setCurrentRound(r => r + 1);
+    const nextChallenge = readingContentService.getRandomLetterChallenge(challengeMode);
+    setChallenge(nextChallenge);
+    initGridWithChallenge(nextChallenge);
+  };
 
   const handleCellClick = (cellId: number) => {
+    if (isFinished || Boolean(roundTransition)) return;
     const cell = grid.find(c => c.id === cellId);
     if (!cell || cell.found) return;
 
@@ -138,7 +271,7 @@ export const FindLetterGame: React.FC = () => {
 
     emitTrialEvent({
       exerciseSlug: 'find-letter',
-      level: effectiveLevel,
+      level: playedLevel,
       relationId: 'TARGET_DISTRACTOR',
       relationWeight: 1.0,
       entities: {
@@ -161,25 +294,40 @@ export const FindLetterGame: React.FC = () => {
       setFoundCount(nextFound);
 
       if (nextFound >= targetCount) {
-        playSound('correct');
-        setIsFinished(true);
+        completeRound(false);
       }
     } else {
       playSound('wrong');
       setMissCount(m => m + 1);
       setErrorCellId(cellId);
       setTimeout(() => setErrorCellId(null), 400);
+
+      // Record into Wrong Answer History
+      trackWrongAnswer({
+        round: currentRound,
+        difficultyLevel: playedLevel,
+        questionContext: {
+          prompt: `Tìm chữ "${challenge.target}"`,
+          distractor: cell.char,
+          challengeType: challenge.type,
+          matrixSize: `${gridSize}x${gridSize}`
+        },
+        correctAnswer: {
+          label: challenge.target,
+          code: challenge.target
+        },
+        userAnswer: {
+          label: cell.char,
+          code: cell.char
+        },
+        responseTimeMs: respMs,
+        sessionId: sessionIdRef.current,
+        severity: 'minor'
+      });
     }
   };
 
-  const totalClicks = foundCount + missCount;
-  const accuracy = totalClicks > 0 ? Math.round((foundCount / totalClicks) * 100) : 100;
-  const score = calculateGameScore({
-    level: effectiveLevel,
-    accuracyRate: accuracy,
-    timeLimitSec: isInfinity ? 60 : 40,
-    timeSpentSec: elapsedSec
-  });
+  const displayTimeLeft = isCustomCountdown ? Math.max(0, customTimeLimit - elapsedSec) : elapsedSec;
 
   return (
     <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-3xl mx-auto px-4 py-4 space-y-5 animate-fade-in pb-24">
@@ -188,19 +336,19 @@ export const FindLetterGame: React.FC = () => {
         <div className="rounded-2xl p-3 bg-gradient-to-r from-purple-900/60 via-indigo-900/50 to-pink-900/50 border border-purple-500/40 text-purple-200 text-xs shadow-lg backdrop-blur-md flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-400/30">
-              ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
+              ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][playedLevel - 13]}
             </span>
             <span className="font-semibold text-white">
-              {effectiveLevel === 13 ? 'Latin Alphabet Hunt (Ký tự Latin học thuật)' :
-               effectiveLevel === 14 ? 'Rotated Letters (Xoay góc 90°/180°/270° ngẫu nhiên)' :
-               effectiveLevel === 15 ? 'Mirror Inversion (Ký tự đảo gương đối xứng)' :
-               effectiveLevel === 16 ? 'Font Typography Clash (Họ phông chữ Serif, Sans, Cursive, Mono)' :
-               effectiveLevel === 17 ? 'Font Size Chaos (Kích thước ký tự biến thiên hỗn loạn)' :
-               effectiveLevel === 18 ? 'Confusable Glyphs (Ký tự dễ gây nhầm lẫn thị giác)' :
-               effectiveLevel === 19 ? 'Symbol Invasion (Ký hiệu toán học ∑, π, Ω, δ, ∞, λ)' :
-               effectiveLevel === 20 ? 'Color Camouflage (Ngụy trang đa sắc tố)' :
-               effectiveLevel === 21 ? 'Mirror & Rotation Maze (Kết hợp xoay + lật gương)' :
-               'Quantum Matrix (Ma trận 10x10 tổng hợp toàn diện)'}
+              {playedLevel === 13 ? 'Săn Ký Tự Latin Học Thuật (Latin Alphabet Hunt)' :
+               playedLevel === 14 ? 'Ký Tự Xoay Góc Ngẫu Nhiên (Rotated Letters)' :
+               playedLevel === 15 ? 'Ký Tự Đảo Gương Đối Xứng (Mirror Inversion)' :
+               playedLevel === 16 ? 'Xung Đột Họ Phông Chữ (Font Typography Clash)' :
+               playedLevel === 17 ? 'Biến Thiên Kích Thước Ký Tự (Font Size Chaos)' :
+               playedLevel === 18 ? 'Ký Tự Dễ Nhầm Lẫn Thị Giác (Confusable Glyphs)' :
+               playedLevel === 19 ? 'Ký Hiệu Toán & Hy Lạp Xâm Nhập (Symbol Invasion)' :
+               playedLevel === 20 ? 'Ngụy Trang Đa Sắc Tố (Color Camouflage)' :
+               playedLevel === 21 ? 'Mê Cung Đảo Gương & Xoay (Mirror & Rotation Maze)' :
+               'Ma Trận Tổng Hợp Lượng Tử (Quantum Matrix)'}
             </span>
           </div>
           <span className="text-[11px] text-purple-300/80 hidden sm:inline">Thử thách Vô Cực</span>
@@ -218,6 +366,11 @@ export const FindLetterGame: React.FC = () => {
               <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400">
                 {challenge.type}
               </span>
+              {totalRounds > 1 && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
+                  Lượt {currentRound}/{totalRounds}
+                </span>
+              )}
             </div>
             <div className="text-sm sm:text-base font-bold text-slate-800 dark:text-white mt-1">
               Đã tìm: <strong className="text-brand-600 text-base sm:text-lg">{foundCount} / {targetCount}</strong>
@@ -225,11 +378,12 @@ export const FindLetterGame: React.FC = () => {
           </div>
         </div>
 
-        {/* Change Challenge Button */}
+        {/* Change Challenge & Clock */}
         <div className="flex items-center gap-3">
           <button
             onClick={() => handleNewChallenge()}
-            className="px-3 py-2 rounded-2xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all btn-press"
+            disabled={isFinished || Boolean(roundTransition)}
+            className="px-3 py-2 rounded-2xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all btn-press disabled:opacity-50"
             title="Đổi bộ ký tự ngẫu nhiên khác"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -237,9 +391,11 @@ export const FindLetterGame: React.FC = () => {
           </button>
 
           <div className="text-right">
-            <span className="text-xs sm:text-sm text-slate-500 font-medium">Thời gian</span>
-            <div className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white">
-              {elapsedSec}s
+            <span className="text-xs sm:text-sm text-slate-500 font-medium">
+              {isCustomCountdown ? 'Còn lại' : 'Thời gian'}
+            </span>
+            <div className={`text-2xl sm:text-3xl font-black ${isCustomCountdown && displayTimeLeft <= 10 ? 'text-rose-600 dark:text-rose-400 animate-pulse' : 'text-slate-800 dark:text-white'}`}>
+              {displayTimeLeft}s
             </div>
           </div>
         </div>
@@ -271,11 +427,14 @@ export const FindLetterGame: React.FC = () => {
 
       <p className="text-xs sm:text-sm text-center text-slate-600 dark:text-slate-400 font-medium">
         Quét nhanh qua ma trận ký tự và nhấp vào tất cả chữ <strong>"{challenge.target}"</strong> ({challenge.description})!
+        <span className="block text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+          * Phân biệt chính xác chữ hoa, chữ thường và dấu thanh tiếng Việt.
+        </span>
       </p>
 
       {/* Grid */}
       <div 
-        className="grid gap-2 sm:gap-3 md:gap-4 bg-[#F5EFE6] dark:bg-slate-800/90 p-4 sm:p-6 md:p-8 rounded-3xl border-2 border-[#D5CBB9] dark:border-slate-700 shadow-2xl select-none aspect-square"
+        className="grid gap-2 sm:gap-3 md:gap-4 bg-[#F5EFE6] dark:bg-slate-800/90 p-4 sm:p-6 md:p-8 rounded-3xl border-2 border-[#D5CBB9] dark:border-slate-700 shadow-2xl select-none aspect-square relative"
         style={{ gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))` }}
       >
         {grid.map((cell) => (
@@ -283,7 +442,7 @@ export const FindLetterGame: React.FC = () => {
             key={cell.id}
             onClick={() => handleCellClick(cell.id)}
             style={{
-              transform: `${cell.rotationDeg ? `rotate(${cell.rotationDeg}deg)` : ''} ${cell.mirror ? 'scaleX(-1)' : ''} ${cell.scale ? `scale(${cell.scale})` : ''}`.trim() || undefined,
+              transform: `${cell.rotationDeg ? `rotate(${cell.rotationDeg}deg)` : ''} ${cell.mirror ? 'scaleX(-1)' : ''} ${cell.scale ? `scale(${cell.scale})` : ''} ${cell.driftOffset ? `translate(${cell.driftOffset.x}px, ${cell.driftOffset.y}px)` : ''}`.trim() || undefined,
               fontFamily: cell.fontFamily || undefined
             }}
             className={`flex items-center justify-center font-black rounded-xl sm:rounded-2xl transition-all duration-100 btn-press ${cell.colorClass || 'text-slate-800 dark:text-white'} ${
@@ -299,16 +458,41 @@ export const FindLetterGame: React.FC = () => {
             {cell.char}
           </button>
         ))}
+
+        {/* Round Transition Overlay */}
+        {roundTransition && (
+          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center gap-4 text-white z-20 animate-fade-in p-6 text-center">
+            <CheckCircle2 className="w-14 h-14 text-emerald-400 animate-bounce" />
+            <h3 className="text-xl sm:text-2xl font-black">
+              Hoàn thành Lượt {roundTransition.roundDone}/{totalRounds}!
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-300">
+              Thời gian: {elapsedSec}s • Sẵn sàng cho lượt tiếp theo?
+            </p>
+            <button
+              onClick={advanceNextRound}
+              className="mt-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm sm:text-base shadow-xl flex items-center gap-2 active:scale-95 transition-all"
+            >
+              <span>Vào Lượt {roundTransition.roundDone + 1}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {isFinished && (
         <GameResultModal
-          score={score}
-          accuracyRate={accuracy}
-          timeSpentSec={elapsedSec}
+          score={finalScore}
+          accuracyRate={finalAccuracy}
+          timeSpentSec={finalTimeSpentSec}
+          playedLevel={playedLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();
+            setCurrentRound(1);
+            setRoundResults([]);
+            setRoundTransition(null);
+            setIsFinished(false);
             handleNewChallenge();
           }}
           onClose={() => setActiveGameSlug(null)}

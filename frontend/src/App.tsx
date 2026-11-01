@@ -12,6 +12,7 @@ import { ProfileView } from './components/profile/ProfileView';
 import { SettingsView } from './components/settings/SettingsView';
 import { HowToTrainModal } from './components/modals/HowToTrainModal';
 import { RemindersModal } from './components/modals/RemindersModal';
+import { RoutineSummaryModal } from './components/modals/RoutineSummaryModal';
 import { AuthModal } from './components/auth/AuthModal';
 import { RelationDebriefModal } from './components/cognition/RelationDebriefModal';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -90,6 +91,7 @@ export const App: React.FC = () => {
         {/* Global Modals */}
         <HowToTrainModal />
         <RemindersModal />
+        <RoutineSummaryModal />
         <AuthModal />
         {activeDebriefEvents && activeDebriefEvents.length > 0 && (
           <RelationDebriefModal

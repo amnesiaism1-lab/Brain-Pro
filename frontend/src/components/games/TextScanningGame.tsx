@@ -1,81 +1,169 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { calculateGameScore, IReadingText, SAMPLE_READING_TEXTS } from '@brain-exercises/shared';
-import { Search, BookOpen, Check, Target, Sparkles, RotateCcw } from 'lucide-react';
+import { Search, BookOpen, Check, Target, Sparkles, RotateCcw, CheckCircle2, ArrowRight } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
+import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { ReadingTextSourceModal } from '../common/ReadingTextSourceModal';
 import { readingContentService } from '../../services/readingContentService';
 import { shuffleArray } from '../../services/infinityApiService';
 
 export const TextScanningGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { 
+    currentLevel, 
+    getExerciseLevel, 
+    setActiveGameSlug, 
+    playSound,
+    isGamePaused,
+    ladderSessionRounds 
+  } = useAppStore();
+
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
+  const { trackWrongAnswer } = useWrongAnswerTracker('text-scanning');
+  const { sessionConfig: resolvedConfig, isCustom } = useExerciseSessionConfig('text-scanning');
+
+  const effectiveLevel = getExerciseLevel('text-scanning') || currentLevel || 1;
+  const playedLevelRef = useRef<number>(effectiveLevel);
+  const playedLevel = playedLevelRef.current;
+  const isInfinity = playedLevel >= 13;
+
+  const sessionIdRef = useRef<string>(`ts-${Date.now()}`);
   const lastScanTimeRef = useRef<number>(Date.now());
-  const effectiveLevel = getExerciseLevel('text-scanning') || currentLevel;
-  const isInfinity = effectiveLevel >= 13;
-  const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
-  // Level 9-12 or Infinity is MULTI_TARGET_SCAN (3 to 6 keywords simultaneously)
-  const isMultiTarget = effectiveLevel >= 9;
-  const targetCount = isInfinity 
-    ? Math.min(6, 3 + Math.floor(infinityTier / 2)) 
-    : isMultiTarget ? 3 : 1;
-
-  const allTexts = readingContentService.getAllTexts();
-  const englishTexts = allTexts.filter(t => t.language === 'en');
-  const [currentArticle, setCurrentArticle] = useState<IReadingText>(() => {
-    if (isInfinity) {
-      return readingContentService.getInfinityText(effectiveLevel);
+  // Rounds
+  const totalRounds = useMemo(() => {
+    if (isCustom && resolvedConfig.rounds && resolvedConfig.rounds > 0) {
+      return resolvedConfig.rounds;
     }
-    return allTexts[(effectiveLevel - 1) % allTexts.length] || SAMPLE_READING_TEXTS[0];
+    return ladderSessionRounds || 1;
+  }, [isCustom, resolvedConfig.rounds, ladderSessionRounds]);
+
+  const [currentRound, setCurrentRound] = useState<number>(1);
+  const [roundResults, setRoundResults] = useState<Array<{ score: number; accuracy: number; timeSpentSec: number }>>([]);
+  const [roundTransition, setRoundTransition] = useState<{ roundDone: number } | null>(null);
+
+  const isCustomCountdown = Boolean(isCustom && resolvedConfig.timeLimitSec && resolvedConfig.timeLimitSec > 0);
+  const customTimeLimit = isCustomCountdown ? (resolvedConfig.timeLimitSec || 45) : 0;
+
+  const [currentArticle, setCurrentArticle] = useState<IReadingText>(() => {
+    const defaultTexts = SAMPLE_READING_TEXTS.filter(t => t.language === 'vi');
+    return defaultTexts[0] || SAMPLE_READING_TEXTS[0];
   });
+
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
-
-  const rawText = currentArticle.content;
-  const words = useMemo(() => rawText.split(/\s+/).filter(Boolean), [rawText]);
-
+  const isMultiTarget = playedLevel >= 9;
   const [targetWords, setTargetWords] = useState<string[]>([]);
   const [foundWords, setFoundWords] = useState<string[]>([]);
   const [foundIndices, setFoundIndices] = useState<number[]>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [missCount, setMissCount] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
 
+  // Frozen summary values
+  const [finalScore, setFinalScore] = useState<number>(0);
+  const [finalAccuracy, setFinalAccuracy] = useState<number>(100);
+  const [finalTimeSpentSec, setFinalTimeSpentSec] = useState<number>(0);
+
   // Pick target keywords from text
-  const initTargets = (articleText: string) => {
+  const initTargets = useCallback((articleText: string) => {
     const candidates = readingContentService.extractKeywordsFromArticle(articleText, 4, 8, 20);
     const shuffled = shuffleArray(candidates);
-    const selected = shuffled.slice(0, targetCount);
-
-    if (selected.length < targetCount) {
-      const vocab = readingContentService.getVocabularyList();
-      for (const v of vocab) {
-        if (!selected.includes(v.toLowerCase()) && selected.length < targetCount) {
-          selected.push(v.toLowerCase());
-        }
-      }
+    
+    // Level scaling: 1 target for Level 1-8, 2-3 targets for Level 9-12, up to 4 for Infinity
+    const targetCount = playedLevel >= 22 ? 6 : playedLevel >= 15 ? 4 : playedLevel >= 9 ? 3 : 1;
+    const selectedTargets = shuffled.slice(0, targetCount);
+    
+    if (selectedTargets.length === 0) {
+      const words = articleText.split(/\s+/).filter(w => w.length >= 4);
+      setTargetWords([words[0] || 'thông tin']);
+    } else {
+      setTargetWords(selectedTargets);
     }
-
-    setTargetWords(selected);
     setFoundWords([]);
     setFoundIndices([]);
     setElapsedSec(0);
-    setIsFinished(false);
-  };
+    setMissCount(0);
+  }, [playedLevel]);
+
+  // Handle completing a round
+  const completeRound = useCallback((timedOut = false) => {
+    const totalClicks = foundWords.length + missCount;
+    const roundAcc = timedOut
+      ? (totalClicks > 0 ? Math.round((foundWords.length / totalClicks) * 100) : 0)
+      : (totalClicks > 0 ? Math.round((foundWords.length / totalClicks) * 100) : 100);
+
+    const roundScore = calculateGameScore({
+      level: playedLevel,
+      accuracyRate: roundAcc,
+      timeLimitSec: isCustomCountdown ? customTimeLimit : 45,
+      timeSpentSec: elapsedSec
+    });
+
+    const newResult = {
+      score: roundScore,
+      accuracy: roundAcc,
+      timeSpentSec: elapsedSec
+    };
+
+    const nextAllResults = [...roundResults, newResult];
+    setRoundResults(nextAllResults);
+
+    if (currentRound < totalRounds) {
+      setRoundTransition({ roundDone: currentRound });
+      playSound('correct');
+    } else {
+      const aggScore = nextAllResults.reduce((sum, r) => sum + r.score, 0);
+      const aggAcc = Math.round(nextAllResults.reduce((sum, r) => sum + r.accuracy, 0) / nextAllResults.length);
+      const aggTime = nextAllResults.reduce((sum, r) => sum + r.timeSpentSec, 0);
+
+      setFinalScore(aggScore);
+      setFinalAccuracy(aggAcc);
+      setFinalTimeSpentSec(aggTime);
+      setIsFinished(true);
+      playSound('victory');
+    }
+  }, [foundWords.length, missCount, playedLevel, isCustomCountdown, customTimeLimit, elapsedSec, roundResults, currentRound, totalRounds, playSound]);
 
   useEffect(() => {
     initTargets(currentArticle.content);
-    const timer = setInterval(() => setElapsedSec(s => s + 1), 1000);
+  }, [currentArticle, initTargets]);
+
+  // Main timer loop
+  useEffect(() => {
+    if (isFinished || isGamePaused || Boolean(roundTransition)) return;
+
+    const timer = setInterval(() => {
+      setElapsedSec(s => {
+        const nextSec = s + 1;
+        if (isCustomCountdown && nextSec >= customTimeLimit) {
+          clearInterval(timer);
+          completeRound(true);
+          return customTimeLimit;
+        }
+        return nextSec;
+      });
+    }, 1000);
+
     return () => clearInterval(timer);
-  }, [currentArticle, currentLevel]);
+  }, [isFinished, isGamePaused, roundTransition, isCustomCountdown, customTimeLimit, completeRound]);
+
+  const advanceNextRound = () => {
+    playSound('click');
+    setRoundTransition(null);
+    setCurrentRound(r => r + 1);
+    initTargets(currentArticle.content);
+  };
+
+  const articleTokens = useMemo(() => {
+    return currentArticle.content.split(/\s+/).filter(Boolean);
+  }, [currentArticle.content]);
 
   const handleWordClick = (word: string, idx: number) => {
-    if (isFinished) return;
-    playSound('click');
+    if (isFinished || Boolean(roundTransition) || foundIndices.includes(idx)) return;
 
-    const cleanWord = word.replace(/[.,()—":;?!]/g, '').trim().toLowerCase();
-    
-    // Check if clicked word matches any unfound target
+    const cleanWord = word.replace(/[.,/#!$%^&*;:{}=\-_`~()?"'“”—]/g, '').trim().toLowerCase();
     const matchedTarget = targetWords.find(t => {
       const cleanTarget = t.toLowerCase();
       return cleanWord.includes(cleanTarget) || cleanTarget.includes(cleanWord);
@@ -88,7 +176,7 @@ export const TextScanningGame: React.FC = () => {
 
     emitTrialEvent({
       exerciseSlug: 'text-scanning',
-      level: effectiveLevel,
+      level: playedLevel,
       relationId: 'TARGET_DISTRACTOR',
       relationWeight: 1.0,
       entities: { 
@@ -112,13 +200,33 @@ export const TextScanningGame: React.FC = () => {
       setFoundIndices(nextIndices);
 
       if (nextFoundWords.length >= targetWords.length) {
-        playSound('victory');
-        setTimeout(() => {
-          setIsFinished(true);
-        }, 500);
+        completeRound(false);
       }
     } else {
       playSound('wrong');
+      setMissCount(m => m + 1);
+
+      // Track into Wrong Answer History
+      trackWrongAnswer({
+        round: currentRound,
+        difficultyLevel: playedLevel,
+        questionContext: {
+          prompt: `Tìm từ khóa: ${targetWords.join(', ')}`,
+          distractor: cleanWord,
+          articleTitle: currentArticle.title
+        },
+        correctAnswer: {
+          label: targetWords[0] || 'Từ mục tiêu',
+          code: targetWords[0] || 'TARGET'
+        },
+        userAnswer: {
+          label: cleanWord,
+          code: cleanWord
+        },
+        responseTimeMs: respMs,
+        sessionId: sessionIdRef.current,
+        severity: 'minor'
+      });
     }
   };
 
@@ -131,12 +239,7 @@ export const TextScanningGame: React.FC = () => {
     initTargets(currentArticle.content);
   };
 
-  const score = calculateGameScore({
-    level: effectiveLevel,
-    accuracyRate: 100,
-    timeLimitSec: 45,
-    timeSpentSec: elapsedSec
-  });
+  const displayTime = isCustomCountdown ? Math.max(0, customTimeLimit - elapsedSec) : elapsedSec;
 
   return (
     <div className="w-full max-w-2xl sm:max-w-3xl md:max-w-4xl lg:max-w-5xl mx-auto px-3 sm:px-6 py-4 space-y-5 sm:space-y-6 animate-fade-in pb-24">
@@ -145,18 +248,18 @@ export const TextScanningGame: React.FC = () => {
         <div className="rounded-2xl p-3 bg-gradient-to-r from-purple-900/60 via-indigo-900/50 to-pink-900/50 border border-purple-500/40 text-purple-200 text-xs shadow-lg backdrop-blur-md flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-400/30">
-              ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][effectiveLevel - 13]}
+              ∞-{['I','II','III','IV','V','VI','VII','VIII','IX','X'][playedLevel - 13]}
             </span>
             <span className="font-semibold text-white">
-              {effectiveLevel === 13 ? 'English Technical Scanning (Quét từ khóa chuyên môn Anh ngữ)' :
-               effectiveLevel === 14 ? 'Bilingual Scanning (Quét song ngữ Anh - Việt)' :
-               effectiveLevel === 15 ? 'High Density Multi-Target (Quét 4 từ khóa đồng thời)' :
-               effectiveLevel === 16 ? 'Live News Keyword Scan (Quét nhanh dòng sự kiện)' :
-               effectiveLevel === 17 ? 'Speed Rush Scan (Quét tốc hành dưới 30s)' :
-               effectiveLevel === 18 ? 'Semantic Concept Scan (Nhận diện khái niệm trừu tượng)' :
-               effectiveLevel === 19 ? 'Noisy Camouflage Scan (Vượt lớp ngụy trang nhiễu)' :
-               effectiveLevel === 20 ? 'Scientific Article Deep Scan (Khảo sát bài nghiên cứu)' :
-               effectiveLevel === 21 ? 'Mirror Orientation Scan (Đảo góc định hướng)' :
+              {playedLevel === 13 ? 'English Technical Scanning (Quét từ khóa chuyên môn Anh ngữ)' :
+               playedLevel === 14 ? 'Bilingual Scanning (Quét song ngữ Anh - Việt)' :
+               playedLevel === 15 ? 'High Density Multi-Target (Quét 4 từ khóa đồng thời)' :
+               playedLevel === 16 ? 'Live News Keyword Scan (Quét nhanh dòng sự kiện)' :
+               playedLevel === 17 ? 'Speed Rush Scan (Quét tốc hành dưới 30s)' :
+               playedLevel === 18 ? 'Semantic Concept Scan (Nhận diện khái niệm trừu tượng)' :
+               playedLevel === 19 ? 'Noisy Camouflage Scan (Vượt lớp ngụy trang nhiễu)' :
+               playedLevel === 20 ? 'Scientific Article Deep Scan (Khảo sát bài nghiên cứu)' :
+               playedLevel === 21 ? 'Mirror Orientation Scan (Đảo góc định hướng)' :
                'Chaos Blitz Scanning (6 từ khóa đồng thời Vô cực)'}
             </span>
           </div>
@@ -171,130 +274,129 @@ export const TextScanningGame: React.FC = () => {
             <Search className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-xs text-slate-500 font-semibold block">Tiến trình quét từ</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 font-semibold block">Tiến trình quét từ</span>
+              {totalRounds > 1 && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
+                  Lượt {currentRound}/{totalRounds}
+                </span>
+              )}
+            </div>
             <div className="text-base sm:text-2xl font-black text-slate-800 dark:text-white">
               {foundWords.length} / {targetWords.length} từ
+            </div>
+            <div className="text-xs font-semibold text-slate-500">
+              Lỗi bấm nhầm: <strong className="text-rose-500">{missCount}</strong>
             </div>
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            playSound('click');
-            setIsSourceModalOpen(true);
-          }}
-          className="py-2 px-3.5 sm:px-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-200 font-extrabold text-xs sm:text-sm flex items-center gap-2 transition-all btn-press shadow-sm"
-        >
-          <BookOpen className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-          <span>Đổi bài đọc / Tải Wikipedia</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsSourceModalOpen(true)}
+            className="px-3 py-2 rounded-2xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all"
+            title="Đổi bài đọc khác"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Đổi bài</span>
+          </button>
 
-        <div className="text-right">
-          <span className="text-xs text-slate-500 font-medium">Thời gian</span>
-          <div className="text-xl sm:text-3xl font-black text-slate-800 dark:text-white">
-            {elapsedSec}s
+          <button
+            onClick={handleRestart}
+            className="px-3 py-2 rounded-2xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all"
+            title="Tạo lại từ khóa mới"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Từ mới</span>
+          </button>
+
+          <div className="text-right">
+            <span className="text-xs text-slate-500 font-medium block">
+              {isCustomCountdown ? 'Còn lại' : 'Thời gian'}
+            </span>
+            <div className={`text-xl sm:text-2xl font-black ${isCustomCountdown && displayTime <= 10 ? 'text-rose-600 animate-pulse' : 'text-slate-800 dark:text-white'}`}>
+              {displayTime}s
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Target Word Mission Panel */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 shadow-md space-y-2.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Target className="w-4 h-4 text-brand-600" />
-            <span className="text-xs sm:text-sm font-extrabold text-slate-700 dark:text-slate-300">
-              {isMultiTarget ? 'Nhiệm vụ: Quét tìm 3 từ khóa đồng thời' : 'Nhiệm vụ: Quét nhanh từ khóa'}
-            </span>
-          </div>
-          <span className="text-[11px] font-bold text-brand-600 bg-brand-50 dark:bg-brand-950 px-2 py-0.5 rounded-full">
-            {isMultiTarget ? 'Biến thể Siêu phẩm Cấp 9+' : 'Tìm kiếm mục tiêu'}
-          </span>
+      {/* Target Word Pill Box */}
+      <div className="bg-amber-50 dark:bg-amber-950/40 p-4 sm:p-5 rounded-3xl border-2 border-amber-300 dark:border-amber-700/60 shadow-sm space-y-2">
+        <div className="flex items-center gap-2 text-xs font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wider">
+          <Target className="w-4 h-4 text-amber-600" />
+          <span>Mục tiêu quét (Nhấp vào từ này khi phát hiện trong đoạn văn):</span>
         </div>
-
-        {/* Target Words Badges */}
-        <div className="flex flex-wrap gap-2.5 pt-1">
-          {targetWords.map((target, idx) => {
-            const isFound = foundWords.includes(target);
+        <div className="flex flex-wrap gap-2 pt-1">
+          {targetWords.map((word, i) => {
+            const isFound = foundWords.includes(word);
             return (
-              <div
-                key={idx}
-                className={`py-2 px-3.5 rounded-2xl border flex items-center gap-2 transition-all duration-300 ${
+              <span
+                key={i}
+                className={`px-3.5 py-1.5 rounded-xl font-black text-sm sm:text-base flex items-center gap-1.5 transition-all ${
                   isFound
-                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-800 dark:text-emerald-200 ring-2 ring-emerald-400/30'
-                    : 'bg-brand-50/80 dark:bg-slate-700/60 border-brand-200 dark:border-slate-600 text-brand-700 dark:text-brand-300'
+                    ? 'bg-emerald-500 text-white line-through shadow-sm scale-95 opacity-80'
+                    : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-2 border-amber-400 shadow-sm'
                 }`}
               >
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-black ${
-                  isFound ? 'bg-emerald-500 text-white' : 'bg-brand-600 text-white'
-                }`}>
-                  {isFound ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : idx + 1}
-                </div>
-                <span className={`text-sm sm:text-base font-black ${isFound ? 'line-through opacity-80' : ''}`}>
-                  "{target}"
-                </span>
-                {isFound && (
-                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                    Đã tìm thấy!
-                  </span>
-                )}
-              </div>
+                {isFound && <Check className="w-4 h-4 text-white stroke-[3]" />}
+                <span>{word}</span>
+              </span>
             );
           })}
         </div>
+        <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium pt-1">
+          Kỹ thuật quét: Quét mắt hình chữ S hoặc Z từ trên xuống dưới. Bấm ngay khi bắt gặp từ mục tiêu.
+        </p>
       </div>
 
-      {/* Parchment Text Area with Clickable Scanning Words */}
-      <div className="rounded-3xl bg-[#FDFBF7] dark:bg-slate-900 border-2 border-[#D5CBB9] dark:border-slate-800 shadow-xl overflow-hidden flex flex-col">
-        {/* Article Meta Bar */}
-        <div className="px-6 py-3.5 bg-[#F5EFE6] dark:bg-slate-800/80 border-b border-[#E6DDCE] dark:border-slate-800 flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
-          <div className="flex items-center gap-2 truncate">
-            <span className="px-2.5 py-0.5 rounded-full bg-brand-100 dark:bg-brand-900/60 text-brand-700 dark:text-brand-300 text-[11px] font-black shrink-0">
-              {currentArticle.category}
-            </span>
-            <span className="truncate font-bold text-slate-800 dark:text-slate-100">
-              {currentArticle.title}
-            </span>
-          </div>
-          <span className="text-slate-400 text-[11px] shrink-0 pl-2">
-            {words.length} từ
-          </span>
-        </div>
+      {/* Article Content Container */}
+      <div className="bg-[#FAF7F2] dark:bg-slate-800/90 p-5 sm:p-8 rounded-3xl border-2 border-[#E5DECF] dark:border-slate-700 shadow-xl relative">
+        <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mb-4 pb-3 border-b border-slate-200 dark:border-slate-700">
+          {currentArticle.title}
+        </h3>
 
-        {/* Text Area Matrix with Natural Inline Flow (Zero Overlap & Zero Collapse) */}
-        <div className="p-6 sm:p-10 md:p-12 leading-[2.6] sm:leading-[3.0] text-base sm:text-lg md:text-xl text-slate-800 dark:text-slate-200 select-none max-h-[420px] overflow-y-auto">
-          {words.map((word, idx) => {
-            const isFound = foundIndices.includes(idx);
+        <div className="leading-relaxed sm:leading-loose text-base sm:text-lg text-slate-800 dark:text-slate-200 font-serif flex flex-wrap gap-x-1.5 gap-y-1">
+          {articleTokens.map((token, idx) => {
+            const isTargetMatched = foundIndices.includes(idx);
             return (
-              <React.Fragment key={idx}>
-                <span
-                  onClick={() => handleWordClick(word, idx)}
-                  className={`inline align-baseline px-1.5 py-0.5 rounded-md cursor-pointer transition-colors duration-150 font-medium ${
-                    isFound
-                      ? 'bg-emerald-500 text-white font-bold shadow-sm ring-2 ring-emerald-300'
-                      : 'text-slate-800 dark:text-slate-200 hover:bg-amber-200/80 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {word}
-                </span>
-                {' '}
-              </React.Fragment>
+              <button
+                key={idx}
+                onClick={() => handleWordClick(token, idx)}
+                disabled={isTargetMatched || isFinished || Boolean(roundTransition)}
+                className={`px-1 py-0.5 rounded-lg transition-all text-left inline-block ${
+                  isTargetMatched
+                    ? 'bg-emerald-500 text-white font-bold ring-2 ring-emerald-400 scale-105'
+                    : 'hover:bg-amber-200/70 dark:hover:bg-amber-900/40 active:scale-95 cursor-pointer'
+                }`}
+              >
+                {token}
+              </button>
             );
           })}
         </div>
+
+        {/* Round Transition Overlay */}
+        {roundTransition && (
+          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center gap-4 text-white z-20 animate-fade-in p-6 text-center">
+            <CheckCircle2 className="w-14 h-14 text-emerald-400 animate-bounce" />
+            <h3 className="text-xl sm:text-2xl font-black">
+              Hoàn thành Lượt {roundTransition.roundDone}/{totalRounds}!
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-300">
+              Đã tìm đủ {targetWords.length} từ khóa • Thời gian: {elapsedSec}s
+            </p>
+            <button
+              onClick={advanceNextRound}
+              className="mt-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm sm:text-base shadow-xl flex items-center gap-2 active:scale-95 transition-all"
+            >
+              <span>Vào Lượt {roundTransition.roundDone + 1}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center justify-end gap-3">
-        <button
-          onClick={handleRestart}
-          className="py-3 px-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs sm:text-sm hover:bg-slate-50 flex items-center gap-2 btn-press"
-        >
-          <RotateCcw className="w-4 h-4" />
-          <span>Tìm từ khóa khác trong bài</span>
-        </button>
-      </div>
-
-      {/* Text Source Selection Modal */}
       <ReadingTextSourceModal
         isOpen={isSourceModalOpen}
         onClose={() => setIsSourceModalOpen(false)}
@@ -304,13 +406,18 @@ export const TextScanningGame: React.FC = () => {
 
       {isFinished && (
         <GameResultModal
-          score={score}
-          accuracyRate={100}
-          timeSpentSec={elapsedSec}
+          score={finalScore}
+          accuracyRate={finalAccuracy}
+          timeSpentSec={finalTimeSpentSec}
+          playedLevel={playedLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();
-            handleRestart();
+            setCurrentRound(1);
+            setRoundResults([]);
+            setRoundTransition(null);
+            setIsFinished(false);
+            initTargets(currentArticle.content);
           }}
           onClose={() => setActiveGameSlug(null)}
         />

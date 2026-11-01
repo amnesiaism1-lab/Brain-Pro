@@ -398,6 +398,7 @@ export const SoundLocalizationGame: React.FC = () => {
           })}
           accuracyRate={Math.round((correctCount / maxRounds) * 100)}
           timeSpentSec={elapsedSec}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             setIsFinished(false);

@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 export const CausalCascadeGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const effectiveLevel = getExerciseLevel('causal-cascade') || currentLevel || 1;
 
   const challenge: ICausalChallenge =
@@ -76,7 +76,7 @@ export const CausalCascadeGame: React.FC = () => {
 
   // Global Timer
   useEffect(() => {
-    if (isGameOver || showPrediction) return;
+    if (isGameOver || showPrediction || isGamePaused) return;
     const interval = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
@@ -89,7 +89,7 @@ export const CausalCascadeGame: React.FC = () => {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [isGameOver, showPrediction, playSound]);
+  }, [isGameOver, showPrediction, isGamePaused, playSound]);
 
   // Handle Prediction Submit
   const handleConfirmPrediction = (optionId: string, isCorrect: boolean) => {
@@ -376,6 +376,7 @@ export const CausalCascadeGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={challenge.timeLimitSec - timeLeft}
+          playedLevel={effectiveLevel}
           rawMetricsJson={rawMetricsJson}
           onRestart={initLevel}
           onClose={() => setActiveGameSlug(null)}

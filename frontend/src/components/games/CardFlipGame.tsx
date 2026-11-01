@@ -50,7 +50,7 @@ const CARD_ICONS = [
 ];
 
 export const CardFlipGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const lastMatchTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('card-flip') || currentLevel;
@@ -541,7 +541,7 @@ export const CardFlipGame: React.FC = () => {
 
   // Countdown timer & Shuffle Trap / Matrix Drift / Orbiting Rows
   useEffect(() => {
-    if (isFinished) return;
+    if (isFinished || isGamePaused) return;
     const timer = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) {
@@ -589,7 +589,7 @@ export const CardFlipGame: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isFinished, isShuffleTrap, isOrbiting]);
+  }, [isFinished, isGamePaused, isShuffleTrap, isOrbiting]);
 
   const handleTriggerSonar = () => {
     if (sonarPulsesLeft <= 0 || isProcessing || isSonaring || isFinished) return;
@@ -902,6 +902,7 @@ export const CardFlipGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={initialTimeLimit - timeLeft}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

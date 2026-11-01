@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { 
-  ExerciseSlug, 
-  IWorkoutRoutine, 
+import {
+  ExerciseSlug,
+  IWorkoutRoutine,
   IUserReminder,
   IUserExerciseMastery,
   IExerciseSynergy,
@@ -20,12 +20,12 @@ import {
 } from '@brain-exercises/shared';
 import { createWrongAnswerSlice, WrongAnswerSliceState } from './slices/wrongAnswerSlice';
 import { createPersonalAnchorsSlice, PersonalAnchorsSliceState } from './slices/personalAnchorsSlice';
-import { 
-  CustomPresetsSlice, 
-  loadPersistedPresets, 
-  loadPersistedActivePresetIds, 
-  persistCustomPresets, 
-  persistActivePresetIds 
+import {
+  CustomPresetsSlice,
+  loadPersistedPresets,
+  loadPersistedActivePresetIds,
+  persistCustomPresets,
+  persistActivePresetIds
 } from './slices/customPresetsSlice';
 
 export type MainNavTab = 'home' | 'exercises' | 'learn' | 'wrong-history' | 'settings' | 'user';
@@ -49,7 +49,7 @@ interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, Cus
   masteredTheoryModules: string[];
   markTheoryModuleMastered: (moduleId: string) => void;
   navigateToTheory: (moduleId: string, highlightEntity?: string) => void;
-  
+
   isHowToTrainOpen: boolean;
   setIsHowToTrainOpen: (open: boolean) => void;
   isRemindersOpen: boolean;
@@ -108,6 +108,8 @@ interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, Cus
   startWorkoutRoutine: (routine: IWorkoutRoutine) => void;
   nextWorkoutStep: () => void;
   cancelWorkoutRoutine: () => void;
+  routineSummary: { routine: IWorkoutRoutine; completedAt: string } | null;
+  dismissRoutineSummary: () => void;
 
   // Gamification & User Stats
   xp: number;
@@ -160,7 +162,7 @@ interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, Cus
     level?: number;
     rawMetricsJson?: IRawMetricsJson;
   }) => void;
-  
+
   // Sound Synthesis helper
   playSound: (type: 'correct' | 'wrong' | 'click' | 'victory') => void;
 
@@ -260,7 +262,7 @@ export const useAppStore = create<AppState>((set, get) => {
   try {
     const raw = localStorage.getItem('be_ear_confusion');
     if (raw) initialEarConfusion = JSON.parse(raw);
-  } catch {}
+  } catch { }
 
   let initialMasteries: Record<string, IUserExerciseMastery> = {};
   try {
@@ -304,7 +306,7 @@ export const useAppStore = create<AppState>((set, get) => {
     try {
       const saved = localStorage.getItem('be_relation_masteries');
       if (saved) return JSON.parse(saved);
-    } catch {}
+    } catch { }
     return createInitialMasteriesMap();
   })();
 
@@ -314,7 +316,7 @@ export const useAppStore = create<AppState>((set, get) => {
     initialAuthToken = localStorage.getItem('brain_pro_auth_token');
     const rawUser = localStorage.getItem('brain_pro_auth_user');
     if (rawUser) initialAuthUser = JSON.parse(rawUser);
-  } catch {}
+  } catch { }
 
   let initialWorkoutRoutine: IWorkoutRoutine | null = null;
   let initialWorkoutStepIndex = 0;
@@ -326,6 +328,15 @@ export const useAppStore = create<AppState>((set, get) => {
         initialWorkoutRoutine = parsed.routine;
         initialWorkoutStepIndex = parsed.stepIndex || 0;
       }
+    }
+  } catch { }
+
+  let initialAttemptsHistory: any[] = [];
+  try {
+    const rawHistory = localStorage.getItem('be_attempts_history');
+    if (rawHistory) {
+      initialAttemptsHistory = JSON.parse(rawHistory);
+      if (!Array.isArray(initialAttemptsHistory)) initialAttemptsHistory = [];
     }
   } catch {}
 
@@ -365,7 +376,7 @@ export const useAppStore = create<AppState>((set, get) => {
           try {
             localStorage.setItem('brain_pro_auth_token', token);
             localStorage.setItem('brain_pro_auth_user', JSON.stringify(user));
-          } catch {}
+          } catch { }
 
           const mergedXp = Math.max(state.xp, user.totalXp);
           const mergedLevel = Math.max(state.level, user.currentLevel);
@@ -408,7 +419,7 @@ export const useAppStore = create<AppState>((set, get) => {
       try {
         localStorage.setItem('brain_pro_auth_user', JSON.stringify(mockUser));
         localStorage.setItem('brain_pro_auth_token', 'token-demo-' + Date.now());
-      } catch {}
+      } catch { }
       set({
         authUser: mockUser,
         authToken: 'token-demo-' + Date.now(),
@@ -422,7 +433,7 @@ export const useAppStore = create<AppState>((set, get) => {
       try {
         localStorage.removeItem('brain_pro_auth_token');
         localStorage.removeItem('brain_pro_auth_user');
-      } catch {}
+      } catch { }
       set({
         authUser: null,
         authToken: null
@@ -464,9 +475,9 @@ export const useAppStore = create<AppState>((set, get) => {
     selectedExerciseSlug: null,
     lastViewedExerciseSlug: null,
     setLastViewedExerciseSlug: (slug) => set({ lastViewedExerciseSlug: slug }),
-    setSelectedExerciseSlug: (slug) => set((state) => ({ 
+    setSelectedExerciseSlug: (slug) => set((state) => ({
       selectedExerciseSlug: slug,
-      lastViewedExerciseSlug: slug !== null ? slug : state.lastViewedExerciseSlug 
+      lastViewedExerciseSlug: slug !== null ? slug : state.lastViewedExerciseSlug
     })),
     activeGameSlug: null,
     setActiveGameSlug: (slug) => set({ activeGameSlug: slug }),
@@ -488,14 +499,14 @@ export const useAppStore = create<AppState>((set, get) => {
         const next = [...state.masteredTheoryModules, moduleId];
         try {
           localStorage.setItem('be_mastered_theory_modules', JSON.stringify(next));
-        } catch {}
+        } catch { }
         return { masteredTheoryModules: next };
       });
     },
     navigateToTheory: (moduleId, highlightEntity) => {
       try {
         localStorage.setItem('be_last_theory_module', moduleId);
-      } catch {}
+      } catch { }
       set({
         activeTheoryModuleId: moduleId,
         theoryHighlightEntity: highlightEntity || null,
@@ -568,7 +579,7 @@ export const useAppStore = create<AppState>((set, get) => {
           }
         };
         localStorage.setItem('be_masteries', JSON.stringify(updated));
-        return { 
+        return {
           exerciseMasteries: updated,
           currentLevel: targetLevel
         };
@@ -667,7 +678,7 @@ export const useAppStore = create<AppState>((set, get) => {
     clearChallengeBonus: () => set({ lastChallengeBonus: null }),
     completeWeeklyChallenge: (challengeId: string) => {
       set(state => ({
-        weeklyChallenges: state.weeklyChallenges.map(c => 
+        weeklyChallenges: state.weeklyChallenges.map(c =>
           c.id === challengeId ? { ...c, isCompleted: true } : c
         )
       }));
@@ -681,13 +692,15 @@ export const useAppStore = create<AppState>((set, get) => {
     startWorkoutRoutine: (routine) => {
       try {
         localStorage.setItem('be_active_workout', JSON.stringify({ routine, stepIndex: 0 }));
-      } catch {}
-      set({ 
-        activeWorkoutRoutine: routine, 
+      } catch { }
+      set({
+        activeWorkoutRoutine: routine,
         currentWorkoutStepIndex: 0,
         activeGameSlug: routine.items[0]?.exerciseSlug || null
       });
     },
+    routineSummary: null,
+    dismissRoutineSummary: () => set({ routineSummary: null }),
     nextWorkoutStep: () => {
       const { activeWorkoutRoutine, currentWorkoutStepIndex } = get();
       if (!activeWorkoutRoutine) return;
@@ -695,7 +708,7 @@ export const useAppStore = create<AppState>((set, get) => {
       if (nextIndex < activeWorkoutRoutine.items.length) {
         try {
           localStorage.setItem('be_active_workout', JSON.stringify({ routine: activeWorkoutRoutine, stepIndex: nextIndex }));
-        } catch {}
+        } catch { }
         set({
           currentWorkoutStepIndex: nextIndex,
           activeGameSlug: activeWorkoutRoutine.items[nextIndex].exerciseSlug
@@ -704,12 +717,15 @@ export const useAppStore = create<AppState>((set, get) => {
         // Routine completed!
         try {
           localStorage.removeItem('be_active_workout');
-        } catch {}
+        } catch { }
         set({
+          routineSummary: {
+            routine: activeWorkoutRoutine,
+            completedAt: new Date().toISOString()
+          },
           activeWorkoutRoutine: null,
           currentWorkoutStepIndex: 0,
-          activeGameSlug: null,
-          activeTab: 'home'
+          activeGameSlug: null
         });
         get().playSound('victory');
       }
@@ -717,7 +733,7 @@ export const useAppStore = create<AppState>((set, get) => {
     cancelWorkoutRoutine: () => {
       try {
         localStorage.removeItem('be_active_workout');
-      } catch {}
+      } catch { }
       set({
         activeWorkoutRoutine: null,
         currentWorkoutStepIndex: 0,
@@ -770,7 +786,7 @@ export const useAppStore = create<AppState>((set, get) => {
         };
         try {
           localStorage.setItem('be_ear_confusion', JSON.stringify(updated));
-        } catch {}
+        } catch { }
         return { earConfusionMatrix: updated };
       });
     },
@@ -804,18 +820,29 @@ export const useAppStore = create<AppState>((set, get) => {
       }));
     },
 
-    attemptsHistory: [],
+    attemptsHistory: initialAttemptsHistory,
     recordAttempt: (attempt) => {
       const state = get();
       const currentLevel = attempt.level || state.getExerciseLevel(attempt.exerciseSlug);
-      
-      // 1. Synergy Detection
+
+      // Guard: Deduplicate rapid duplicate attempts (within 2.5s with identical metrics)
+      const lastAttempt = state.attemptsHistory[0];
+      if (
+        lastAttempt &&
+        lastAttempt.exerciseSlug === attempt.exerciseSlug &&
+        lastAttempt.score === attempt.score &&
+        lastAttempt.timeSpentSec === attempt.timeSpentSec &&
+        lastAttempt.accuracyRate === attempt.accuracyRate &&
+        (lastAttempt.level === currentLevel || lastAttempt.level === attempt.level)
+      ) {
+        return;
+      }
       let synergyBonus = 0;
       let matchedSynergy: IExerciseSynergy | null = null;
       if (state.lastPlayedSlug && state.lastPlayedSlug !== attempt.exerciseSlug) {
         const found = EXERCISE_SYNERGIES.find(
           s => (s.exerciseASlug === state.lastPlayedSlug && s.exerciseBSlug === attempt.exerciseSlug) ||
-               (s.exerciseBSlug === state.lastPlayedSlug && s.exerciseASlug === attempt.exerciseSlug)
+            (s.exerciseBSlug === state.lastPlayedSlug && s.exerciseASlug === attempt.exerciseSlug)
         );
         if (found) {
           matchedSynergy = found;
@@ -837,7 +864,7 @@ export const useAppStore = create<AppState>((set, get) => {
           const scoreMet = attempt.score >= c.targetScore;
           // For wc-1: strictly require playedLevel === 9 AND Gorbov mode (not Latin Cấp 20!)
           const levelMet = isWc1 ? (attempt.level === 9) : (currentLevel >= c.targetLevel);
-          const modeMet = isWc1 
+          const modeMet = isWc1
             ? (attempt.rawMetricsJson?.mode === 'gorbov' || attempt.rawMetricsJson?.variantCode === 'GORBOV_RED_BLACK' || attempt.rawMetricsJson?.variantCode === 'GORBOV_TABLE')
             : true;
           const accuracyMet = isWc1 ? (attempt.accuracyRate >= 90) : true;
@@ -965,11 +992,28 @@ export const useAppStore = create<AppState>((set, get) => {
         }).catch(err => {
           console.warn('Background attempt sync postponed:', err);
         });
-      } catch {}
-      
+      } catch { }
+
       try {
         localStorage.setItem('be_last_played_slug', attempt.exerciseSlug);
-      } catch {}
+      } catch { }
+
+      const nextHistory = [
+        { 
+          ...attempt, 
+          id: attempt.id || `att-${Date.now()}`,
+          level: attempt.level || currentLevel,
+          synergyBonusXp: synergyBonus,
+          date: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) 
+        },
+        ...state.attemptsHistory
+      ].slice(0, 200);
+
+      try {
+        localStorage.setItem('be_attempts_history', JSON.stringify(nextHistory));
+      } catch (err) {
+        console.error('Failed to save attempts history to localStorage:', err);
+      }
 
       set({
         xp: newXp,
@@ -984,16 +1028,7 @@ export const useAppStore = create<AppState>((set, get) => {
         activeSynergy: matchedSynergy,
         suggestedSynergy: nextSynergy,
         weeklyChallenges: updatedChallenges,
-        attemptsHistory: [
-          { 
-            ...attempt, 
-            id: attempt.id || `att-${Date.now()}`,
-            level: currentLevel,
-            synergyBonusXp: synergyBonus,
-            date: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) 
-          },
-          ...state.attemptsHistory
-        ].slice(0, 50)
+        attemptsHistory: nextHistory
       });
     },
 

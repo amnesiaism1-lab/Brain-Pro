@@ -822,6 +822,7 @@ export const HanoiNavigationGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={initialTimeLimit - timeLeft}
+          playedLevel={currentLevel}
           onRestart={handleRestart}
           onClose={() => setActiveGameSlug(null)}
         />

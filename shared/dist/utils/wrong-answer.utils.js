@@ -146,6 +146,14 @@ function generateMusicalPedagogicalTip(category, correct, userChoice, context) {
             const dir = (userChoice.centsDeviation ?? 0) > 0 ? 'cao hơn nốt' : 'non/thấp hơn nốt';
             return `Giọng bạn bị ${dir} ${cents}. Hãy hạ bớt áp lực hơi, mở rộng vòm họng và lắng nghe nốt gốc trước khi ngân giọng.`;
         }
+        case 'GLYPH_CONFUSION':
+            return `Mục tiêu cần tìm là '${correct.label}'. Bạn đã bấm nhầm ký tự '${userChoice.label}'. Chú ý phân biệt hình dạng nét chữ, chữ hoa/thường và dấu thanh tiếng Việt.`;
+        case 'NUMBER_SEARCH_ERROR':
+            return `Số mục tiêu là '${correct.label}'. Bạn đã nhấp nhầm '${userChoice.label}'. Hãy quét trường nhìn theo hàng hoặc cột để tránh bỏ sót.`;
+        case 'WORD_SEARCH_MISMATCH':
+            return `Từ mục tiêu là '${correct.label}'. Lựa chọn của bạn: '${userChoice.label}'. Bạn có thể kéo nối các chữ cái hoặc nhấp lần lượt từng chữ cái theo hàng/cột/chéo.`;
+        case 'TEXT_SCAN_INHIBITION':
+            return `Từ khóa cần tìm trong văn bản là '${correct.label}'. Bạn đã nhấp chọn '${userChoice.label}'. Hãy dùng kỹ năng đọc quét (scanning) để lọc từ gây nhiễu.`;
         default:
             return `Đáp án đúng: ${correct.label} — Lựa chọn của bạn: ${userChoice.label}.`;
     }

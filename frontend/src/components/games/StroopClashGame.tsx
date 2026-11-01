@@ -593,6 +593,7 @@ export const StroopClashGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={Math.round((reactionTimes.reduce((a, b) => a + b, 0)) / 1000)}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

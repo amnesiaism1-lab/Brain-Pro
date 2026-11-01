@@ -148,7 +148,7 @@ const ENGLISH_GREEN_DOT_DATASETS: GreenDotSet[] = [
 ];
 
 export const GreenDotGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const effectiveLevel = getExerciseLevel('green-dot') || currentLevel;
   const isInfinity = effectiveLevel >= 13;
@@ -185,7 +185,7 @@ export const GreenDotGame: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
 
   useEffect(() => {
-    if (phase !== 'focus') return;
+    if (phase !== 'focus' || isGamePaused) return;
     const timer = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) {
@@ -199,7 +199,7 @@ export const GreenDotGame: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [phase, playSound]);
+  }, [phase, isGamePaused, playSound]);
 
   const handleSelectOption = (idx: number) => {
     playSound('click');
@@ -411,6 +411,7 @@ export const GreenDotGame: React.FC = () => {
           score={score}
           accuracyRate={isCorrect ? 100 : 0}
           timeSpentSec={initialTime}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

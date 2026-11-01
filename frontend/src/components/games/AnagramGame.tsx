@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { RotateCcw, Sparkles, Infinity as InfinityIcon, BookOpen, Lightbulb, Clock, AlertTriangle } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { readingContentService, THEMED_VOCABULARY } from '../../services/readingContentService';
 import { 
   infinityApiService,
@@ -21,8 +22,10 @@ const COSMIC_COLLOCATIONS = [
 ];
 
 export const AnagramGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, enableHints, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, enableHints, playSound, isGamePaused } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
+  const { trackWrongAnswer } = useWrongAnswerTracker('anagram');
+  const [missCount, setMissCount] = useState(0);
   const lastWordTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('anagram') || currentLevel;
 
@@ -171,17 +174,19 @@ export const AnagramGame: React.FC = () => {
   }, [currentIndex, targetWord]);
 
   useEffect(() => {
+    if (isFinished || isGamePaused) return;
     const timer = setInterval(() => setElapsedSec(s => s + 1), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isFinished, isGamePaused]);
 
   // Speed Countdown for Level 20
   useEffect(() => {
-    if (!isSpeedTimer || isFinished) return;
+    if (!isSpeedTimer || isFinished || isGamePaused) return;
     const interval = setInterval(() => {
       setRoundTimer(t => {
         if (t <= 1) {
           playSound('wrong');
+          setMissCount(m => m + 1);
           if (round >= maxRounds) {
             setIsFinished(true);
           } else {
@@ -194,7 +199,7 @@ export const AnagramGame: React.FC = () => {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [isSpeedTimer, isFinished, round, maxRounds]);
+  }, [isSpeedTimer, isFinished, isGamePaused, round, maxRounds]);
 
   const handleTileClick = (tileId: number, char: string) => {
     playSound('click');
@@ -244,6 +249,16 @@ export const AnagramGame: React.FC = () => {
         }
       } else {
         playSound('wrong');
+        setMissCount(m => m + 1);
+        trackWrongAnswer({
+          round,
+          difficultyLevel: effectiveLevel,
+          sessionId: `anagram-${Date.now()}`,
+          responseTimeMs: respMs,
+          questionContext: { prompt: targetWord },
+          correctAnswer: { label: targetWord, code: targetWord },
+          userAnswer: { label: formedWord, code: formedWord }
+        });
         setTimeout(() => {
           setupRound(targetWord);
         }, 600);
@@ -427,13 +442,15 @@ export const AnagramGame: React.FC = () => {
       {isFinished && (
         <GameResultModal
           score={scoreAcc}
-          accuracyRate={100}
+          accuracyRate={Math.max(10, Math.round((maxRounds / (maxRounds + missCount)) * 100))}
           timeSpentSec={elapsedSec}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();
             setScoreAcc(0);
             setRound(1);
+            setMissCount(0);
             setElapsedSec(0);
             setIsFinished(false);
             setCurrentIndex(i => i + 1);

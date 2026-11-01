@@ -395,6 +395,7 @@ export const SaccadeTrackerGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={35}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

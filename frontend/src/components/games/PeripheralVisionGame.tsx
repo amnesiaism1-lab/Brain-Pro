@@ -7,8 +7,9 @@ import { PERIPHERAL_FLASH_WORDS } from '../../services/readingContentService';
 import { infinityApiService, shuffleArray } from '../../services/infinityApiService';
 
 export const PeripheralVisionGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
+  const [elapsedSec, setElapsedSec] = useState(0);
   const lastGuessTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('peripheral-vision') || currentLevel;
   const isInfinity = effectiveLevel >= 13;
@@ -104,6 +105,12 @@ export const PeripheralVisionGame: React.FC = () => {
   useEffect(() => {
     nextRound();
   }, [round, contentMode, nextRound]);
+
+  useEffect(() => {
+    if (isFinished || isGamePaused) return;
+    const timer = setInterval(() => setElapsedSec(s => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [isFinished, isGamePaused]);
 
   const handleGuess = (guessVal: string) => {
     playSound('click');
@@ -300,12 +307,14 @@ export const PeripheralVisionGame: React.FC = () => {
         <GameResultModal
           score={score}
           accuracyRate={accuracy}
-          timeSpentSec={25}
+          timeSpentSec={elapsedSec}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();
             setRound(1);
             setCorrectCount(0);
+            setElapsedSec(0);
             setIsFinished(false);
             nextRound();
           }}

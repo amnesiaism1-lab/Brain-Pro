@@ -252,6 +252,7 @@ export const RuleMutationClashGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={25}
+          playedLevel={effectiveLevel}
           rawMetricsJson={rawMetricsJson}
           onRestart={initGame}
           onClose={() => setActiveGameSlug(null)}

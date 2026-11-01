@@ -66,7 +66,8 @@ export const RelationalNetworkGame: React.FC = () => {
   const { 
     getExerciseLevel, 
     setActiveGameSlug, 
-    playSound 
+    playSound,
+    isGamePaused 
   } = useAppStore();
 
   const currentLevel = getExerciseLevel('relational-network') || 1;
@@ -182,7 +183,7 @@ export const RelationalNetworkGame: React.FC = () => {
 
   // Timer loop
   useEffect(() => {
-    if (!isPlaying || isGameOver) return;
+    if (!isPlaying || isGameOver || isGamePaused) return;
     const interval = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
@@ -195,11 +196,11 @@ export const RelationalNetworkGame: React.FC = () => {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [isPlaying, isGameOver, playSound]);
+  }, [isPlaying, isGameOver, isGamePaused, playSound]);
 
   // Physics & Dynamics simulation loop (60 FPS / dt steps)
   useEffect(() => {
-    if (!isPlaying || isGameOver) return;
+    if (!isPlaying || isGameOver || isGamePaused) return;
 
     const dt = 0.05; // 50ms step
     const interval = setInterval(() => {
@@ -245,7 +246,7 @@ export const RelationalNetworkGame: React.FC = () => {
     }, 50);
 
     return () => clearInterval(interval);
-  }, [isPlaying, isGameOver, playSound, boardState.relations, timeLeft]);
+  }, [isPlaying, isGameOver, isGamePaused, playSound, boardState.relations, timeLeft]);
 
   // Coordinate helper
   const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -1185,6 +1186,7 @@ export const RelationalNetworkGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={challenge.timeLimitSec - timeLeft}
+          playedLevel={currentLevel}
           rawMetricsJson={rawMetricsJson}
           onRestart={initLevel}
           onClose={() => setActiveGameSlug(null)}

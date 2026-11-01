@@ -253,19 +253,21 @@ export const INFINITY_LEVEL_CONFIGS: Record<ExerciseSlug, IExerciseLevelConfig[]
       timeLimitSec: 35,
       gridRows: 8,
       gridCols: 8,
-      variantCode: 'INF_LETTER_BILINGUAL',
-      variantName: '∞-I: Bilingual Noise Field',
+      targetItemCount: 6,
+      variantCode: 'INF_LETTER_LATIN',
+      variantName: '∞-I: Săn Ký Tự Latin Học Thuật (Latin Alphabet Hunt)',
       infinityTier: 1,
       infinityMetadata: { tier: 1, romanNumeral: '∞-I' },
-      parametersJson: { infinityMode: true, langMix: 'vi+en' }
+      parametersJson: { infinityMode: true, langMix: 'latin' }
     },
     {
       level: 14,
       timeLimitSec: 35,
       gridRows: 8,
       gridCols: 8,
+      targetItemCount: 6,
       variantCode: 'INF_LETTER_ROTATED',
-      variantName: '∞-II: Rotated Letter Orientations',
+      variantName: '∞-II: Ký Tự Xoay Góc Ngẫu Nhiên (Rotated Letters)',
       infinityTier: 2,
       infinityMetadata: { tier: 2, romanNumeral: '∞-II' },
       parametersJson: { infinityMode: true, rotationAngles: [0, 90, 180, 270] }
@@ -275,19 +277,21 @@ export const INFINITY_LEVEL_CONFIGS: Record<ExerciseSlug, IExerciseLevelConfig[]
       timeLimitSec: 30,
       gridRows: 8,
       gridCols: 8,
-      variantCode: 'INF_LETTER_CAMOUFLAGE',
-      variantName: '∞-III: Color Gradient Camouflage',
+      targetItemCount: 6,
+      variantCode: 'INF_LETTER_MIRROR',
+      variantName: '∞-III: Ký Tự Đảo Gương Đối Xứng (Mirror Inversion)',
       infinityTier: 3,
       infinityMetadata: { tier: 3, romanNumeral: '∞-III' },
-      parametersJson: { infinityMode: true, colorMode: 'gradient_camouflage' }
+      parametersJson: { infinityMode: true, mirror: true }
     },
     {
       level: 16,
       timeLimitSec: 35,
       gridRows: 9,
       gridCols: 9,
+      targetItemCount: 8,
       variantCode: 'INF_LETTER_FONT_CHAOS',
-      variantName: '∞-IV: Multi-Font Typography Chaos',
+      variantName: '∞-IV: Xung Đột Họ Phông Chữ (Font Typography Clash)',
       infinityTier: 4,
       infinityMetadata: { tier: 4, romanNumeral: '∞-IV' },
       parametersJson: { infinityMode: true, fontVariants: 5, fontChaos: true }
@@ -297,30 +301,33 @@ export const INFINITY_LEVEL_CONFIGS: Record<ExerciseSlug, IExerciseLevelConfig[]
       timeLimitSec: 30,
       gridRows: 9,
       gridCols: 9,
-      variantCode: 'INF_LETTER_BLINKING',
-      variantName: '∞-V: Blinking Interference Flood',
+      targetItemCount: 8,
+      variantCode: 'INF_LETTER_SIZE_CHAOS',
+      variantName: '∞-V: Biến Thiên Kích Thước Ký Tự (Font Size Chaos)',
       infinityTier: 5,
       infinityMetadata: { tier: 5, romanNumeral: '∞-V' },
-      parametersJson: { infinityMode: true, blinkRate: 'random', targetBlinkRate: 'fixed' }
+      parametersJson: { infinityMode: true, scaleVariation: true }
     },
     {
       level: 18,
       timeLimitSec: 30,
-      gridRows: 10,
-      gridCols: 10,
-      variantCode: 'INF_LETTER_CASE_CONFLICT',
-      variantName: '∞-VI: Dual Case Target Hunt',
+      gridRows: 9,
+      gridCols: 9,
+      targetItemCount: 8,
+      variantCode: 'INF_LETTER_CONFUSABLE',
+      variantName: '∞-VI: Ký Tự Dễ Gây Nhầm Lẫn Thị Giác (Confusable Glyphs)',
       infinityTier: 6,
       infinityMetadata: { tier: 6, romanNumeral: '∞-VI' },
-      parametersJson: { infinityMode: true, caseInsensitive: true, multiTarget: 2 }
+      parametersJson: { infinityMode: true, confusableMode: true }
     },
     {
       level: 19,
       timeLimitSec: 35,
-      gridRows: 10,
-      gridCols: 10,
+      gridRows: 9,
+      gridCols: 9,
+      targetItemCount: 8,
       variantCode: 'INF_LETTER_SYMBOL_INVASION',
-      variantName: '∞-VII: Math & Greek Symbol Noise',
+      variantName: '∞-VII: Ký Hiệu Toán & Hy Lạp Xâm Nhập (Symbol Invasion)',
       infinityTier: 7,
       infinityMetadata: { tier: 7, romanNumeral: '∞-VII' },
       parametersJson: { infinityMode: true, symbolNoise: 0.4, noiseType: 'mathematical' }
@@ -330,33 +337,36 @@ export const INFINITY_LEVEL_CONFIGS: Record<ExerciseSlug, IExerciseLevelConfig[]
       timeLimitSec: 40,
       gridRows: 10,
       gridCols: 10,
-      variantCode: 'INF_LETTER_GROWING',
-      variantName: '∞-VIII: Expanding Grid Expansion',
+      targetItemCount: 10,
+      variantCode: 'INF_LETTER_COLOR_CAMOUFLAGE',
+      variantName: '∞-VIII: Ngụy Trang Đa Sắc Tố (Color Camouflage)',
       infinityTier: 8,
       infinityMetadata: { tier: 8, romanNumeral: '∞-VIII' },
-      parametersJson: { infinityMode: true, growingGrid: true, growInterval: 10 }
+      parametersJson: { infinityMode: true, colorCamouflage: true }
     },
     {
       level: 21,
       timeLimitSec: 35,
-      gridRows: 11,
-      gridCols: 11,
-      variantCode: 'INF_LETTER_MIRROR_MAZE',
-      variantName: '∞-IX: Split Mirror Vertical Maze',
+      gridRows: 10,
+      gridCols: 10,
+      targetItemCount: 10,
+      variantCode: 'INF_LETTER_MIRROR_ROTATION_MAZE',
+      variantName: '∞-IX: Mê Cung Đảo Gương & Xoay (Mirror & Rotation Maze)',
       infinityTier: 9,
       infinityMetadata: { tier: 9, romanNumeral: '∞-IX', pattern: 'mirror' },
-      parametersJson: { infinityMode: true, mirrorAxis: 'vertical', splitGrid: true }
+      parametersJson: { infinityMode: true, mirrorAndRotation: true }
     },
     {
       level: 22,
       timeLimitSec: 60,
-      gridRows: 12,
-      gridCols: 12,
-      variantCode: 'INF_LETTER_INFINITE_MATRIX',
-      variantName: '∞-X: Infinite Matrix Stream',
+      gridRows: 10,
+      gridCols: 10,
+      targetItemCount: 10,
+      variantCode: 'INF_LETTER_QUANTUM_MATRIX',
+      variantName: '∞-X: Ma Trận Tổng Hợp Lượng Tử (Quantum Matrix)',
       infinityTier: 10,
-      infinityMetadata: { tier: 10, romanNumeral: '∞-X', pattern: 'infinite' },
-      parametersJson: { infinityMode: true, infiniteScroll: true, targetChangeInterval: 15 }
+      infinityMetadata: { tier: 10, romanNumeral: '∞-X', pattern: 'chaos' },
+      parametersJson: { infinityMode: true, quantumChaos: true }
     }
   ],
 

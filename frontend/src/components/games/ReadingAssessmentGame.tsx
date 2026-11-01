@@ -238,6 +238,7 @@ export const ReadingAssessmentGame: React.FC = () => {
           accuracyRate={comprehensionPercent}
           timeSpentSec={readingTimeSec}
           effectiveWpm={effectiveWpm}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

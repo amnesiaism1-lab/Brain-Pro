@@ -1,41 +1,68 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { generateWordSearchGrid, calculateGameScore, VIETNAMESE_WORDS_DICTIONARY, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { 
+  generateWordSearchGrid, 
+  calculateGameScore, 
+  VIETNAMESE_WORDS_DICTIONARY, 
+  INFINITY_ROMAN_NUMERALS, 
+  getInfinityTier, 
+  getInfinityLabel 
+} from '@brain-exercises/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
-import { Check, Sparkles, RotateCcw, Infinity as InfinityIcon } from 'lucide-react';
+import { Check, Sparkles, RotateCcw, Infinity as InfinityIcon, CheckCircle2, ArrowRight } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
+import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { readingContentService, THEMED_VOCABULARY } from '../../services/readingContentService';
-import { 
-  infinityApiService,
-  shuffleArray,
-  CURATED_DICTIONARY, 
-  SYNONYM_PAIRS,
-  ANTONYM_PAIRS,
-  BILINGUAL_WORD_PAIRS,
-  EMOJI_WORD_PAIRS,
-  NASA_OFFLINE_CARDS,
-  GEOGRAPHY_TRIADS,
-  PERIODIC_TABLE_TRIADS
-} from '../../services/infinityApiService';
+import { infinityApiService } from '../../services/infinityApiService';
 
 export const WordSearchGame: React.FC = () => {
-  const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { 
+    currentLevel: storeLevel, 
+    getExerciseLevel, 
+    setActiveGameSlug, 
+    playSound,
+    isGamePaused,
+    ladderSessionRounds 
+  } = useAppStore();
+
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
+  const { trackWrongAnswer } = useWrongAnswerTracker('word-search');
+  const { sessionConfig: resolvedConfig, isCustom } = useExerciseSessionConfig('word-search');
+
+  const effectiveLevel = getExerciseLevel('word-search') || storeLevel || 1;
+  const playedLevelRef = useRef<number>(effectiveLevel);
+  const playedLevel = playedLevelRef.current;
+  const isInfinity = playedLevel >= 13;
+
+  const sessionIdRef = useRef<string>(`ws-${Date.now()}`);
   const lastMatchTimeRef = useRef<number>(Date.now());
-  const currentLevel = getExerciseLevel('word-search');
-  const isInfinity = currentLevel >= 13;
+  const isDraggingRef = useRef<boolean>(false);
+  const dragStartRef = useRef<{ r: number; c: number } | null>(null);
+
+  // Rounds configuration
+  const totalRounds = useMemo(() => {
+    if (isCustom && resolvedConfig.rounds && resolvedConfig.rounds > 0) {
+      return resolvedConfig.rounds;
+    }
+    return ladderSessionRounds || 1;
+  }, [isCustom, resolvedConfig.rounds, ladderSessionRounds]);
+
+  const [currentRound, setCurrentRound] = useState<number>(1);
+  const [roundResults, setRoundResults] = useState<Array<{ score: number; accuracy: number; timeSpentSec: number }>>([]);
+  const [roundTransition, setRoundTransition] = useState<{ roundDone: number } | null>(null);
 
   const themes = ['Khoa Học Não Bộ', 'Công Nghệ & AI', 'Thiên Văn & Vũ Trụ', 'Tâm Lý & Tư Duy', 'Tổng Hợp'];
   const [selectedTheme, setSelectedTheme] = useState<string>('Khoa Học Não Bộ');
   
-  // Level scaling
-  const rows = currentLevel >= 22 ? 15 : currentLevel >= 19 ? 14 : currentLevel <= 2 ? 8 : currentLevel <= 5 ? 10 : currentLevel <= 8 ? 12 : 13;
-  const cols = currentLevel >= 22 ? 18 : currentLevel >= 19 ? 17 : currentLevel <= 2 ? 10 : currentLevel <= 5 ? 14 : currentLevel <= 8 ? 16 : 16;
-  const wordCount = currentLevel >= 22 ? 6 : currentLevel >= 19 ? 5 : currentLevel <= 2 ? 2 : currentLevel <= 5 ? 3 : currentLevel <= 8 ? 4 : 5;
+  // Level scaling (rows x cols)
+  const rows = playedLevel >= 22 ? 15 : playedLevel >= 19 ? 14 : playedLevel <= 2 ? 8 : playedLevel <= 5 ? 10 : playedLevel <= 8 ? 12 : 13;
+  const cols = playedLevel >= 22 ? 18 : playedLevel >= 19 ? 17 : playedLevel <= 2 ? 10 : playedLevel <= 5 ? 14 : playedLevel <= 8 ? 16 : 16;
+  const wordCount = playedLevel >= 22 ? 6 : playedLevel >= 19 ? 5 : playedLevel <= 2 ? 2 : playedLevel <= 5 ? 3 : playedLevel <= 8 ? 4 : 5;
 
   const pickWords = useCallback((themeName: string): { words: string[]; clues: Record<string, string> } => {
     if (isInfinity) {
-      const items = infinityApiService.getOfflineWordSearchWords(currentLevel, wordCount);
+      const items = infinityApiService.getOfflineWordSearchWords(playedLevel, wordCount);
       const words = items.map(it => it.word);
       const clues: Record<string, string> = {};
       items.forEach(it => {
@@ -48,40 +75,44 @@ export const WordSearchGame: React.FC = () => {
     if (themeName !== 'Tổng Hợp' && THEMED_VOCABULARY[themeName]) {
       pool = [...THEMED_VOCABULARY[themeName], ...VIETNAMESE_WORDS_DICTIONARY];
     } else {
-      pool = [
-        ...readingContentService.getVocabularyList(),
-        ...VIETNAMESE_WORDS_DICTIONARY,
-        ...THEMED_VOCABULARY['Khoa Học Não Bộ'],
-        ...THEMED_VOCABULARY['Công Nghệ & AI'],
-        ...THEMED_VOCABULARY['Thiên Văn & Vũ Trụ'],
-        ...THEMED_VOCABULARY['Tâm Lý & Tư Duy']
-      ];
+      pool = [...VIETNAMESE_WORDS_DICTIONARY];
     }
 
-    const sanitized = Array.from(new Set(pool
-      .map(w => w.replace(/\s+/g, '').toUpperCase())
-      .filter(w => w.length >= 3 && w.length <= (currentLevel >= 9 ? 8 : currentLevel <= 3 ? 5 : 6))
-    ));
+    const shuffled = pool.sort(() => 0.5 - Math.random());
+    const validWords: string[] = [];
+    for (const w of shuffled) {
+      const sanitized = w.replace(/\s+/g, '').toUpperCase();
+      if (sanitized.length >= 3 && sanitized.length <= Math.min(rows, cols) - 1) {
+        if (!validWords.includes(sanitized)) {
+          validWords.push(sanitized);
+        }
+      }
+      if (validWords.length >= wordCount) break;
+    }
 
-    const shuffled = shuffleArray(sanitized);
-    const chosen = shuffled.slice(0, wordCount);
-    const clues: Record<string, string> = {};
-    chosen.forEach(w => {
-      clues[w] = `Chủ đề: ${themeName}`;
-    });
-    return { words: chosen, clues };
-  }, [wordCount, currentLevel, isInfinity]);
+    const words = validWords.length >= wordCount 
+      ? validWords 
+      : ['NAO', 'TRITUE', 'QUANXAT', 'TAPTRUNG', 'PHANXA'].slice(0, wordCount);
 
-  const [initialData] = useState(() => pickWords(selectedTheme));
-  const [targetWords, setTargetWords] = useState<string[]>(() => initialData.words);
-  const [wordClues, setWordClues] = useState<Record<string, string>>(() => initialData.clues);
-  const [searchData, setSearchData] = useState(() => generateWordSearchGrid(rows, cols, initialData.words));
+    return { words, clues: {} };
+  }, [playedLevel, wordCount, rows, cols, isInfinity]);
+
+  const [targetWords, setTargetWords] = useState<string[]>([]);
+  const [wordClues, setWordClues] = useState<Record<string, string>>({});
+  const [searchData, setSearchData] = useState(() => generateWordSearchGrid(rows, cols, ['NAO', 'TRITUE']));
   const [foundWords, setFoundWords] = useState<string[]>([]);
   const [selectedCells, setSelectedCells] = useState<Array<{ r: number; c: number }>>([]);
+  const [permanentFoundCells, setPermanentFoundCells] = useState<Array<{ r: number; c: number }>>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [missCount, setMissCount] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [hintCell, setHintCell] = useState<{ r: number; c: number } | null>(null);
   const [hintsRemaining, setHintsRemaining] = useState(3);
+
+  // Frozen final results
+  const [finalScore, setFinalScore] = useState<number>(0);
+  const [finalAccuracy, setFinalAccuracy] = useState<number>(100);
+  const [finalTimeSpentSec, setFinalTimeSpentSec] = useState<number>(0);
 
   const startNewBoard = useCallback((themeName: string) => {
     const { words: newWords, clues: newClues } = pickWords(themeName);
@@ -90,17 +121,18 @@ export const WordSearchGame: React.FC = () => {
     setSearchData(generateWordSearchGrid(rows, cols, newWords));
     setFoundWords([]);
     setSelectedCells([]);
+    setPermanentFoundCells([]);
     setElapsedSec(0);
-    setIsFinished(false);
+    setMissCount(0);
     setHintCell(null);
     setHintsRemaining(3);
 
     // Asynchronously query live Datamuse API in Infinity Mode
     if (isInfinity) {
-      infinityApiService.fetchDynamicWordSearchWords(currentLevel, wordCount).then(dynamicItems => {
+      infinityApiService.fetchDynamicWordSearchWords(playedLevel, wordCount).then(dynamicItems => {
         if (dynamicItems && dynamicItems.length >= wordCount) {
           setFoundWords(found => {
-            if (found.length > 0) return found; // keep current board if user already matched words
+            if (found.length > 0) return found; // keep board if already found words
             const dynWords = dynamicItems.map(it => it.word);
             const dynClues: Record<string, string> = {};
             dynamicItems.forEach(it => {
@@ -109,31 +141,116 @@ export const WordSearchGame: React.FC = () => {
             setTargetWords(dynWords);
             setWordClues(dynClues);
             setSelectedCells([]);
+            setPermanentFoundCells([]);
             setSearchData(generateWordSearchGrid(rows, cols, dynWords));
             return [];
           });
         }
       }).catch(() => {});
     }
-  }, [rows, cols, pickWords, isInfinity, currentLevel, wordCount]);
+  }, [rows, cols, pickWords, isInfinity, playedLevel, wordCount]);
 
+  // Complete Round logic
+  const completeRound = useCallback(() => {
+    const totalAttempts = foundWords.length + missCount;
+    const roundAcc = totalAttempts > 0 ? Math.round((foundWords.length / totalAttempts) * 100) : 100;
+    const roundScore = (foundWords.length * 150 * playedLevel) + Math.max(0, (120 - elapsedSec) * 5);
+
+    const newResult = {
+      score: roundScore,
+      accuracy: roundAcc,
+      timeSpentSec: elapsedSec
+    };
+
+    const nextAllResults = [...roundResults, newResult];
+    setRoundResults(nextAllResults);
+
+    if (currentRound < totalRounds) {
+      setRoundTransition({ roundDone: currentRound });
+      playSound('correct');
+    } else {
+      const aggScore = nextAllResults.reduce((sum, r) => sum + r.score, 0);
+      const aggAcc = Math.round(nextAllResults.reduce((sum, r) => sum + r.accuracy, 0) / nextAllResults.length);
+      const aggTime = nextAllResults.reduce((sum, r) => sum + r.timeSpentSec, 0);
+
+      setFinalScore(aggScore);
+      setFinalAccuracy(aggAcc);
+      setFinalTimeSpentSec(aggTime);
+      setIsFinished(true);
+      playSound('victory');
+    }
+  }, [foundWords.length, missCount, playedLevel, elapsedSec, roundResults, currentRound, totalRounds, playSound]);
+
+  // Initial board start
   useEffect(() => {
     startNewBoard(selectedTheme);
-    const timer = setInterval(() => setElapsedSec(s => s + 1), 1000);
+  }, [selectedTheme, startNewBoard]);
+
+  // Timer loop with pause handling
+  useEffect(() => {
+    if (isFinished || isGamePaused || Boolean(roundTransition)) return;
+
+    const timer = setInterval(() => {
+      setElapsedSec(s => s + 1);
+    }, 1000);
+
     return () => clearInterval(timer);
-  }, [currentLevel, rows, cols, selectedTheme, startNewBoard]);
+  }, [isFinished, isGamePaused, roundTransition]);
 
-  const handleCellClick = (r: number, c: number) => {
+  const advanceNextRound = () => {
     playSound('click');
-    const existing = selectedCells.find(cell => cell.r === r && cell.c === c);
-    let nextCells = existing 
-      ? selectedCells.filter(cell => !(cell.r === r && cell.c === c))
-      : [...selectedCells, { r, c }];
+    setRoundTransition(null);
+    setCurrentRound(r => r + 1);
+    startNewBoard(selectedTheme);
+  };
 
-    setSelectedCells(nextCells);
+  // Straight line path calculation between two grid points
+  const calculateLinePath = (start: { r: number; c: number }, end: { r: number; c: number }): Array<{ r: number; c: number }> => {
+    const dr = end.r - start.r;
+    const dc = end.c - start.c;
+    const absDr = Math.abs(dr);
+    const absDc = Math.abs(dc);
 
-    // Check if the current selected cells spell one of the target words
-    const selectedString = nextCells.map(cell => searchData.grid[cell.r][cell.c]).join('');
+    // Horizontal
+    if (dr === 0) {
+      const stepC = dc >= 0 ? 1 : -1;
+      const path: Array<{ r: number; c: number }> = [];
+      for (let i = 0; i <= absDc; i++) {
+        path.push({ r: start.r, c: start.c + i * stepC });
+      }
+      return path;
+    }
+    // Vertical
+    if (dc === 0) {
+      const stepR = dr >= 0 ? 1 : -1;
+      const path: Array<{ r: number; c: number }> = [];
+      for (let i = 0; i <= absDr; i++) {
+        path.push({ r: start.r + i * stepR, c: start.c });
+      }
+      return path;
+    }
+    // Diagonal 45-deg
+    if (absDr === absDc) {
+      const stepR = dr >= 0 ? 1 : -1;
+      const stepC = dc >= 0 ? 1 : -1;
+      const path: Array<{ r: number; c: number }> = [];
+      for (let i = 0; i <= absDr; i++) {
+        path.push({ r: start.r + i * stepR, c: start.c + i * stepC });
+      }
+      return path;
+    }
+
+    return [start];
+  };
+
+  // Check if cell path spells any unfound target word
+  const verifySelection = useCallback((cells: Array<{ r: number; c: number }>) => {
+    if (cells.length < 2) {
+      setSelectedCells([]);
+      return;
+    }
+
+    const selectedString = cells.map(cell => searchData.grid[cell.r]?.[cell.c] || '').join('');
     const reversedString = selectedString.split('').reverse().join('');
 
     const matched = targetWords.find(w => !foundWords.includes(w) && (w === selectedString || w === reversedString));
@@ -145,22 +262,92 @@ export const WordSearchGame: React.FC = () => {
 
       emitTrialEvent({
         exerciseSlug: 'word-search',
-        level: currentLevel,
+        level: playedLevel,
         relationId: 'SPATIAL_TRANSFORM',
         relationWeight: 1.0,
-        entities: { target: matched, cellsCount: nextCells.length, theme: selectedTheme },
+        entities: { target: matched, cellsCount: cells.length, theme: selectedTheme },
         stateBefore: `found:${foundWords.length}`,
         stateAfter: `found:${foundWords.length + 1}`,
         responseMs: respMs,
         correct: true
       });
 
+      setPermanentFoundCells(prev => [...prev, ...cells]);
       const updatedFound = [...foundWords, matched];
       setFoundWords(updatedFound);
       setSelectedCells([]);
+
       if (updatedFound.length >= targetWords.length) {
-        setIsFinished(true);
+        completeRound();
       }
+    } else {
+      setMissCount(m => m + 1);
+      playSound('wrong');
+
+      trackWrongAnswer({
+        round: currentRound,
+        difficultyLevel: playedLevel,
+        questionContext: {
+          prompt: `Tìm các từ trong chủ đề: ${selectedTheme}`,
+          targetWords: targetWords
+        },
+        correctAnswer: { label: targetWords[0] || 'Từ mục tiêu', code: targetWords[0] || 'WORD' },
+        userAnswer: { label: selectedString, code: selectedString },
+        responseTimeMs: 1000,
+        sessionId: sessionIdRef.current,
+        severity: 'minor'
+      });
+
+      setSelectedCells([]);
+    }
+  }, [foundWords, searchData.grid, targetWords, playedLevel, selectedTheme, currentRound, completeRound, emitTrialEvent, playSound, trackWrongAnswer]);
+
+  // Pointer Drag Handlers (works for mouse AND touch seamlessly)
+  const handlePointerDown = (r: number, c: number) => {
+    if (isFinished || Boolean(roundTransition)) return;
+    isDraggingRef.current = true;
+    dragStartRef.current = { r, c };
+    setSelectedCells([{ r, c }]);
+    playSound('click');
+  };
+
+  const handlePointerEnter = (r: number, c: number) => {
+    if (!isDraggingRef.current || !dragStartRef.current || isFinished || Boolean(roundTransition)) return;
+    const path = calculateLinePath(dragStartRef.current, { r, c });
+    setSelectedCells(path);
+  };
+
+  const handlePointerUp = () => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    dragStartRef.current = null;
+    verifySelection(selectedCells);
+  };
+
+  // Click-to-select alternative: Click start cell, then click end cell
+  const handleCellClick = (r: number, c: number) => {
+    if (isFinished || Boolean(roundTransition)) return;
+    if (selectedCells.length === 0) {
+      setSelectedCells([{ r, c }]);
+      playSound('click');
+      return;
+    }
+
+    const firstCell = selectedCells[0];
+    if (firstCell.r === r && firstCell.c === c) {
+      // Deselect if clicked same cell
+      setSelectedCells([]);
+      return;
+    }
+
+    // Connect from firstCell to (r, c)
+    const path = calculateLinePath(firstCell, { r, c });
+    if (path.length > 1) {
+      setSelectedCells(path);
+      verifySelection(path);
+    } else {
+      setSelectedCells([{ r, c }]);
+      playSound('click');
     }
   };
 
@@ -171,7 +358,7 @@ export const WordSearchGame: React.FC = () => {
   };
 
   const handleFlashFirstLetter = () => {
-    if (hintsRemaining <= 0 || isFinished) return;
+    if (hintsRemaining <= 0 || isFinished || Boolean(roundTransition)) return;
     const unfoundPlaced = searchData.placedWords.find(p => !foundWords.includes(p.word));
     if (unfoundPlaced) {
       playSound('click');
@@ -181,38 +368,47 @@ export const WordSearchGame: React.FC = () => {
     }
   };
 
-  const score = (foundWords.length * 150 * currentLevel) + Math.max(0, (120 - elapsedSec) * 5);
-
   return (
-    <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 py-4 space-y-4 sm:space-y-6 animate-fade-in pb-24">
+    <div 
+      className="w-full max-w-4xl mx-auto px-3 sm:px-6 py-4 space-y-4 sm:space-y-6 animate-fade-in pb-24"
+      onPointerUp={handlePointerUp}
+    >
       {/* Top HUD */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md">
         <div>
           <div className="flex items-center gap-1.5">
             <span className="text-xs sm:text-sm text-slate-500 font-semibold">Mục tiêu</span>
+            {totalRounds > 1 && (
+              <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
+                Lượt {currentRound}/{totalRounds}
+              </span>
+            )}
             {isInfinity && (
               <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white flex items-center gap-1">
                 <InfinityIcon className="w-3 h-3" />
-                {getInfinityLabel(currentLevel)}
+                {getInfinityLabel(playedLevel)}
               </span>
             )}
           </div>
           <div className="text-2xl sm:text-3xl font-black text-brand-600 dark:text-brand-400 mt-0.5">
-            {foundWords.length} / {targetWords.length}
+            {foundWords.length} / {targetWords.length} từ
+          </div>
+          <div className="text-xs font-semibold text-slate-500">
+            Lỗi thử sai: <strong className="text-rose-500">{missCount}</strong>
           </div>
         </div>
 
-        {/* Theme Pills */}
+        {/* Theme Picker */}
         {!isInfinity && (
-          <div className="hidden md:flex items-center gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+          <div className="hidden sm:flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700 p-1.5 rounded-2xl">
             {themes.map(t => (
               <button
                 key={t}
                 onClick={() => handleThemeChange(t)}
-                className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   selectedTheme === t
-                    ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                    ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
                 }`}
               >
                 {t}
@@ -222,65 +418,30 @@ export const WordSearchGame: React.FC = () => {
         )}
 
         <div className="text-right">
-          <span className="text-xs sm:text-sm text-slate-500 font-semibold">Thời gian</span>
-          <div className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white mt-0.5">
+          <span className="text-xs sm:text-sm text-slate-500 font-medium">Thời gian</span>
+          <div className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white">
             {elapsedSec}s
           </div>
         </div>
       </div>
 
-      {/* Target Word Badges */}
-      <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-        {targetWords.map((word) => {
+      {/* Target Word Pills Banner */}
+      <div className="flex flex-wrap gap-2 items-center justify-center">
+        {targetWords.map(word => {
           const isFound = foundWords.includes(word);
-          const dictEntry = isInfinity ? CURATED_DICTIONARY.find(d => d.word === word) : null;
-          const placed = searchData.placedWords.find(p => p.word === word);
-          const dirBadge = placed ? (placed.direction === 'H' ? '➡️ Ngang' : '⬇️ Dọc') : null;
-
-          let clueText: string | null = wordClues[word] || null;
-          if (!clueText) {
-            if (currentLevel === 14) {
-              const bp = BILINGUAL_WORD_PAIRS.find(b => b.en.toUpperCase().replace(/\s+/g, '') === word);
-              if (bp) clueText = `Nghĩa: ${bp.vi}`;
-            } else if (currentLevel === 15) {
-              const syn = SYNONYM_PAIRS.find(s => s.wordA.toUpperCase().replace(/\s+/g, '') === word);
-              if (syn) clueText = `≈ ${syn.wordB}`;
-            } else if (currentLevel === 16) {
-              const ant = ANTONYM_PAIRS.find(a => a.wordA.toUpperCase().replace(/\s+/g, '') === word);
-              if (ant) clueText = `≠ ${ant.wordB}`;
-            } else if (currentLevel === 17) {
-              const emo = EMOJI_WORD_PAIRS.find(e => e.word.toUpperCase().replace(/\s+/g, '') === word);
-              if (emo) clueText = `${emo.emoji} ${emo.vi}`;
-            } else if (currentLevel === 19) {
-              const geo = GEOGRAPHY_TRIADS.find(g => g.capital.toUpperCase().replace(/[^A-Z]/g, '') === word);
-              if (geo) clueText = `Thủ đô của: ${geo.flag} ${geo.country}`;
-            } else if (currentLevel === 20) {
-              const elem = PERIODIC_TABLE_TRIADS.find(el => el.name.toUpperCase().includes(word));
-              if (elem) clueText = `Ký hiệu: ${elem.symbol} (Z = ${elem.atomicNumber})`;
-            } else if (dictEntry) {
-              clueText = dictEntry.viMeaning.slice(0, 32) + '...';
-            }
-          }
-
+          const clueText = wordClues[word];
           return (
             <div
               key={word}
-              className={`px-4 py-2 sm:py-2.5 rounded-2xl font-black tracking-wider text-xs sm:text-sm md:text-base border shadow-sm transition-all duration-300 flex flex-col items-center justify-center ${
+              className={`px-3 py-1.5 rounded-2xl font-black text-xs sm:text-sm border transition-all flex flex-col items-center select-none ${
                 isFound
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-600 dark:text-emerald-400 line-through opacity-75 ring-2 ring-emerald-400/30'
-                  : isInfinity
-                  ? 'bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border-purple-300 dark:border-purple-800 text-purple-900 dark:text-purple-100 hover:border-purple-500'
-                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 scale-100 hover:border-brand-500'
+                  ? 'bg-emerald-500 text-white border-emerald-400 line-through opacity-90 ring-2 ring-emerald-400/40 shadow-sm'
+                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 shadow-sm'
               }`}
             >
               <div className="flex items-center gap-1.5">
-                {isFound && <Check className="w-4 h-4 text-emerald-500 stroke-[3]" />}
+                {isFound && <Check className="w-4 h-4 text-white stroke-[3]" />}
                 <span>{word}</span>
-                {dirBadge && !isFound && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300">
-                    {dirBadge}
-                  </span>
-                )}
               </div>
               {clueText && (
                 <span className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 no-underline mt-0.5">
@@ -292,10 +453,14 @@ export const WordSearchGame: React.FC = () => {
         })}
       </div>
 
+      <p className="text-xs text-center text-slate-500 dark:text-slate-400 font-medium">
+        Hướng dẫn: <strong>Nhấn giữ và kéo</strong> từ chữ đầu đến chữ cuối, hoặc <strong>nhấp vào chữ đầu rồi nhấp vào chữ cuối</strong> để khoanh từ.
+      </p>
+
       {/* Word Search Grid */}
-      <div className="p-3 sm:p-6 rounded-3xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 shadow-xl flex items-center justify-center overflow-x-auto">
+      <div className="p-3 sm:p-5 rounded-3xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 shadow-xl flex items-center justify-center max-w-full overflow-hidden relative">
         <div 
-          className="grid gap-1 sm:gap-1.5 select-none touch-none"
+          className="grid gap-1 sm:gap-1.5 select-none touch-none w-full max-w-full"
           style={{
             gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`
           }}
@@ -303,17 +468,24 @@ export const WordSearchGame: React.FC = () => {
           {searchData.grid.map((row, r) =>
             row.map((letter, c) => {
               const isSelected = selectedCells.some(cell => cell.r === r && cell.c === c);
+              const isPermanentFound = permanentFoundCells.some(cell => cell.r === r && cell.c === c);
               const isHinted = hintCell?.r === r && hintCell?.c === c;
               return (
                 <button
                   key={`${r}-${c}`}
+                  onPointerDown={() => handlePointerDown(r, c)}
+                  onPointerEnter={() => handlePointerEnter(r, c)}
                   onClick={() => handleCellClick(r, c)}
-                  className={`w-7 h-7 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-xl sm:rounded-2xl font-black text-xs sm:text-base md:text-lg flex items-center justify-center transition-all duration-150 btn-press ${
+                  className={`aspect-square rounded-lg sm:rounded-xl font-black flex items-center justify-center transition-all duration-100 ${
+                    cols >= 16 ? 'text-[11px] sm:text-xs md:text-sm' : 'text-xs sm:text-sm md:text-base'
+                  } ${
                     isHinted
-                      ? 'bg-amber-400 text-slate-950 scale-125 z-20 animate-bounce shadow-xl ring-4 ring-amber-400'
+                      ? 'bg-amber-400 text-slate-950 scale-125 z-20 animate-bounce shadow-xl ring-4 ring-amber-400 font-black'
                       : isSelected
-                      ? 'bg-amber-400 text-slate-950 scale-105 shadow-md ring-2 ring-amber-400'
-                      : 'bg-[#FDFBF7] dark:bg-slate-900/60 hover:bg-brand-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200'
+                      ? 'bg-amber-400 text-slate-950 scale-105 shadow-md ring-2 ring-amber-400 z-10'
+                      : isPermanentFound
+                      ? 'bg-emerald-500 text-white shadow-sm ring-1 ring-emerald-400 font-black'
+                      : 'bg-[#FDFBF7] dark:bg-slate-900/60 hover:bg-brand-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/60'
                   }`}
                 >
                   {letter}
@@ -322,13 +494,33 @@ export const WordSearchGame: React.FC = () => {
             })
           )}
         </div>
+
+        {/* Round Transition Overlay */}
+        {roundTransition && (
+          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center gap-4 text-white z-20 animate-fade-in p-6 text-center">
+            <CheckCircle2 className="w-14 h-14 text-emerald-400 animate-bounce" />
+            <h3 className="text-xl sm:text-2xl font-black">
+              Hoàn thành Lượt {roundTransition.roundDone}/{totalRounds}!
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-300">
+              Đã tìm đủ {targetWords.length} từ • Thời gian: {elapsedSec}s
+            </p>
+            <button
+              onClick={advanceNextRound}
+              className="mt-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm sm:text-base shadow-xl flex items-center gap-2 active:scale-95 transition-all"
+            >
+              <span>Vào Lượt {roundTransition.roundDone + 1}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Controls: Reset + Hint First Letter Button */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
         <button
           onClick={handleFlashFirstLetter}
-          disabled={hintsRemaining <= 0 || isFinished}
+          disabled={hintsRemaining <= 0 || isFinished || Boolean(roundTransition)}
           className={`py-2.5 px-4 rounded-2xl border text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all ${
             hintsRemaining <= 0
               ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400'
@@ -341,21 +533,27 @@ export const WordSearchGame: React.FC = () => {
 
         <button
           onClick={() => startNewBoard(selectedTheme)}
-          className="py-2.5 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-brand-600 flex items-center gap-1.5 btn-press"
+          disabled={isFinished || Boolean(roundTransition)}
+          className="py-2.5 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm transition-all"
         >
           <RotateCcw className="w-4 h-4" />
-          <span>Tạo ma trận từ mới</span>
+          <span>Làm mới bàn chơi</span>
         </button>
       </div>
 
       {isFinished && (
         <GameResultModal
-          score={score}
-          accuracyRate={100}
-          timeSpentSec={elapsedSec}
+          score={finalScore}
+          accuracyRate={finalAccuracy}
+          timeSpentSec={finalTimeSpentSec}
+          playedLevel={playedLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();
+            setCurrentRound(1);
+            setRoundResults([]);
+            setRoundTransition(null);
+            setIsFinished(false);
             startNewBoard(selectedTheme);
           }}
           onClose={() => setActiveGameSlug(null)}

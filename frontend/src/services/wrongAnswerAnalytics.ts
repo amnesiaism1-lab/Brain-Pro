@@ -116,6 +116,35 @@ export function classifyAuditoryError(
       };
     }
 
+    case 'find-letter': {
+      return {
+        category: 'GLYPH_CONFUSION',
+        severity: 'minor'
+      };
+    }
+
+    case 'find-number':
+    case 'schulte-table': {
+      return {
+        category: 'NUMBER_SEARCH_ERROR',
+        severity: 'minor'
+      };
+    }
+
+    case 'word-search': {
+      return {
+        category: 'WORD_SEARCH_MISMATCH',
+        severity: 'minor'
+      };
+    }
+
+    case 'text-scanning': {
+      return {
+        category: 'TEXT_SCAN_INHIBITION',
+        severity: 'minor'
+      };
+    }
+
     default:
       return {
         category: 'INTERVAL_CONFUSION',

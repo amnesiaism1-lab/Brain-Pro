@@ -8,7 +8,7 @@ import { ReadingTextSourceModal } from '../common/ReadingTextSourceModal';
 import { readingContentService } from '../../services/readingContentService';
 
 export const WordChunkingGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const effectiveLevel = getExerciseLevel('word-chunking') || currentLevel;
   const isInfinity = effectiveLevel >= 13;
@@ -60,8 +60,17 @@ export const WordChunkingGame: React.FC = () => {
     }
   }, [activeChunkIndex, isPlaying]);
 
+  // Elapsed seconds timer that pauses properly
   useEffect(() => {
-    if (!isPlaying) {
+    if (!isPlaying || isGamePaused || isFinished) return;
+    const secTimer = setInterval(() => {
+      setElapsedSec(s => s + 1);
+    }, 1000);
+    return () => clearInterval(secTimer);
+  }, [isPlaying, isGamePaused, isFinished]);
+
+  useEffect(() => {
+    if (!isPlaying || isGamePaused || isFinished) {
       if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
@@ -87,13 +96,12 @@ export const WordChunkingGame: React.FC = () => {
         }
         return prev + 1;
       });
-      setElapsedSec(s => s + 1);
     }, chunkSpeedMs);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, chunks.length, chunkSpeedMs, currentArticle.title, chunkSize, currentLevel, emitTrialEvent]);
+  }, [isPlaying, isGamePaused, isFinished, chunks.length, chunkSpeedMs, currentArticle.title, chunkSize, currentLevel, emitTrialEvent]);
 
   const handleSelectNewArticle = (article: IReadingText) => {
     setCurrentArticle(article);
@@ -292,8 +300,9 @@ export const WordChunkingGame: React.FC = () => {
       {isFinished && (
         <GameResultModal
           score={chunks.length * 15 * effectiveLevel}
-          accuracyRate={95}
+          accuracyRate={Math.min(100, Math.round(((activeChunkIndex + 1) / Math.max(1, chunks.length)) * 100))}
           timeSpentSec={elapsedSec}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

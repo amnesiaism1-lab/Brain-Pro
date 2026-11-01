@@ -33,6 +33,7 @@ export const ExerciseDetailModal: React.FC = () => {
     setAutoDifficulty,
     setLadderSessionRounds,
     attemptsHistory,
+    exerciseMasteries,
     playSound 
   } = useAppStore();
 
@@ -113,10 +114,12 @@ export const ExerciseDetailModal: React.FC = () => {
   };
 
   const exerciseAttempts = attemptsHistory.filter(a => a.exerciseSlug === exercise.slug);
+  const mastery = exerciseMasteries[exercise.slug];
+  const totalSessions = mastery?.totalAttempts || exerciseAttempts.length;
   const bestScore = exerciseAttempts.length > 0 ? Math.max(...exerciseAttempts.map(a => a.score)) : null;
   const avgAccuracy = exerciseAttempts.length > 0 
     ? Math.round(exerciseAttempts.reduce((s, a) => s + (a.accuracyRate || 0), 0) / exerciseAttempts.length)
-    : null;
+    : (mastery?.avgAccuracy || null);
 
   const allStandardLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   const allInfinityLevels = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
@@ -1091,7 +1094,7 @@ export const ExerciseDetailModal: React.FC = () => {
             </div>
             <div className="bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 rounded-3xl border border-[#D5CBB9] dark:border-slate-800 shadow-sm col-span-2 sm:col-span-1">
               <span className="text-xs text-slate-500 font-medium">Số Phiên Đã Tập</span>
-              <p className="text-2xl sm:text-3xl font-black text-purple-600 dark:text-purple-400 mt-1">{exerciseAttempts.length}</p>
+              <p className="text-2xl sm:text-3xl font-black text-purple-600 dark:text-purple-400 mt-1">{totalSessions}</p>
             </div>
           </div>
 

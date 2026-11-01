@@ -18,7 +18,7 @@ import {
 import { Infinity as InfinityIcon, Sparkles } from 'lucide-react';
 
 export const TwinWordsGame: React.FC = () => {
-  const { getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const lastChoiceTimeRef = useRef<number>(Date.now());
   const currentLevel = getExerciseLevel('twin-words');
@@ -223,9 +223,10 @@ export const TwinWordsGame: React.FC = () => {
   }, [selectedTheme]);
 
   useEffect(() => {
+    if (isFinished || isGamePaused) return;
     const timer = setInterval(() => setElapsedSec(s => s + 1), 1000);
     return () => clearInterval(timer);
-  }, [currentLevel]);
+  }, [isFinished, isGamePaused]);
 
   const handleChoice = (isMatchChoice: boolean) => {
     if (isFinished) return;
@@ -399,6 +400,7 @@ export const TwinWordsGame: React.FC = () => {
           score={score}
           accuracyRate={accuracy}
           timeSpentSec={elapsedSec}
+          playedLevel={currentLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

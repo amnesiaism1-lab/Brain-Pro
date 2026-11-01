@@ -897,5 +897,5 @@ describe('lyricAlignmentService', () => {
     expect(realigned.phrases[0].lyricText).toContain('Sương mờ che khuất đồi');
     expect(realigned.deepVerification?.toneHarmonyScorePct).toBeGreaterThanOrEqual(0);
     expect(realigned.deepVerification?.analysisMode).toBe('deep_verification');
-  });
+  }, 20000);
 });

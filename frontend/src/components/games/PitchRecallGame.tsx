@@ -1315,6 +1315,7 @@ export const PitchRecallGame: React.FC = () => {
           })}
           accuracyRate={Math.round((correctRounds / maxRounds) * 100)}
           timeSpentSec={elapsedSec}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             setIsFinished(false);

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 export const GraphMemoryMatrixGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const effectiveLevel = getExerciseLevel('graph-memory-matrix') || currentLevel || 1;
 
   const challenge: IGraphMemoryLevel =
@@ -64,7 +64,7 @@ export const GraphMemoryMatrixGame: React.FC = () => {
 
   // Memorization Timer
   useEffect(() => {
-    if (phase !== 'MEMORIZING') return;
+    if (phase !== 'MEMORIZING' || isGamePaused) return;
 
     const interval = setInterval(() => {
       setMemorizeCountdown(prev => {
@@ -81,7 +81,7 @@ export const GraphMemoryMatrixGame: React.FC = () => {
     }, 500);
 
     return () => clearInterval(interval);
-  }, [phase, playSound]);
+  }, [phase, isGamePaused, playSound]);
 
   // Handle Option Select
   const handleSelectOption = (optionId: string) => {
@@ -295,6 +295,7 @@ export const GraphMemoryMatrixGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={Math.round(challenge.memorizeDurationSec + 10)}
+          playedLevel={effectiveLevel}
           rawMetricsJson={rawMetricsJson}
           onRestart={initLevel}
           onClose={() => setActiveGameSlug(null)}

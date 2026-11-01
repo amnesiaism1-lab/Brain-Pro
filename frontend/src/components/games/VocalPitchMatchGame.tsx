@@ -719,6 +719,7 @@ export const VocalPitchMatchGame: React.FC = () => {
           score={finalScore}
           accuracyRate={accuracyRate}
           timeSpentSec={timeSpentSec}
+          playedLevel={currentLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             setIsFinished(false);

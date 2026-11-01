@@ -25,7 +25,7 @@ interface StepRecord {
 }
 
 export const DualNBackGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
 
   const effectiveLevel = getExerciseLevel('dual-nback') || currentLevel || 1;
@@ -171,14 +171,14 @@ export const DualNBackGame: React.FC = () => {
 
   // Elapsed seconds timer
   useEffect(() => {
-    if (!isPlaying || isFinished) return;
+    if (!isPlaying || isFinished || isGamePaused) return;
     timerRef.current = setInterval(() => {
       setElapsedSec(s => s + 1);
     }, 1000);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, isFinished]);
+  }, [isPlaying, isFinished, isGamePaused]);
 
   // Evaluation at the end of each step
   const evaluateStep = useCallback((stepIdx: number, pPressed: boolean, aPressed: boolean) => {
@@ -450,6 +450,7 @@ export const DualNBackGame: React.FC = () => {
           score={calculatedScore}
           accuracyRate={accuracyRate}
           timeSpentSec={elapsedSec}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={startGame}
           onClose={() => setActiveGameSlug(null)}

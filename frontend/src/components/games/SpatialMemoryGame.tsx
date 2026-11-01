@@ -320,6 +320,7 @@ export const SpatialMemoryGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={45}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

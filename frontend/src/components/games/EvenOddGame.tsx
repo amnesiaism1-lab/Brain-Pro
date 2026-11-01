@@ -14,7 +14,7 @@ import { INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@bra
 import { Infinity as InfinityIcon, Sparkles, Zap, Volume2, Eye, Ear } from 'lucide-react';
 
 export const EvenOddGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const lastAnsTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('even-odd') || currentLevel;
@@ -112,6 +112,10 @@ export const EvenOddGame: React.FC = () => {
 
   useEffect(() => {
     nextNumber();
+  }, []);
+
+  useEffect(() => {
+    if (isFinished || isGamePaused) return;
     const timer = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) {
@@ -124,7 +128,7 @@ export const EvenOddGame: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [isFinished, isGamePaused]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -384,6 +388,7 @@ export const EvenOddGame: React.FC = () => {
           score={score}
           accuracyRate={accuracy}
           timeSpentSec={isSpeedStorm ? 20 - timeLeft : 35 - timeLeft}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

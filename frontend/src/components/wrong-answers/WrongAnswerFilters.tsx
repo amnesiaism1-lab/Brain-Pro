@@ -11,6 +11,10 @@ interface WrongAnswerFiltersProps {
 
 const EXERCISE_OPTIONS: Array<{ slug: ExerciseSlug | 'ALL'; label: string }> = [
   { slug: 'ALL', label: 'Tất cả bài tập' },
+  { slug: 'find-letter', label: 'Tìm Chữ' },
+  { slug: 'find-number', label: 'Tìm Số' },
+  { slug: 'word-search', label: 'Tìm Từ' },
+  { slug: 'text-scanning', label: 'Tìm Trong Văn Bản' },
   { slug: 'schulte-table', label: 'Bảng Schulte' },
   { slug: 'interval-identify', label: 'Nhận Diện Quãng' },
   { slug: 'chord-identify', label: 'Nhận Diện Hợp Âm' },
@@ -69,11 +73,10 @@ export const WrongAnswerFilters: React.FC<WrongAnswerFiltersProps> = ({
             <button
               key={opt.slug}
               onClick={() => onChange({ exerciseSlug: opt.slug })}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all active:scale-95 ${
-                isActive
-                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-900/20 font-bold'
-                  : 'bg-slate-100/80 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-700/60'
-              }`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all active:scale-95 ${isActive
+                ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-900/20 font-bold'
+                : 'bg-slate-100/80 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-700/60'
+                }`}
             >
               {opt.label}
             </button>

@@ -11,6 +11,7 @@ interface GameResultProps {
   timeSpentSec: number;
   effectiveWpm?: number;
   rawMetricsJson?: IRawMetricsJson;
+  playedLevel?: number;
   onRestart: () => void;
   onClose: () => void;
 }
@@ -21,6 +22,7 @@ export const GameResultModal: React.FC<GameResultProps> = ({
   timeSpentSec,
   effectiveWpm,
   rawMetricsJson,
+  playedLevel,
   onRestart,
   onClose
 }) => {
@@ -44,9 +46,16 @@ export const GameResultModal: React.FC<GameResultProps> = ({
   } = useAppStore();
 
   const [showDetailedBreakdown, setShowDetailedBreakdown] = useState(false);
-  const currentLevel = activeGameSlug ? getExerciseLevel(activeGameSlug) : 1;
+  const currentLevel = playedLevel !== undefined 
+    ? playedLevel 
+    : (activeGameSlug ? getExerciseLevel(activeGameSlug) : 1);
+
+  const hasRecordedRef = React.useRef(false);
 
   useEffect(() => {
+    if (hasRecordedRef.current) return;
+    hasRecordedRef.current = true;
+
     playSound('victory');
     // Launch celebratory confetti
     try {

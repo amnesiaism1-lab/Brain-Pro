@@ -23,7 +23,7 @@ const PITCH_LABELS: Record<string, string> = {
 };
 
 export const DigitSpanGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const recallStartTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('digit-span') || currentLevel;
@@ -132,9 +132,10 @@ export const DigitSpanGame: React.FC = () => {
   }, [phase, isRsvpMode, digits]);
 
   useEffect(() => {
+    if (isFinished || isGamePaused) return;
     const timer = setInterval(() => setElapsedSec(s => s + 1), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isFinished, isGamePaused]);
 
   const handleInput = (char: string) => {
     if (phase !== 'recall') return;
@@ -429,6 +430,7 @@ export const DigitSpanGame: React.FC = () => {
           score={score}
           accuracyRate={accuracy}
           timeSpentSec={elapsedSec}
+          playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

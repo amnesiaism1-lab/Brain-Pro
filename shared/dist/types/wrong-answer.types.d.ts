@@ -1,6 +1,6 @@
 import { ExerciseSlug } from './index';
 /** Danh mục lỗi thính giác (Auditory Error Taxonomy) */
-export type AuditoryErrorCategory = 'INTERVAL_CONFUSION' | 'CHORD_MISIDENTIFY' | 'PITCH_DRIFT' | 'TIMBRE_CONFUSION' | 'RHYTHM_TIMING_ERROR' | 'RHYTHM_PATTERN_ERROR' | 'SPATIAL_DIRECTION_ERROR' | 'VOCAL_INTONATION_ERROR' | 'MAP_ORIENTATION_ERROR' | 'RING_SKELETON_ERROR' | 'GRID_TOPOLOGY_ERROR' | 'ROUTING_ONEWAY_TRAP' | 'LANDMARK_TRIANGULATION_ERROR' | 'BEARING_DISTANCE_ERROR';
+export type AuditoryErrorCategory = 'INTERVAL_CONFUSION' | 'CHORD_MISIDENTIFY' | 'PITCH_DRIFT' | 'TIMBRE_CONFUSION' | 'RHYTHM_TIMING_ERROR' | 'RHYTHM_PATTERN_ERROR' | 'SPATIAL_DIRECTION_ERROR' | 'VOCAL_INTONATION_ERROR' | 'MAP_ORIENTATION_ERROR' | 'RING_SKELETON_ERROR' | 'GRID_TOPOLOGY_ERROR' | 'ROUTING_ONEWAY_TRAP' | 'LANDMARK_TRIANGULATION_ERROR' | 'BEARING_DISTANCE_ERROR' | 'GLYPH_CONFUSION' | 'NUMBER_SEARCH_ERROR' | 'WORD_SEARCH_MISMATCH' | 'TEXT_SCAN_INHIBITION';
 /** Mức độ nghiêm trọng của lỗi */
 export type ErrorSeverity = 'minor' | 'moderate' | 'critical';
 /** Chi tiết một đáp án (đáp án đúng hoặc lựa chọn của người dùng) */
@@ -65,6 +65,13 @@ export interface IQuestionContext {
     distanceKm?: number;
     schulteMode?: string;
     gridSize?: number;
+    prompt?: string;
+    distractor?: string;
+    targetWord?: string;
+    targetWords?: string[];
+    challengeType?: string;
+    matrixSize?: string;
+    articleTitle?: string;
 }
 /** Bản ghi một câu làm sai */
 export interface IWrongAnswer {
