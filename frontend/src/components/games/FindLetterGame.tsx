@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
-import { calculateGameScore } from '@brain-exercises/shared';
+import { calculateGameScore, EXERCISES_METADATA } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { readingContentService } from '../../services/readingContentService';
-import { RotateCcw, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { RotateCcw, ArrowRight, CheckCircle2, Clock } from 'lucide-react';
 
 export const FindLetterGame: React.FC = () => {
   const { 
@@ -22,11 +22,15 @@ export const FindLetterGame: React.FC = () => {
   const { trackWrongAnswer } = useWrongAnswerTracker('find-letter');
   const { sessionConfig: resolvedConfig, isCustom } = useExerciseSessionConfig('find-letter');
 
-  const effectiveLevel = getExerciseLevel('find-letter') || currentLevel;
+  const effectiveLevel = getExerciseLevel('find-letter') || currentLevel || 1;
   // Hold the level played during this session to avoid sudden re-render wipes if DDA updates store
   const playedLevelRef = useRef<number>(effectiveLevel);
   const sessionIdRef = useRef<string>(`fl-${Date.now()}`);
   const lastClickRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    playedLevelRef.current = effectiveLevel;
+  }, [effectiveLevel]);
 
   const playedLevel = playedLevelRef.current;
   const isInfinity = playedLevel >= 13;
@@ -41,14 +45,24 @@ export const FindLetterGame: React.FC = () => {
 
   const [currentRound, setCurrentRound] = useState<number>(1);
   const [roundResults, setRoundResults] = useState<Array<{ score: number; accuracy: number; timeSpentSec: number }>>([]);
-  const [roundTransition, setRoundTransition] = useState<{ roundDone: number } | null>(null);
+  const [roundTransition, setRoundTransition] = useState<{ roundDone: number; isTimeout: boolean } | null>(null);
 
   // Custom countdown timer if timeLimitSec is set in custom mode
   const isCustomCountdown = Boolean(isCustom && resolvedConfig.timeLimitSec && resolvedConfig.timeLimitSec > 0);
   const customTimeLimit = isCustomCountdown ? (resolvedConfig.timeLimitSec || 30) : 0;
 
-  const gridSize = playedLevel >= 20 ? 10 : playedLevel >= 17 ? 9 : playedLevel >= 13 ? 8 : playedLevel <= 2 ? 5 : playedLevel <= 5 ? 6 : playedLevel <= 8 ? 7 : 8;
-  const targetCount = playedLevel >= 20 ? 10 : playedLevel >= 16 ? 8 : playedLevel >= 13 ? 6 : playedLevel <= 2 ? 3 : playedLevel <= 5 ? 4 : playedLevel <= 8 ? 5 : 7;
+  const exerciseMeta = useMemo(() => EXERCISES_METADATA.find(e => e.slug === 'find-letter'), []);
+  const levelConfig = useMemo(() => {
+    return exerciseMeta?.levelConfigs.find(c => c.level === playedLevel);
+  }, [exerciseMeta, playedLevel]);
+
+  const gridSize = isCustom 
+    ? 6 
+    : (levelConfig?.gridRows ?? (playedLevel >= 20 ? 10 : playedLevel >= 17 ? 9 : playedLevel >= 13 ? 8 : playedLevel <= 2 ? 5 : playedLevel <= 5 ? 6 : playedLevel <= 8 ? 7 : 8));
+
+  const targetCount = isCustom 
+    ? 4 
+    : (levelConfig?.targetItemCount ?? (playedLevel >= 20 ? 10 : playedLevel >= 16 ? 8 : playedLevel >= 13 ? 6 : playedLevel <= 2 ? 3 : playedLevel <= 5 ? 4 : playedLevel <= 8 ? 5 : 7));
 
   // Challenge mode: 'all' | 'vowel_tones' | 'confusable'
   const [challengeMode, setChallengeMode] = useState<'all' | 'vowel_tones' | 'confusable'>(() => {
@@ -200,8 +214,8 @@ export const FindLetterGame: React.FC = () => {
 
     if (currentRound < totalRounds) {
       // Transition to next round
-      setRoundTransition({ roundDone: currentRound });
-      playSound('correct');
+      setRoundTransition({ roundDone: currentRound, isTimeout: timedOut });
+      playSound(timedOut ? 'wrong' : 'correct');
     } else {
       // Final round done: Aggregate score and freeze!
       const aggScore = nextAllResults.reduce((sum, r) => sum + r.score, 0);
@@ -461,17 +475,38 @@ export const FindLetterGame: React.FC = () => {
 
         {/* Round Transition Overlay */}
         {roundTransition && (
-          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center gap-4 text-white z-20 animate-fade-in p-6 text-center">
-            <CheckCircle2 className="w-14 h-14 text-emerald-400 animate-bounce" />
-            <h3 className="text-xl sm:text-2xl font-black">
-              Hoàn thành Lượt {roundTransition.roundDone}/{totalRounds}!
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-300">
-              Thời gian: {elapsedSec}s • Sẵn sàng cho lượt tiếp theo?
-            </p>
+          <div className="absolute inset-0 bg-slate-900/85 backdrop-blur-md rounded-3xl flex flex-col items-center justify-center gap-4 text-white z-20 animate-fade-in p-6 text-center">
+            {roundTransition.isTimeout ? (
+              <>
+                <div className="p-3 bg-amber-500/20 border-2 border-amber-400 rounded-full text-amber-400">
+                  <Clock className="w-12 h-12" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-amber-500/30 text-amber-300 border border-amber-400/50 uppercase">
+                    Hết Thời Gian Lượt {roundTransition.roundDone}/{totalRounds}
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-black text-white mt-1">
+                    Chưa tìm đủ chữ cái mục tiêu!
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-300 max-w-sm">
+                    Đã hết thời gian quy định cho lượt này ({customTimeLimit}s). Lưu ý: thời gian được làm mới riêng cho mỗi lượt mới.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-14 h-14 text-emerald-400 animate-bounce" />
+                <h3 className="text-xl sm:text-2xl font-black">
+                  Hoàn thành Lượt {roundTransition.roundDone}/{totalRounds}!
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300">
+                  Thời gian: {elapsedSec}s • Sẵn sàng cho lượt tiếp theo?
+                </p>
+              </>
+            )}
             <button
               onClick={advanceNextRound}
-              className="mt-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm sm:text-base shadow-xl flex items-center gap-2 active:scale-95 transition-all"
+              className="mt-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm sm:text-base shadow-xl flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
             >
               <span>Vào Lượt {roundTransition.roundDone + 1}</span>
               <ArrowRight className="w-4 h-4" />
@@ -493,6 +528,7 @@ export const FindLetterGame: React.FC = () => {
             setRoundResults([]);
             setRoundTransition(null);
             setIsFinished(false);
+            playedLevelRef.current = getExerciseLevel('find-letter');
             handleNewChallenge();
           }}
           onClose={() => setActiveGameSlug(null)}

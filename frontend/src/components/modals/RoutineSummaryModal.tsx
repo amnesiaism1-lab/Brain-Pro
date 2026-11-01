@@ -10,6 +10,13 @@ export const RoutineSummaryModal: React.FC = () => {
 
   const { routine } = routineSummary;
 
+  const formatDuration = (sec: number) => {
+    if (sec < 60) return `${sec}s`;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  };
+
   const handleClose = () => {
     playSound('click');
     dismissRoutineSummary();
@@ -73,6 +80,7 @@ export const RoutineSummaryModal: React.FC = () => {
             <div className="space-y-2">
               {routine.items.map((item, idx) => {
                 const ex = EXERCISES_METADATA.find(e => e.slug === item.exerciseSlug);
+                const stepResult = routineSummary.stepResults?.[idx] || routineSummary.stepResults?.find(r => r.exerciseSlug === item.exerciseSlug);
                 return (
                   <div
                     key={`${item.exerciseSlug}-${idx}`}
@@ -93,7 +101,16 @@ export const RoutineSummaryModal: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>{Math.round(item.recommendedDurationSec / 60) || 1}m</span>
+                      {stepResult ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold">{formatDuration(stepResult.timeSpentSec)}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-black">
+                            {stepResult.accuracy}% CX
+                          </span>
+                        </div>
+                      ) : (
+                        <span>{formatDuration(item.recommendedDurationSec)}</span>
+                      )}
                     </div>
                   </div>
                 );

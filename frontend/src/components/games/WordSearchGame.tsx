@@ -5,11 +5,12 @@ import {
   VIETNAMESE_WORDS_DICTIONARY, 
   INFINITY_ROMAN_NUMERALS, 
   getInfinityTier, 
-  getInfinityLabel 
+  getInfinityLabel,
+  EXERCISES_METADATA
 } from '@brain-exercises/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
-import { Check, Sparkles, RotateCcw, Infinity as InfinityIcon, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Check, Sparkles, RotateCcw, Infinity as InfinityIcon, CheckCircle2, ArrowRight, Clock } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
@@ -38,7 +39,13 @@ export const WordSearchGame: React.FC = () => {
   const sessionIdRef = useRef<string>(`ws-${Date.now()}`);
   const lastMatchTimeRef = useRef<number>(Date.now());
   const isDraggingRef = useRef<boolean>(false);
+  const hasDraggedRef = useRef<boolean>(false);
   const dragStartRef = useRef<{ r: number; c: number } | null>(null);
+  const [clickAnchorCell, setClickAnchorCell] = useState<{ r: number; c: number } | null>(null);
+
+  useEffect(() => {
+    playedLevelRef.current = effectiveLevel;
+  }, [effectiveLevel]);
 
   // Rounds configuration
   const totalRounds = useMemo(() => {
@@ -50,15 +57,23 @@ export const WordSearchGame: React.FC = () => {
 
   const [currentRound, setCurrentRound] = useState<number>(1);
   const [roundResults, setRoundResults] = useState<Array<{ score: number; accuracy: number; timeSpentSec: number }>>([]);
-  const [roundTransition, setRoundTransition] = useState<{ roundDone: number } | null>(null);
+  const [roundTransition, setRoundTransition] = useState<{ roundDone: number; isTimeout: boolean } | null>(null);
+
+  const isCustomCountdown = Boolean(isCustom && resolvedConfig.timeLimitSec && resolvedConfig.timeLimitSec > 0);
+  const customTimeLimit = isCustomCountdown ? (resolvedConfig.timeLimitSec || 60) : 0;
 
   const themes = ['Khoa Học Não Bộ', 'Công Nghệ & AI', 'Thiên Văn & Vũ Trụ', 'Tâm Lý & Tư Duy', 'Tổng Hợp'];
   const [selectedTheme, setSelectedTheme] = useState<string>('Khoa Học Não Bộ');
   
-  // Level scaling (rows x cols)
-  const rows = playedLevel >= 22 ? 15 : playedLevel >= 19 ? 14 : playedLevel <= 2 ? 8 : playedLevel <= 5 ? 10 : playedLevel <= 8 ? 12 : 13;
-  const cols = playedLevel >= 22 ? 18 : playedLevel >= 19 ? 17 : playedLevel <= 2 ? 10 : playedLevel <= 5 ? 14 : playedLevel <= 8 ? 16 : 16;
-  const wordCount = playedLevel >= 22 ? 6 : playedLevel >= 19 ? 5 : playedLevel <= 2 ? 2 : playedLevel <= 5 ? 3 : playedLevel <= 8 ? 4 : 5;
+  const exerciseMeta = useMemo(() => EXERCISES_METADATA.find(e => e.slug === 'word-search'), []);
+  const levelConfig = useMemo(() => {
+    return exerciseMeta?.levelConfigs.find(c => c.level === playedLevel);
+  }, [exerciseMeta, playedLevel]);
+
+  // Level scaling (rows x cols) aligned with levelConfigs
+  const rows = isCustom ? 10 : (levelConfig?.gridRows ?? (playedLevel >= 22 ? 15 : playedLevel >= 19 ? 14 : playedLevel <= 2 ? 8 : playedLevel <= 5 ? 10 : playedLevel <= 8 ? 12 : 13));
+  const cols = isCustom ? 12 : (levelConfig?.gridCols ?? (playedLevel >= 22 ? 18 : playedLevel >= 19 ? 17 : playedLevel <= 2 ? 10 : playedLevel <= 5 ? 14 : playedLevel <= 8 ? 16 : 16));
+  const wordCount = isCustom ? 3 : (levelConfig?.targetItemCount ?? (playedLevel >= 22 ? 6 : playedLevel >= 19 ? 5 : playedLevel <= 2 ? 2 : playedLevel <= 5 ? 3 : playedLevel <= 8 ? 4 : 5));
 
   const pickWords = useCallback((themeName: string): { words: string[]; clues: Record<string, string> } => {
     if (isInfinity) {
@@ -151,10 +166,12 @@ export const WordSearchGame: React.FC = () => {
   }, [rows, cols, pickWords, isInfinity, playedLevel, wordCount]);
 
   // Complete Round logic
-  const completeRound = useCallback(() => {
+  const completeRound = useCallback((timedOut = false) => {
     const totalAttempts = foundWords.length + missCount;
-    const roundAcc = totalAttempts > 0 ? Math.round((foundWords.length / totalAttempts) * 100) : 100;
-    const roundScore = (foundWords.length * 150 * playedLevel) + Math.max(0, (120 - elapsedSec) * 5);
+    const roundAcc = timedOut
+      ? (totalAttempts > 0 ? Math.round((foundWords.length / totalAttempts) * 100) : 0)
+      : (totalAttempts > 0 ? Math.round((foundWords.length / totalAttempts) * 100) : 100);
+    const roundScore = (foundWords.length * 150 * playedLevel) + (timedOut ? 0 : Math.max(0, (120 - elapsedSec) * 5));
 
     const newResult = {
       score: roundScore,
@@ -166,8 +183,8 @@ export const WordSearchGame: React.FC = () => {
     setRoundResults(nextAllResults);
 
     if (currentRound < totalRounds) {
-      setRoundTransition({ roundDone: currentRound });
-      playSound('correct');
+      setRoundTransition({ roundDone: currentRound, isTimeout: timedOut });
+      playSound(timedOut ? 'wrong' : 'correct');
     } else {
       const aggScore = nextAllResults.reduce((sum, r) => sum + r.score, 0);
       const aggAcc = Math.round(nextAllResults.reduce((sum, r) => sum + r.accuracy, 0) / nextAllResults.length);
@@ -191,15 +208,24 @@ export const WordSearchGame: React.FC = () => {
     if (isFinished || isGamePaused || Boolean(roundTransition)) return;
 
     const timer = setInterval(() => {
-      setElapsedSec(s => s + 1);
+      setElapsedSec(s => {
+        const nextSec = s + 1;
+        if (isCustomCountdown && nextSec >= customTimeLimit) {
+          clearInterval(timer);
+          completeRound(true);
+          return customTimeLimit;
+        }
+        return nextSec;
+      });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isFinished, isGamePaused, roundTransition]);
+  }, [isFinished, isGamePaused, roundTransition, isCustomCountdown, customTimeLimit, completeRound]);
 
   const advanceNextRound = () => {
     playSound('click');
     setRoundTransition(null);
+    setClickAnchorCell(null);
     setCurrentRound(r => r + 1);
     startNewBoard(selectedTheme);
   };
@@ -302,10 +328,43 @@ export const WordSearchGame: React.FC = () => {
     }
   }, [foundWords, searchData.grid, targetWords, playedLevel, selectedTheme, currentRound, completeRound, emitTrialEvent, playSound, trackWrongAnswer]);
 
-  // Pointer Drag Handlers (works for mouse AND touch seamlessly)
+  // Pointer Handlers supporting both:
+  // 1. Drag & swipe (mouse/touch press & drag)
+  // 2. Two-click selection (click start cell, then click end cell)
   const handlePointerDown = (r: number, c: number) => {
     if (isFinished || Boolean(roundTransition)) return;
+
+    if (clickAnchorCell) {
+      if (clickAnchorCell.r === r && clickAnchorCell.c === c) {
+        // Deselect if clicked same cell again
+        setClickAnchorCell(null);
+        setSelectedCells([]);
+        playSound('click');
+        return;
+      }
+
+      // Check if straight line between clickAnchorCell and (r, c)
+      const path = calculateLinePath(clickAnchorCell, { r, c });
+      if (path.length > 1) {
+        setSelectedCells(path);
+        verifySelection(path);
+        setClickAnchorCell(null);
+        return;
+      } else {
+        // Not a straight line with existing anchor -> switch anchor to new cell
+        setClickAnchorCell({ r, c });
+        setSelectedCells([{ r, c }]);
+        isDraggingRef.current = true;
+        hasDraggedRef.current = false;
+        dragStartRef.current = { r, c };
+        playSound('click');
+        return;
+      }
+    }
+
+    // No anchor: start drag or register potential first click
     isDraggingRef.current = true;
+    hasDraggedRef.current = false;
     dragStartRef.current = { r, c };
     setSelectedCells([{ r, c }]);
     playSound('click');
@@ -313,6 +372,7 @@ export const WordSearchGame: React.FC = () => {
 
   const handlePointerEnter = (r: number, c: number) => {
     if (!isDraggingRef.current || !dragStartRef.current || isFinished || Boolean(roundTransition)) return;
+    hasDraggedRef.current = true;
     const path = calculateLinePath(dragStartRef.current, { r, c });
     setSelectedCells(path);
   };
@@ -320,34 +380,17 @@ export const WordSearchGame: React.FC = () => {
   const handlePointerUp = () => {
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
+    const start = dragStartRef.current;
     dragStartRef.current = null;
-    verifySelection(selectedCells);
-  };
 
-  // Click-to-select alternative: Click start cell, then click end cell
-  const handleCellClick = (r: number, c: number) => {
-    if (isFinished || Boolean(roundTransition)) return;
-    if (selectedCells.length === 0) {
-      setSelectedCells([{ r, c }]);
-      playSound('click');
-      return;
-    }
-
-    const firstCell = selectedCells[0];
-    if (firstCell.r === r && firstCell.c === c) {
-      // Deselect if clicked same cell
-      setSelectedCells([]);
-      return;
-    }
-
-    // Connect from firstCell to (r, c)
-    const path = calculateLinePath(firstCell, { r, c });
-    if (path.length > 1) {
-      setSelectedCells(path);
-      verifySelection(path);
-    } else {
-      setSelectedCells([{ r, c }]);
-      playSound('click');
+    if (hasDraggedRef.current) {
+      // Completed drag gesture across cells
+      setClickAnchorCell(null);
+      verifySelection(selectedCells);
+    } else if (start) {
+      // Completed single click: register as click anchor!
+      setClickAnchorCell(start);
+      setSelectedCells([start]);
     }
   };
 
@@ -418,9 +461,11 @@ export const WordSearchGame: React.FC = () => {
         )}
 
         <div className="text-right">
-          <span className="text-xs sm:text-sm text-slate-500 font-medium">Thời gian</span>
-          <div className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white">
-            {elapsedSec}s
+          <span className="text-xs sm:text-sm text-slate-500 font-medium">
+            {isCustomCountdown ? 'Còn lại' : 'Thời gian'}
+          </span>
+          <div className={`text-2xl sm:text-3xl font-black ${isCustomCountdown && (customTimeLimit - elapsedSec) <= 10 ? 'text-rose-600 animate-pulse' : 'text-slate-800 dark:text-white'}`}>
+            {isCustomCountdown ? Math.max(0, customTimeLimit - elapsedSec) : elapsedSec}s
           </div>
         </div>
       </div>
@@ -467,6 +512,7 @@ export const WordSearchGame: React.FC = () => {
         >
           {searchData.grid.map((row, r) =>
             row.map((letter, c) => {
+              const isAnchor = clickAnchorCell?.r === r && clickAnchorCell?.c === c;
               const isSelected = selectedCells.some(cell => cell.r === r && cell.c === c);
               const isPermanentFound = permanentFoundCells.some(cell => cell.r === r && cell.c === c);
               const isHinted = hintCell?.r === r && hintCell?.c === c;
@@ -475,12 +521,13 @@ export const WordSearchGame: React.FC = () => {
                   key={`${r}-${c}`}
                   onPointerDown={() => handlePointerDown(r, c)}
                   onPointerEnter={() => handlePointerEnter(r, c)}
-                  onClick={() => handleCellClick(r, c)}
                   className={`aspect-square rounded-lg sm:rounded-xl font-black flex items-center justify-center transition-all duration-100 ${
                     cols >= 16 ? 'text-[11px] sm:text-xs md:text-sm' : 'text-xs sm:text-sm md:text-base'
                   } ${
                     isHinted
                       ? 'bg-amber-400 text-slate-950 scale-125 z-20 animate-bounce shadow-xl ring-4 ring-amber-400 font-black'
+                      : isAnchor
+                      ? 'bg-amber-400 text-slate-950 scale-110 shadow-lg ring-4 ring-amber-500 z-10 animate-pulse font-black'
                       : isSelected
                       ? 'bg-amber-400 text-slate-950 scale-105 shadow-md ring-2 ring-amber-400 z-10'
                       : isPermanentFound
@@ -497,17 +544,38 @@ export const WordSearchGame: React.FC = () => {
 
         {/* Round Transition Overlay */}
         {roundTransition && (
-          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center gap-4 text-white z-20 animate-fade-in p-6 text-center">
-            <CheckCircle2 className="w-14 h-14 text-emerald-400 animate-bounce" />
-            <h3 className="text-xl sm:text-2xl font-black">
-              Hoàn thành Lượt {roundTransition.roundDone}/{totalRounds}!
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-300">
-              Đã tìm đủ {targetWords.length} từ • Thời gian: {elapsedSec}s
-            </p>
+          <div className="absolute inset-0 bg-slate-900/85 backdrop-blur-md rounded-3xl flex flex-col items-center justify-center gap-4 text-white z-20 animate-fade-in p-6 text-center">
+            {roundTransition.isTimeout ? (
+              <>
+                <div className="p-3 bg-amber-500/20 border-2 border-amber-400 rounded-full text-amber-400">
+                  <Clock className="w-12 h-12" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-amber-500/30 text-amber-300 border border-amber-400/50 uppercase">
+                    Hết Thời Gian Lượt {roundTransition.roundDone}/{totalRounds}
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-black text-white mt-1">
+                    Chưa kịp tìm đủ từ khóa!
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-300 max-w-sm">
+                    Đã hết giới hạn thời gian cho lượt này. Lưu ý: thời gian được làm mới riêng cho mỗi lượt mới.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-14 h-14 text-emerald-400 animate-bounce" />
+                <h3 className="text-xl sm:text-2xl font-black">
+                  Hoàn thành Lượt {roundTransition.roundDone}/{totalRounds}!
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300">
+                  Đã khoanh đủ {targetWords.length} từ khóa • Thời gian: {elapsedSec}s
+                </p>
+              </>
+            )}
             <button
               onClick={advanceNextRound}
-              className="mt-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm sm:text-base shadow-xl flex items-center gap-2 active:scale-95 transition-all"
+              className="mt-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm sm:text-base shadow-xl flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
             >
               <span>Vào Lượt {roundTransition.roundDone + 1}</span>
               <ArrowRight className="w-4 h-4" />
@@ -553,7 +621,9 @@ export const WordSearchGame: React.FC = () => {
             setCurrentRound(1);
             setRoundResults([]);
             setRoundTransition(null);
+            setClickAnchorCell(null);
             setIsFinished(false);
+            playedLevelRef.current = getExerciseLevel('word-search');
             startNewBoard(selectedTheme);
           }}
           onClose={() => setActiveGameSlug(null)}

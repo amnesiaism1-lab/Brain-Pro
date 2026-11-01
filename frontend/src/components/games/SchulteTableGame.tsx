@@ -166,7 +166,7 @@ export const SchulteTableGame: React.FC = () => {
 
   const [currentRound, setCurrentRound] = useState<number>(1);
   const [roundResults, setRoundResults] = useState<RoundResult[]>([]);
-  const [roundTransition, setRoundTransition] = useState<{ show: boolean; roundDone: number } | null>(null);
+  const [roundTransition, setRoundTransition] = useState<{ show: boolean; roundDone: number; isTimeout?: boolean } | null>(null);
 
   // Active configurations
   const [mode, setMode] = useState<SchulteMode>(initialMode);
@@ -433,8 +433,9 @@ export const SchulteTableGame: React.FC = () => {
     if (phantomTimerRef.current) clearTimeout(phantomTimerRef.current);
 
     const finalTime = Math.max(1, elapsedSec);
+    const roundNumber = roundResults.length + 1;
     const roundResult: RoundResult = {
-      round: currentRound,
+      round: roundNumber,
       timeSpentSec: finalTime,
       accuracy: wasTimeout ? Math.min(accuracy, 60) : accuracy,
       pace: currentPace,
@@ -450,11 +451,11 @@ export const SchulteTableGame: React.FC = () => {
       setPersonalBest(finalTime);
     }
 
-    if (currentRound < totalRounds) {
+    if (roundNumber < totalRounds) {
       // Advance to next round with brief intermission
-      playSound('correct');
+      playSound(wasTimeout ? 'wrong' : 'correct');
       setRoundResults(prev => [...prev, roundResult]);
-      setRoundTransition({ show: true, roundDone: currentRound });
+      setRoundTransition({ show: true, roundDone: roundNumber, isTimeout: wasTimeout });
     } else {
       // Entire session finished!
       playSound('victory');
@@ -1408,18 +1409,24 @@ export const SchulteTableGame: React.FC = () => {
       {roundTransition && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl space-y-4 animate-scale-up">
-            <div className="w-14 h-14 mx-auto rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 flex items-center justify-center">
-              <CheckCircle2 className="w-7 h-7" />
-            </div>
+            {roundTransition.isTimeout ? (
+              <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-500 flex items-center justify-center">
+                <Clock className="w-7 h-7" />
+              </div>
+            ) : (
+              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 flex items-center justify-center">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+            )}
             <div>
-              <span className="text-xs font-black uppercase text-brand-600 dark:text-brand-400">
-                Vòng {roundTransition.roundDone} / {totalRounds} Hoàn Tất
+              <span className={`text-xs font-black uppercase ${roundTransition.isTimeout ? 'text-amber-600 dark:text-amber-400' : 'text-brand-600 dark:text-brand-400'}`}>
+                {roundTransition.isTimeout ? `Hết Giờ Vòng ${roundTransition.roundDone} / ${totalRounds}` : `Vòng ${roundTransition.roundDone} / ${totalRounds} Hoàn Tất`}
               </span>
               <h3 className="text-xl font-black text-slate-800 dark:text-white mt-1">
                 Chuẩn Bị Vòng {roundTransition.roundDone + 1}
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Thời gian vòng vừa rồi: <strong className="text-slate-800 dark:text-white">{elapsedSec}s</strong> • Tốc độ: <strong className="text-slate-800 dark:text-white">{currentPace}s/ô</strong>
+                {roundTransition.isTimeout ? 'Đã hết thời gian vòng này. Thời gian được làm mới riêng cho mỗi vòng.' : `Thời gian vòng vừa rồi: ${elapsedSec}s • Tốc độ: ${currentPace}s/ô`}
               </p>
             </div>
             <button
@@ -1559,9 +1566,9 @@ export const SchulteTableGame: React.FC = () => {
                   Chi tiết từng vòng ({roundResults.length} lượt):
                 </span>
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                  {roundResults.map(r => (
-                    <div key={r.round} className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-700/80 border border-slate-200 dark:border-slate-600 text-xs shrink-0 flex items-center gap-2">
-                      <span className="font-bold text-slate-600 dark:text-slate-300">V{r.round}:</span>
+                  {roundResults.map((r, idx) => (
+                    <div key={idx} className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-700/80 border border-slate-200 dark:border-slate-600 text-xs shrink-0 flex items-center gap-2">
+                      <span className="font-bold text-slate-600 dark:text-slate-300">V{r.round || (idx + 1)}:</span>
                       <span className="font-mono text-slate-800 dark:text-white font-bold">{r.timeSpentSec}s</span>
                       <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">{r.accuracy}%</span>
                     </div>

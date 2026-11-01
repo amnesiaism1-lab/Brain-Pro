@@ -121,6 +121,17 @@ export const ExerciseDetailModal: React.FC = () => {
     ? Math.round(exerciseAttempts.reduce((s, a) => s + (a.accuracyRate || 0), 0) / exerciseAttempts.length)
     : (mastery?.avgAccuracy || null);
 
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'standalone' | 'routine'>('all');
+  const filteredAttempts = useMemo(() => {
+    if (historyFilter === 'standalone') {
+      return exerciseAttempts.filter(a => !a.routineId);
+    }
+    if (historyFilter === 'routine') {
+      return exerciseAttempts.filter(a => Boolean(a.routineId));
+    }
+    return exerciseAttempts;
+  }, [exerciseAttempts, historyFilter]);
+
   const allStandardLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   const allInfinityLevels = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
 
@@ -1099,22 +1110,57 @@ export const ExerciseDetailModal: React.FC = () => {
           </div>
 
           <div className="bg-white/80 dark:bg-slate-900/80 p-5 rounded-3xl border border-[#D5CBB9] dark:border-slate-800 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                 Lịch Sử Các Phiên Rèn Luyện
               </h4>
-              <span className="text-xs font-semibold text-slate-400">
-                Gần nhất
-              </span>
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setHistoryFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg transition-all ${
+                    historyFilter === 'all'
+                      ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  Tất cả ({exerciseAttempts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistoryFilter('standalone')}
+                  className={`px-2.5 py-1 rounded-lg transition-all ${
+                    historyFilter === 'standalone'
+                      ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  Tự do ({exerciseAttempts.filter(a => !a.routineId).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistoryFilter('routine')}
+                  className={`px-2.5 py-1 rounded-lg transition-all ${
+                    historyFilter === 'routine'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  Lộ trình ({exerciseAttempts.filter(a => Boolean(a.routineId)).length})
+                </button>
+              </div>
             </div>
 
-            {exerciseAttempts.length === 0 ? (
+            {filteredAttempts.length === 0 ? (
               <p className="text-xs text-slate-500 italic py-6 text-center">
-                Chưa có lượt tập nào được ghi nhận. Bấm "Bắt đầu" để kiểm tra phản xạ và mở rộng trường nhìn ngay bây giờ!
+                {exerciseAttempts.length === 0
+                  ? 'Chưa có lượt tập nào được ghi nhận. Bấm "Bắt đầu" để kiểm tra phản xạ và mở rộng trường nhìn ngay bây giờ!'
+                  : 'Không có dữ liệu lượt tập phù hợp với bộ lọc đã chọn.'}
               </p>
             ) : (
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {exerciseAttempts.slice(0, 10).map((att, i) => (
+                {filteredAttempts.slice(0, 10).map((att, i) => (
                   <div key={i} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-xs">
                     <div className="flex items-center gap-2">
                       <span className="w-6 h-6 rounded-full bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 font-black flex items-center justify-center">
@@ -1123,6 +1169,11 @@ export const ExerciseDetailModal: React.FC = () => {
                       <span className="font-bold text-slate-700 dark:text-slate-300">
                         Cấp {att.level || exerciseLevel}
                       </span>
+                      {att.routineTitle && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold truncate max-w-[130px]" title={`Lộ trình: ${att.routineTitle}`}>
+                          Lộ trình
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-emerald-600 dark:text-emerald-400 font-bold">

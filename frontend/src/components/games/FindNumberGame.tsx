@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
-import { calculateGameScore } from '@brain-exercises/shared';
+import { calculateGameScore, EXERCISES_METADATA } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { numberToRoman } from '../../services/infinityApiService';
-import { CheckCircle2, ArrowRight } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Clock } from 'lucide-react';
 
 const isPrime = (n: number): boolean => {
   if (n <= 1) return false;
@@ -39,6 +39,10 @@ export const FindNumberGame: React.FC = () => {
   const playedLevel = playedLevelRef.current;
   const isInfinity = playedLevel >= 13;
 
+  useEffect(() => {
+    playedLevelRef.current = effectiveLevel;
+  }, [effectiveLevel]);
+
   const sessionIdRef = useRef<string>(`fn-${Date.now()}`);
   const lastClickRef = useRef<number>(Date.now());
 
@@ -52,14 +56,26 @@ export const FindNumberGame: React.FC = () => {
 
   const [currentRound, setCurrentRound] = useState<number>(1);
   const [roundResults, setRoundResults] = useState<Array<{ score: number; accuracy: number; timeSpentSec: number }>>([]);
-  const [roundTransition, setRoundTransition] = useState<{ roundDone: number } | null>(null);
+  const [roundTransition, setRoundTransition] = useState<{ roundDone: number; isTimeout: boolean } | null>(null);
+
+  const exerciseMeta = useMemo(() => EXERCISES_METADATA.find(e => e.slug === 'find-number'), []);
+  const levelConfig = useMemo(() => {
+    return exerciseMeta?.levelConfigs.find(c => c.level === playedLevel);
+  }, [exerciseMeta, playedLevel]);
+
+  const targetCount = isCustom 
+    ? ((resolvedConfig.params as any)?.targetItemCount ?? 5)
+    : (levelConfig?.targetItemCount ?? (playedLevel >= 20 ? 12 : playedLevel >= 13 ? 8 : playedLevel <= 2 ? 3 : playedLevel <= 5 ? 5 : playedLevel <= 8 ? 8 : 10));
+
+  const gridSize = isCustom 
+    ? 6 
+    : (levelConfig?.gridRows ?? (playedLevel >= 22 ? 8 : playedLevel >= 13 ? 7 : playedLevel <= 2 ? 4 : playedLevel <= 5 ? 5 : playedLevel <= 8 ? 6 : 7));
+
+  const totalCells = gridSize * gridSize;
 
   const initialDuration = isCustom && resolvedConfig.timeLimitSec && resolvedConfig.timeLimitSec > 0
     ? resolvedConfig.timeLimitSec
-    : (isInfinity ? 40 : 30);
-
-  const gridSize = playedLevel >= 22 ? 8 : playedLevel >= 13 ? 7 : playedLevel <= 2 ? 4 : playedLevel <= 5 ? 5 : playedLevel <= 8 ? 6 : 7;
-  const totalCells = gridSize * gridSize;
+    : (levelConfig?.timeLimitSec ?? (isInfinity ? 40 : 30));
 
   const [numbers, setNumbers] = useState<number[]>([]);
   const [targetNumber, setTargetNumber] = useState<number>(9);
@@ -154,9 +170,11 @@ export const FindNumberGame: React.FC = () => {
   }, [playedLevel, isNegativeTarget, isPrimeTarget, isFibonacciTarget, isEquationTarget, isCompoundFilter, isMathTarget, totalCells]);
 
   // Complete Round logic
-  const completeRound = useCallback(() => {
+  const completeRound = useCallback((timedOut = false) => {
     const totalClicks = foundCount + missCount;
-    const roundAcc = totalClicks > 0 ? Math.round((foundCount / totalClicks) * 100) : 100;
+    const roundAcc = timedOut
+      ? (totalClicks > 0 ? Math.round((foundCount / totalClicks) * 100) : 0)
+      : (totalClicks > 0 ? Math.round((foundCount / totalClicks) * 100) : 100);
     const timeSpent = initialDuration - timeLeft;
 
     const roundScore = calculateGameScore({
@@ -177,8 +195,8 @@ export const FindNumberGame: React.FC = () => {
     setRoundResults(nextAllResults);
 
     if (currentRound < totalRounds) {
-      setRoundTransition({ roundDone: currentRound });
-      playSound('correct');
+      setRoundTransition({ roundDone: currentRound, isTimeout: timedOut });
+      playSound(timedOut ? 'wrong' : 'correct');
     } else {
       const aggScore = nextAllResults.reduce((sum, r) => sum + r.score, 0);
       const aggAcc = Math.round(nextAllResults.reduce((sum, r) => sum + r.accuracy, 0) / nextAllResults.length);
@@ -205,7 +223,7 @@ export const FindNumberGame: React.FC = () => {
       setTimeLeft(t => {
         if (t <= 1) {
           clearInterval(timer);
-          completeRound();
+          completeRound(true);
           return 0;
         }
         return t - 1;
@@ -261,7 +279,12 @@ export const FindNumberGame: React.FC = () => {
 
     if (isCorrect) {
       playSound('correct');
-      setFoundCount(c => c + 1);
+      const nextFound = foundCount + 1;
+      setFoundCount(nextFound);
+      if (nextFound >= targetCount) {
+        completeRound(false);
+        return;
+      }
       if (isSpeedSurge) {
         setTimeLeft(t => Math.min(60, t + 2));
       }
@@ -355,9 +378,12 @@ export const FindNumberGame: React.FC = () => {
             </div>
             <div className="text-sm sm:text-base font-bold text-slate-800 dark:text-white">
               {(isMathTarget || isPrimeTarget || isFibonacciTarget || isCompoundFilter) ? (
-                <strong className="text-indigo-600 dark:text-indigo-400">{mathConditionText}</strong>
+                <div>
+                  <strong className="text-indigo-600 dark:text-indigo-400">{mathConditionText}</strong>
+                  <span className="text-brand-600 text-sm ml-2">({foundCount}/{targetCount})</span>
+                </div>
               ) : (
-                <>Đã tìm thấy: <strong className="text-brand-600 text-base sm:text-lg">{foundCount}</strong></>
+                <>Tiến độ mục tiêu: <strong className="text-brand-600 text-base sm:text-lg">{foundCount} / {targetCount}</strong></>
               )}
             </div>
             <div className="text-xs font-semibold text-slate-500 mt-0.5">
@@ -390,17 +416,38 @@ export const FindNumberGame: React.FC = () => {
 
         {/* Round Transition Overlay */}
         {roundTransition && (
-          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center gap-4 text-white z-20 animate-fade-in p-6 text-center">
-            <CheckCircle2 className="w-14 h-14 text-emerald-400 animate-bounce" />
-            <h3 className="text-xl sm:text-2xl font-black">
-              Hoàn thành Lượt {roundTransition.roundDone}/{totalRounds}!
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-300">
-              Đã tìm: {foundCount} số • Lỗi sai: {missCount}
-            </p>
+          <div className="absolute inset-0 bg-slate-900/85 backdrop-blur-md rounded-3xl flex flex-col items-center justify-center gap-4 text-white z-20 animate-fade-in p-6 text-center">
+            {roundTransition.isTimeout ? (
+              <>
+                <div className="p-3 bg-amber-500/20 border-2 border-amber-400 rounded-full text-amber-400">
+                  <Clock className="w-12 h-12" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-amber-500/30 text-amber-300 border border-amber-400/50 uppercase">
+                    Hết Thời Gian Lượt {roundTransition.roundDone}/{totalRounds}
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-black text-white mt-1">
+                    Chưa đạt chỉ tiêu số mục tiêu!
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-300 max-w-sm">
+                    Đã hết {initialDuration} giây quy định cho lượt này. Lưu ý: thời gian được làm mới riêng cho mỗi lượt mới.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-14 h-14 text-emerald-400 animate-bounce" />
+                <h3 className="text-xl sm:text-2xl font-black">
+                  Hoàn thành Lượt {roundTransition.roundDone}/{totalRounds}!
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300">
+                  Đã tìm đủ {targetCount} số mục tiêu • Lỗi sai: {missCount}
+                </p>
+              </>
+            )}
             <button
               onClick={advanceNextRound}
-              className="mt-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm sm:text-base shadow-xl flex items-center gap-2 active:scale-95 transition-all"
+              className="mt-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm sm:text-base shadow-xl flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
             >
               <span>Vào Lượt {roundTransition.roundDone + 1}</span>
               <ArrowRight className="w-4 h-4" />
@@ -423,6 +470,7 @@ export const FindNumberGame: React.FC = () => {
             setRoundTransition(null);
             setFoundCount(0);
             setMissCount(0);
+            playedLevelRef.current = getExerciseLevel('find-number');
             setTimeLeft(initialDuration);
             setIsFinished(false);
             generateBoard();

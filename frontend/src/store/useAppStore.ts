@@ -9,6 +9,7 @@ import {
   IUserCognitiveSnapshot,
   EXERCISE_SYNERGIES,
   WEEKLY_CHALLENGES,
+  EXERCISES_METADATA,
   CognitiveCategoryCode,
   RelationId,
   IRelationshipMastery,
@@ -108,8 +109,23 @@ interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, Cus
   startWorkoutRoutine: (routine: IWorkoutRoutine) => void;
   nextWorkoutStep: () => void;
   cancelWorkoutRoutine: () => void;
-  routineSummary: { routine: IWorkoutRoutine; completedAt: string } | null;
+  routineSummary: {
+    routine: IWorkoutRoutine;
+    completedAt: string;
+    stepResults?: Array<{
+      exerciseSlug: ExerciseSlug;
+      timeSpentSec: number;
+      score: number;
+      accuracy: number;
+    }>;
+  } | null;
   dismissRoutineSummary: () => void;
+  routineStepResults: Array<{
+    exerciseSlug: ExerciseSlug;
+    timeSpentSec: number;
+    score: number;
+    accuracy: number;
+  }>;
 
   // Gamification & User Stats
   xp: number;
@@ -150,6 +166,8 @@ interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, Cus
     synergyBonusXp?: number;
     rawMetricsJson?: IRawMetricsJson;
     date: string;
+    routineId?: string;
+    routineTitle?: string;
   }>;
   recordAttempt: (attempt: {
     id?: string;
@@ -161,6 +179,8 @@ interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, Cus
     xpEarned: number;
     level?: number;
     rawMetricsJson?: IRawMetricsJson;
+    routineId?: string;
+    routineTitle?: string;
   }) => void;
 
   // Sound Synthesis helper
@@ -271,6 +291,22 @@ export const useAppStore = create<AppState>((set, get) => {
   } catch {
     initialMasteries = {};
   }
+  // Guarantee all exercises have their own isolated mastery entry (prevent level leakage)
+  EXERCISES_METADATA.forEach(ex => {
+    if (!initialMasteries[ex.slug]) {
+      initialMasteries[ex.slug] = {
+        exerciseSlug: ex.slug,
+        currentLevel: 1,
+        highestLevelReached: 1,
+        totalAttempts: 0,
+        perfectAttempts: 0,
+        avgAccuracy: 0,
+        avgReactionMs: 0,
+        consecutiveWins: 0,
+        consecutiveLosses: 0
+      };
+    }
+  });
 
   const initialCustomPresets = loadPersistedPresets();
   const initialActivePresetIds = loadPersistedActivePresetIds();
@@ -554,7 +590,7 @@ export const useAppStore = create<AppState>((set, get) => {
     exerciseMasteries: initialMasteries,
     getExerciseLevel: (slug: ExerciseSlug) => {
       const state = get();
-      return state.exerciseMasteries[slug]?.currentLevel || state.currentLevel || 1;
+      return state.exerciseMasteries[slug]?.currentLevel ?? 1;
     },
     setExerciseLevel: (slug: ExerciseSlug, level: number) => {
       const targetLevel = Math.min(22, Math.max(1, level));
@@ -580,8 +616,7 @@ export const useAppStore = create<AppState>((set, get) => {
         };
         localStorage.setItem('be_masteries', JSON.stringify(updated));
         return {
-          exerciseMasteries: updated,
-          currentLevel: targetLevel
+          exerciseMasteries: updated
         };
       });
     },
@@ -689,6 +724,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     activeWorkoutRoutine: initialWorkoutRoutine,
     currentWorkoutStepIndex: initialWorkoutStepIndex,
+    routineStepResults: [],
     startWorkoutRoutine: (routine) => {
       try {
         localStorage.setItem('be_active_workout', JSON.stringify({ routine, stepIndex: 0 }));
@@ -696,13 +732,15 @@ export const useAppStore = create<AppState>((set, get) => {
       set({
         activeWorkoutRoutine: routine,
         currentWorkoutStepIndex: 0,
+        routineStepResults: [],
         activeGameSlug: routine.items[0]?.exerciseSlug || null
       });
     },
     routineSummary: null,
     dismissRoutineSummary: () => set({ routineSummary: null }),
     nextWorkoutStep: () => {
-      const { activeWorkoutRoutine, currentWorkoutStepIndex } = get();
+      const state = get();
+      const { activeWorkoutRoutine, currentWorkoutStepIndex } = state;
       if (!activeWorkoutRoutine) return;
       const nextIndex = currentWorkoutStepIndex + 1;
       if (nextIndex < activeWorkoutRoutine.items.length) {
@@ -721,10 +759,12 @@ export const useAppStore = create<AppState>((set, get) => {
         set({
           routineSummary: {
             routine: activeWorkoutRoutine,
-            completedAt: new Date().toISOString()
+            completedAt: new Date().toISOString(),
+            stepResults: state.routineStepResults
           },
           activeWorkoutRoutine: null,
           currentWorkoutStepIndex: 0,
+          routineStepResults: [],
           activeGameSlug: null
         });
         get().playSound('victory');
@@ -737,6 +777,7 @@ export const useAppStore = create<AppState>((set, get) => {
       set({
         activeWorkoutRoutine: null,
         currentWorkoutStepIndex: 0,
+        routineStepResults: [],
         activeGameSlug: null
       });
     },
@@ -998,16 +1039,32 @@ export const useAppStore = create<AppState>((set, get) => {
         localStorage.setItem('be_last_played_slug', attempt.exerciseSlug);
       } catch { }
 
+      const isFromRoutine = Boolean(state.activeWorkoutRoutine);
+      const routineId = state.activeWorkoutRoutine?.id;
+      const routineTitle = state.activeWorkoutRoutine?.title;
+
       const nextHistory = [
         { 
           ...attempt, 
           id: attempt.id || `att-${Date.now()}`,
           level: attempt.level || currentLevel,
           synergyBonusXp: synergyBonus,
+          routineId,
+          routineTitle,
           date: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) 
         },
         ...state.attemptsHistory
       ].slice(0, 200);
+
+      const nextRoutineStepResults = isFromRoutine ? [
+        ...state.routineStepResults,
+        {
+          exerciseSlug: attempt.exerciseSlug,
+          timeSpentSec: attempt.timeSpentSec,
+          score: attempt.score,
+          accuracy: attempt.accuracyRate
+        }
+      ] : state.routineStepResults;
 
       try {
         localStorage.setItem('be_attempts_history', JSON.stringify(nextHistory));
@@ -1028,7 +1085,8 @@ export const useAppStore = create<AppState>((set, get) => {
         activeSynergy: matchedSynergy,
         suggestedSynergy: nextSynergy,
         weeklyChallenges: updatedChallenges,
-        attemptsHistory: nextHistory
+        attemptsHistory: nextHistory,
+        routineStepResults: nextRoutineStepResults
       });
     },
 

@@ -28,14 +28,14 @@ export type ErrorSeverity = 'minor' | 'moderate' | 'critical';
 export interface IAnswerDetail {
   label: string;                        // Hiển thị: 'Quãng 3 Trưởng (M3)'
   code: string;                         // Machine code: '3M', 'Major', 'sine'
-  
+
   // Auditory-specific fields
   semitones?: number;                   // Cho interval: VD 4
   frequency?: number;                   // Cho pitch: VD 440.0
   centsDeviation?: number;              // Cho vocal: VD -35
   timingDeltaMs?: number;               // Cho rhythm: VD 120
   azimuthDeg?: number;                  // Cho spatial: VD 270
-  
+
   // Ghi chú âm nhạc / sư phạm
   musicalNotation?: string;             // VD: '♩♩♪♩' cho rhythm, '1 - 3 - 5' cho hợp âm
   explanationVi?: string;               // Giải thích sư phạm ngắn gọn bằng tiếng Việt
@@ -47,20 +47,20 @@ export interface IQuestionContext {
   rootNote?: string;                    // VD: 'C4'
   targetNote?: string;                  // VD: 'E4'
   playbackMode?: 'ascending' | 'descending' | 'harmonic';
-  
+
   // Chord Identify
   chordRoot?: string;                   // VD: 'G3'
   chordVoicing?: 'block' | 'arpeggio';
   isCadenceMode?: boolean;
   isImpliedHarmonyMode?: boolean;
   notes?: string[];
-  
+
   // Pitch Recall
   sequenceNotes?: string[];             // VD: ['C4', 'E4', 'G4']
   contourType?: string;                 // VD: 'ARCH', 'UP'
   isOctaveLeap?: boolean;
   isReverseRecall?: boolean;
-  
+
   // Timbre Match
   targetWaveform?: string;              // VD: 'sawtooth'
   targetFilter?: string;                // VD: 'lowpass-1800'
@@ -68,7 +68,7 @@ export interface IQuestionContext {
   isArticulationMode?: boolean;
   harmonicIndex?: number;
   articulationType?: string;
-  
+
   // Rhythm Recall
   bpm?: number;
   stepCount?: number;
@@ -77,11 +77,11 @@ export interface IQuestionContext {
   patternHash?: string;
   isRestMode?: boolean;
   isAccentMode?: boolean;
-  
+
   // Sound Localization
   targetAzimuth?: number;               // VD: 90 (degrees)
   targetDistance?: 'near' | 'mid' | 'far';
-  
+
   // Vocal Pitch Match
   targetPitchHz?: number;
   targetNoteName?: string;              // VD: 'A4'
@@ -123,31 +123,31 @@ export interface IQuestionContext {
 export interface IWrongAnswer {
   id: string;                           // UUID
   userId?: string;                      // Optional ID người dùng
-  
+
   // === Thông tin bài tập ===
   exerciseSlug: ExerciseSlug;           // VD: 'interval-identify'
   difficultyLevel: number;              // Level 1-22
   round: number;                        // Vòng thứ mấy trong session
-  
+
   // === Thông tin câu hỏi ===
   questionContext: IQuestionContext;
-  
+
   // === Đáp án đúng vs sai ===
   correctAnswer: IAnswerDetail;
   userAnswer: IAnswerDetail;
-  
+
   // === Phân loại lỗi ===
   errorCategory: AuditoryErrorCategory;
   severity: ErrorSeverity;
   confusionPairKey: string;             // VD: '3m:3M', 'Major:Minor' (luôn sort alphabetical)
-  
+
   // === Timing & Hiệu suất ===
   responseTimeMs: number;               // Thời gian phản hồi tính bằng ms
-  
+
   // === Metadata ===
   timestamp: string;                    // ISO 8601
   sessionId: string;                    // Group các câu trong 1 lượt chơi
-  
+
   // === Trạng thái ôn tập (Spaced Repetition System - SM-2) ===
   reviewStatus: 'new' | 'reviewing' | 'mastered';
   reviewCount: number;                  // Số lần đã thực hiện ôn tập

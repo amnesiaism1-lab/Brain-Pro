@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
 import { calculateGameScore, IReadingText, SAMPLE_READING_TEXTS } from '@brain-exercises/shared';
-import { Search, BookOpen, Check, Target, Sparkles, RotateCcw, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Search, BookOpen, Check, Target, Sparkles, RotateCcw, CheckCircle2, ArrowRight, Clock } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
@@ -26,6 +26,11 @@ export const TextScanningGame: React.FC = () => {
 
   const effectiveLevel = getExerciseLevel('text-scanning') || currentLevel || 1;
   const playedLevelRef = useRef<number>(effectiveLevel);
+
+  useEffect(() => {
+    playedLevelRef.current = effectiveLevel;
+  }, [effectiveLevel]);
+
   const playedLevel = playedLevelRef.current;
   const isInfinity = playedLevel >= 13;
 
@@ -42,7 +47,7 @@ export const TextScanningGame: React.FC = () => {
 
   const [currentRound, setCurrentRound] = useState<number>(1);
   const [roundResults, setRoundResults] = useState<Array<{ score: number; accuracy: number; timeSpentSec: number }>>([]);
-  const [roundTransition, setRoundTransition] = useState<{ roundDone: number } | null>(null);
+  const [roundTransition, setRoundTransition] = useState<{ roundDone: number; isTimeout: boolean } | null>(null);
 
   const isCustomCountdown = Boolean(isCustom && resolvedConfig.timeLimitSec && resolvedConfig.timeLimitSec > 0);
   const customTimeLimit = isCustomCountdown ? (resolvedConfig.timeLimitSec || 45) : 0;
@@ -111,8 +116,8 @@ export const TextScanningGame: React.FC = () => {
     setRoundResults(nextAllResults);
 
     if (currentRound < totalRounds) {
-      setRoundTransition({ roundDone: currentRound });
-      playSound('correct');
+      setRoundTransition({ roundDone: currentRound, isTimeout: timedOut });
+      playSound(timedOut ? 'wrong' : 'correct');
     } else {
       const aggScore = nextAllResults.reduce((sum, r) => sum + r.score, 0);
       const aggAcc = Math.round(nextAllResults.reduce((sum, r) => sum + r.accuracy, 0) / nextAllResults.length);
@@ -378,17 +383,38 @@ export const TextScanningGame: React.FC = () => {
 
         {/* Round Transition Overlay */}
         {roundTransition && (
-          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center gap-4 text-white z-20 animate-fade-in p-6 text-center">
-            <CheckCircle2 className="w-14 h-14 text-emerald-400 animate-bounce" />
-            <h3 className="text-xl sm:text-2xl font-black">
-              Hoàn thành Lượt {roundTransition.roundDone}/{totalRounds}!
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-300">
-              Đã tìm đủ {targetWords.length} từ khóa • Thời gian: {elapsedSec}s
-            </p>
+          <div className="absolute inset-0 bg-slate-900/85 backdrop-blur-md rounded-3xl flex flex-col items-center justify-center gap-4 text-white z-20 animate-fade-in p-6 text-center">
+            {roundTransition.isTimeout ? (
+              <>
+                <div className="p-3 bg-amber-500/20 border-2 border-amber-400 rounded-full text-amber-400">
+                  <Clock className="w-12 h-12" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-amber-500/30 text-amber-300 border border-amber-400/50 uppercase">
+                    Hết Thời Gian Lượt {roundTransition.roundDone}/{totalRounds}
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-black text-white mt-1">
+                    Chưa quét kịp các từ mục tiêu!
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-300 max-w-sm">
+                    Đã hết thời gian quy định cho lượt này ({customTimeLimit}s). Lưu ý: thời gian được làm mới riêng cho mỗi lượt mới.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-14 h-14 text-emerald-400 animate-bounce" />
+                <h3 className="text-xl sm:text-2xl font-black">
+                  Hoàn thành Lượt {roundTransition.roundDone}/{totalRounds}!
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300">
+                  Đã tìm đủ {targetWords.length} từ khóa • Thời gian: {elapsedSec}s
+                </p>
+              </>
+            )}
             <button
               onClick={advanceNextRound}
-              className="mt-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm sm:text-base shadow-xl flex items-center gap-2 active:scale-95 transition-all"
+              className="mt-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm sm:text-base shadow-xl flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
             >
               <span>Vào Lượt {roundTransition.roundDone + 1}</span>
               <ArrowRight className="w-4 h-4" />
@@ -417,6 +443,7 @@ export const TextScanningGame: React.FC = () => {
             setRoundResults([]);
             setRoundTransition(null);
             setIsFinished(false);
+            playedLevelRef.current = getExerciseLevel('text-scanning');
             initTargets(currentArticle.content);
           }}
           onClose={() => setActiveGameSlug(null)}
