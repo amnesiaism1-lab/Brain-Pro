@@ -7,7 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Music,
-  TrendingUp,
+  Clock,
 } from 'lucide-react';
 import { IVocalPhrase } from '../../../services/vocalFileAnalysisService';
 import { LyricDisplayMode, LyricSourceType } from '../../../services/lyricAlignmentService';
@@ -107,9 +107,6 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
     : null;
 
   const words = currentOrUpcomingPhrase.words || [];
-  const activeWord = words.find(
-    (w) => currentTimeMs >= w.startMs - 40 && currentTimeMs <= w.endMs + 40
-  );
 
   const sourceBadge = SOURCE_LABELS[lyricSource] || SOURCE_LABELS.acoustic_relative;
 
@@ -127,16 +124,16 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
 
   return (
     <div className="px-3.5 py-2.5 bg-gradient-to-r from-slate-950 via-slate-900/95 to-slate-950 border-b border-slate-800/90 flex flex-col gap-2">
-      {/* Top Row: Section Landmark Locator ("Đang ở đoạn nào") + Active Vowel & Pitch Trajectory */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      {/* Top Row: Section Landmark Locator ("Đang ở đoạn nào") & Phrase Status */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {/* Prev / Next Phrase quick buttons */}
-          <div className="flex items-center gap-0.5 bg-slate-900 rounded-lg border border-slate-800 p-0.5">
+          <div className="flex items-center gap-0.5 bg-slate-900 rounded-lg border border-slate-800 p-0.5 shrink-0">
             <button
               type="button"
               disabled={!prevPhrase}
               onClick={() => prevPhrase && onSeek(prevPhrase.startMs)}
-              className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-30 transition"
+              className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-30 transition cursor-pointer"
               title="Câu trước"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
@@ -148,27 +145,33 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
               type="button"
               disabled={!nextPhrase}
               onClick={() => nextPhrase && onSeek(nextPhrase.startMs)}
-              className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-30 transition"
+              className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-30 transition cursor-pointer"
               title="Câu tiếp theo"
             >
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* Section Landmark Badge */}
-          <div className="px-2.5 py-1 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-[11px] font-bold flex items-center gap-1.5">
+          {/* Section Landmark Badge with Entrance Countdown */}
+          <div className="px-2.5 py-1 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-[11px] font-bold flex items-center gap-1.5 shrink-0">
             <MapPin className="w-3 h-3 text-indigo-400 shrink-0" />
             <span>{currentOrUpcomingPhrase.sectionLabel || 'Phiên khúc'}</span>
             <span className="text-slate-500 font-mono">
               ({formatTimeMs(currentOrUpcomingPhrase.startMs)}–{formatTimeMs(currentOrUpcomingPhrase.endMs)})
             </span>
+            {isWaitingForEntrance && countdownSec && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-md bg-sky-500/25 border border-sky-400/40 text-sky-300 text-[10px] font-mono font-bold animate-pulse flex items-center gap-1">
+                <Clock className="w-2.5 h-2.5 text-sky-400" />
+                <span>Vào nhịp: {countdownSec}s</span>
+              </span>
+            )}
           </div>
 
           {/* Duet Singer Voice Badge */}
           {currentOrUpcomingPhrase.singerId &&
             currentOrUpcomingPhrase.singerId !== 'solo' && (
               <span
-                className={`px-2 py-0.5 rounded-xl border text-[10px] font-bold ${
+                className={`px-2 py-0.5 rounded-xl border text-[10px] font-bold shrink-0 ${
                   currentOrUpcomingPhrase.singerId === 'voice_a'
                     ? 'bg-cyan-950/80 border-cyan-500/40 text-cyan-300'
                     : currentOrUpcomingPhrase.singerId === 'voice_b'
@@ -186,30 +189,14 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
 
           {/* Melodic Contour Tag */}
           {currentOrUpcomingPhrase.contourLabel && (
-            <span className="hidden md:inline-flex px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-[10px] text-slate-300 font-medium">
+            <span className="hidden xl:inline-flex px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-[10px] text-slate-300 font-medium shrink-0">
               {currentOrUpcomingPhrase.contourLabel}
             </span>
-          )}
-
-          {/* Active Vowel Formant, Tone & Pitch Trajectory Live Pill */}
-          {activeWord && (
-            <div className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-[10px] font-bold text-emerald-300 flex items-center gap-1.5 animate-fade-in">
-              <TrendingUp className="w-3 h-3 text-emerald-400 shrink-0" />
-              <span>
-                Nguyên âm /{activeWord.vowelPhoneme || 'A'}/ ({activeWord.vowelHint || 'Mở rộng'})
-              </span>
-              {activeWord.toneNameVi && (
-                <span className="text-amber-300 font-mono">• {activeWord.toneNameVi}</span>
-              )}
-              {activeWord.trajectoryLabel && (
-                <span className="text-sky-300 font-mono">• {activeWord.trajectoryLabel}</span>
-              )}
-            </div>
           )}
         </div>
 
         {/* Right Controls: Display Mode & Edit Lyric */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
           {onOpenSongCandidateModal ? (
             <button
               type="button"
@@ -370,13 +357,7 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
             </button>
           </div>
         ) : (
-          <div className="flex-1 flex flex-wrap items-center gap-x-2 gap-y-1.5 min-h-[38px]">
-            {isWaitingForEntrance && countdownSec && (
-              <span className="px-2 py-0.5 rounded-lg bg-sky-500/20 border border-sky-400/40 text-sky-300 text-xs font-mono font-bold animate-pulse">
-                Vào nhịp sau {countdownSec}s:
-              </span>
-            )}
-
+          <div className="flex-1 flex flex-wrap items-center gap-x-2 gap-y-1.5 min-h-[46px]">
             {words.length > 0 ? (
               words.map((word) => {
                 const isWordActive =
@@ -427,42 +408,42 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                     )
                   : 0;
 
-                // Color word based on real-time singing pitch accuracy!
-                let wordColorClass = 'text-slate-200 hover:text-white';
-                let subBadgeClass = 'text-slate-300 bg-slate-900/90 border-slate-700/70';
+                // Color word based on real-time singing pitch accuracy & active state!
+                let wordColorClass = 'text-slate-200 hover:text-white border border-transparent';
+                let subBadgeClass = 'text-slate-300 bg-slate-900/90 border-slate-700/70 font-semibold';
 
                 // Color code direction badge when unpracticed so user sees up/down movement at a glance
                 if (hasMultiNoteGlide) {
-                  subBadgeClass = 'text-purple-200 bg-purple-950/75 border-purple-500/45';
+                  subBadgeClass = 'text-purple-200 bg-purple-950/75 border-purple-500/45 font-semibold';
                 } else if (
                   step >= 2 ||
                   word.pitchTrajectory === 'rising' ||
                   word.pitchTrajectory === 'arch'
                 ) {
-                  subBadgeClass = 'text-sky-300 bg-sky-950/70 border-sky-500/40';
+                  subBadgeClass = 'text-sky-300 bg-sky-950/70 border-sky-500/40 font-semibold';
                 } else if (step <= -2 || word.pitchTrajectory === 'falling') {
-                  subBadgeClass = 'text-amber-300 bg-amber-950/70 border-amber-500/40';
+                  subBadgeClass = 'text-amber-300 bg-amber-950/70 border-amber-500/40 font-semibold';
                 } else if (word.isSustained) {
-                  subBadgeClass = 'text-cyan-200 bg-cyan-950/70 border-cyan-500/40';
+                  subBadgeClass = 'text-cyan-200 bg-cyan-950/70 border-cyan-500/40 font-semibold';
                 }
 
                 if (isWordActive) {
                   wordColorClass =
-                    'text-sky-300 scale-105 font-black underline decoration-sky-400 decoration-2 underline-offset-4 drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]';
-                  subBadgeClass = 'text-slate-950 bg-sky-400 border-sky-300 font-black';
+                    'text-sky-200 bg-sky-500/20 border-sky-400/60 shadow-[0_0_12px_rgba(56,189,248,0.4)]';
+                  subBadgeClass = 'text-slate-950 bg-sky-400 border-sky-300 font-bold';
                 } else if (stat && stat.total > 30) {
                   if (stat.status === 'in_tune') {
-                    wordColorClass = 'text-emerald-400 font-bold';
-                    subBadgeClass = 'text-emerald-300 bg-emerald-950/80 border-emerald-500/40';
+                    wordColorClass = 'text-emerald-400 border-emerald-500/40 bg-emerald-950/30';
+                    subBadgeClass = 'text-emerald-300 bg-emerald-950/80 border-emerald-500/40 font-semibold';
                   } else if (stat.status === 'flat') {
-                    wordColorClass = 'text-amber-400 font-bold';
-                    subBadgeClass = 'text-amber-300 bg-amber-950/80 border-amber-500/40';
+                    wordColorClass = 'text-amber-400 border-amber-500/40 bg-amber-950/30';
+                    subBadgeClass = 'text-amber-300 bg-amber-950/80 border-amber-500/40 font-semibold';
                   } else {
-                    wordColorClass = 'text-rose-400 font-bold';
-                    subBadgeClass = 'text-rose-300 bg-rose-950/80 border-rose-500/40';
+                    wordColorClass = 'text-rose-400 border-rose-500/40 bg-rose-950/30';
+                    subBadgeClass = 'text-rose-300 bg-rose-950/80 border-rose-500/40 font-semibold';
                   }
                 } else if (isWordPast) {
-                  wordColorClass = 'text-slate-400';
+                  wordColorClass = 'text-slate-500 border-transparent';
                 }
 
                 const primaryText =
@@ -482,7 +463,7 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                     key={word.wordIndex}
                     type="button"
                     onClick={() => onSeek(word.startMs)}
-                    className={`relative overflow-hidden group inline-flex flex-col items-center transition-all duration-100 px-1.5 py-0.5 rounded-lg hover:bg-slate-800/60 ${wordColorClass}`}
+                    className={`relative overflow-hidden group inline-flex flex-col items-center transition-colors duration-100 px-2 py-0.5 rounded-lg hover:bg-slate-800/60 font-bold cursor-pointer ${wordColorClass}`}
                     title={`"${word.text}" • Nốt: ${noteDisplay} (${solfegeDisplay}) • Nguyên âm: /${
                       word.vowelPhoneme || 'A'
                     }/ (${word.vowelHint || ''})${
@@ -513,8 +494,8 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                     <span
                       className={`${
                         isZenMode
-                          ? 'text-base sm:text-xl font-black'
-                          : 'text-sm sm:text-base font-bold'
+                          ? 'text-base sm:text-xl'
+                          : 'text-sm sm:text-base'
                       } tracking-tight leading-snug`}
                     >
                       {isZenMode ? word.text : primaryText}
@@ -531,7 +512,7 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
             <button
               type="button"
               onClick={handleStartInlineEdit}
-              className="p-1 rounded-lg text-slate-500 hover:text-sky-300 hover:bg-slate-800 transition ml-1"
+              className="p-1 rounded-lg text-slate-500 hover:text-sky-300 hover:bg-slate-800 transition ml-1 cursor-pointer shrink-0"
               title="Sửa nhanh lời câu này"
             >
               <Edit3 className="w-3.5 h-3.5" />
@@ -539,18 +520,18 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
           </div>
         )}
 
-        {/* Next Phrase Preview on the right */}
-        {nextPhrase && !isEditingInline && (
+        {/* Next Phrase Preview on the right (anchored fixed width) */}
+        {nextPhrase && !isEditingInline ? (
           <button
             type="button"
             onClick={() => onSeek(nextPhrase.startMs)}
-            className="text-left sm:text-right shrink-0 px-2.5 py-1 rounded-xl bg-slate-900/70 hover:bg-slate-800/80 border border-slate-800/80 transition max-w-xs truncate"
+            className="text-left sm:text-right shrink-0 px-2.5 py-1 rounded-xl bg-slate-900/70 hover:bg-slate-800/80 border border-slate-800/80 transition w-44 sm:w-52 truncate hidden sm:block cursor-pointer"
             title="Nhấn để chuyển tới câu tiếp theo"
           >
             <div className="text-[9px] font-mono uppercase text-slate-400 flex items-center sm:justify-end gap-1">
               <Music className="w-2.5 h-2.5 text-sky-400" />
               <span>
-                Tiếp: Câu {nextPhrase.phraseIndex} ({nextPhrase.sectionLabel || 'Phiên khúc'})
+                Tiếp: C{nextPhrase.phraseIndex} ({nextPhrase.sectionLabel || 'Khúc'})
               </span>
             </div>
             <div className="text-xs text-slate-300 font-medium truncate">
@@ -559,6 +540,8 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                 : nextPhrase.lyricText || nextPhrase.solfegeText}
             </div>
           </button>
+        ) : (
+          <div className="w-44 sm:w-52 shrink-0 hidden sm:block" />
         )}
       </div>
     </div>

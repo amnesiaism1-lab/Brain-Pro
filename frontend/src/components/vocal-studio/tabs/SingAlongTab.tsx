@@ -170,11 +170,33 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
 }) => {
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
   const [isSilenceBannerDismissed, setIsSilenceBannerDismissed] = useState(false);
+  const [hasSungEver, setHasSungEver] = useState(false);
+  const [showInitialMicTip, setShowInitialMicTip] = useState(false);
   const micStatus = useVocalStudioStore(s => s.micStatus);
 
   React.useEffect(() => {
     setIsSilenceBannerDismissed(false);
+    setHasSungEver(false);
+    setShowInitialMicTip(false);
   }, [analysisResult.fileName]);
+
+  React.useEffect(() => {
+    if (userReading?.isSinging) {
+      setHasSungEver(true);
+      setShowInitialMicTip(false);
+    }
+  }, [userReading?.isSinging]);
+
+  React.useEffect(() => {
+    if (isPlaying && !hasSungEver && micStatus !== 'permission_denied') {
+      setShowInitialMicTip(true);
+      const timer = setTimeout(() => setShowInitialMicTip(false), 3500);
+      return () => clearTimeout(timer);
+    }
+    if (!isPlaying) {
+      setShowInitialMicTip(false);
+    }
+  }, [isPlaying, hasSungEver, micStatus]);
 
   const activeScaleNotes = React.useMemo(() => {
     if (selectedKeyOverride) {
@@ -253,8 +275,8 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
             onMergeAdjacentBars={onMergeAdjacentBars}
           />
 
-        {/* Missing Mic or Singing Guidance Banner */}
-        {isPlaying && !userReading?.isSinging && (
+        {/* Missing Mic or Initial Singing Guidance Banner (no strobe on normal pauses) */}
+        {((micStatus === 'permission_denied') || (isPlaying && showInitialMicTip)) && (
           <div className="absolute top-14 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-2xl bg-slate-900/90 border border-cyan-500/50 text-cyan-200 text-xs shadow-2xl backdrop-blur-md flex items-center gap-2 animate-fade-in pointer-events-none">
             <Mic2 className="w-4 h-4 text-cyan-400 animate-pulse shrink-0" />
             <span>
@@ -316,24 +338,24 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
             </span>
           </div>
 
-          {/* Micro Tuner Cents Bar */}
-          {userReading?.isSinging && (
+          {/* Micro Tuner Cents Bar (Always mounted to guarantee zero CLS / jitter) */}
+          <div
+            className={`w-20 h-2 bg-slate-800 rounded-full overflow-hidden relative transition-opacity duration-200 ${
+              userReading?.isSinging ? 'opacity-100' : 'opacity-20'
+            }`}
+            title={`${currentCentsDiff > 0 ? `+${currentCentsDiff}` : currentCentsDiff} cents`}
+          >
+            <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-slate-500" />
             <div
-              className="w-20 h-2 bg-slate-800 rounded-full overflow-hidden relative"
-              title={`${currentCentsDiff > 0 ? `+${currentCentsDiff}` : currentCentsDiff} cents`}
-            >
-              <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-slate-500" />
-              <div
-                className={`absolute top-0 bottom-0 w-2 rounded-full transition-all duration-75 ${
-                  isInTuneNow ? 'bg-emerald-400' : 'bg-amber-400'
-                }`}
-                style={{
-                  left: `${Math.max(0, Math.min(100, ((currentCentsDiff + 50) / 100) * 100))}%`,
-                  transform: 'translateX(-50%)',
-                }}
-              />
-            </div>
-          )}
+              className={`absolute top-0 bottom-0 w-2 rounded-full transition-all duration-75 ${
+                isInTuneNow ? 'bg-emerald-400' : 'bg-amber-400'
+              }`}
+              style={{
+                left: `${Math.max(0, Math.min(100, ((currentCentsDiff + 50) / 100) * 100))}%`,
+                transform: 'translateX(-50%)',
+              }}
+            />
+          </div>
         </div>
 
         {/* Dual Singing & Reference HUD Badges (Bottom Right) */}

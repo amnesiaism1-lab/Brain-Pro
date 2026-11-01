@@ -42,28 +42,25 @@ export const LeadingSilenceBanner: React.FC<LeadingSilenceBannerProps> = ({
   };
 
   return (
-    <div className="mx-2 sm:mx-4 my-2 p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-sky-500/10 border border-amber-500/35 text-slate-200 shadow-xl transition-all">
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
-        <div className="flex items-start sm:items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0 mt-0.5 sm:mt-0">
-            <Clock className="w-4 h-4" />
+    <div className="mx-1 sm:mx-2 my-1.5 p-2 sm:p-2.5 rounded-2xl bg-slate-900/90 border border-amber-500/35 text-slate-200 shadow-lg backdrop-blur-md transition-all">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0">
+            <Clock className="w-3.5 h-3.5" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs sm:text-sm font-bold text-amber-200 flex items-center gap-1.5">
-                <span>Phát hiện đoạn trống/dạo đầu {silenceSecFormatted}s (không có vocal)</span>
+                <span>Phát hiện đoạn trống/dạo đầu {silenceSecFormatted}s</span>
               </span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-sky-300">
                 Vocal bắt đầu lúc {formatTimeMs(firstVocalOnsetMs)}
               </span>
             </div>
-            <p className="text-[11px] text-slate-300/90 mt-0.5">
-              Lời bài hát đã được khóa chuẩn vào các nốt NewTone. Bạn có thể cắt bỏ đoạn chờ để vào hát ngay 0:00 hoặc tua tới câu đầu mà vẫn giữ nguyên file gốc.
-            </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0 self-end lg:self-center">
+        <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-end lg:self-center">
           {suggestedTrimMs >= 1500 && (
             <button
               type="button"
