@@ -13,6 +13,9 @@ import {
   MapPin,
   Edit3,
   X,
+  AlertTriangle,
+  ShieldCheck,
+  CheckCircle2,
 } from 'lucide-react';
 import { IVocalAnalysisResult, IVocalPhrase } from '../../../services/vocalFileAnalysisService';
 import { searchAndTracePhrases } from '../../../services/lyricAlignmentService';
@@ -30,6 +33,7 @@ interface AnalysisTabProps {
   onNavigateToSingAlong: () => void;
   onLoopPhrase: (phrase: IVocalPhrase) => void;
   onOpenLyricModal?: (initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search') => void;
+  onOpenSongCandidateModal?: () => void;
   onTrimLeadingSilence?: (trimMs: number) => void;
   onSkipIntro?: (targetMs: number) => void;
 }
@@ -44,12 +48,14 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
   onNavigateToSingAlong,
   onLoopPhrase,
   onOpenLyricModal,
+  onOpenSongCandidateModal,
   onTrimLeadingSilence,
   onSkipIntro,
 }) => {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [showHelpGuide, setShowHelpGuide] = useState(false);
   const [lyricSearchQuery, setLyricSearchQuery] = useState('');
+  const [showToneHarmonyDetails, setShowToneHarmonyDetails] = useState(false);
 
   const tracedPhrases = useMemo(() => {
     if (!analysisResult) return [];
@@ -310,6 +316,39 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
             </div>
           </div>
 
+          {/* Mismatch Warning & Quick Disambiguation Banner */}
+          {analysisResult.candidateWarning && (
+            <div className="p-4 sm:p-5 rounded-3xl bg-amber-500/15 border border-amber-500/40 text-amber-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fade-in shadow-xl shadow-amber-500/10">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/25 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <div className="font-bold text-sm sm:text-base text-amber-300 flex items-center gap-2">
+                    <span>Phát Hiện Lời Bài Hát Có Thể Bị Sai</span>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-[10px] text-amber-300 font-mono">
+                      Cần xác nhận
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                    {analysisResult.candidateWarning}
+                  </p>
+                </div>
+              </div>
+
+              {onOpenSongCandidateModal && (
+                <button
+                  type="button"
+                  onClick={onOpenSongCandidateModal}
+                  className="px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-amber-500/25 transition shrink-0 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-slate-950" />
+                  <span>🔍 Chọn Lại Đúng Bài Hát Ngay</span>
+                </button>
+              )}
+            </div>
+          )}
+
           {/* 2.5. Auto-Extracted Lyric & Structural Section Map (Tra cứu & Truy vết nhanh) */}
           <div className="p-5 rounded-3xl bg-slate-950/75 border border-slate-800 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -338,29 +377,99 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
                 </div>
               </div>
 
-              {onOpenLyricModal && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {analysisResult.lyricSource === 'acoustic_relative' && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenLyricModal('bulk_paste')}
-                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>📋 Dán Nhanh Lời</span>
-                    </button>
-                  )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {onOpenSongCandidateModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenSongCandidateModal}
+                    className="px-3.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-black flex items-center gap-1.5 shadow-md shadow-sky-500/20 transition cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>🔍 Đổi Bài / Chọn Lời Khác</span>
+                  </button>
+                )}
+                {analysisResult.lyricSource === 'acoustic_relative' && onOpenLyricModal && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenLyricModal('bulk_paste')}
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>📋 Dán Nhanh Lời</span>
+                  </button>
+                )}
+                {onOpenLyricModal && (
                   <button
                     type="button"
                     onClick={() => onOpenLyricModal('phrase_list')}
                     className="px-3.5 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
-                    <span>Nhập file .LRC / Sửa lời bài hát</span>
+                    <span>Nhập file .LRC / Sửa lời</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Vietnamese Tone Melodic Harmony Audit Panel */}
+            {analysisResult.deepVerification && (
+              <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white flex items-center gap-2">
+                        <span>Kiểm Duyệt Âm Học &amp; Thanh Điệu Tiếng Việt (Deep Scan)</span>
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-[10px] text-emerald-300 font-bold">
+                          {analysisResult.deepVerification.toneHarmonyScorePct}% Thuận Thanh Điệu
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        Đối chiếu cao độ giai điệu với hệ thống 6 thanh (Nặng thấp nhất, Huyền, Bằng, Sắc/Hỏi cao nhất)
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowToneHarmonyDetails((prev) => !prev)}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 transition"
+                  >
+                    <span>{showToneHarmonyDetails ? 'Thu gọn báo cáo' : 'Xem chi tiết câu duyệt'}</span>
+                    {showToneHarmonyDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   </button>
                 </div>
-              )}
-            </div>
+
+                {showToneHarmonyDetails && (
+                  <div className="pt-2 border-t border-slate-800 space-y-2 animate-fade-in text-xs">
+                    <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                      <span>Tổng số câu phân tích: {analysisResult.phrases.length} câu</span>
+                      <span>
+                        {analysisResult.deepVerification.flaggedPhrasesCount === 0
+                          ? '✓ 100% câu hát hoàn toàn tự nhiên với thanh điệu'
+                          : `Phát hiện ${analysisResult.deepVerification.flaggedPhrasesCount} chỗ nốt nhảy nghịch thanh điệu`}
+                      </span>
+                    </div>
+
+                    {analysisResult.deepVerification.flaggedPhrases.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        {analysisResult.deepVerification.flaggedPhrases.map((flag, idx) => (
+                          <div
+                            key={idx}
+                            className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-300 flex items-center justify-between gap-2"
+                          >
+                            <span className="font-bold text-sky-400">Câu {flag.phraseIndex}: {flag.word}</span>
+                            <span className="text-amber-300/90 text-right">{flag.reason}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Search / Trace Input right on Analysis Tab */}
             <div className="relative">

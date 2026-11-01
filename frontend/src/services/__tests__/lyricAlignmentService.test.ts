@@ -22,6 +22,8 @@ import {
   fetchAutoLyricsFromLrclib,
   estimateOptimalLrcOffsetMs,
   nudgeLyricOffset,
+  searchSongLyricCandidates,
+  realignLyricsToAnalysisResult,
   ILrcLine,
 } from '../lyricAlignmentService';
 import {
@@ -795,5 +797,105 @@ describe('lyricAlignmentService', () => {
     // Test nudgeLyricOffset
     const nudged = nudgeLyricOffset(trimmed, 200);
     expect(nudged.phrases[0].startMs).toBe(1000);
+  });
+
+  it('discovers multi-candidate songs, handles alias queries for "giữa trời mang đi", and re-aligns lyrics without reloading audio', async () => {
+    // 1. Alias query generation for colloquial filename "giữa trời mang đi vocal.wav"
+    const queries = buildSmartLyricQueries('giữa trời mang đi vocal.wav');
+    expect(queries).toContain('Trời Giấu Trời Mang Đi');
+    expect(queries).toContain('Giữa Đại Lộ Đông Tây Uyên Linh');
+
+    // 2. Candidate discovery: returns ranked candidates including "Trời Giấu Trời Mang Đi" with high confidence
+    const candidates = await searchSongLyricCandidates('giữa trời mang đi vocal.wav', 507000);
+    expect(candidates.length).toBeGreaterThan(0);
+    const troiGiauCand = candidates.find((c) => c.trackName.includes('Trời Giấu Trời Mang Đi'));
+    expect(troiGiauCand).toBeDefined();
+    expect(troiGiauCand?.hasSyncedLyrics).toBe(true);
+    expect(troiGiauCand?.confidencePct).toBeGreaterThanOrEqual(75);
+
+    // 3. Candidate search with custom query "Nàng Thơ"
+    const nangThoCandidates = await searchSongLyricCandidates('giữa trời mang đi vocal.wav', 507000, 'Nàng Thơ');
+    const nangThoCand = nangThoCandidates.find((c) => c.trackName.includes('Nàng Thơ'));
+    expect(nangThoCand).toBeDefined();
+    expect(nangThoCand?.syncedLyrics).toContain('Em, ngày em đánh rơi nụ cười vào anh');
+
+    // 4. Realign lyrics to analysis result without reloading audio
+    const sampleRate = 44100;
+    const mockAudioBuffer = {
+      sampleRate,
+      length: sampleRate * 120,
+      numberOfChannels: 1,
+      duration: 120,
+      getChannelData: () => new Float32Array(sampleRate * 120),
+    } as unknown as AudioBuffer;
+
+    const baseResult: IVocalAnalysisResult = {
+      fileName: 'giữa trời mang đi vocal.wav',
+      durationMs: 120000,
+      sampleRate,
+      audioBuffer: mockAudioBuffer,
+      audioBlobUrl: 'blob:test',
+      pitchTrack: [
+        { timeMs: 15500, freqHz: 261, midi: 60, noteName: 'C4', solfegeName: 'Đô 4', clarity: 0.9, volumeDb: -15, isVocal: true },
+        { timeMs: 17000, freqHz: 293, midi: 62, noteName: 'D4', solfegeName: 'Rê 4', clarity: 0.9, volumeDb: -15, isVocal: true },
+      ],
+      noteBars: [
+        { id: 'b1', startTimeMs: 15500, endTimeMs: 16800, durationMs: 1300, midi: 60, exactMidi: 60, noteName: 'C4', solfegeName: 'Đô 4', avgCentsDiff: 0, pointsCount: 20 },
+        { id: 'b2', startTimeMs: 17000, endTimeMs: 19500, durationMs: 2500, midi: 62, exactMidi: 62, noteName: 'D4', solfegeName: 'Rê 4', avgCentsDiff: 0, pointsCount: 30 },
+      ],
+      phrases: [
+        {
+          id: 'p1',
+          phraseIndex: 1,
+          startMs: 15500,
+          endMs: 19500,
+          durationMs: 4000,
+          notes: ['C4', 'D4'],
+          lowestNote: 'C4',
+          highestNote: 'D4',
+          avgPitchHz: 275,
+          avgMidi: 61,
+          pitchJumpSemitones: 2,
+          difficulty: 'Dễ',
+          difficultyScore: 2,
+          solfegeText: 'Đô4 Rê4',
+          lyricText: 'Vô tư cho đi hết những ngày thơ',
+        },
+      ],
+      vocalRange: {
+        lowestNote: 'C4',
+        lowestFreqHz: 261,
+        lowestMidi: 60,
+        highestNote: 'G4',
+        highestFreqHz: 392,
+        highestMidi: 67,
+        spanSemitones: 7,
+        recommendedVoiceType: 'Tenor',
+      },
+      estimatedKey: { key: 'C Major', root: 'C', mode: 'major', confidence: 0.9, scaleNotes: [] },
+      vocalMetrics: {
+        singingTimeMs: 4000,
+        singingRatioPercent: 30,
+        avgClarity: 0.85,
+        avgRmsDb: -15,
+        densityNotesPerSec: 1,
+        maxIntervalSemitones: 2,
+        overallDifficulty: 'Dễ',
+      },
+      practicePlan: { title: 'P', summaryVi: 'S', recommendedSteps: [] },
+    };
+
+    // Realign with Trời Giấu Trời Mang Đi
+    const realigned = realignLyricsToAnalysisResult(
+      baseResult,
+      troiGiauCand!.syncedLyrics!,
+      true,
+      'Trời Giấu Trời Mang Đi – AMEE & ViruSs'
+    );
+
+    expect(realigned.matchedTrackTitle).toBe('Trời Giấu Trời Mang Đi – AMEE & ViruSs');
+    expect(realigned.phrases[0].lyricText).toContain('Nếu có bao giờ');
+    expect(realigned.deepVerification?.toneHarmonyScorePct).toBeGreaterThanOrEqual(0);
+    expect(realigned.deepVerification?.analysisMode).toBe('deep_verification');
   });
 });

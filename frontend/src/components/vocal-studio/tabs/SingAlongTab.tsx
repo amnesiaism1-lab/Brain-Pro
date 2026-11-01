@@ -84,6 +84,7 @@ interface SingAlongTabProps {
   sessionStats: SingSessionStats;
   activePhrase: IVocalPhrase | null;
   onOpenLyricModal?: (initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search') => void;
+  onOpenSongCandidateModal?: () => void;
   onUpdatePhraseLyric?: (phraseIndex: number, newText: string) => void;
   onMergeNextPhrase?: (phraseIndex: number) => void;
   onSplitPhrase?: (phraseIndex: number, splitTimeMs?: number) => void;
@@ -148,6 +149,7 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   sessionStats,
   activePhrase,
   onOpenLyricModal,
+  onOpenSongCandidateModal,
   onUpdatePhraseLyric,
   onMergeNextPhrase,
   onSplitPhrase,
@@ -225,10 +227,12 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
           sessionStats={sessionStats}
           lyricSource={analysisResult.lyricSource}
           matchedTrackTitle={analysisResult.matchedTrackTitle}
+          candidateWarning={analysisResult.candidateWarning}
           isLoopingActive={isLoopingActive}
           onSeek={onSeek}
           onLoopPhrase={onLoopPhrase}
           onOpenLyricModal={(mode) => onOpenLyricModal?.(mode)}
+          onOpenSongCandidateModal={onOpenSongCandidateModal}
           onQuickUpdatePhraseLyric={onUpdatePhraseLyric}
         />
 

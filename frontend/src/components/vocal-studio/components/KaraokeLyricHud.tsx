@@ -21,10 +21,12 @@ interface KaraokeLyricHudProps {
   sessionStats: SingSessionStats;
   lyricSource?: LyricSourceType;
   matchedTrackTitle?: string;
+  candidateWarning?: string;
   isLoopingActive: boolean;
   onSeek: (timeMs: number) => void;
   onLoopPhrase: (phrase: IVocalPhrase) => void;
   onOpenLyricModal: (initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search') => void;
+  onOpenSongCandidateModal?: () => void;
   onQuickUpdatePhraseLyric?: (phraseIndex: number, newText: string) => void;
 }
 
@@ -62,10 +64,12 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
   sessionStats,
   lyricSource = 'acoustic_relative',
   matchedTrackTitle,
+  candidateWarning,
   isLoopingActive,
   onSeek,
   onLoopPhrase,
   onOpenLyricModal,
+  onOpenSongCandidateModal,
   onQuickUpdatePhraseLyric,
 }) => {
   const [displayMode, setDisplayMode] = useState<LyricDisplayMode>('bilingual');
@@ -205,13 +209,40 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
 
         {/* Right Controls: Display Mode & Edit Lyric */}
         <div className="flex items-center gap-1.5">
-          <span
-            className={`hidden xl:inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-medium ${sourceBadge.colorClass}`}
-            title={matchedTrackTitle ? `Khớp bài: ${matchedTrackTitle}` : undefined}
-          >
-            <Sparkles className="w-2.5 h-2.5" />
-            <span>{sourceBadge.label}</span>
-          </span>
+          {onOpenSongCandidateModal ? (
+            <button
+              type="button"
+              onClick={onOpenSongCandidateModal}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-[11px] font-semibold transition hover:brightness-110 cursor-pointer ${
+                candidateWarning
+                  ? 'bg-amber-500/20 text-amber-200 border-amber-500/50 animate-pulse'
+                  : 'bg-slate-900 text-sky-300 border-slate-750 hover:border-sky-500/50'
+              }`}
+              title={
+                matchedTrackTitle
+                  ? `Bài hát: ${matchedTrackTitle}. Bấm để chọn bài khác!`
+                  : 'Bấm để tìm và chọn bài hát phù hợp'
+              }
+            >
+              {candidateWarning ? (
+                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+              ) : (
+                <Sparkles className="w-3 h-3 text-sky-400 shrink-0" />
+              )}
+              <span className="max-w-[120px] sm:max-w-[160px] truncate">
+                {matchedTrackTitle ? matchedTrackTitle.split(' – ')[0] : 'Đổi bài hát'}
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">▾</span>
+            </button>
+          ) : (
+            <span
+              className={`hidden xl:inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-medium ${sourceBadge.colorClass}`}
+              title={matchedTrackTitle ? `Khớp bài: ${matchedTrackTitle}` : undefined}
+            >
+              <Sparkles className="w-2.5 h-2.5" />
+              <span>{sourceBadge.label}</span>
+            </span>
+          )}
 
           {/* Display Mode Switcher */}
           <div className="flex items-center bg-slate-900 p-0.5 rounded-xl border border-slate-800 text-[10px]">

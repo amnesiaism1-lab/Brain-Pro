@@ -20,6 +20,7 @@ import {
   type LyricSourceType,
   type VocalSectionType,
   type VowelMouthHint,
+  type ISongLyricCandidate,
 } from './lyricAlignmentService';
 
 export type {
@@ -29,6 +30,7 @@ export type {
   LyricSourceType,
   VocalSectionType,
   VowelMouthHint,
+  ISongLyricCandidate,
 };
 
 export interface IReferencePitchPoint {
@@ -127,6 +129,20 @@ export interface IVocalAnalysisResult {
   lyricStatus?: LyricCompletenessStatus;
   /** Matched song title if found via automatic lookup */
   matchedTrackTitle?: string;
+  /** Candidate songs returned during multi-candidate lyric lookup */
+  lyricCandidates?: ISongLyricCandidate[];
+  /** Confidence level of the matched song */
+  candidateConfidence?: 'high' | 'medium' | 'low';
+  /** Warning message if matched track differs from the audio file name */
+  candidateWarning?: string;
+  /** Deep verification audit results (tone prosody concordance, flagged phrases) */
+  deepVerification?: {
+    toneHarmonyScorePct: number;
+    prosodyConcordanceRatio: number;
+    flaggedPhrasesCount: number;
+    flaggedPhrases: Array<{ phraseIndex: number; word: string; reason: string }>;
+    analysisMode: 'fast' | 'deep_verification';
+  };
 
   /** Duration of leading blank/silence before first true singing onset in ms */
   leadingSilenceMs?: number;
@@ -499,6 +515,10 @@ class VocalFileAnalysisService {
       lyricSource: lyricMeta.lyricSource,
       lyricStatus: lyricMeta.lyricStatus,
       matchedTrackTitle: lyricMeta.matchedTrackTitle,
+      lyricCandidates: lyricMeta.candidates,
+      candidateConfidence: lyricMeta.candidateConfidence,
+      candidateWarning: lyricMeta.candidateWarning,
+      deepVerification: lyricMeta.deepVerification,
       leadingSilenceMs,
       firstVocalOnsetMs,
       hasLeadingSilence,

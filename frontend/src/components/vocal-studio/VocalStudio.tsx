@@ -30,6 +30,7 @@ import {
   shiftLyricByPhraseCount,
 } from '../../services/lyricAlignmentService';
 import { LyricEditorModal } from './components/LyricEditorModal';
+import { SongCandidateModal } from './components/SongCandidateModal';
 import {
   vocalPitchService,
   IVocalPitchReading,
@@ -108,6 +109,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
   const [lyricModalInitialMode, setLyricModalInitialMode] = useState<
     'phrase_list' | 'bulk_paste' | 'cloud_search'
   >('phrase_list');
+  const [isSongCandidateModalOpen, setIsSongCandidateModalOpen] = useState<boolean>(false);
 
   const handleOpenLyricModal = (
     initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search'
@@ -902,6 +904,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onNavigateToSingAlong={() => handleNavigateToSingAlong(true)}
             onLoopPhrase={handleLoopPhrase}
             onOpenLyricModal={handleOpenLyricModal}
+            onOpenSongCandidateModal={() => setIsSongCandidateModalOpen(true)}
             onTrimLeadingSilence={handleTrimLeadingSilence}
             onSkipIntro={(ms) => {
               handleSeek(ms);
@@ -971,6 +974,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             sessionStats={store.sessionStats}
             activePhrase={activePhrase}
             onOpenLyricModal={handleOpenLyricModal}
+            onOpenSongCandidateModal={() => setIsSongCandidateModalOpen(true)}
             onUpdatePhraseLyric={handleUpdatePhraseLyric}
             onMergeNextPhrase={handleMergeNextPhrase}
             onSplitPhrase={handleSplitPhrase}
@@ -1012,6 +1016,16 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             handleSeek(startMs);
             if (!store.isPlaying) handleStartPlayback();
           }}
+        />
+      )}
+
+      {/* 4. SONG DISAMBIGUATION & CANDIDATE PICKER MODAL */}
+      {store.analysisResult && (
+        <SongCandidateModal
+          isOpen={isSongCandidateModalOpen}
+          analysisResult={store.analysisResult}
+          onClose={() => setIsSongCandidateModalOpen(false)}
+          onApplyUpdatedResult={handleApplyUpdatedResult}
         />
       )}
     </div>
