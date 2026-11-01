@@ -793,35 +793,62 @@ const BUILTIN_VERIFIED_SYNCED_LRC: Array<{
   {
     matchKeywords: ['troi giau troi mang di', 'troi mang di', 'giua troi mang di', 'troi giau'],
     matchedTitle: 'Trời Giấu Trời Mang Đi – AMEE & ViruSs',
-    syncedLyrics: `[00:15.50]Nếu có bao giờ, nhìn lại quãng thời gian qua
-[00:20.10]Em có tiếc nuối những điều đã diễn ra
-[00:24.80]Những tháng ngày dài bên nhau, cùng nhau đi qua bao nỗi sầu
-[00:30.20]Giờ đây chỉ còn lại nỗi đau
-[00:34.50]Yêu người vô tâm như là ôm một cành hoa hồng có gai
-[00:39.80]Càng ôm chặt càng thấy đau nhói tim này
-[00:44.20]Dẫu biết tình yêu là mù quáng, là ngây dại
-[00:49.00]Sao lòng vẫn không thể buông tay
-[00:54.00]Trời giấu trời mang đi, chẳng cho ai tất cả
-[00:59.20]Người trao em những yêu thương, rồi người lại rời xa
-[01:03.80]Trời giấu trời mang đi, để lại bao xót xa
-[01:08.50]Tìm đâu một người thấu hiểu lòng ta
-[01:13.20]Tình yêu đâu phải trò đùa, thích thì đến không thì đi
-[01:18.00]Nước mắt rơi trên khóe mi, chẳng còn ý nghĩa gì
-[01:23.00]Trời giấu trời mang đi, mang cả những hẹn thề
-[01:28.00]Lạc bước trong cơn mê, biết bao giờ mới về
-[01:33.00]Đã bao lần tự dặn lòng phải quên đi
-[01:37.50]Nhưng sao ký ức vẫn cứ mãi khắc ghi
-[01:42.50]Hình bóng người xưa vẫn quanh quẩn nơi này
-[01:47.00]Để cho con tim ngày đêm hao gầy
-[01:52.00]Trời giấu trời mang đi, chẳng cho ai tất cả
-[01:56.80]Người trao em những yêu thương, rồi người lại rời xa
-[02:01.50]Trời giấu trời mang đi, để lại bao xót xa
-[02:06.20]Tìm đâu một người thấu hiểu lòng ta
-[02:11.00]Tình yêu đâu phải trò đùa, thích thì đến không thì đi
-[02:15.80]Nước mắt rơi trên khóe mi, chẳng còn ý nghĩa gì
-[02:20.50]Trời giấu trời mang đi, mang cả những hẹn thề
-[02:25.50]Lạc bước trong cơn mê, biết bao giờ mới về
-[02:30.50]Trời giấu trời mang đi`,
+    syncedLyrics: `[00:18.12]Sương mờ che khuất đồi
+[00:20.70]Đêm nào em cũng ngồi
+[00:23.05]Lúc xa anh em thật sự chỉ nhớ mãi thôi
+[00:28.61]Tuy rằng mới bắt đầu
+[00:30.97]Tình yêu này như phép màu
+[00:33.61]Cứ cho là vì mình chỉ mới nói hẹn hò thôi
+[00:39.27]Nhưng vì anh quá tuyệt!
+[00:41.38]Nhìn đâu thì em cũng duyệt
+[00:44.19]Cứ như đôi mình nợ nhau từ lâu quá nhiều
+[00:49.57]Đâu phải ai cũng hiểu, rằng khi mình nhớ quá nhiều
+[00:54.40]Chẳng thể tập trung làm điều gì hết nữa
+[00:58.73]Xa là sẽ nhớ ngay
+[01:01.21]Xa là khóe mắt cay
+[01:04.01]Xa là chỉ thấy em anh cười đôi mắt lim dim
+[01:09.18]Xa là em sẽ tìm
+[01:11.60]Sẽ nhìn anh cho dù ngày hay đêm
+[01:15.26]Giá như ngay bây giờ được gặp nhau trước thềm
+[01:19.55]Thôi thì chỉ ướt mi
+[01:22.05]Do là nhớ quá đi
+[01:24.85]Chẳng hiểu sao trước kia ông trời lại giấu anh đi
+[01:29.98]Thôi thì chẳng có gì
+[01:32.52]Do là em yêu nhiều, tại em đó
+[01:36.22]Cứ coi như mây chẳng nhìn lời nói gió bay
+[01:52.23]Dù ai nói
+[01:54.38]Rằng đời này chúng ta thuộc về nhau tình yêu trăng sáng sao băng
+[02:01.73]Con đường đầy lá rơi, nơi này mình từng đi
+[02:07.10]Nhưng tiếc là
+[02:09.93]Chẳng thấy anh đâu
+[02:12.93]Dù ai nói
+[02:15.28]Tình em đây mãi luôn ở bên anh chở che mưa nắng bão giông
+[02:22.78]Gió lạnh đừng có lo, em ở ngay sau lưng
+[02:28.46]Vẫn biết yêu thương làm con tim sẽ nhớ nhung
+[02:32.59]Xa là sẽ nhớ ngay
+[02:35.23]Xa là khóe mắt cay
+[02:37.87]Xa là chỉ thấy em anh cười đôi mắt lim dim
+[02:42.97]Xa là em sẽ tìm
+[02:45.55]Sẽ nhìn anh cho dù ngày hay đêm
+[02:49.03]Giá như ngay bây giờ được gặp nhau trước thềm
+[02:53.35]Thôi thì chỉ ướt mi
+[02:56.14]Do là nhớ quá đi
+[02:58.50]Chẳng hiểu sao trước kia ông trời lại giấu anh đi
+[03:03.86]Thôi thì chẳng có gì
+[03:06.37]Do là em yêu nhiều, tại em đó
+[03:09.91]Cứ coi như mây chẳng nhìn lời nói gió bay
+[03:16.98]Con đường đầy nắng hoa
+[03:19.25]Mà sao giờ anh đã xa
+[03:22.21]Em ngồi đây khóc to do trời lại lấy anh đi
+[03:27.43]Yêu là vì những gì
+[03:29.91]Sao phải buông khi chẳng thể rời xa
+[03:33.57]Gió mang cơn mưa về làm lòng ai não nề
+[03:37.99]Thôi thì chỉ ướt mi
+[03:40.49]Do là nhớ quá đi
+[03:42.89]Chẳng hiểu sao trước kia ông trời lại giấu anh đi
+[03:48.12]Thôi thì chẳng có gì
+[03:50.73]Do là em yêu nhiều, tại em đó
+[03:54.58]Cứ coi như mây chẳng nhìn lời nói gió bay`,
   },
   {
     matchKeywords: ['nang tho', 'em ngay em danh roi nu cuoi', 'hoang dung nang tho'],
@@ -4270,7 +4297,27 @@ export function loadLyricsFromLocalCache(
         !p.lyricText.startsWith('Nguyên âm:') &&
         !p.lyricText.startsWith('🎵')
     );
-    return hasRealLyric ? parsed : null;
+    if (!hasRealLyric) return null;
+
+    // Invalidate stale cache if the cached track contradicts the actual filename
+    // (e.g. filename is "giữa trời mang đi" but cached title contains "Nàng Thơ")
+    const normFile = normalizeVietnameseSearch(fileName.replace(/[._-]+/g, ' '));
+    if (parsed.matchedTrackTitle) {
+      const normCached = normalizeVietnameseSearch(parsed.matchedTrackTitle);
+      const isContradiction =
+        /nang\s+tho/.test(normCached) &&
+        /troi\s+mang\s+di|giua\s+troi|troi\s+giau/.test(normFile);
+      if (isContradiction) {
+        try {
+          window.localStorage.removeItem(key);
+        } catch {
+          // Ignore
+        }
+        return null;
+      }
+    }
+
+    return parsed;
   } catch {
     return null;
   }
@@ -4408,7 +4455,41 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     // Non-fatal
   }
 
-  // 1. Layer 1A: Check LocalStorage user/cloud cache first
+  // 1. Layer 1A: Check Built-in Verified Synced LRC Registry FIRST
+  // (Ensures 100% verified ground-truth songs never get overridden by stale/corrupt browser cache)
+  const builtinDirect = findBuiltinVerifiedSyncedLrc(fileName);
+  if (builtinDirect) {
+    const lrcLines = parseLrcContent(builtinDirect.syncedLyrics);
+    if (lrcLines.length > 0) {
+      alignLrcLinesToPhrases(
+        phrases,
+        noteBars,
+        lrcLines,
+        rawMonoPcm,
+        sampleRate,
+        pitchTrack,
+        durationMs
+      );
+      finalizeSections();
+      persistPhrasesToLocalCache({
+        fileName,
+        durationMs,
+        lyricSource: 'demo_builtin',
+        matchedTrackTitle: builtinDirect.matchedTitle,
+        phrases,
+      });
+      return {
+        lyricSource: 'demo_builtin',
+        lyricStatus: 'complete',
+        matchedTrackTitle: builtinDirect.matchedTitle,
+        candidates,
+        candidateConfidence: 'high',
+        deepVerification: computeDeepProsody(),
+      };
+    }
+  }
+
+  // 2. Layer 1B: Check LocalStorage user/cloud cache
   const cached = loadLyricsFromLocalCache(fileName, durationMs);
   if (cached) {
     if (cached.phrases.length === phrases.length) {

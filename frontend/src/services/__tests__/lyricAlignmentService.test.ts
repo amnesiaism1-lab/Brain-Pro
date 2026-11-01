@@ -894,7 +894,7 @@ describe('lyricAlignmentService', () => {
     );
 
     expect(realigned.matchedTrackTitle).toBe('Trời Giấu Trời Mang Đi – AMEE & ViruSs');
-    expect(realigned.phrases[0].lyricText).toContain('Nếu có bao giờ');
+    expect(realigned.phrases[0].lyricText).toContain('Sương mờ che khuất đồi');
     expect(realigned.deepVerification?.toneHarmonyScorePct).toBeGreaterThanOrEqual(0);
     expect(realigned.deepVerification?.analysisMode).toBe('deep_verification');
   });
