@@ -13,6 +13,7 @@ import { getNoteFrequency } from './musicTheoryService';
 import { NOTE_NAMES, SOLFEGE_NAMES, midiToNoteInfo } from '@brain-exercises/shared';
 import {
   populateAutomaticSongLyricsAndStructure,
+  alignWordsToPhraseNoteBars,
   type DuetSingerId,
   type IVocalLyricWord,
   type LyricCompletenessStatus,
@@ -1791,6 +1792,37 @@ class VocalFileAnalysisService {
         pIdx++;
       }
     }
+
+    // Preserve Full Lyric Corpus & Re-Anchor from Beginning:
+    // If the original un-cut file had genuine lyrics (e.g. from LRCLIB/tags),
+    // and leading intro silence/drone was cut, the opening lyric lines must NOT be discarded!
+    // Re-anchor original lyrics from index 0 to the remaining genuine singing phrases!
+    const originalLyrics = result.phrases
+      .map((p) => p.lyricText)
+      .filter((t): t is string => Boolean(t && !t.startsWith('🎵') && !t.startsWith('Nguyên âm:')));
+
+    const droppedPhrasesCount = result.phrases.length - shiftedPhrases.length;
+
+    if (droppedPhrasesCount > 0 && originalLyrics.length > 0) {
+      shiftedPhrases.forEach((p, idx) => {
+        if (idx < originalLyrics.length) {
+          p.lyricText = originalLyrics[idx];
+          p.isInstrumentalOrVocalize = false;
+        }
+      });
+    }
+
+    // Re-align words and notes for all shifted phrases with the updated noteBars
+    shiftedPhrases.forEach((p) => {
+      alignWordsToPhraseNoteBars(
+        p,
+        shiftedNoteBars,
+        p.lyricText,
+        null,
+        result.sampleRate,
+        shiftedPitchTrack
+      );
+    });
 
     const newDurationMs = Math.max(500, result.durationMs - effectiveTrimMs);
     const firstPhrase = shiftedPhrases[0];
