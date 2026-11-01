@@ -2604,9 +2604,14 @@ export function estimateOptimalLrcOffsetMs(
     }
   }
 
-  // Find the first substantial vocal phrase (>= 400ms)
+  // Find the first substantial vocal phrase (>= 400ms with melodic variety, not a flat 0-semitone drone)
+  const hasMelody = (p: IVocalPhrase) =>
+    (p.notes?.length || 0) >= 2 || p.lowestNote !== p.highestNote || (p.pitchJumpSemitones || 0) >= 2;
+
   const firstSubstantialPhrase =
-    phrases.find((p) => !p.isInstrumentalOrVocalize && p.durationMs >= 400) || phrases[0];
+    phrases.find((p) => !p.isInstrumentalOrVocalize && p.durationMs >= 400 && hasMelody(p)) ||
+    phrases.find((p) => !p.isInstrumentalOrVocalize && p.durationMs >= 400) ||
+    phrases[0];
   const firstVocalOnset = firstSubstantialPhrase?.startMs ?? (noteBars[0]?.startTimeMs ?? 0);
   const firstLrcOnset = lrcLines[0]?.timeMs ?? 0;
   const leadDiff = firstVocalOnset - firstLrcOnset;
@@ -2712,6 +2717,56 @@ export function nudgeLyricOffset(
   return {
     ...analysisResult,
     phrases: shiftedPhrases,
+  };
+}
+
+/**
+ * Shift lyric text across phrases by a discrete phrase index delta (+1 = đẩy lyric sang câu sau, -1 = kéo lyric về câu trước).
+ * Re-runs `alignWordsToPhraseNoteBars` so all NoteBars, vowels, and Vietnamese tones re-align cleanly!
+ */
+export function shiftLyricByPhraseCount(
+  analysisResult: IVocalAnalysisResult,
+  deltaPhrases: number
+): IVocalAnalysisResult {
+  if (deltaPhrases === 0 || !analysisResult.phrases || analysisResult.phrases.length === 0) {
+    return analysisResult;
+  }
+
+  const phrases = analysisResult.phrases;
+  const n = phrases.length;
+  const oldLyrics = phrases.map((p) => p.lyricText || '');
+
+  const newPhrases = phrases.map((p, idx) => {
+    const srcIdx = idx - deltaPhrases;
+    let newLyric = '';
+    if (srcIdx >= 0 && srcIdx < n) {
+      newLyric = oldLyrics[srcIdx];
+    } else if (srcIdx < 0) {
+      newLyric = '🎵 Đoạn dạo đầu / Không lời';
+    } else {
+      newLyric = p.acousticText || '';
+    }
+
+    const updatedP: IVocalPhrase = {
+      ...p,
+      lyricText: newLyric,
+      isInstrumentalOrVocalize: newLyric.startsWith('🎵'),
+    };
+
+    alignWordsToPhraseNoteBars(
+      updatedP,
+      analysisResult.noteBars,
+      newLyric,
+      null,
+      analysisResult.sampleRate,
+      analysisResult.pitchTrack
+    );
+    return updatedP;
+  });
+
+  return {
+    ...analysisResult,
+    phrases: newPhrases,
   };
 }
 

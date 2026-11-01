@@ -9,6 +9,7 @@ interface LeadingSilenceBannerProps {
   onTrimSilence: (trimMs: number) => void;
   onSkipIntro: (targetMs: number) => void;
   onNudgeLyric?: (deltaMs: number) => void;
+  onShiftLyricPhrases?: (deltaPhrases: number) => void;
   onDismiss?: () => void;
 }
 
@@ -19,6 +20,7 @@ export const LeadingSilenceBanner: React.FC<LeadingSilenceBannerProps> = ({
   onTrimSilence,
   onSkipIntro,
   onNudgeLyric,
+  onShiftLyricPhrases,
   onDismiss,
 }) => {
   const [showNudgeControls, setShowNudgeControls] = useState(false);
@@ -149,6 +151,38 @@ export const LeadingSilenceBanner: React.FC<LeadingSilenceBannerProps> = ({
               </button>
             </div>
           </div>
+
+          {onShiftLyricPhrases && (
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 text-[11px]">Khớp theo câu:</span>
+              <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 font-mono text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onShiftLyricPhrases(-1);
+                    setNudgeFeedback('Đã dịch lùi 1 câu lyric (-1 câu)');
+                    setTimeout(() => setNudgeFeedback(null), 2500);
+                  }}
+                  className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold transition"
+                  title="Đẩy toàn bộ lời bài hát lùi 1 câu nếu lời đến chậm hơn nốt"
+                >
+                  ⏮️ Lùi 1 câu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onShiftLyricPhrases(1);
+                    setNudgeFeedback('Đã dịch tiến 1 câu lyric (+1 câu)');
+                    setTimeout(() => setNudgeFeedback(null), 2500);
+                  }}
+                  className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold transition"
+                  title="Đẩy toàn bộ lời bài hát tiến 1 câu nếu lời đến sớm hơn nốt"
+                >
+                  ⏭️ Tiến 1 câu
+                </button>
+              </div>
+            </div>
+          )}
 
           {nudgeFeedback && (
             <div className="text-emerald-400 font-bold text-[11px] flex items-center gap-1 animate-fadeIn">

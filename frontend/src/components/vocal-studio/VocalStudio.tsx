@@ -27,6 +27,7 @@ import {
   splitNoteBarOnCanvas,
   mergeAdjacentNoteBarsOnCanvas,
   nudgeLyricOffset,
+  shiftLyricByPhraseCount,
 } from '../../services/lyricAlignmentService';
 import { LyricEditorModal } from './components/LyricEditorModal';
 import {
@@ -693,6 +694,15 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     [store.analysisResult, handleApplyUpdatedResult]
   );
 
+  const handleShiftLyricPhrases = useCallback(
+    (deltaPhrases: number) => {
+      if (!store.analysisResult) return;
+      const shifted = shiftLyricByPhraseCount(store.analysisResult, deltaPhrases);
+      handleApplyUpdatedResult(shifted);
+    },
+    [store.analysisResult, handleApplyUpdatedResult]
+  );
+
   const handleUpdatePhraseLyric = useCallback(
     (phraseIndex: number, newText: string) => {
       if (!store.analysisResult) return;
@@ -969,6 +979,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onMergeAdjacentBars={handleMergeAdjacentBars}
             onTrimLeadingSilence={handleTrimLeadingSilence}
             onNudgeLyricOffset={handleNudgeLyricOffset}
+            onShiftLyricPhrases={handleShiftLyricPhrases}
           />
         )}
 

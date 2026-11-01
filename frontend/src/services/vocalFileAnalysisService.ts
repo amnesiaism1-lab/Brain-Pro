@@ -473,8 +473,13 @@ class VocalFileAnalysisService {
     notify(100, 'Hoàn thành phân tích! Sẵn sàng vào phòng luyện.');
 
     // 9. Detect Leading Silence & First Vocal Onset
+    const hasMelodicVariety = (p: IVocalPhrase) =>
+      (p.notes?.length || 0) >= 2 || p.lowestNote !== p.highestNote || (p.pitchJumpSemitones || 0) >= 2;
+
     const firstVocalPhrase =
-      phrases.find((p) => !p.isInstrumentalOrVocalize && p.durationMs >= 400) || phrases[0];
+      phrases.find((p) => !p.isInstrumentalOrVocalize && p.durationMs >= 400 && hasMelodicVariety(p)) ||
+      phrases.find((p) => !p.isInstrumentalOrVocalize && p.durationMs >= 400) ||
+      phrases[0];
     const firstVocalOnsetMs = firstVocalPhrase
       ? firstVocalPhrase.startMs
       : (noteBars[0]?.startTimeMs ?? 0);
@@ -651,22 +656,33 @@ class VocalFileAnalysisService {
       }
     }
 
-    // Eliminate all isolated pre-song noise / mic bump / bleed artifacts before genuine singing starts:
-    // Finds the first substantial musical phrase cluster (duration >= 1100ms or paired with next phrase within <= 2800ms)
-    // Any isolated short phrases (< 850ms) separated by a gap >= 2500ms are purged so they never steal the first lyric line!
+    // A genuine singing performance has melodic variety (not a static monotone 0-semitone drone / mic hum)
+    const hasMelodicVariety = (p: IVocalPhrase) => {
+      const noteCount = p.notes?.length || 0;
+      const span = p.lowestNote !== p.highestNote;
+      const jump = (p.pitchJumpSemitones || 0) >= 2;
+      return noteCount >= 2 || span || jump;
+    };
+
+    // Eliminate all isolated pre-song noise / mic bump / monotone drone artifacts before genuine singing starts:
+    // Finds the first substantial musical phrase cluster (duration >= 1100ms with melodic movement, or paired with next phrase within <= 2800ms)
+    // Any isolated short phrases (< 850ms) or flat 0-semitone monotone hums are purged so they never steal the first lyric line!
     while (phrases.length >= 2) {
       const p0 = phrases[0];
       const p1 = phrases[1];
-      const isSubstantial = p0.durationMs >= 1100 || p0.pointsCount >= 70;
+      const p0HasMelody = hasMelodicVariety(p0);
+      const isSubstantial = (p0.durationMs >= 1100 && p0HasMelody) || p0.pointsCount >= 70;
       const isPairedWithNext =
-        p1.startMs - p0.endMs <= 2800 && p0.durationMs + p1.durationMs >= 1300;
+        p1.startMs - p0.endMs <= 2800 &&
+        p0.durationMs + p1.durationMs >= 1300 &&
+        (p0HasMelody || hasMelodicVariety(p1));
 
-      if (isSubstantial || isPairedWithNext) {
+      if (p0HasMelody && (isSubstantial || isPairedWithNext)) {
         break; // Reached the true start of the song
       }
 
-      // If p0 is separated from p1 by a long gap, or p0 is short and before the main cluster:
-      if (p1.startMs - p0.endMs >= 2500 || p0.durationMs < 750) {
+      // If p0 is a monotone drone without melodic movement, or separated by a long gap, or short noise:
+      if (!p0HasMelody || p1.startMs - p0.endMs >= 2500 || p0.durationMs < 750) {
         phrases.shift();
       } else {
         break;

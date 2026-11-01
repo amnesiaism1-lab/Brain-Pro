@@ -506,3 +506,4 @@ export function filterOrScoreCandidateAlignment(
   // Returns penalty cost: 0 for 100% natural, higher for unnatural
   return Math.max(0, (100 - analysis.overallScorePercent) * 0.25);
 }
+

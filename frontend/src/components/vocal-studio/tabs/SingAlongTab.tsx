@@ -92,6 +92,7 @@ interface SingAlongTabProps {
   onMergeAdjacentBars?: (leftBarId: string, rightBarId: string) => void;
   onTrimLeadingSilence?: (trimMs: number) => void;
   onNudgeLyricOffset?: (deltaMs: number) => void;
+  onShiftLyricPhrases?: (deltaPhrases: number) => void;
 }
 
 export const SingAlongTab: React.FC<SingAlongTabProps> = ({
@@ -155,6 +156,7 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   onMergeAdjacentBars,
   onTrimLeadingSilence,
   onNudgeLyricOffset,
+  onShiftLyricPhrases,
 }) => {
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
   const [isSilenceBannerDismissed, setIsSilenceBannerDismissed] = useState(false);
@@ -209,6 +211,7 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
               if (!isPlaying) onTogglePlay();
             }}
             onNudgeLyric={onNudgeLyricOffset}
+            onShiftLyricPhrases={onShiftLyricPhrases}
             onDismiss={() => setIsSilenceBannerDismissed(true)}
           />
         )}
