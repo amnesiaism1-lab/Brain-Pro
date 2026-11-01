@@ -1510,7 +1510,8 @@ function buildSectionFocusTip(phrase: IVocalPhrase, sectionType: VocalSectionTyp
 export function computeOralToNasalRatioDbAtMs(
   rawMonoPcm: Float32Array | null | undefined,
   sampleRate: number,
-  timeMs: number
+  timeMs: number,
+  avoidF0Hz?: number
 ): number {
   if (!rawMonoPcm || rawMonoPcm.length < 256 || sampleRate <= 0) return 0;
   const centerSample = Math.round((timeMs / 1000) * sampleRate);
@@ -1521,7 +1522,14 @@ export function computeOralToNasalRatioDbAtMs(
   );
   if (startSample + winLen > rawMonoPcm.length) return 0;
 
-  const nasalFreqs = [225, 285, 345];
+  // Filter out any nasal bin if a female or high-pitch voice fundamental F0 matches that bin
+  let nasalFreqs = [225, 285, 345];
+  if (avoidF0Hz && avoidF0Hz > 160) {
+    const filtered = nasalFreqs.filter((f) => Math.abs(f - avoidF0Hz) >= 28);
+    if (filtered.length > 0) {
+      nasalFreqs = filtered;
+    }
+  }
   const oralFreqs = [720, 1120, 1600, 2100];
 
   let nasalEnergy = 0;
@@ -1585,8 +1593,12 @@ function findInternalSyllableDip(
   }
 
   const hasPcm = Boolean(rawMonoPcm && rawMonoPcm.length >= 256);
+  const barF0Hz = targetBar.exactMidi > 0 ? 440 * Math.pow(2, (targetBar.exactMidi - 69) / 12) : 0;
   const oralNasalProfile = hasPcm
-    ? barPts.map((pt) => computeOralToNasalRatioDbAtMs(rawMonoPcm, sampleRate, pt.timeMs))
+    ? barPts.map((pt) => {
+        const ptF0Hz = pt.midi > 0 ? 440 * Math.pow(2, (pt.midi - 69) / 12) : barF0Hz;
+        return computeOralToNasalRatioDbAtMs(rawMonoPcm, sampleRate, pt.timeMs, ptF0Hz);
+      })
     : [];
 
   // Count vibrato oscillations across the bar to avoid chopping a single held vibrato note
@@ -2216,7 +2228,12 @@ export function alignWordsToPhraseNoteBars(
     lyricText && !lyricText.startsWith('Nguyên âm:') ? lyricText.trim() : '';
 
   const customTokens =
-    cleanCustomText.length > 0 ? cleanCustomText.split(/\s+/).filter(Boolean) : [];
+    cleanCustomText.length > 0
+      ? cleanCustomText
+          .split(/\s+/)
+          .map((t) => t.replace(/^[()[\]{}“"‘'«]+|[()[\]{}“"‘'».,;:!?]+$/g, '').trim())
+          .filter(Boolean)
+      : [];
 
   let phraseBars = getPhraseNoteBarsStrict(phrase, allNoteBars);
 
@@ -2459,14 +2476,53 @@ export function alignWordsToPhraseNoteBars(
   } else {
     // Sub-bar Frame-Level Phonetic-Duration & Energy-Valley Viterbi Alignment
     // when multiple rapid words share a NoteBar ($W > B$)
+    // Dynamically assign words based on NoteBar duration proportionality & word phonology weights
+    const wordWeights = rawTokens.map((tk, idx) =>
+      computeWordIntrinsicDurationWeight(tk, idx === rawTokens.length - 1)
+    );
+    const totalWordWeight = wordWeights.reduce((s, w) => s + w, 0) || 1;
+    const totalBarsDuration = phraseBars.reduce((s, b) => s + b.durationMs, 0) || 1000;
+
     const barWordGroups: number[][] = Array.from({ length: phraseBars.length }, () => []);
+
+    let accumWeight = 0;
     rawTokens.forEach((_, i) => {
-      const mappedBarIdx = Math.min(
-        phraseBars.length - 1,
-        Math.floor((i / rawTokens.length) * phraseBars.length)
-      );
-      barWordGroups[mappedBarIdx].push(i);
+      const wordMidFrac = (accumWeight + wordWeights[i] * 0.5) / totalWordWeight;
+      accumWeight += wordWeights[i];
+      const targetTimeMs = phraseBars[0].startTimeMs + wordMidFrac * totalBarsDuration;
+
+      let bestBarIdx = 0;
+      let minDistance = Infinity;
+      for (let b = 0; b < phraseBars.length; b++) {
+        const bar = phraseBars[b];
+        if (targetTimeMs >= bar.startTimeMs && targetTimeMs <= bar.endTimeMs) {
+          bestBarIdx = b;
+          break;
+        }
+        const barMid = (bar.startTimeMs + bar.endTimeMs) / 2;
+        const dist = Math.abs(barMid - targetTimeMs);
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestBarIdx = b;
+        }
+      }
+      barWordGroups[bestBarIdx].push(i);
     });
+
+    // Ensure every bar gets at least one word if words >= bars, preserving chronological ordering
+    if (rawTokens.length >= phraseBars.length) {
+      for (let b = 0; b < phraseBars.length; b++) {
+        if (barWordGroups[b].length === 0) {
+          if (b > 0 && barWordGroups[b - 1].length >= 2) {
+            const stolen = barWordGroups[b - 1].pop()!;
+            barWordGroups[b].push(stolen);
+          } else if (b < phraseBars.length - 1 && barWordGroups[b + 1].length >= 2) {
+            const stolen = barWordGroups[b + 1].shift()!;
+            barWordGroups[b].push(stolen);
+          }
+        }
+      }
+    }
 
     barWordGroups.forEach((tokenIndices, mappedBarIdx) => {
       if (tokenIndices.length === 0) return;
@@ -2795,7 +2851,31 @@ export function estimateOptimalLrcOffsetMs(
     }
   }
 
-  return bestOffset;
+  // Sub-frame fine-tuning pass around bestOffset with step 25ms in [-75ms, +75ms]
+  let refinedOffset = bestOffset;
+  let refinedScore = bestScore;
+  for (let delta = -75; delta <= 75; delta += 25) {
+    if (delta === 0) continue;
+    const testOffset = bestOffset + delta;
+    let score = -Math.abs(testOffset) * 0.003;
+    for (let i = 0; i < lrcLines.length; i++) {
+      const shiftedStart = lrcLines[i].timeMs + testOffset;
+      let minOnsetDist = Infinity;
+      for (const onset of vocalOnsets) {
+        const d = Math.abs(onset - shiftedStart);
+        if (d < minOnsetDist) minOnsetDist = d;
+      }
+      if (minOnsetDist <= 850) {
+        score += (850 - minOnsetDist) * 0.035;
+      }
+    }
+    if (score > refinedScore) {
+      refinedScore = score;
+      refinedOffset = testOffset;
+    }
+  }
+
+  return refinedOffset;
 }
 
 /**

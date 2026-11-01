@@ -109,6 +109,15 @@ export interface VocalStudioState extends VocalStudioPreferences {
   currentStreak: number;
   sessionStats: SingSessionStats;
 
+  // History & Undo/Redo
+  historyStack: IVocalAnalysisResult[];
+  historyIndex: number;
+  pushAnalysisHistory: (res: IVocalAnalysisResult) => void;
+  undoAnalysisHistory: () => IVocalAnalysisResult | null;
+  redoAnalysisHistory: () => IVocalAnalysisResult | null;
+  canUndo: boolean;
+  canRedo: boolean;
+
   // Actions
   openStudio: () => void;
   closeStudio: () => void;
@@ -168,6 +177,59 @@ export const useVocalStudioStore = create<VocalStudioState>((set) => ({
   realtimeScorePct: null,
   currentStreak: 0,
   sessionStats: { ...INITIAL_SESSION_STATS },
+
+  historyStack: [],
+  historyIndex: -1,
+  canUndo: false,
+  canRedo: false,
+
+  pushAnalysisHistory: (res) => {
+    set((state) => {
+      // Truncate redo stack when new action is taken
+      const currentStack = state.historyStack.slice(0, state.historyIndex + 1);
+      const newStack = [...currentStack, res].slice(-25); // Keep up to 25 steps
+      const newIndex = newStack.length - 1;
+      return {
+        analysisResult: res,
+        historyStack: newStack,
+        historyIndex: newIndex,
+        canUndo: newIndex > 0,
+        canRedo: false,
+      };
+    });
+  },
+
+  undoAnalysisHistory: () => {
+    let result: IVocalAnalysisResult | null = null;
+    set((state) => {
+      if (state.historyIndex <= 0) return state;
+      const newIndex = state.historyIndex - 1;
+      result = state.historyStack[newIndex];
+      return {
+        analysisResult: result,
+        historyIndex: newIndex,
+        canUndo: newIndex > 0,
+        canRedo: true,
+      };
+    });
+    return result;
+  },
+
+  redoAnalysisHistory: () => {
+    let result: IVocalAnalysisResult | null = null;
+    set((state) => {
+      if (state.historyIndex >= state.historyStack.length - 1) return state;
+      const newIndex = state.historyIndex + 1;
+      result = state.historyStack[newIndex];
+      return {
+        analysisResult: result,
+        historyIndex: newIndex,
+        canUndo: true,
+        canRedo: newIndex < state.historyStack.length - 1,
+      };
+    });
+    return result;
+  },
 
   openStudio: () => {
     set({ isOpen: true });
@@ -258,7 +320,14 @@ export const useVocalStudioStore = create<VocalStudioState>((set) => ({
     set({ octaveConvention });
   },
 
-  setAnalysisResult: (analysisResult) => set({ analysisResult }),
+  setAnalysisResult: (analysisResult) =>
+    set({
+      analysisResult,
+      historyStack: analysisResult ? [analysisResult] : [],
+      historyIndex: analysisResult ? 0 : -1,
+      canUndo: false,
+      canRedo: false,
+    }),
   setIsAnalyzing: (isAnalyzing) => set({ isAnalyzing }),
   setAnalyzeProgress: (analyzeProgress, statusText) =>
     set((state) => ({

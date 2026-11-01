@@ -659,7 +659,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
 
   const handleApplyUpdatedResult = useCallback(
     (updated: IVocalAnalysisResult) => {
-      store.setAnalysisResult(updated);
+      store.pushAnalysisHistory(updated);
       renderStateRef.current.durationMs = updated.durationMs;
       renderStateRef.current.pitchTrack = updated.pitchTrack;
       renderStateRef.current.noteBars = updated.noteBars;
@@ -676,6 +676,58 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     },
     [store]
   );
+
+  const handleUndo = useCallback(() => {
+    const prev = store.undoAnalysisHistory();
+    if (prev) {
+      renderStateRef.current.durationMs = prev.durationMs;
+      renderStateRef.current.pitchTrack = prev.pitchTrack;
+      renderStateRef.current.noteBars = prev.noteBars;
+      renderStateRef.current.lowestMidi = prev.vocalRange.lowestMidi;
+      renderStateRef.current.highestMidi = prev.vocalRange.highestMidi;
+    }
+  }, [store]);
+
+  const handleRedo = useCallback(() => {
+    const next = store.redoAnalysisHistory();
+    if (next) {
+      renderStateRef.current.durationMs = next.durationMs;
+      renderStateRef.current.pitchTrack = next.pitchTrack;
+      renderStateRef.current.noteBars = next.noteBars;
+      renderStateRef.current.lowestMidi = next.vocalRange.lowestMidi;
+      renderStateRef.current.highestMidi = next.vocalRange.highestMidi;
+    }
+  }, [store]);
+
+  // Global Undo / Redo Keyboard Shortcuts (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z)
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        if (e.key === 'z' || e.key === 'Z') {
+          if (e.shiftKey) {
+            e.preventDefault();
+            handleRedo();
+          } else {
+            e.preventDefault();
+            handleUndo();
+          }
+        } else if (e.key === 'y' || e.key === 'Y') {
+          e.preventDefault();
+          handleRedo();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, handleUndo, handleRedo]);
 
   const handleTrimLeadingSilence = useCallback(
     (trimMs: number) => {
@@ -984,6 +1036,10 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onTrimLeadingSilence={handleTrimLeadingSilence}
             onNudgeLyricOffset={handleNudgeLyricOffset}
             onShiftLyricPhrases={handleShiftLyricPhrases}
+            canUndo={store.canUndo}
+            canRedo={store.canRedo}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
           />
         )}
 

@@ -239,10 +239,15 @@ export function computeToneMelodicTransitionCost(
         severity = 'severe';
         cost = 14.0 + pitchDrop * 1.5;
         explanationVi = `Nghịch thanh nghiêm trọng: ${metaA.nameVi} sang ${metaB.nameVi} nhưng nốt lại tụt dốc (${midiDelta} bán âm).`;
+      } else if (pitchDrop === 1) {
+        // 1-semitone musical nuance / artistic license in modern V-Pop
+        severity = 'mild';
+        cost = 2.0;
+        explanationVi = `Biến tấu giai điệu: ${metaA.nameVi} sang ${metaB.nameVi} (${midiDelta} bán âm).`;
       } else {
         severity = 'mild';
-        cost = 6.0 + pitchDrop * 0.8;
-        explanationVi = `Lệch thanh nhẹ: ${metaA.nameVi} sang ${metaB.nameVi} nhưng nốt đi xuống nhẹ (${midiDelta} bán âm).`;
+        cost = 5.0 + pitchDrop * 0.7;
+        explanationVi = `Lệch thanh nhẹ: ${metaA.nameVi} sang ${metaB.nameVi} (${midiDelta} bán âm).`;
       }
     }
   }
@@ -268,10 +273,14 @@ export function computeToneMelodicTransitionCost(
         severity = 'severe';
         cost = 14.0 + pitchRise * 1.5;
         explanationVi = `Nghịch thanh nghiêm trọng: ${metaA.nameVi} xuống ${metaB.nameVi} nhưng nốt lại nhảy vọt lên (+${midiDelta} bán âm).`;
+      } else if (pitchRise === 1) {
+        severity = 'mild';
+        cost = 2.0;
+        explanationVi = `Biến tấu giai điệu: ${metaA.nameVi} xuống ${metaB.nameVi} (+${midiDelta} bán âm).`;
       } else {
         severity = 'mild';
-        cost = 6.0 + pitchRise * 0.8;
-        explanationVi = `Lệch thanh nhẹ: ${metaA.nameVi} xuống ${metaB.nameVi} nhưng nốt đi lên (+${midiDelta} bán âm).`;
+        cost = 5.0 + pitchRise * 0.7;
+        explanationVi = `Lệch thanh nhẹ: ${metaA.nameVi} xuống ${metaB.nameVi} (+${midiDelta} bán âm).`;
       }
     }
   }
@@ -457,11 +466,11 @@ export function computePhraseToneMelodicHarmony(
   let prosodyGradeVi = 'Hài hòa cao';
   if (overallScorePercent >= 90) prosodyGradeVi = 'Tự nhiên tuyệt đối';
   else if (overallScorePercent >= 75) prosodyGradeVi = 'Hài hòa chuẩn ngữ âm';
-  else if (overallScorePercent >= 60) prosodyGradeVi = 'Biến tấu nghệ thuật';
-  else prosodyGradeVi = 'Có đoạn nghịch thanh (Ngọng dấu)';
+  else if (overallScorePercent >= 60) prosodyGradeVi = 'Biến tấu giai điệu nghệ thuật';
+  else prosodyGradeVi = 'Có đoạn lệch thanh điệu (cần lưu ý)';
 
   const detailedFeedbackVi = `${prosodyGradeVi} (${overallScorePercent}%): ${concordantCount}/${totalTransitions} bước chuyển thuận thanh điệu. ${
-    invertedCount > 0 ? `Phát hiện ${invertedCount} chỗ lệch dấu cần lưu ý.` : 'Không bị ngọng dấu.'
+    invertedCount > 0 ? `Phát hiện ${invertedCount} chỗ lệch thanh cần chú ý.` : 'Giai điệu thuận thanh điệu tự nhiên.'
   } ${lowestPassed ? 'Nốt trầm tựa đúng thanh trầm.' : ''} ${
     highestPassed ? 'Nốt đỉnh vút đúng thanh cao.' : ''
   }`.trim();

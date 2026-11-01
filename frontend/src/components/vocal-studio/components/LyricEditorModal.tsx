@@ -57,6 +57,7 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
   const [isSearchingCloud, setIsSearchingCloud] = useState(false);
   const [cloudMessage, setCloudMessage] = useState<string | null>(null);
   const [dictatingPhraseIdx, setDictatingPhraseIdx] = useState<number | null>(null);
+  const [toastNotice, setToastNotice] = useState<{ text: string; type: 'info' | 'error' | 'success' } | null>(null);
 
   useEffect(() => {
     if (!isOpen || !analysisResult) return;
@@ -225,7 +226,10 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
     const SpeechRecognitionCtor =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionCtor) {
-      alert('Trình duyệt hiện tại không hỗ trợ Web Speech API. Vui lòng nhập trực tiếp vào ô văn bản.');
+      setToastNotice({
+        text: 'Trình duyệt hiện tại không hỗ trợ Web Speech API. Vui lòng nhập trực tiếp vào ô văn bản.',
+        type: 'error',
+      });
       return;
     }
 
@@ -392,6 +396,25 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
+          {toastNotice && (
+            <div
+              className={`p-3 rounded-2xl border text-xs flex items-center justify-between gap-2 animate-fade-in ${
+                toastNotice.type === 'error'
+                  ? 'bg-rose-950/70 border-rose-500/50 text-rose-200'
+                  : 'bg-emerald-950/70 border-emerald-500/50 text-emerald-200'
+              }`}
+            >
+              <span>{toastNotice.text}</span>
+              <button
+                type="button"
+                onClick={() => setToastNotice(null)}
+                className="p-1 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {cloudMessage && (
             <div className="p-3 rounded-2xl bg-sky-950/50 border border-sky-500/40 text-xs text-sky-200 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-sky-400 shrink-0" />
@@ -440,14 +463,27 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
 
           {mode === 'bulk_paste' && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-300">
-                  Dán toàn bộ lời bài hát (mỗi câu 1 dòng) hoặc nội dung file <code>[mm:ss.xx]</code> (.LRC) vào dưới đây:
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="space-y-1">
+                  <p className="text-xs text-slate-300">
+                    Dán toàn bộ lời bài hát (mỗi câu 1 dòng) hoặc nội dung file <code>[mm:ss.xx]</code> (.LRC) vào dưới đây:
+                  </p>
+                  {bulkText.trim() && (
+                    <div className="flex items-center gap-2 text-[11px] font-mono">
+                      <span className="text-slate-400">
+                        Đã nhập: <strong className="text-sky-300">{bulkText.split(/\r?\n/).filter((l) => l.trim().length > 0 && !/^\[(verse|chorus|intro|outro|bridge)/i.test(l.trim())).length}</strong> dòng
+                      </span>
+                      <span className="text-slate-500">•</span>
+                      <span className="text-slate-400">
+                        Bài hát: <strong className="text-white">{activePhrases.length}</strong> câu
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={handleBulkAutoAlign}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition"
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition self-start sm:self-auto shadow-md"
                 >
                   <Wand2 className="w-3.5 h-3.5" />
                   <span>Gán Tự Động Vào {activePhrases.length} Câu</span>
@@ -506,58 +542,84 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Input Field */}
-                    <div className="flex-1 flex items-center gap-2">
-                      <input
-                        type="text"
-                        disabled={isVocalize}
-                        value={
-                          isVocalize
-                            ? '🎵 Đoạn ngân / Không lời (Vocalize)'
-                            : phraseTexts[phrase.phraseIndex] ?? ''
-                        }
-                        onChange={(e) =>
-                          setPhraseTexts((prev) => ({
-                            ...prev,
-                            [phrase.phraseIndex]: e.target.value,
-                          }))
-                        }
-                        placeholder={`Lời câu ${phrase.phraseIndex} (Xướng âm: ${phrase.solfegeText})...`}
-                        className="flex-1 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700/80 text-xs sm:text-sm text-white focus:outline-none focus:border-sky-400 disabled:opacity-60"
-                      />
+                    {/* Input Field & Syllable Preview */}
+                    <div className="flex-1 flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          disabled={isVocalize}
+                          value={
+                            isVocalize
+                              ? '🎵 Đoạn ngân / Không lời (Vocalize)'
+                              : phraseTexts[phrase.phraseIndex] ?? ''
+                          }
+                          onChange={(e) =>
+                            setPhraseTexts((prev) => ({
+                              ...prev,
+                              [phrase.phraseIndex]: e.target.value,
+                            }))
+                          }
+                          placeholder={`Lời câu ${phrase.phraseIndex} (Xướng âm: ${phrase.solfegeText})...`}
+                          className="flex-1 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700/80 text-xs sm:text-sm text-white focus:outline-none focus:border-sky-400 disabled:opacity-60"
+                        />
 
-                      {/* Voice Dictation Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleStartVoiceDictation(phrase.phraseIndex)}
-                        className={`p-2 rounded-xl border text-xs transition ${
-                          isDictating
-                            ? 'bg-rose-500 text-white border-rose-400 animate-pulse'
-                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
-                        }`}
-                        title="Đọc lời bằng giọng nói (Web Speech ASR)"
-                      >
-                        <Mic className="w-4 h-4" />
-                      </button>
+                        {/* Voice Dictation Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleStartVoiceDictation(phrase.phraseIndex)}
+                          className={`p-2 rounded-xl border text-xs transition ${
+                            isDictating
+                              ? 'bg-rose-500 text-white border-rose-400 animate-pulse'
+                              : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                          }`}
+                          title="Đọc lời bằng giọng nói (Web Speech ASR)"
+                        >
+                          <Mic className="w-4 h-4" />
+                        </button>
 
-                      {/* Toggle Vocalize / Instrumental */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPhraseVocalizeFlags((prev) => ({
-                            ...prev,
-                            [phrase.phraseIndex]: !prev[phrase.phraseIndex],
-                          }))
-                        }
-                        className={`px-2.5 py-2 rounded-xl border text-[11px] font-semibold transition shrink-0 ${
-                          isVocalize
-                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                        }`}
-                        title="Đánh dấu câu này là đoạn dạo nhạc hoặc ngân không lời"
-                      >
-                        Ngân/Không lời
-                      </button>
+                        {/* Toggle Vocalize / Instrumental */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPhraseVocalizeFlags((prev) => ({
+                              ...prev,
+                              [phrase.phraseIndex]: !prev[phrase.phraseIndex],
+                            }))
+                          }
+                          className={`px-2.5 py-2 rounded-xl border text-[11px] font-semibold transition shrink-0 ${
+                            isVocalize
+                              ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                          }`}
+                          title="Đánh dấu câu này là đoạn dạo nhạc hoặc ngân không lời"
+                        >
+                          Ngân/Không lời
+                        </button>
+                      </div>
+
+                      {/* Live Word-to-Note Syllable Preview */}
+                      {!isVocalize && (phraseTexts[phrase.phraseIndex] ?? phrase.lyricText) && (
+                        <div className="flex flex-wrap items-center gap-1.5 pl-0.5">
+                          <span className="text-[10px] font-mono text-slate-500">Xem trước nốt:</span>
+                          {(phraseTexts[phrase.phraseIndex] ?? phrase.lyricText ?? '')
+                            .trim()
+                            .split(/\s+/)
+                            .filter(Boolean)
+                            .slice(0, 14)
+                            .map((token, tIdx) => {
+                              const barNote = phrase.notes[tIdx % Math.max(1, phrase.notes.length)];
+                              return (
+                                <span
+                                  key={tIdx}
+                                  className="px-1.5 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-[10px] font-mono flex items-center gap-1 text-slate-200"
+                                >
+                                  <span className="font-semibold text-white">{token}</span>
+                                  {barNote && <span className="text-sky-400 font-bold">{barNote}</span>}
+                                </span>
+                              );
+                            })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

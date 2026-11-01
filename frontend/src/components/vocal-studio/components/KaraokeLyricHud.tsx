@@ -73,6 +73,7 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
   onQuickUpdatePhraseLyric,
 }) => {
   const [displayMode, setDisplayMode] = useState<LyricDisplayMode>('bilingual');
+  const [isZenMode, setIsZenMode] = useState(false);
   const [isEditingInline, setIsEditingInline] = useState(false);
   const [inlineDraft, setInlineDraft] = useState('');
 
@@ -244,45 +245,61 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
             </span>
           )}
 
+          {/* Zen Focus Mode Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsZenMode(!isZenMode)}
+            className={`px-2.5 py-1 rounded-xl border text-[11px] font-bold transition flex items-center gap-1 ${
+              isZenMode
+                ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-sm'
+                : 'bg-slate-900 text-slate-300 border-slate-800 hover:text-white'
+            }`}
+            title="Bật/Tắt chế độ Zen Focus: Chỉ hiện lời to rõ ràng, ẩn bớt thông số cao độ để ca sĩ tập trung hát"
+          >
+            <span>{isZenMode ? '✨ Zen Mode' : 'Studio'}</span>
+          </button>
+
           {/* Display Mode Switcher */}
-          <div className="flex items-center bg-slate-900 p-0.5 rounded-xl border border-slate-800 text-[10px]">
-            <button
-              type="button"
-              onClick={() => setDisplayMode('bilingual')}
-              className={`px-2 py-1 rounded-lg font-bold transition ${
-                displayMode === 'bilingual'
-                  ? 'bg-sky-500 text-slate-950'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="Hiện lời/nguyên âm kèm nốt nhạc và hướng đi lên/xuống của từng từ"
-            >
-              Lời + Quỹ Đạo
-            </button>
-            <button
-              type="button"
-              onClick={() => setDisplayMode('vowel_trajectory')}
-              className={`px-2 py-1 rounded-lg font-bold transition ${
-                displayMode === 'vowel_trajectory'
-                  ? 'bg-sky-500 text-slate-950'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="Tập trung vào Nguyên âm (A, Ê, I, Ô, U, Ơi) và hướng đi lên/xuống (↗ ↘ ⤴ 〰)"
-            >
-              Nguyên Âm ↗↘
-            </button>
-            <button
-              type="button"
-              onClick={() => setDisplayMode('solfege')}
-              className={`px-2 py-1 rounded-lg font-bold transition ${
-                displayMode === 'solfege'
-                  ? 'bg-sky-500 text-slate-950'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="Hiện xướng âm Đô - Rê - Mi kèm hướng lên/xuống"
-            >
-              Xướng Âm
-            </button>
-          </div>
+          {!isZenMode && (
+            <div className="flex items-center bg-slate-900 p-0.5 rounded-xl border border-slate-800 text-[10px]">
+              <button
+                type="button"
+                onClick={() => setDisplayMode('bilingual')}
+                className={`px-2 py-1 rounded-lg font-bold transition ${
+                  displayMode === 'bilingual'
+                    ? 'bg-sky-500 text-slate-950'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Hiện lời/nguyên âm kèm nốt nhạc và hướng đi lên/xuống của từng từ"
+              >
+                Lời + Quỹ Đạo
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisplayMode('vowel_trajectory')}
+                className={`px-2 py-1 rounded-lg font-bold transition ${
+                  displayMode === 'vowel_trajectory'
+                    ? 'bg-sky-500 text-slate-950'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Tập trung vào Nguyên âm (A, Ê, I, Ô, U, Ơi) và hướng đi lên/xuống (↗ ↘ ⤴ 〰)"
+              >
+                Nguyên Âm ↗↘
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisplayMode('solfege')}
+                className={`px-2 py-1 rounded-lg font-bold transition ${
+                  displayMode === 'solfege'
+                    ? 'bg-sky-500 text-slate-950'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Hiện xướng âm Đô - Rê - Mi kèm hướng lên/xuống"
+              >
+                Xướng Âm
+              </button>
+            </div>
+          )}
 
           <button
             type="button"
@@ -482,19 +499,25 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                   >
                     {isWordActive && (
                       <span
-                        className="absolute bottom-0 left-0 h-0.5 bg-sky-400 transition-all duration-75"
+                        className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-sky-400 to-indigo-400 rounded-full transition-all duration-75"
                         style={{ width: `${activeProgressPct}%` }}
                       />
                     )}
-                    {(displayMode === 'bilingual' || displayMode === 'vowel_trajectory') && (
+                    {!isZenMode && (displayMode === 'bilingual' || displayMode === 'vowel_trajectory') && (
                       <span
                         className={`text-[9px] font-mono px-1.5 py-0 rounded border leading-tight mb-0.5 ${subBadgeClass}`}
                       >
                         {topBadgeText}
                       </span>
                     )}
-                    <span className="text-sm sm:text-base font-bold tracking-tight leading-snug">
-                      {primaryText}
+                    <span
+                      className={`${
+                        isZenMode
+                          ? 'text-base sm:text-xl font-black'
+                          : 'text-sm sm:text-base font-bold'
+                      } tracking-tight leading-snug`}
+                    >
+                      {isZenMode ? word.text : primaryText}
                     </span>
                   </button>
                 );

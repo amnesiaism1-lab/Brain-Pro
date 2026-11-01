@@ -94,6 +94,10 @@ interface SingAlongTabProps {
   onTrimLeadingSilence?: (trimMs: number) => void;
   onNudgeLyricOffset?: (deltaMs: number) => void;
   onShiftLyricPhrases?: (deltaPhrases: number) => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export const SingAlongTab: React.FC<SingAlongTabProps> = ({
@@ -159,6 +163,10 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   onTrimLeadingSilence,
   onNudgeLyricOffset,
   onShiftLyricPhrases,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
 }) => {
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
   const [isSilenceBannerDismissed, setIsSilenceBannerDismissed] = useState(false);
@@ -485,6 +493,10 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         onSplitPhrase={onSplitPhrase}
         playbackSpeed={playbackSpeed}
         onChangeSpeed={onChangeSpeed}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={onUndo}
+        onRedo={onRedo}
       />
     </div>
   );

@@ -87,7 +87,7 @@ export const SongCandidateModal: React.FC<ISongCandidateModalProps> = ({
   const handleSelectCandidate = (candidate: ISongLyricCandidate) => {
     const lyricsToApply = candidate.syncedLyrics || candidate.plainLyrics;
     if (!lyricsToApply) {
-      alert('Bài hát này chưa có dữ liệu lời hát.');
+      setStatusMessage('Bài hát này chưa có dữ liệu lời hát. Vui lòng chọn bài khác hoặc tự dán lời.');
       return;
     }
 
@@ -332,6 +332,21 @@ export const SongCandidateModal: React.FC<ISongCandidateModalProps> = ({
                           {cand.hasSyncedLyrics && (
                             <span className="px-2 py-0.5 rounded-md bg-sky-500/15 border border-sky-500/30 text-[10px] font-bold text-sky-300">
                               ✓ Có lời .LRC đồng bộ
+                            </span>
+                          )}
+
+                          {cand.durationDiffSec !== undefined && cand.durationSec !== undefined && (
+                            <span
+                              className={`px-2 py-0.5 rounded-md border text-[10px] font-mono font-medium ${
+                                cand.durationDiffSec <= 5
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                                  : cand.durationDiffSec <= 20
+                                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                              }`}
+                              title={`Thời lượng bài: ${Math.floor(cand.durationSec / 60)}:${String(cand.durationSec % 60).padStart(2, '0')} (Lệch ${cand.durationDiffSec}s so với file)`}
+                            >
+                              ⏱ {Math.floor(cand.durationSec / 60)}:{String(cand.durationSec % 60).padStart(2, '0')} ({cand.durationDiffSec === 0 ? 'Khớp 100%' : `±${cand.durationDiffSec}s`})
                             </span>
                           )}
                         </div>

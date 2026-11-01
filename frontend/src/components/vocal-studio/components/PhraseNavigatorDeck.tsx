@@ -25,6 +25,8 @@ import {
   Merge,
   Check,
   FileText,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
 
 interface PhraseNavigatorDeckProps {
@@ -44,6 +46,10 @@ interface PhraseNavigatorDeckProps {
   onSplitPhrase?: (phraseIndex: number, splitTimeMs?: number) => void;
   playbackSpeed?: number;
   onChangeSpeed?: (spd: number) => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 const SECTION_BADGE_STYLE: Record<VocalSectionType, string> = {
@@ -73,6 +79,10 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
   onSplitPhrase,
   playbackSpeed = 1.0,
   onChangeSpeed,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
 }) => {
   const [viewMode, setViewMode] = useState<PhraseViewMode>('grid');
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'Dễ' | 'Trung bình' | 'Thử thách'>('all');
@@ -236,6 +246,30 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Undo / Redo Actions */}
+          {(onUndo || onRedo) && (
+            <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-2xl border border-slate-800">
+              <button
+                type="button"
+                disabled={!canUndo}
+                onClick={onUndo}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400 transition"
+                title="Hoàn tác chỉnh sửa (Ctrl+Z)"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={!canRedo}
+                onClick={onRedo}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400 transition"
+                title="Làm lại chỉnh sửa (Ctrl+Y)"
+              >
+                <Redo2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {onOpenLyricModal && (
             <button
               type="button"
