@@ -24,6 +24,25 @@ import type {
   IVocalPhrase,
   IReferencePitchPoint,
 } from './vocalFileAnalysisService';
+import {
+  type VietnameseToneType,
+  TONE_PITCH_RANK,
+  TONE_METADATA,
+  getVietnameseToneType,
+  getVietnameseToneInfo,
+  computeToneMelodicTransitionCost,
+  computePhraseToneMelodicHarmony,
+} from './vietnameseToneProsodyService';
+
+export {
+  type VietnameseToneType,
+  TONE_PITCH_RANK,
+  TONE_METADATA,
+  getVietnameseToneType,
+  getVietnameseToneInfo,
+  computeToneMelodicTransitionCost,
+  computePhraseToneMelodicHarmony,
+};
 
 export type VocalSectionType =
   | 'intro'
@@ -130,6 +149,14 @@ export interface IVocalLyricWord {
   intraBendCents?: number;
   /** 3-point relative pitch curve [startCents, midCents, endCents] for visual micro-contour */
   pitchCurveCents?: [number, number, number];
+  /** Vietnamese lexical tone type: 'nang' | 'huyen' | 'ngang' | 'hoi' | 'nga' | 'sac' | 'neutral' */
+  toneType?: VietnameseToneType;
+  /** Relative pitch register rank (1.0 = Nặng đáy, 2.0 = Huyền, 3.0 = Ngang chuẩn, 3.8 = Hỏi, 4.4 = Ngã, 5.0 = Sắc đỉnh) */
+  toneRank?: number;
+  /** Human-readable Vietnamese tone name (e.g. "Thanh Nặng", "Thanh Bằng", "Thanh Sắc") */
+  toneNameVi?: string;
+  /** Concordance status with previous word ('concordant' | 'inverted' | 'neutral') */
+  toneMelodicConcordance?: 'concordant' | 'inverted' | 'neutral';
 }
 
 export interface ILrcLine {
@@ -2027,7 +2054,16 @@ function partitionBarsToWordsDP(
     for (let b = minEnd; b <= maxEnd; b++) {
       for (let prevB = w - 1; prevB < b; prevB++) {
         if (dp[w - 1][prevB] === Infinity) continue;
-        const candidate = dp[w - 1][prevB] + spanCost(w, prevB + 1, b);
+        const prevBar = phraseBars[prevB];
+        const nextBar = phraseBars[prevB + 1];
+        const toneTr = computeToneMelodicTransitionCost(
+          rawTokens[w - 1],
+          rawTokens[w],
+          prevBar.midi,
+          nextBar.midi
+        );
+        const candidate =
+          dp[w - 1][prevB] + spanCost(w, prevB + 1, b) + toneTr.penaltyOrBonusCost;
         if (candidate < dp[w][b]) {
           dp[w][b] = candidate;
           prevSplit[w][b] = prevB + 1;
@@ -2430,6 +2466,37 @@ export function alignWordsToPhraseNoteBars(
         w.sustainLabel = `Ngân ${(dur / 1000).toFixed(1)}s`;
       }
     });
+
+    // Enrich each word with Vietnamese Tone & Prosody Metadata
+    words.forEach((w, idx) => {
+      const toneInfo = getVietnameseToneInfo(w.text);
+      w.toneType = toneInfo.toneType;
+      w.toneRank = toneInfo.toneRank;
+      w.toneNameVi = toneInfo.toneNameVi;
+
+      if (idx > 0) {
+        const tr = computeToneMelodicTransitionCost(
+          words[idx - 1].text,
+          w.text,
+          words[idx - 1].midi,
+          w.midi
+        );
+        w.toneMelodicConcordance = tr.isInverted
+          ? 'inverted'
+          : tr.isConcordant
+          ? 'concordant'
+          : 'neutral';
+      } else {
+        w.toneMelodicConcordance = 'neutral';
+      }
+    });
+
+    const harmonyReport = computePhraseToneMelodicHarmony(
+      words.map((w) => w.text),
+      words.map((w) => w.midi)
+    );
+    phrase.toneHarmonyScore = harmonyReport.overallScorePercent;
+    phrase.toneHarmonyFeedback = harmonyReport.detailedFeedbackVi;
   }
 
   phrase.words = words;

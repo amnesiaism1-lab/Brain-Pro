@@ -186,13 +186,16 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
             </span>
           )}
 
-          {/* Active Vowel Formant & Pitch Trajectory Live Pill */}
+          {/* Active Vowel Formant, Tone & Pitch Trajectory Live Pill */}
           {activeWord && (
             <div className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-[10px] font-bold text-emerald-300 flex items-center gap-1.5 animate-fade-in">
               <TrendingUp className="w-3 h-3 text-emerald-400 shrink-0" />
               <span>
                 Nguyên âm /{activeWord.vowelPhoneme || 'A'}/ ({activeWord.vowelHint || 'Mở rộng'})
               </span>
+              {activeWord.toneNameVi && (
+                <span className="text-amber-300 font-mono">• {activeWord.toneNameVi}</span>
+              )}
               {activeWord.trajectoryLabel && (
                 <span className="text-sky-300 font-mono">• {activeWord.trajectoryLabel}</span>
               )}
@@ -434,7 +437,9 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                     className={`relative overflow-hidden group inline-flex flex-col items-center transition-all duration-100 px-1.5 py-0.5 rounded-lg hover:bg-slate-800/60 ${wordColorClass}`}
                     title={`"${word.text}" • Nốt: ${noteDisplay} (${solfegeDisplay}) • Nguyên âm: /${
                       word.vowelPhoneme || 'A'
-                    }/ (${word.vowelHint || ''}) • ${word.trajectoryLabel || ''}${
+                    }/ (${word.vowelHint || ''})${
+                      word.toneNameVi ? ` • ${word.toneNameVi}` : ''
+                    } • ${word.trajectoryLabel || ''}${
                       word.sustainLabel ? ` • ${word.sustainLabel}` : ''
                     }${
                       stat && stat.total > 30

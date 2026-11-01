@@ -729,6 +729,13 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
                 💡 Mẹo luyện câu này: {focusedPhrase.focusTip}
               </p>
             )}
+
+            {focusedPhrase.toneHarmonyFeedback && (
+              <div className="text-[11px] font-mono text-amber-300/90 flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl">
+                <span>🎵 Thanh điệu & Cao độ:</span>
+                <span className="truncate">{focusedPhrase.toneHarmonyFeedback}</span>
+              </div>
+            )}
           </div>
 
           {/* Right Quick Practice Controls (Speed + Loop + Split/Merge) */}

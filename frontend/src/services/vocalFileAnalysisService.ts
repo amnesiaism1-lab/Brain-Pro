@@ -88,6 +88,10 @@ export interface IVocalPhrase {
   /** Human-readable singer register label (e.g. "Giọng A (Trầm/Ấm)", "Giọng B (Cao/Sáng)", "Song ca") */
   singerLabel?: string;
   words?: IVocalLyricWord[];
+  /** Vietnamese tone-melodic contour harmony score (0-100%) indicating naturalness of pitch movement relative to tones */
+  toneHarmonyScore?: number;
+  /** Human-readable prosody feedback (e.g. "Hài hòa cao (92%) · Dấu sắc lên đỉnh, nặng hạ đáy") */
+  toneHarmonyFeedback?: string;
 }
 
 export interface IVocalPracticeStep {
