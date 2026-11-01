@@ -21,6 +21,7 @@ import { KaraokeLyricHud } from '../components/KaraokeLyricHud';
 import { PitchFeedbackDetail } from '../utils/vocalHelpers';
 import { midiToNoteInfo, NOTE_NAMES, SOLFEGE_NAMES } from '@brain-exercises/shared';
 import { ISelectedKeyOverride, useVocalStudioStore } from '../../../store/vocalStudioStore';
+import { LeadingSilenceBanner } from '../components/LeadingSilenceBanner';
 
 interface SingAlongTabProps {
   analysisResult: IVocalAnalysisResult;
@@ -89,6 +90,8 @@ interface SingAlongTabProps {
   onAdjustBarBoundary?: (leftBarId: string, rightBarId: string, newBoundaryMs: number) => void;
   onSplitBarAtMs?: (barId: string, splitTimeMs: number) => void;
   onMergeAdjacentBars?: (leftBarId: string, rightBarId: string) => void;
+  onTrimLeadingSilence?: (trimMs: number) => void;
+  onNudgeLyricOffset?: (deltaMs: number) => void;
 }
 
 export const SingAlongTab: React.FC<SingAlongTabProps> = ({
@@ -150,9 +153,16 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   onAdjustBarBoundary,
   onSplitBarAtMs,
   onMergeAdjacentBars,
+  onTrimLeadingSilence,
+  onNudgeLyricOffset,
 }) => {
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
+  const [isSilenceBannerDismissed, setIsSilenceBannerDismissed] = useState(false);
   const micStatus = useVocalStudioStore(s => s.micStatus);
+
+  React.useEffect(() => {
+    setIsSilenceBannerDismissed(false);
+  }, [analysisResult.fileName]);
 
   const activeScaleNotes = React.useMemo(() => {
     if (selectedKeyOverride) {
@@ -183,6 +193,26 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
 
   return (
     <div className="w-full max-w-[1850px] mx-auto space-y-4 px-1 sm:px-2">
+      {/* Leading Silence / Blank Intro Banner */}
+      {analysisResult.hasLeadingSilence &&
+        analysisResult.leadingSilenceMs &&
+        !isSilenceBannerDismissed && (
+          <LeadingSilenceBanner
+            leadingSilenceMs={analysisResult.leadingSilenceMs}
+            firstVocalOnsetMs={
+              analysisResult.firstVocalOnsetMs || analysisResult.leadingSilenceMs
+            }
+            durationMs={analysisResult.durationMs}
+            onTrimSilence={(trimMs) => onTrimLeadingSilence?.(trimMs)}
+            onSkipIntro={(targetMs) => {
+              onSeek(targetMs);
+              if (!isPlaying) onTogglePlay();
+            }}
+            onNudgeLyric={onNudgeLyricOffset}
+            onDismiss={() => setIsSilenceBannerDismissed(true)}
+          />
+        )}
+
       {/* 1. DUAL-TRACK RUNWAY CANVAS + INTEGRATED KARAOKE & SECTION LOCATOR HUD */}
       <div className="w-full rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl">
         <KaraokeLyricHud

@@ -18,6 +18,7 @@ import { IVocalAnalysisResult, IVocalPhrase } from '../../../services/vocalFileA
 import { searchAndTracePhrases } from '../../../services/lyricAlignmentService';
 import { DifficultyBadge } from '../components/DifficultyBadge';
 import { formatTimeMs } from '../utils/vocalHelpers';
+import { LeadingSilenceBanner } from '../components/LeadingSilenceBanner';
 
 interface AnalysisTabProps {
   analysisResult: IVocalAnalysisResult | null;
@@ -29,6 +30,8 @@ interface AnalysisTabProps {
   onNavigateToSingAlong: () => void;
   onLoopPhrase: (phrase: IVocalPhrase) => void;
   onOpenLyricModal?: (initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search') => void;
+  onTrimLeadingSilence?: (trimMs: number) => void;
+  onSkipIntro?: (targetMs: number) => void;
 }
 
 export const AnalysisTab: React.FC<AnalysisTabProps> = ({
@@ -41,6 +44,8 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
   onNavigateToSingAlong,
   onLoopPhrase,
   onOpenLyricModal,
+  onTrimLeadingSilence,
+  onSkipIntro,
 }) => {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [showHelpGuide, setShowHelpGuide] = useState(false);
@@ -228,6 +233,20 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Leading Silence / Blank Intro Banner */}
+          {analysisResult.hasLeadingSilence &&
+            analysisResult.leadingSilenceMs && (
+              <LeadingSilenceBanner
+                leadingSilenceMs={analysisResult.leadingSilenceMs}
+                firstVocalOnsetMs={
+                  analysisResult.firstVocalOnsetMs || analysisResult.leadingSilenceMs
+                }
+                durationMs={analysisResult.durationMs}
+                onTrimSilence={(trimMs) => onTrimLeadingSilence?.(trimMs)}
+                onSkipIntro={(targetMs) => onSkipIntro?.(targetMs)}
+              />
+            )}
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">

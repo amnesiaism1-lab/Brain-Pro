@@ -21,8 +21,15 @@ import {
   alignWordsToPhraseNoteBars,
   fetchAutoLyricsFromLrclib,
   estimateOptimalLrcOffsetMs,
+  nudgeLyricOffset,
+  ILrcLine,
 } from '../lyricAlignmentService';
-import type { IVocalPhrase, IVocalNoteBar, IVocalAnalysisResult } from '../vocalFileAnalysisService';
+import {
+  vocalFileAnalysisService,
+  IVocalPhrase,
+  IVocalNoteBar,
+  IVocalAnalysisResult,
+} from '../vocalFileAnalysisService';
 
 function createMockPhrasesAndBars(): {
   phrases: IVocalPhrase[];
@@ -658,5 +665,135 @@ describe('lyricAlignmentService', () => {
     // Phrase 1 must be "Người yêu ơi cỏ mềm đã héo khô" at ~34.15s, NOT shifted onto 1.2s!
     expect(rawPhrases[0].lyricText).toBe('Người yêu ơi cỏ mềm đã héo khô');
     expect(rawPhrases[0].startMs).toBeGreaterThanOrEqual(33500);
+  });
+
+  it('correctly aligns LRC and plain text with 24s leading silence and bridges intro gaps', () => {
+    // Audio with 24s leading silence where LRC was created for 4.5s album intro
+    const vocalBars: IVocalNoteBar[] = [
+      { id: 'b-1', startTimeMs: 24000, endTimeMs: 25500, durationMs: 1500, midi: 60, exactMidi: 60, noteName: 'C4', solfegeName: 'Đô 4', avgCentsDiff: 0, pointsCount: 30 },
+      { id: 'b-2', startTimeMs: 26000, endTimeMs: 27800, durationMs: 1800, midi: 62, exactMidi: 62, noteName: 'D4', solfegeName: 'Rê 4', avgCentsDiff: 0, pointsCount: 35 },
+      { id: 'b-3', startTimeMs: 28500, endTimeMs: 31000, durationMs: 2500, midi: 64, exactMidi: 64, noteName: 'E4', solfegeName: 'Mi 4', avgCentsDiff: 0, pointsCount: 45 },
+    ];
+    const phrases: IVocalPhrase[] = [
+      {
+        id: 'p-1',
+        phraseIndex: 1,
+        startMs: 24000,
+        endMs: 27800,
+        durationMs: 3800,
+        notes: ['C4', 'D4'],
+        lowestNote: 'C4',
+        highestNote: 'D4',
+        avgPitchHz: 261,
+        avgMidi: 61,
+        pitchJumpSemitones: 2,
+        difficulty: 'Dễ',
+        difficultyScore: 3,
+        pointsCount: 65,
+      },
+      {
+        id: 'p-2',
+        phraseIndex: 2,
+        startMs: 28500,
+        endMs: 31000,
+        durationMs: 2500,
+        notes: ['E4'],
+        lowestNote: 'E4',
+        highestNote: 'E4',
+        avgPitchHz: 330,
+        avgMidi: 64,
+        pitchJumpSemitones: 0,
+        difficulty: 'Dễ',
+        difficultyScore: 2,
+        pointsCount: 45,
+      },
+    ];
+
+    const lrcLines: ILrcLine[] = [
+      { timeMs: 4500, text: 'Giữa trời mênh mang đi' },
+      { timeMs: 9000, text: 'Em đi tìm anh' },
+    ];
+
+    // Offset should bridge the ~19.5s gap between 4.5s LRC and 24.0s vocal onset!
+    const offsetMs = estimateOptimalLrcOffsetMs(phrases, vocalBars, lrcLines, 43000);
+    expect(offsetMs).toBeGreaterThanOrEqual(18500);
+    expect(offsetMs).toBeLessThanOrEqual(20500);
+
+    alignLrcLinesToPhrases(phrases, vocalBars, lrcLines, null, 44100, [], 43000);
+    expect(phrases[0].lyricText).toBe('Giữa trời mênh mang đi');
+    expect(phrases[0].startMs).toBe(24000);
+    expect(phrases[1].lyricText).toBe('Em đi tìm anh');
+    expect(phrases[1].startMs).toBe(28500);
+  });
+
+  it('correctly trims leading silence and shifts audio, notes, and phrases by trimMs', () => {
+    const { phrases, noteBars } = createMockPhrasesAndBars();
+    // Shift mock bars and phrases to start at 24000ms
+    const shiftedBars = noteBars.map((b) => ({
+      ...b,
+      startTimeMs: b.startTimeMs + 23000,
+      endTimeMs: b.endTimeMs + 23000,
+    }));
+    const shiftedPhrases = phrases.map((p) => ({
+      ...p,
+      startMs: p.startMs + 23000,
+      endMs: p.endMs + 23000,
+    }));
+
+    const mockResult: IVocalAnalysisResult = {
+      fileName: 'giữa trời mang đi vocal.wav',
+      durationMs: 43000,
+      sampleRate: 44100,
+      audioBuffer: {
+        numberOfChannels: 1,
+        length: 44100 * 43,
+        sampleRate: 44100,
+        duration: 43,
+        getChannelData: () => new Float32Array(44100 * 43),
+      } as unknown as AudioBuffer,
+      audioBlobUrl: 'blob:test',
+      pitchTrack: [
+        { timeMs: 24000, freqHz: 261, midi: 60, noteName: 'C4', solfegeName: 'Đô 4', clarity: 0.9, volumeDb: -15, isVocal: true },
+        { timeMs: 25000, freqHz: 293, midi: 62, noteName: 'D4', solfegeName: 'Rê 4', clarity: 0.9, volumeDb: -15, isVocal: true },
+      ],
+      noteBars: shiftedBars,
+      phrases: shiftedPhrases,
+      leadingSilenceMs: 24000,
+      firstVocalOnsetMs: 24000,
+      hasLeadingSilence: true,
+      vocalRange: {
+        lowestNote: 'C4',
+        lowestFreqHz: 261,
+        lowestMidi: 60,
+        highestNote: 'G4',
+        highestFreqHz: 392,
+        highestMidi: 67,
+        spanSemitones: 7,
+        recommendedVoiceType: 'Tenor',
+      },
+      estimatedKey: { key: 'C Major', root: 'C', mode: 'major', confidence: 0.9, scaleNotes: [] },
+      vocalMetrics: {
+        singingTimeMs: 15000,
+        singingRatioPercent: 35,
+        avgClarity: 0.85,
+        avgRmsDb: -15,
+        densityNotesPerSec: 1.2,
+        maxIntervalSemitones: 3,
+        overallDifficulty: 'Dễ',
+      },
+      practicePlan: { title: 'P', summaryVi: 'S', recommendedSteps: [] },
+    };
+
+    // Trim 23200ms of leading silence (leaving 800ms natural breath lead-in)
+    const trimmed = vocalFileAnalysisService.trimLeadingSilence(mockResult, 23200);
+    expect(trimmed.durationMs).toBe(43000 - 23200);
+    expect(trimmed.noteBars[0].startTimeMs).toBe(24000 - 23200); // 800ms
+    expect(trimmed.phrases[0].startMs).toBe(24000 - 23200); // 800ms
+    expect(trimmed.pitchTrack[0].timeMs).toBe(24000 - 23200); // 800ms
+    expect(trimmed.hasLeadingSilence).toBe(false);
+
+    // Test nudgeLyricOffset
+    const nudged = nudgeLyricOffset(trimmed, 200);
+    expect(nudged.phrases[0].startMs).toBe(1000);
   });
 });

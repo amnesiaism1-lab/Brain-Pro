@@ -26,6 +26,7 @@ import {
   adjustAdjacentNoteBarBoundary,
   splitNoteBarOnCanvas,
   mergeAdjacentNoteBarsOnCanvas,
+  nudgeLyricOffset,
 } from '../../services/lyricAlignmentService';
 import { LyricEditorModal } from './components/LyricEditorModal';
 import {
@@ -625,9 +626,40 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
   const handleApplyUpdatedResult = useCallback(
     (updated: IVocalAnalysisResult) => {
       store.setAnalysisResult(updated);
+      renderStateRef.current.durationMs = updated.durationMs;
+      renderStateRef.current.pitchTrack = updated.pitchTrack;
       renderStateRef.current.noteBars = updated.noteBars;
+      renderStateRef.current.lowestMidi = updated.vocalRange.lowestMidi;
+      renderStateRef.current.highestMidi = updated.vocalRange.highestMidi;
+      if (
+        audioElementRef.current &&
+        updated.audioBlobUrl &&
+        audioElementRef.current.src !== updated.audioBlobUrl
+      ) {
+        audioElementRef.current.src = updated.audioBlobUrl;
+        audioElementRef.current.load();
+      }
     },
     [store]
+  );
+
+  const handleTrimLeadingSilence = useCallback(
+    (trimMs: number) => {
+      if (!store.analysisResult) return;
+      const trimmed = vocalFileAnalysisService.trimLeadingSilence(store.analysisResult, trimMs);
+      handleApplyUpdatedResult(trimmed);
+      handleSeek(0);
+    },
+    [store.analysisResult, handleApplyUpdatedResult, handleSeek]
+  );
+
+  const handleNudgeLyricOffset = useCallback(
+    (deltaMs: number) => {
+      if (!store.analysisResult) return;
+      const nudged = nudgeLyricOffset(store.analysisResult, deltaMs);
+      handleApplyUpdatedResult(nudged);
+    },
+    [store.analysisResult, handleApplyUpdatedResult]
   );
 
   const handleUpdatePhraseLyric = useCallback(
@@ -829,6 +861,12 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onNavigateToSingAlong={() => store.setActiveTab('sing_along')}
             onLoopPhrase={handleLoopPhrase}
             onOpenLyricModal={handleOpenLyricModal}
+            onTrimLeadingSilence={handleTrimLeadingSilence}
+            onSkipIntro={(ms) => {
+              handleSeek(ms);
+              store.setActiveTab('sing_along');
+              setTimeout(handleStartPlayback, 50);
+            }}
           />
         )}
 
@@ -898,6 +936,8 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onAdjustBarBoundary={handleAdjustBarBoundary}
             onSplitBarAtMs={handleSplitBarAtMs}
             onMergeAdjacentBars={handleMergeAdjacentBars}
+            onTrimLeadingSilence={handleTrimLeadingSilence}
+            onNudgeLyricOffset={handleNudgeLyricOffset}
           />
         )}
 

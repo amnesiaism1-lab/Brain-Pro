@@ -2537,49 +2537,53 @@ export function estimateOptimalLrcOffsetMs(
     }
   }
 
-  const lastAudioMs = Math.max(
-    audioDurationMs || 0,
-    phrases[phrases.length - 1]?.endMs || 0,
-    noteBars[noteBars.length - 1]?.endTimeMs || 0
-  );
-  const lastLrcMs = lrcLines[lrcLines.length - 1].timeMs;
-
-  // Determine if the audio file covers the full song timeline (or has a standard instrumental intro).
-  // On full songs with accompaniment/beat (e.g. Cơn Mưa Tình Yêu with a 34s intro),
-  // accompaniment instruments create noteBars during 00:00..00:34.
-  // Allowing a large negative offset would shift LRC lines onto the instrumental intro!
-  const isFullTimelineTrack =
-    lastAudioMs >= lastLrcMs - 15000 || lrcLines[0].timeMs >= 8000;
+  // Find the first substantial vocal phrase (>= 400ms)
+  const firstSubstantialPhrase =
+    phrases.find((p) => !p.isInstrumentalOrVocalize && p.durationMs >= 400) || phrases[0];
+  const firstVocalOnset = firstSubstantialPhrase?.startMs ?? (noteBars[0]?.startTimeMs ?? 0);
+  const firstLrcOnset = lrcLines[0]?.timeMs ?? 0;
+  const leadDiff = firstVocalOnset - firstLrcOnset;
 
   const candidateOffsets = new Set<number>([0]);
-  if (isFullTimelineTrack) {
-    // Strictly fine-tune within [-800ms .. +800ms] to never jump across phrases or intros
-    for (let delta = -800; delta <= 800; delta += 100) {
-      candidateOffsets.add(delta);
+
+  // Always test zero and fine-grained offsets around 0
+  for (let delta = -800; delta <= 800; delta += 100) {
+    candidateOffsets.add(delta);
+  }
+
+  // If there is an offset between first vocal onset and first LRC line
+  // (e.g. 24s empty lead-in in audio, or pre-trimmed stem where intro was cut),
+  // test candidate offsets centered around leadDiff
+  if (Math.abs(leadDiff) >= 500 && Math.abs(leadDiff) <= 45000) {
+    const roundedLead = Math.round(leadDiff / 50) * 50;
+    candidateOffsets.add(roundedLead);
+    for (let delta = -1500; delta <= 1500; delta += 100) {
+      candidateOffsets.add(roundedLead + delta);
     }
-  } else {
-    // Trimmed clip/stem where the audio file is much shorter than the full LRC timeline
-    const firstDiff = phrases[0].startMs - lrcLines[0].timeMs;
-    if (Math.abs(firstDiff) <= 25000) {
-      candidateOffsets.add(Math.round(firstDiff / 50) * 50);
-    }
-    for (let delta = -4000; delta <= 4000; delta += 200) {
-      candidateOffsets.add(delta);
+  }
+
+  // Also test candidate offsets from first phrase start
+  const firstPhraseDiff = phrases[0].startMs - lrcLines[0].timeMs;
+  if (Math.abs(firstPhraseDiff) <= 35000) {
+    const roundedFirstDiff = Math.round(firstPhraseDiff / 50) * 50;
+    candidateOffsets.add(roundedFirstDiff);
+    for (let delta = -1000; delta <= 1000; delta += 100) {
+      candidateOffsets.add(roundedFirstDiff + delta);
     }
   }
 
   let bestOffset = 0;
   let bestScore = -Infinity;
-  const zeroPenaltyWeight = isFullTimelineTrack ? 0.045 : 0.004;
 
   for (const offset of candidateOffsets) {
-    let score = -Math.abs(offset) * zeroPenaltyWeight;
+    // Light penalty for large offsets to break ties in favor of smaller offsets
+    let score = -Math.abs(offset) * 0.003;
 
     for (let i = 0; i < lrcLines.length; i++) {
       const shiftedStart = lrcLines[i].timeMs + offset;
       const shiftedEnd =
         i + 1 < lrcLines.length
-          ? Math.min(lrcLines[i + 1].timeMs + offset, shiftedStart + 5000)
+          ? Math.min(lrcLines[i + 1].timeMs + offset, shiftedStart + 5500)
           : shiftedStart + 4500;
 
       // 1. Proximity of shiftedStart to nearest vocal onset
@@ -2588,8 +2592,8 @@ export function estimateOptimalLrcOffsetMs(
         const d = Math.abs(onset - shiftedStart);
         if (d < minOnsetDist) minOnsetDist = d;
       }
-      if (minOnsetDist <= 900) {
-        score += (900 - minOnsetDist) * 0.025;
+      if (minOnsetDist <= 850) {
+        score += (850 - minOnsetDist) * 0.035;
       }
 
       // 2. Check if this LRC window covers actual sung noteBars
@@ -2598,7 +2602,7 @@ export function estimateOptimalLrcOffsetMs(
         return mid >= shiftedStart - 120 && mid <= shiftedEnd + 120;
       });
       if (hasBars) {
-        score += 10;
+        score += 20;
       }
     }
 
@@ -2609,6 +2613,39 @@ export function estimateOptimalLrcOffsetMs(
   }
 
   return bestOffset;
+}
+
+/**
+ * Manually nudge/shift all lyric timestamps and phrase boundaries by deltaMs (e.g. +200ms or -200ms).
+ * Enables real-time fine-tuning directly on HUD or Deck.
+ */
+export function nudgeLyricOffset(
+  analysisResult: IVocalAnalysisResult,
+  deltaMs: number
+): IVocalAnalysisResult {
+  if (Math.abs(deltaMs) < 10) return analysisResult;
+
+  const shiftedPhrases = analysisResult.phrases.map((p) => {
+    const newStart = Math.max(0, p.startMs + deltaMs);
+    const newEnd = Math.max(newStart + 100, p.endMs + deltaMs);
+    const newWords = p.words?.map((w) => ({
+      ...w,
+      startMs: Math.max(0, w.startMs + deltaMs),
+      endMs: Math.max(0, w.endMs + deltaMs),
+    }));
+
+    return {
+      ...p,
+      startMs: newStart,
+      endMs: newEnd,
+      words: newWords,
+    };
+  });
+
+  return {
+    ...analysisResult,
+    phrases: shiftedPhrases,
+  };
 }
 
 /**

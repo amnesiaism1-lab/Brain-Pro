@@ -123,6 +123,13 @@ export interface IVocalAnalysisResult {
   /** Matched song title if found via automatic lookup */
   matchedTrackTitle?: string;
 
+  /** Duration of leading blank/silence before first true singing onset in ms */
+  leadingSilenceMs?: number;
+  /** Timestamp of first genuine singing note in ms */
+  firstVocalOnsetMs?: number;
+  /** Whether the track has significant leading silence (>= 3500ms) */
+  hasLeadingSilence?: boolean;
+
   vocalRange: {
     lowestNote: string;
     lowestFreqHz: number;
@@ -451,6 +458,15 @@ class VocalFileAnalysisService {
 
     notify(100, 'Hoàn thành phân tích! Sẵn sàng vào phòng luyện.');
 
+    // 9. Detect Leading Silence & First Vocal Onset
+    const firstVocalPhrase =
+      phrases.find((p) => !p.isInstrumentalOrVocalize && p.durationMs >= 400) || phrases[0];
+    const firstVocalOnsetMs = firstVocalPhrase
+      ? firstVocalPhrase.startMs
+      : (noteBars[0]?.startTimeMs ?? 0);
+    const leadingSilenceMs = Math.max(0, firstVocalOnsetMs);
+    const hasLeadingSilence = leadingSilenceMs >= 3500;
+
     return {
       fileName,
       durationMs,
@@ -463,6 +479,9 @@ class VocalFileAnalysisService {
       lyricSource: lyricMeta.lyricSource,
       lyricStatus: lyricMeta.lyricStatus,
       matchedTrackTitle: lyricMeta.matchedTrackTitle,
+      leadingSilenceMs,
+      firstVocalOnsetMs,
+      hasLeadingSilence,
       vocalRange: {
         lowestNote: lowestPoint.noteName,
         lowestFreqHz: lowestPoint.freqHz,
@@ -615,6 +634,18 @@ class VocalFileAnalysisService {
     for (let i = phrases.length - 1; i >= 0; i--) {
       if (phrases[i].durationMs < 400) {
         phrases.splice(i, 1);
+      }
+    }
+
+    // Eliminate isolated leading pre-song noise / mic bump artifacts:
+    // If phrase 0 occurs within the first 6s, lasts < 850ms, and is followed by a huge silence gap (>= 3000ms)
+    // before the genuine singing structure begins, prune it so it does not steal the first lyric line!
+    if (phrases.length >= 2) {
+      const p0 = phrases[0];
+      const p1 = phrases[1];
+      const leadingGapMs = p1.startMs - p0.endMs;
+      if (p0.startMs < 6000 && p0.durationMs < 850 && leadingGapMs >= 3000) {
+        phrases.splice(0, 1);
       }
     }
 
@@ -1608,6 +1639,135 @@ class VocalFileAnalysisService {
     }
 
     return new Blob([outBuffer], { type: 'audio/wav' });
+  }
+
+  /**
+   * Trim leading silence / intro gap from an audio analysis result.
+   * Cuts the AudioBuffer, generates a fresh WAV Blob URL, and shifts all timeline timestamps
+   * (pitchTrack, noteBars, phrases, words) so the song starts immediately without waiting.
+   */
+  public trimLeadingSilence(
+    result: IVocalAnalysisResult,
+    trimDurationMs: number
+  ): IVocalAnalysisResult {
+    const effectiveTrimMs = Math.max(
+      0,
+      Math.min(result.durationMs - 1500, Math.floor(trimDurationMs))
+    );
+    if (effectiveTrimMs <= 200) return result;
+
+    const sampleRate = result.sampleRate;
+    const oldBuffer = result.audioBuffer;
+    const numChannels = oldBuffer?.numberOfChannels || 1;
+    const trimSamples = Math.floor((effectiveTrimMs / 1000) * sampleRate);
+    const oldLength = oldBuffer?.length || Math.floor((result.durationMs / 1000) * sampleRate);
+    const newLength = Math.max(1, oldLength - trimSamples);
+
+    let newBuffer: AudioBuffer;
+    let audioBlobUrl = result.audioBlobUrl;
+
+    if (oldBuffer && typeof oldBuffer.getChannelData === 'function') {
+      const ctx = auditoryEngine.initContext();
+      if (ctx && typeof ctx.createBuffer === 'function') {
+        newBuffer = ctx.createBuffer(numChannels, newLength, sampleRate);
+        for (let ch = 0; ch < numChannels; ch++) {
+          const oldData = oldBuffer.getChannelData(ch);
+          const newData = newBuffer.getChannelData(ch);
+          newData.set(oldData.subarray(trimSamples, oldData.length));
+        }
+      } else {
+        // Fallback buffer stub for test environments without Web Audio API context
+        newBuffer = {
+          numberOfChannels: numChannels,
+          length: newLength,
+          sampleRate,
+          duration: newLength / sampleRate,
+          getChannelData: (ch: number) => {
+            return oldBuffer.getChannelData(ch).subarray(trimSamples);
+          },
+        } as unknown as AudioBuffer;
+      }
+
+      try {
+        const wavBlob = this.audioBufferToWavBlob(newBuffer);
+        if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+          audioBlobUrl = URL.createObjectURL(wavBlob);
+        }
+      } catch {
+        // Keep existing URL if blob conversion is unavailable in test environment
+      }
+    } else {
+      newBuffer = oldBuffer;
+    }
+
+    // Shift pitchTrack
+    const shiftedPitchTrack: IReferencePitchPoint[] = [];
+    for (const pt of result.pitchTrack) {
+      if (pt.timeMs >= effectiveTrimMs) {
+        shiftedPitchTrack.push({
+          ...pt,
+          timeMs: Math.max(0, pt.timeMs - effectiveTrimMs),
+        });
+      }
+    }
+
+    // Shift noteBars
+    const shiftedNoteBars: IVocalNoteBar[] = [];
+    for (const bar of result.noteBars) {
+      if (bar.endTimeMs > effectiveTrimMs) {
+        const startTimeMs = Math.max(0, bar.startTimeMs - effectiveTrimMs);
+        const endTimeMs = Math.max(startTimeMs + 40, bar.endTimeMs - effectiveTrimMs);
+        shiftedNoteBars.push({
+          ...bar,
+          startTimeMs,
+          endTimeMs,
+          durationMs: endTimeMs - startTimeMs,
+        });
+      }
+    }
+
+    // Shift phrases
+    const shiftedPhrases: IVocalPhrase[] = [];
+    let pIdx = 1;
+    for (const phr of result.phrases) {
+      if (phr.endMs > effectiveTrimMs) {
+        const startMs = Math.max(0, phr.startMs - effectiveTrimMs);
+        const endMs = Math.max(startMs + 80, phr.endMs - effectiveTrimMs);
+        const shiftedWords = phr.words?.map((w) => ({
+          ...w,
+          startMs: Math.max(0, w.startMs - effectiveTrimMs),
+          endMs: Math.max(0, w.endMs - effectiveTrimMs),
+        }));
+
+        shiftedPhrases.push({
+          ...phr,
+          id: `phrase-${pIdx}`,
+          phraseIndex: pIdx,
+          startMs,
+          endMs,
+          durationMs: endMs - startMs,
+          words: shiftedWords,
+        });
+        pIdx++;
+      }
+    }
+
+    const newDurationMs = Math.max(500, result.durationMs - effectiveTrimMs);
+    const firstPhrase = shiftedPhrases[0];
+    const newFirstOnset = firstPhrase ? firstPhrase.startMs : 0;
+
+    return {
+      ...result,
+      durationMs: newDurationMs,
+      audioBuffer: newBuffer,
+      audioBlobUrl,
+      pitchTrack: shiftedPitchTrack,
+      noteBars: shiftedNoteBars,
+      phrases: shiftedPhrases,
+      leadingSilenceMs: newFirstOnset,
+      firstVocalOnsetMs: newFirstOnset,
+      hasLeadingSilence: newFirstOnset >= 3500,
+    };
   }
 }
 
