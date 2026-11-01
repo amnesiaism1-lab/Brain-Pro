@@ -404,6 +404,16 @@ class VocalFileAnalysisService {
     // 6. Phrase Segmentation (Tách từng câu hát)
     const phrases = this.segmentPhrases(pitchTrack);
 
+    // Prune any stray noise noteBars that occurred before the first genuine singing phrase
+    if (phrases.length > 0) {
+      const firstPhraseStart = phrases[0].startMs;
+      for (let i = noteBars.length - 1; i >= 0; i--) {
+        if (noteBars[i].endTimeMs < firstPhraseStart - 100) {
+          noteBars.splice(i, 1);
+        }
+      }
+    }
+
     notify(91, 'Giai đoạn 6/7: Quét phổ Formant F1-F2 (Goertzel Pre-emphasis) & Quỹ đạo nguyên âm...');
     const lyricMeta = await populateAutomaticSongLyricsAndStructure({
       fileName,
@@ -637,15 +647,25 @@ class VocalFileAnalysisService {
       }
     }
 
-    // Eliminate isolated leading pre-song noise / mic bump artifacts:
-    // If phrase 0 occurs within the first 6s, lasts < 850ms, and is followed by a huge silence gap (>= 3000ms)
-    // before the genuine singing structure begins, prune it so it does not steal the first lyric line!
-    if (phrases.length >= 2) {
+    // Eliminate all isolated pre-song noise / mic bump / bleed artifacts before genuine singing starts:
+    // Finds the first substantial musical phrase cluster (duration >= 1100ms or paired with next phrase within <= 2800ms)
+    // Any isolated short phrases (< 850ms) separated by a gap >= 2500ms are purged so they never steal the first lyric line!
+    while (phrases.length >= 2) {
       const p0 = phrases[0];
       const p1 = phrases[1];
-      const leadingGapMs = p1.startMs - p0.endMs;
-      if (p0.startMs < 6000 && p0.durationMs < 850 && leadingGapMs >= 3000) {
-        phrases.splice(0, 1);
+      const isSubstantial = p0.durationMs >= 1100 || p0.pointsCount >= 70;
+      const isPairedWithNext =
+        p1.startMs - p0.endMs <= 2800 && p0.durationMs + p1.durationMs >= 1300;
+
+      if (isSubstantial || isPairedWithNext) {
+        break; // Reached the true start of the song
+      }
+
+      // If p0 is separated from p1 by a long gap, or p0 is short and before the main cluster:
+      if (p1.startMs - p0.endMs >= 2500 || p0.durationMs < 750) {
+        phrases.shift();
+      } else {
+        break;
       }
     }
 

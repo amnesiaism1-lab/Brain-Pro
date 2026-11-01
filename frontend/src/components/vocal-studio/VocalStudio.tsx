@@ -482,8 +482,21 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
   };
 
   const handleTogglePlay = () => {
-    if (store.isPlaying) handlePausePlayback();
-    else handleStartPlayback();
+    if (store.isPlaying) {
+      handlePausePlayback();
+    } else {
+      // If user starts playback from the very beginning (0s) and there is a leading silence gap (> 3s),
+      // cue right to 1.2s before the singing onset so they don't have to wait through dead air
+      if (
+        store.currentTimeMs < 1000 &&
+        store.analysisResult?.hasLeadingSilence &&
+        (store.analysisResult.firstVocalOnsetMs || 0) > 3000
+      ) {
+        const cueMs = Math.max(0, (store.analysisResult.firstVocalOnsetMs || 0) - 1200);
+        handleSeek(cueMs);
+      }
+      handleStartPlayback();
+    }
   };
 
   const handleSeek = useCallback((timeMs: number) => {
@@ -622,6 +635,24 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     store.setActiveTab('sing_along');
     if (!store.isPlaying) setTimeout(handleStartPlayback, 50);
   };
+
+  const handleNavigateToSingAlong = useCallback(
+    (autoCueIntro = true) => {
+      store.setActiveTab('sing_along');
+      // If user enters sing-along tab and there is a leading silence gap,
+      // automatically seek to 1.2s before the first vocal onset so they don't see an empty runway!
+      if (
+        autoCueIntro &&
+        store.currentTimeMs < 1000 &&
+        store.analysisResult?.hasLeadingSilence &&
+        (store.analysisResult.firstVocalOnsetMs || 0) > 2500
+      ) {
+        const cueMs = Math.max(0, (store.analysisResult.firstVocalOnsetMs || 0) - 1200);
+        handleSeek(cueMs);
+      }
+    },
+    [store, handleSeek]
+  );
 
   const handleApplyUpdatedResult = useCallback(
     (updated: IVocalAnalysisResult) => {
@@ -792,7 +823,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
           <button
             type="button"
             disabled={!store.analysisResult}
-            onClick={() => store.setActiveTab('sing_along')}
+            onClick={() => handleNavigateToSingAlong(true)}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 ${
               store.activeTab === 'sing_along'
                 ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
@@ -858,7 +889,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             analyzeStatusText={store.analyzeStatusText}
             onFileSelected={handleFileSelected}
             onLoadDemoTrack={handleLoadDemoTrack}
-            onNavigateToSingAlong={() => store.setActiveTab('sing_along')}
+            onNavigateToSingAlong={() => handleNavigateToSingAlong(true)}
             onLoopPhrase={handleLoopPhrase}
             onOpenLyricModal={handleOpenLyricModal}
             onTrimLeadingSilence={handleTrimLeadingSilence}
