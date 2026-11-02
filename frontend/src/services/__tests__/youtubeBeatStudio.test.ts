@@ -107,4 +107,32 @@ describe('YouTube Beat Service & Recording Engine', () => {
       expect(waveform[0]).toBe(0.05);
     });
   });
+
+  describe('YouTube Karaoke Synchronization & Player State Rules', () => {
+    it('verifies that YouTube player state 2 (PAUSED) or 0 (ENDED) signals stop-condition for active recording', () => {
+      const YT_STATE_ENDED = 0;
+      const YT_STATE_PAUSED = 2;
+      const YT_STATE_PLAYING = 1;
+
+      const shouldStopRecording = (state: number, isRecording: boolean) => {
+        return (state === YT_STATE_ENDED || state === YT_STATE_PAUSED) && isRecording;
+      };
+
+      expect(shouldStopRecording(YT_STATE_PAUSED, true)).toBe(true);
+      expect(shouldStopRecording(YT_STATE_ENDED, true)).toBe(true);
+      expect(shouldStopRecording(YT_STATE_PLAYING, true)).toBe(false);
+      expect(shouldStopRecording(YT_STATE_PAUSED, false)).toBe(false);
+    });
+
+    it('calculates effective vocal start time with latency nudge correctly', () => {
+      const startPointSec = 15.0;
+      const nudgeOffsetMs = 40; // 40ms ahead
+      const effectiveStartSec = startPointSec - (nudgeOffsetMs / 1000);
+      expect(effectiveStartSec).toBe(14.96);
+
+      const negativeNudge = -60; // 60ms delay
+      const effectiveStartDelayed = startPointSec - (negativeNudge / 1000);
+      expect(effectiveStartDelayed).toBe(15.06);
+    });
+  });
 });

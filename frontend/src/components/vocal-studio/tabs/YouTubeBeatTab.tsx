@@ -49,6 +49,28 @@ import { formatTimeMs } from '../utils/vocalHelpers';
 
 export type YouTubeStudioStep = 'choose_beat' | 'prepare' | 'recording' | 'review_mix';
 
+/**
+ * Lightweight web audio metronome beep for 3-2-1 countdown cueing
+ */
+const playMetronomeBeep = (freq = 880, durationSec = 0.08) => {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationSec);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + durationSec);
+  } catch {
+    // ignore
+  }
+};
+
 export const YouTubeBeatTab: React.FC = () => {
   // Step workflow
   const [currentStep, setCurrentStep] = useState<YouTubeStudioStep>('choose_beat');
@@ -74,6 +96,13 @@ export const YouTubeBeatTab: React.FC = () => {
   const recordingTimerRef = useRef<any>(null);
   const countdownTimerRef = useRef<any>(null);
 
+  // Safe references to avoid stale closures in YouTube API event callbacks
+  const isRecordingRef = useRef(false);
+  const isCountingDownRef = useRef(false);
+  const isPlayingMixRef = useRef(false);
+  const isStoppingRef = useRef(false);
+  const actualRecordingStartSecRef = useRef<number>(0);
+
   // Step 4: Playback, Mix & Takes
   const [session, setSession] = useState<IYouTubeSession | null>(null);
   const [takes, setTakes] = useState<IYouTubeTake[]>([]);
@@ -88,6 +117,19 @@ export const YouTubeBeatTab: React.FC = () => {
   const [nudgeOffsetMs, setNudgeOffsetMs] = useState(0);
   const [isReverb, setIsReverb] = useState(false);
   const [isCompressor, setIsCompressor] = useState(true);
+
+  // Synchronize refs with state to prevent stale closures in event listeners
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  useEffect(() => {
+    isCountingDownRef.current = isCountingDown;
+  }, [isCountingDown]);
+
+  useEffect(() => {
+    isPlayingMixRef.current = isPlayingMix;
+  }, [isPlayingMix]);
 
   // Storage, Prompter and Modals
   const [storageEstimateMb, setStorageEstimateMb] = useState<number | null>(null);
@@ -198,76 +240,33 @@ export const YouTubeBeatTab: React.FC = () => {
     }
   };
 
-  const handlePlayerStateChange = (state: number) => {
-    // 0 = ended, 2 = paused
-    if (state === 0 || state === 2) {
-      if (isPlayingMix) {
-        setIsPlayingMix(false);
-        youtubeSyncMixer.pause();
-      }
-    }
-  };
-
-  // Step 2 -> 3: Countdown and Start Recording
-  const handleStartCountdown = async () => {
-    // Ensure audio context and mic are ready (critical for mobile iOS)
-    try {
-      await vocalRecordingEngine.setupMic();
-    } catch (e) {
-      alert('Không thể kết nối Microphone. Vui lòng kiểm tra quyền mic.');
-      return;
-    }
-
-    setIsCountingDown(true);
-    setCountdownNumber(3);
-    setCurrentStep('recording'); // Instantly open Karaoke Center Stage so user looks at video lyrics!
-
-    // Seek beat to 3s before startPoint (or 0s) to cue the singer in
-    const prerollStartSec = Math.max(0, startPointSec - 3);
-    if (ytPlayerInstance && typeof ytPlayerInstance.seekTo === 'function') {
-      ytPlayerInstance.seekTo(prerollStartSec, true);
-      ytPlayerInstance.playVideo();
-    }
-
+  const handleDiscardRecording = useCallback(() => {
+    setIsRecording(false);
+    setIsCountingDown(false);
     if (countdownTimerRef.current) {
       clearInterval(countdownTimerRef.current);
       countdownTimerRef.current = null;
     }
-
-    let count = 3;
-    countdownTimerRef.current = setInterval(() => {
-      count -= 1;
-      if (count > 0) {
-        setCountdownNumber(count);
-      } else {
-        if (countdownTimerRef.current) {
-          clearInterval(countdownTimerRef.current);
-          countdownTimerRef.current = null;
-        }
-        setIsCountingDown(false);
-        triggerActualRecording();
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (ytPlayerInstance && typeof ytPlayerInstance.pauseVideo === 'function') {
+      try {
+        ytPlayerInstance.pauseVideo();
+      } catch (e) {
+        // Ignored
       }
-    }, 1000);
-  };
+    }
+    vocalRecordingEngine.stopMicCheck();
+    vocalRecordingEngine.stopRecording().catch(() => {});
+    setCurrentStep('prepare');
+  }, [ytPlayerInstance]);
 
-  const triggerActualRecording = async () => {
-    setIsRecording(true);
-    setRecordDurationSec(0);
+  const handleStopRecording = useCallback(async () => {
+    if ((!isRecordingRef.current && !isCountingDownRef.current) || isStoppingRef.current) return;
+    isStoppingRef.current = true;
 
-    const startTime = performance.now();
-    recordingTimerRef.current = setInterval(() => {
-      setRecordDurationSec(Math.round((performance.now() - startTime) / 1000));
-    }, 500);
-
-    // Start recording engine
-    await vocalRecordingEngine.startRecording((rms, db) => {
-      setLiveVuRms(rms);
-      setLiveVuDb(db);
-    });
-  };
-
-  const handleStopRecording = async () => {
-    if (!isRecording && !isCountingDown) return;
     setIsRecording(false);
     setIsCountingDown(false);
     if (countdownTimerRef.current) {
@@ -279,9 +278,13 @@ export const YouTubeBeatTab: React.FC = () => {
       recordingTimerRef.current = null;
     }
 
-    // Pause YouTube
+    // Pause YouTube safely
     if (ytPlayerInstance && typeof ytPlayerInstance.pauseVideo === 'function') {
-      ytPlayerInstance.pauseVideo();
+      try {
+        ytPlayerInstance.pauseVideo();
+      } catch (e) {
+        // Ignored
+      }
     }
 
     try {
@@ -289,13 +292,16 @@ export const YouTubeBeatTab: React.FC = () => {
       const newTakeNumber = takes.length + 1;
       const takeId = `take-${session?.id || 'sess'}-${Date.now()}`;
 
+      // Final start time based on actual YouTube playhead when mic started recording
+      const finalStartSec = Math.max(0, actualRecordingStartSecRef.current ?? startPointSec);
+
       const newTake: IYouTubeTake = {
         id: takeId,
         sessionId: session?.id || `yt-session-${activeVideoId}`,
         takeNumber: newTakeNumber,
         createdAt: Date.now(),
         durationSec: result.durationSec,
-        startPointSec: startPointSec,
+        startPointSec: finalStartSec,
         nudgeOffsetMs: 0,
         volume: 1.0,
         isBestTake: takes.length === 0, // First take defaults to best
@@ -314,9 +320,9 @@ export const YouTubeBeatTab: React.FC = () => {
       // Transition to Review & Mix
       setCurrentStep('review_mix');
 
-      // Prime YouTube playback head at startPointSec
+      // Prime YouTube playback head at finalStartSec
       if (ytPlayerInstance && typeof ytPlayerInstance.seekTo === 'function') {
-        ytPlayerInstance.seekTo(startPointSec, true);
+        ytPlayerInstance.seekTo(finalStartSec, true);
       }
 
       const est = await youtubeTakeStorageService.getStorageUsageEstimate();
@@ -325,27 +331,124 @@ export const YouTubeBeatTab: React.FC = () => {
       console.error('Stop recording failed:', err);
       alert('Đã xảy ra lỗi khi lưu bản thu. Vui lòng thử lại.');
       setCurrentStep('prepare');
+    } finally {
+      isStoppingRef.current = false;
     }
-  };
+  }, [takes, session, activeVideoId, startPointSec, ytPlayerInstance]);
 
-  const handleDiscardRecording = () => {
-    setIsRecording(false);
-    setIsCountingDown(false);
+  const handlePlayerStateChange = useCallback((state: number) => {
+    // 0 = ended, 2 = paused, 1 = playing
+    if (state === 0 || state === 2) {
+      // 1. If currently recording, STOPPING YOUTUBE MUST STOP RECORDING IMMEDIATELY (MAX UX)!
+      if (isRecordingRef.current && !isStoppingRef.current) {
+        handleStopRecording();
+        return;
+      }
+      // 2. If counting down, stop countdown
+      if (isCountingDownRef.current) {
+        handleDiscardRecording();
+        return;
+      }
+      // 3. If review mix playback, pause mixer
+      if (isPlayingMixRef.current) {
+        setIsPlayingMix(false);
+        youtubeSyncMixer.pause();
+      }
+    }
+  }, [handleStopRecording, handleDiscardRecording]);
+
+  const triggerActualRecording = useCallback(async () => {
+    setIsRecording(true);
+    isStoppingRef.current = false;
+    setRecordDurationSec(0);
+
+    // CRITICAL: Play YouTube and start Mic simultaneously right when countdown reaches 0!
+    if (ytPlayerInstance && typeof ytPlayerInstance.playVideo === 'function') {
+      try {
+        ytPlayerInstance.playVideo();
+      } catch (e) {
+        console.warn('Failed to play YouTube video:', e);
+      }
+    }
+
+    // Capture precise actual start timestamp from YouTube player
+    let actualStart = startPointSec;
+    try {
+      if (ytPlayerInstance && typeof ytPlayerInstance.getCurrentTime === 'function') {
+        const curr = ytPlayerInstance.getCurrentTime();
+        if (typeof curr === 'number' && !isNaN(curr) && curr >= 0) {
+          actualStart = curr;
+        }
+      }
+    } catch {
+      // fallback
+    }
+    actualRecordingStartSecRef.current = actualStart;
+
+    const startTime = performance.now();
+    recordingTimerRef.current = setInterval(() => {
+      setRecordDurationSec(Math.round((performance.now() - startTime) / 1000));
+    }, 500);
+
+    // Start recording engine
+    await vocalRecordingEngine.startRecording((rms, db) => {
+      setLiveVuRms(rms);
+      setLiveVuDb(db);
+    });
+  }, [ytPlayerInstance, startPointSec]);
+
+  // Step 2 -> 3: Countdown and Start Recording
+  const handleStartCountdown = useCallback(async () => {
+    try {
+      await vocalRecordingEngine.setupMic();
+    } catch (e) {
+      alert('Không thể kết nối Microphone. Vui lòng kiểm tra quyền mic.');
+      return;
+    }
+
+    setIsCountingDown(true);
+    setCountdownNumber(3);
+    setCurrentStep('recording'); // Instantly open Karaoke Center Stage so user looks at video lyrics!
+
+    // CRITICAL FIX: DO NOT PLAY YOUTUBE DURING 3S COUNTDOWN!
+    // Seek to startPointSec and PAUSE so video sits ready at frame 0 (or start point).
+    if (ytPlayerInstance) {
+      if (typeof ytPlayerInstance.seekTo === 'function') {
+        ytPlayerInstance.seekTo(startPointSec, true);
+      }
+      if (typeof ytPlayerInstance.pauseVideo === 'function') {
+        try {
+          ytPlayerInstance.pauseVideo();
+        } catch {
+          // ignore
+        }
+      }
+    }
+
     if (countdownTimerRef.current) {
       clearInterval(countdownTimerRef.current);
       countdownTimerRef.current = null;
     }
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
-    }
-    if (ytPlayerInstance && typeof ytPlayerInstance.pauseVideo === 'function') {
-      ytPlayerInstance.pauseVideo();
-    }
-    vocalRecordingEngine.stopMicCheck();
-    vocalRecordingEngine.stopRecording().catch(() => {});
-    setCurrentStep('prepare');
-  };
+
+    let count = 3;
+    playMetronomeBeep(880, 0.08); // 3
+
+    countdownTimerRef.current = setInterval(() => {
+      count -= 1;
+      if (count > 0) {
+        setCountdownNumber(count);
+        playMetronomeBeep(880, 0.08); // 2, 1
+      } else {
+        if (countdownTimerRef.current) {
+          clearInterval(countdownTimerRef.current);
+          countdownTimerRef.current = null;
+        }
+        setIsCountingDown(false);
+        playMetronomeBeep(1760, 0.16); // GO!
+        triggerActualRecording();
+      }
+    }, 1000);
+  }, [startPointSec, ytPlayerInstance, triggerActualRecording]);
 
   // Playback & Virtual Mix controls
   const handleTogglePlayMix = async () => {
@@ -469,7 +572,9 @@ export const YouTubeBeatTab: React.FC = () => {
 
       if (e.code === 'Space') {
         e.preventDefault();
-        if (currentStep === 'review_mix' || currentStep === 'prepare') {
+        if (currentStep === 'recording') {
+          handleStopRecording();
+        } else if (currentStep === 'review_mix' || currentStep === 'prepare') {
           handleTogglePlayMix();
         }
       } else if (e.code === 'Enter') {
@@ -509,6 +614,10 @@ export const YouTubeBeatTab: React.FC = () => {
     activeTake,
     isLyricPrompterOpen,
     isExportModalOpen,
+    handleStopRecording,
+    handleStartCountdown,
+    handleDiscardRecording,
+    handleTogglePlayMix,
   ]);
 
   return (
@@ -662,8 +771,16 @@ export const YouTubeBeatTab: React.FC = () => {
             onStateChange={handlePlayerStateChange}
             onError={(err) => setPlayerError(err)}
             isCustomPlaying={isPlayingMix || isRecording || isCountingDown}
-            onTogglePlay={currentStep !== 'recording' ? handleTogglePlayMix : undefined}
-            hidePlayButtonOverlay={currentStep === 'recording' || isCountingDown}
+            onTogglePlay={
+              currentStep === 'recording'
+                ? handleStopRecording
+                : currentStep !== 'prepare'
+                ? handleTogglePlayMix
+                : undefined
+            }
+            hidePlayButtonOverlay={isCountingDown}
+            playOverlayLabel={currentStep === 'recording' ? 'Dừng Thu & Lưu' : 'Phát Beat'}
+            pauseOverlayLabel={currentStep === 'recording' ? 'Dừng Thu & Lưu (Space)' : 'Tạm dừng Beat'}
             isTheaterMode={isTheaterMode}
             onToggleTheaterMode={() => setIsTheaterMode(!isTheaterMode)}
             className="w-full"
@@ -671,8 +788,8 @@ export const YouTubeBeatTab: React.FC = () => {
             {/* Subtle Non-Obstructive Countdown Badge at Top-Center */}
             {isCountingDown && (
               <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none select-none">
-                <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-slate-950/90 border-2 border-amber-400 shadow-2xl backdrop-blur-md animate-bounce">
-                  <div className="w-8 h-8 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center text-xl font-black">
+                <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-slate-950/95 border-2 border-amber-400 shadow-2xl backdrop-blur-md animate-bounce">
+                  <div className="w-9 h-9 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center text-xl font-black">
                     {countdownNumber}
                   </div>
                   <div className="text-left">
@@ -680,7 +797,7 @@ export const YouTubeBeatTab: React.FC = () => {
                       Chuẩn bị vào hát ({countdownNumber}s)
                     </div>
                     <div className="text-[10px] text-slate-300 font-medium">
-                      Beat đang dạo - nhìn chữ trên video để vào đúng nhịp!
+                      YouTube đang dừng chờ • Hít thở & nhìn màn hình để vào đúng nhịp!
                     </div>
                   </div>
                 </div>
@@ -689,7 +806,7 @@ export const YouTubeBeatTab: React.FC = () => {
 
             {/* Live Recording HUD at Top-Edge (Lyrics area in middle/bottom is 100% visible!) */}
             {currentStep === 'recording' && !isCountingDown && (
-              <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between p-2.5 rounded-xl bg-slate-950/85 backdrop-blur-md border border-rose-500/40 text-xs shadow-xl pointer-events-none select-none">
+              <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between p-2.5 rounded-xl bg-slate-950/90 backdrop-blur-md border border-rose-500/40 text-xs shadow-xl select-none">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-rose-500 animate-ping" />
                   <span className="font-bold text-rose-400 uppercase tracking-wider text-[11px]">
@@ -700,18 +817,34 @@ export const YouTubeBeatTab: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Live Mic VU Level */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-400 hidden sm:inline font-mono">Mic:</span>
-                  <div className="w-24 sm:w-36 h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
-                    <div
-                      className="h-full bg-gradient-to-r from-emerald-500 via-sky-400 to-rose-500 rounded-full transition-all duration-75"
-                      style={{ width: `${Math.min(100, Math.max(4, (liveVuDb + 60) * 1.8))}%` }}
-                    />
+                {/* Live Mic VU Level + Quick Stop Button */}
+                <div className="flex items-center gap-2.5">
+                  <div className="hidden xs:flex items-center gap-1.5">
+                    <span className="text-[10px] text-slate-400 font-mono">Mic:</span>
+                    <div className="w-20 sm:w-28 h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
+                      <div
+                        className="h-full bg-gradient-to-r from-emerald-500 via-sky-400 to-rose-500 rounded-full transition-all duration-75"
+                        style={{ width: `${Math.min(100, Math.max(4, (liveVuDb + 60) * 1.8))}%` }}
+                      />
+                    </div>
+                    <span className="font-mono text-[10px] text-emerald-400 font-bold min-w-[32px]">
+                      {Math.round(liveVuDb)} dB
+                    </span>
                   </div>
-                  <span className="font-mono text-[10px] text-emerald-400 font-bold">
-                    {Math.round(liveVuDb)} dB
-                  </span>
+
+                  {/* Immediate Stop & Save Button right on Video HUD */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStopRecording();
+                    }}
+                    className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] flex items-center gap-1 shadow cursor-pointer transition active:scale-95"
+                    title="Bấm để dừng YouTube và lưu Take ngay lập tức (hoặc phím Space)"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Dừng Thu (Space)</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -923,11 +1056,13 @@ export const YouTubeBeatTab: React.FC = () => {
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" />
                 <span className="font-bold text-white text-sm">
-                  Beat YouTube đang chạy • Microphone đang ghi âm trực tiếp
+                  {isCountingDown
+                    ? 'Đang đếm ngược chuẩn bị vào hát...'
+                    : 'Beat YouTube đang chạy • Microphone đang ghi âm trực tiếp'}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                Hãy nhìn vào màn hình video phía trên để đọc chữ karaoke. Khi hát xong, bấm nút &ldquo;Dừng Thu & Lưu Take&rdquo;.
+                Hãy nhìn vào màn hình video để đọc chữ. Khi bấm Tạm dừng YouTube hoặc phím <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 font-mono text-[10px]">Space</kbd>, hệ thống sẽ <strong>tự động dừng thu và lưu Take</strong> ngay lập tức.
               </p>
             </div>
 
@@ -937,7 +1072,7 @@ export const YouTubeBeatTab: React.FC = () => {
                 onClick={handleDiscardRecording}
                 className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition cursor-pointer"
               >
-                Hủy bản thu
+                Hủy bản thu (Esc)
               </button>
               <button
                 type="button"
@@ -945,7 +1080,7 @@ export const YouTubeBeatTab: React.FC = () => {
                 className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-emerald-500 hover:from-rose-400 hover:to-emerald-400 text-slate-950 font-black text-xs transition shadow-lg shadow-rose-500/20 flex items-center gap-2 cursor-pointer active:scale-95"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Dừng Thu & Lưu Take</span>
+                <span>Dừng Thu & Lưu Take (Space)</span>
               </button>
             </div>
           </div>

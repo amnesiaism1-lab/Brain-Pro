@@ -28,6 +28,8 @@ interface YouTubePlayerContainerProps {
   isTheaterMode?: boolean;
   onToggleTheaterMode?: () => void;
   hidePlayButtonOverlay?: boolean;
+  playOverlayLabel?: string;
+  pauseOverlayLabel?: string;
   children?: React.ReactNode;
 }
 
@@ -42,11 +44,30 @@ export const YouTubePlayerContainer: React.FC<YouTubePlayerContainerProps> = ({
   isTheaterMode = false,
   onToggleTheaterMode,
   hidePlayButtonOverlay = false,
+  playOverlayLabel,
+  pauseOverlayLabel,
   children,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
   const playerIdRef = useRef(`yt-player-${Math.random().toString(36).substring(2, 9)}`);
+
+  // Avoid stale closures in YouTube API event callbacks
+  const onStateChangeRef = useRef(onStateChange);
+  const onPlayerReadyRef = useRef(onPlayerReady);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onStateChangeRef.current = onStateChange;
+  }, [onStateChange]);
+
+  useEffect(() => {
+    onPlayerReadyRef.current = onPlayerReady;
+  }, [onPlayerReady]);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorInfo, setErrorInfo] = useState<IYouTubeErrorInfo | null>(null);
@@ -113,16 +134,16 @@ export const YouTubePlayerContainer: React.FC<YouTubePlayerContainerProps> = ({
         events: {
           onReady: (event: any) => {
             setIsLoading(false);
-            onPlayerReady?.(event.target);
+            onPlayerReadyRef.current?.(event.target);
           },
           onStateChange: (event: any) => {
-            onStateChange?.(event.data);
+            onStateChangeRef.current?.(event.data);
           },
           onError: (event: any) => {
             setIsLoading(false);
             const diag = diagnoseYouTubeError(event.data);
             setErrorInfo(diag);
-            onError?.(diag);
+            onErrorRef.current?.(diag);
           },
         },
       });
@@ -177,25 +198,25 @@ export const YouTubePlayerContainer: React.FC<YouTubePlayerContainerProps> = ({
           <div
             onClick={onTogglePlay}
             className="absolute inset-0 cursor-pointer group/overlay"
-            title={isCustomPlaying ? 'Nhấn để tạm dừng Beat' : 'Nhấn để phát Beat'}
+            title={isCustomPlaying ? (pauseOverlayLabel || 'Nhấn để tạm dừng') : (playOverlayLabel || 'Nhấn để phát')}
           >
             {/* Sleek bottom-left floating badge that NEVER covers lyrics in the center or bottom-center */}
             <div
               className={`absolute bottom-3 left-3 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-950/85 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-xl transition-all ${
                 isCustomPlaying
-                  ? 'opacity-0 group-hover/overlay:opacity-100 hover:scale-105'
+                  ? 'opacity-85 hover:opacity-100 hover:scale-105'
                   : 'opacity-90 hover:opacity-100 hover:scale-105'
               }`}
             >
               {isCustomPlaying ? (
                 <>
                   <Pause className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Tạm dừng</span>
+                  <span>{pauseOverlayLabel || 'Tạm dừng'}</span>
                 </>
               ) : (
                 <>
                   <Play className="w-3.5 h-3.5 text-emerald-400 ml-0.5" />
-                  <span>Phát Beat</span>
+                  <span>{playOverlayLabel || 'Phát Beat'}</span>
                 </>
               )}
             </div>
