@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, HelpCircle, Flame, Sparkles, AlertTriangle, X } from 'lucide-react';
+import { ChevronLeft, HelpCircle, Flame, Sparkles, AlertTriangle, X, Pause, Play } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { EXERCISES_METADATA } from '@brain-exercises/shared';
 
@@ -12,6 +12,7 @@ export const Header: React.FC = () => {
     selectedExerciseSlug, 
     setSelectedExerciseSlug, 
     setIsHowToTrainOpen,
+    isGamePaused,
     setIsGamePaused,
     streak, 
     xp,
@@ -115,19 +116,38 @@ export const Header: React.FC = () => {
         {/* Right: Help button (?) or XP badge + Auth Profile */}
         <div className="flex items-center gap-2 sm:gap-2.5">
           {isDetailPage ? (
-            <button
-              onClick={() => {
-                playSound('click');
-                if (activeGameSlug) {
-                  setIsGamePaused(true);
-                }
-                setIsHowToTrainOpen(true);
-              }}
-              aria-label="Hướng dẫn bài tập"
-              className="p-1.5 -mr-1 rounded-full hover:bg-white/20 active:scale-95 transition-all text-white"
-            >
-              <HelpCircle className="w-6 h-6 sm:w-7 sm:h-7" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              {activeGameSlug && (
+                <button
+                  onClick={() => {
+                    playSound('click');
+                    setIsGamePaused(!isGamePaused);
+                  }}
+                  aria-label={isGamePaused ? 'Tiếp tục bài tập' : 'Tạm dừng bài tập'}
+                  title={isGamePaused ? 'Tiếp tục (Space)' : 'Tạm dừng (Space)'}
+                  className="p-1.5 rounded-full hover:bg-white/20 active:scale-95 transition-all text-white flex items-center justify-center"
+                >
+                  {isGamePaused ? (
+                    <Play className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-300 fill-emerald-300 animate-pulse" />
+                  ) : (
+                    <Pause className="w-5 h-5 sm:w-6 sm:h-6" />
+                  )}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  playSound('click');
+                  if (activeGameSlug) {
+                    setIsGamePaused(true);
+                  }
+                  setIsHowToTrainOpen(true);
+                }}
+                aria-label="Hướng dẫn bài tập"
+                className="p-1.5 -mr-1 rounded-full hover:bg-white/20 active:scale-95 transition-all text-white"
+              >
+                <HelpCircle className="w-6 h-6 sm:w-7 sm:h-7" />
+              </button>
+            </div>
           ) : (
             <>
               <div className="hidden xs:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-xs sm:text-sm font-bold shadow-inner">

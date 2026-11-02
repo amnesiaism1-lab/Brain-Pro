@@ -239,6 +239,15 @@ export interface IGameAttemptRequest {
   effectiveWpm?: number;
   rawMetricsJson?: Record<string, unknown>;
   sessionId?: string;
+  isCustom?: boolean;
+}
+
+export interface IVocabKnowledge {
+  word: string;
+  partOfSpeech: string;
+  definition: string;
+  example?: string;
+  synonyms?: string[];
 }
 
 export interface IGameAttemptResponse {

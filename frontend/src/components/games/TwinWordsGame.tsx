@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { GameResultModal } from './GameResultModal';
 import { generateTwinWords, VIETNAMESE_WORDS_DICTIONARY, ENGLISH_WORDS_DICTIONARY, INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
 import { useRelationSession } from '../../hooks/useRelationSession';
@@ -19,13 +20,21 @@ import { Infinity as InfinityIcon, Sparkles } from 'lucide-react';
 
 export const TwinWordsGame: React.FC = () => {
   const { getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { sessionConfig, isCustom } = useExerciseSessionConfig('twin-words');
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const lastChoiceTimeRef = useRef<number>(Date.now());
-  const currentLevel = getExerciseLevel('twin-words');
-  const isInfinity = currentLevel >= 13;
+  const storeLevel = getExerciseLevel('twin-words') || 1;
+  const playedLevelRef = useRef<number>(isCustom ? 0 : storeLevel);
+  const currentLevel = isCustom ? 0 : playedLevelRef.current;
+  const isInfinity = !isCustom && currentLevel >= 13;
 
   const [round, setRound] = useState(1);
-  const maxRounds = currentLevel >= 22 ? 20 : currentLevel >= 13 ? 15 : currentLevel >= 9 ? 12 : 10;
+  const maxRounds = useMemo(() => {
+    if (isCustom && sessionConfig.rounds && sessionConfig.rounds > 0) {
+      return sessionConfig.rounds;
+    }
+    return currentLevel >= 22 ? 20 : currentLevel >= 13 ? 15 : currentLevel >= 9 ? 12 : 10;
+  }, [isCustom, sessionConfig.rounds, currentLevel]);
 
   const themes = ['Tất cả', 'Khoa Học Não Bộ', 'Công Nghệ & AI', 'Thiên Văn & Vũ Trụ', 'Tâm Lý & Tư Duy'];
   const [selectedTheme, setSelectedTheme] = useState<string>('Tất cả');
@@ -400,7 +409,8 @@ export const TwinWordsGame: React.FC = () => {
           score={score}
           accuracyRate={accuracy}
           timeSpentSec={elapsedSec}
-          playedLevel={currentLevel}
+          playedLevel={currentLevel || 1}
+          isCustom={isCustom}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

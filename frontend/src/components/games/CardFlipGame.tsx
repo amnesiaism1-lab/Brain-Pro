@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { GameResultModal } from './GameResultModal';
 import { 
   Brain, Zap, Sparkles, Star, Flame, Eye, Target, Compass, 
@@ -50,10 +51,13 @@ const CARD_ICONS = [
 ];
 
 export const CardFlipGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { sessionConfig, isCustom } = useExerciseSessionConfig('card-flip');
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const lastMatchTimeRef = useRef<number>(Date.now());
-  const effectiveLevel = getExerciseLevel('card-flip') || currentLevel;
+  const ladderLvl = getExerciseLevel('card-flip') || storeLevel || 1;
+  const playedLevelRef = useRef<number>(isCustom ? 0 : ladderLvl);
+  const effectiveLevel = isCustom ? 0 : playedLevelRef.current;
 
   // Level-specific mode flags
   const isInfinity = effectiveLevel >= 13;
@@ -902,7 +906,8 @@ export const CardFlipGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={initialTimeLimit - timeLeft}
-          playedLevel={effectiveLevel}
+          playedLevel={effectiveLevel || 1}
+          isCustom={isCustom}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

@@ -6,7 +6,8 @@ import {
   IExerciseVariant,
   IExerciseSynergy,
   IWeeklyChallenge,
-  IExerciseContentPoolItem
+  IExerciseContentPoolItem,
+  IVocabKnowledge
 } from '../types';
 import { 
   INFINITY_LEVEL_CONFIGS, 
@@ -1638,6 +1639,60 @@ export const ENGLISH_WORDS_DICTIONARY = [
   'CHUNKING', 'PERCEPTION', 'ATTENTION', 'REACTION', 'AGILITY', 'FLOW', 'MASTERY', 'WISDOM',
   'DISCOVERY', 'GROWTH', 'HORIZON', 'IMPACT', 'PURPOSE', 'RESILIENCE', 'STRENGTH', 'TRIUMPH'
 ];
+
+export const COMMON_ENGLISH_ANAGRAM_DICTIONARY: string[] = [
+  'CALM', 'CLAM', 'BAKER', 'BRAKE', 'BREAK', 'BREAD', 'BEARD', 'CARE', 'RACE', 'ACRE',
+  'EARTH', 'HEART', 'HATER', 'PEACH', 'CHEAP', 'SILENT', 'LISTEN', 'ENLIST', 'TINSEL',
+  'TIME', 'ITEM', 'EMIT', 'MITE', 'LEAP', 'PALE', 'PEAL', 'PLEA', 'STOP', 'POST', 'SPOT', 'TOPS', 'POTS',
+  'OPT', 'POT', 'TOP', 'ACT', 'CAT', 'DOG', 'GOD', 'EVIL', 'LIVE', 'VEIL', 'VILE',
+  'STAR', 'RATS', 'TARS', 'ARTS', 'DEAL', 'LEAD', 'DALE', 'LADE', 'DEAR', 'READ', 'DARE',
+  'MEAT', 'TEAM', 'MATE', 'TAME', 'NOTE', 'TONE', 'EAST', 'SEAT', 'EATS', 'SATE',
+  'NAME', 'MANE', 'AMEN', 'MEAN', 'NOW', 'WON', 'OWN', 'SAW', 'WAS', 'TAR', 'RAT', 'ART',
+  'ARM', 'RAM', 'MAR', 'RAW', 'WAR', 'NET', 'TEN', 'TEA', 'EAT', 'ATE', 'TIP', 'PIT',
+  'PIN', 'NIP', 'PAN', 'NAP', 'PAT', 'TAP', 'APT', 'PEA', 'APE', 'PET', 'STEP', 'PEST',
+  'LAMP', 'PALM', 'MARCH', 'CHARM', 'PART', 'TRAP', 'RAPT', 'FLOW', 'WOLF', 'BLOW', 'BOWL',
+  'SAVE', 'VASE', 'WIND', 'MIND', 'HARD', 'BRAVE', 'FOCUS', 'LIGHT', 'BRAIN', 'SPEED'
+];
+
+export const VIETNAMESE_WORD_KNOWLEDGE: Record<string, IVocabKnowledge> = {
+  'NÃO': { word: 'NÃO', partOfSpeech: 'Danh từ', definition: 'Cơ quan trung ương của hệ thần kinh, điều khiển mọi tư duy và phản xạ.', example: 'Bộ não con người có hơn 86 tỷ tế bào nơ-ron liên kết.' },
+  'BẠN': { word: 'BẠN', partOfSpeech: 'Danh từ', definition: 'Người đồng hành, có mối quan hệ thân thiết và tin cậy lẫn nhau.', example: 'Một người bạn tốt là chỗ dựa tinh thần quý giá.' },
+  'HỌC': { word: 'HỌC', partOfSpeech: 'Động từ', definition: 'Tiếp thu tri thức, kỹ năng và thái độ mới qua trải nghiệm.', example: 'Học tập liên tục kích hoạt tính dẻo dai của các khớp thần kinh.' },
+  'SÁCH': { word: 'SÁCH', partOfSpeech: 'Danh từ', definition: 'Tập hợp các trang chứa tri thức, thông tin và cảm hứng của nhân loại.', example: 'Đọc sách tốc độ cao giúp mở rộng trường nhìn ngoại vi.' },
+  'MẮT': { word: 'MẮT', partOfSpeech: 'Danh từ', definition: 'Cơ quan thị giác tiếp nhận ánh sáng và truyền tín hiệu về thùy chẩm.', example: 'Luyện cử động mắt saccade giúp giảm giật rung và tăng tốc độ đọc.' },
+  'NHỚ': { word: 'NHỚ', partOfSpeech: 'Động từ', definition: 'Lưu giữ và tái hiện lại thông tin từ trí nhớ ngắn hạn sang dài hạn.', example: 'Phương pháp lặp lại ngắt quãng giúp não nhớ sâu bền vững.' },
+  'TẬP': { word: 'TẬP', partOfSpeech: 'Động từ', definition: 'Lặp lại một hành động có chủ đích để nâng cao kỹ năng và độ thuần thục.', example: 'Tập luyện não bộ mỗi ngày cải thiện chỉ số nhận thức.' },
+  'ĐỌC': { word: 'ĐỌC', partOfSpeech: 'Động từ', definition: 'Quá trình giải mã ký hiệu ngôn ngữ thành ý nghĩa nhận thức.', example: 'Đọc theo cụm từ giúp khử hoàn toàn thói quen phát âm thầm.' },
+  'TÂM': { word: 'TÂM', partOfSpeech: 'Danh từ', definition: 'Trạng thái ý thức, cảm xúc và nội tâm sâu thẳm của con người.', example: 'Tâm trí tĩnh lặng là nền tảng cho sự sáng suốt.' },
+  'TRÍ': { word: 'TRÍ', partOfSpeech: 'Danh từ', definition: 'Khả năng nhận biết, hiểu biết và suy xét sự vật, hiện tượng.', example: 'Trí thông minh có thể được rèn giũa nhờ tính mềm dẻo thần kinh.' },
+  'TRÍ TUỆ': { word: 'TRÍ TUỆ', partOfSpeech: 'Danh từ', definition: 'Sự sáng suốt, hiểu biết sâu sắc và năng lực giải quyết vấn đề xuất sắc.', example: 'Trí tuệ tích lũy từ trải nghiệm và khả năng tự phản tư.' },
+  'TƯ DUY': { word: 'TƯ DUY', partOfSpeech: 'Danh từ / Động từ', definition: 'Hoạt động nhận thức bậc cao nhằm phân tích, tổng hợp và rút ra kết luận.', example: 'Tư duy phản biện giúp phân định rõ chân lý và giả định.' },
+  'TẬP TRUNG': { word: 'TẬP TRUNG', partOfSpeech: 'Động từ / Tính từ', definition: 'Khả năng dồn toàn bộ nguồn lực chú ý vào một mục tiêu duy nhất.', example: 'Sự tập trung cao độ đưa não vào trạng thái dòng chảy tâm trí.' },
+  'THÔNG MINH': { word: 'THÔNG MINH', partOfSpeech: 'Tính từ', definition: 'Nhanh trí, nhạy bén và có năng lực xử lý tình huống linh hoạt.', example: 'Tập luyện khoa học giúp não bộ phản ứng thông minh hơn.' },
+  'NHANH NHẠY': { word: 'NHANH NHẠY', partOfSpeech: 'Tính từ', definition: 'Tốc độ phản ứng và thích ứng cao trước những kích thích mới.', example: 'Phản xạ nhanh nhạy giúp người đọc xử lý dữ liệu thần tốc.' },
+  'PHẢN XẠ': { word: 'PHẢN XẠ', partOfSpeech: 'Danh từ', definition: 'Phản ứng tự động của cơ thể hoặc não bộ trước một kích thích.', example: 'Phản xạ thị giác được tối ưu hóa qua bài tập Bảng Schulte.' },
+  'THỊ GIÁC': { word: 'THỊ GIÁC', partOfSpeech: 'Danh từ', definition: 'Hệ thống giác quan tiếp nhận và diễn giải hình ảnh, màu sắc và không gian.', example: 'Vùng thị giác ngoại vi hỗ trợ nhận diện các từ ở rìa trang sách.' },
+  'NGOẠI VI': { word: 'NGOẠI VI', partOfSpeech: 'Tính từ / Danh từ', definition: 'Phần nằm ở rìa ngoài của một trường hoặc hệ thống.', example: 'Mở rộng tầm nhìn ngoại vi giúp mắt bao quát cả dòng văn bản.' },
+  'KHOA HỌC': { word: 'KHOA HỌC', partOfSpeech: 'Danh từ', definition: 'Hệ thống tri thức được tích lũy có phương pháp qua quan sát và thực nghiệm.', example: 'Khoa học nhận thức mở ra tiềm năng khai phóng trí não con người.' },
+  'TRI THỨC': { word: 'TRI THỨC', partOfSpeech: 'Danh từ', definition: 'Hiểu biết toàn diện, sâu sắc về tự nhiên, xã hội và tư duy con người.', example: 'Tri thức là tài sản vô giá nâng tầm cuộc sống.' },
+  'PHÁT TRIỂN': { word: 'PHÁT TRIỂN', partOfSpeech: 'Động từ', definition: 'Tiến triển từ mức thấp đến mức cao, ngày càng hoàn thiện hơn.', example: 'Não bộ không ngừng phát triển và tái cấu trúc mạng liên kết.' },
+  'TIẾN BỘ': { word: 'TIẾN BỘ', partOfSpeech: 'Danh từ / Động từ', definition: 'Sự thay đổi theo chiều hướng tích cực, vượt trội hơn trước.', example: 'Mỗi ngày cải thiện 1% sẽ tạo ra bước tiến bộ vượt bậc sau 1 năm.' },
+  'KIÊN TRÌ': { word: 'KIÊN TRÌ', partOfSpeech: 'Tính từ / Động từ', definition: 'Bền bỉ, vững vàng theo đuổi mục tiêu dù gặp muôn vàn khó khăn.', example: 'Lòng kiên trì là yếu tố số một phân định thành bại.' },
+  'THÀNH CÔNG': { word: 'THÀNH CÔNG', partOfSpeech: 'Danh từ / Động từ', definition: 'Đạt được kết quả mong đợi, hoàn thành mục tiêu đề ra.', example: 'Thành công là kết tinh của kỷ luật và sự chuẩn bị kỹ lưỡng.' },
+  'SÁNG TẠO': { word: 'SÁNG TẠO', partOfSpeech: 'Tính từ / Động từ', definition: 'Tạo ra những ý tưởng, giải pháp mới mẻ, độc đáo và hữu ích.', example: 'Tư duy sáng tạo nảy nở khi ta kết nối các miền kiến thức đa dạng.' },
+  'TẬP LUYỆN': { word: 'TẬP LUYỆN', partOfSpeech: 'Động từ', definition: 'Rèn luyện thân thể và trí óc một cách bài bản, thường xuyên.', example: 'Tập luyện não bộ 10 phút mỗi ngày mang lại hiệu quả bền bỉ.' },
+  'NƠ-RON': { word: 'NƠ-RON', partOfSpeech: 'Danh từ', definition: 'Tế bào thần kinh cơ bản cấu thành não bộ và mạng truyền dẫn xung điện.', example: 'Mỗi nơ-ron có thể kết nối với hàng nghìn nơ-ron lân cận qua xi-náp.' },
+  'KHÔNG GIAN': { word: 'KHÔNG GIAN', partOfSpeech: 'Danh từ', definition: 'Phạm vi bao la ba chiều chứa đựng mọi vật thể và hiện tượng vật lý.', example: 'Khả năng định vị không gian phụ thuộc vào hồi hải mã trong não.' },
+  'KÝ ỨC': { word: 'KÝ ỨC', partOfSpeech: 'Danh từ', definition: 'Tri thức, hình ảnh và cảm xúc được lưu giữ trong tâm trí từ quá khứ.', example: 'Ký ức làm nên bản sắc và kinh nghiệm sống của mỗi cá nhân.' },
+  'ĐỘNG LỰC': { word: 'ĐỘNG LỰC', partOfSpeech: 'Danh từ', definition: 'Nguồn sức mạnh nội tại thúc đẩy con người hành động và vượt qua rào cản.', example: 'Động lực từ mục tiêu rõ ràng giúp ta duy trì chuỗi rèn luyện.' },
+  'Ý CHÍ': { word: 'Ý CHÍ', partOfSpeech: 'Danh từ', definition: 'Năng lực tự chủ, quyết tâm hành động theo lý trí để hoàn thành lý tưởng.', example: 'Ý chí sắt đá có thể vượt qua mọi giới hạn thể chất và tinh thần.' },
+  'HIỆU QUẢ': { word: 'HIỆU QUẢ', partOfSpeech: 'Tính từ / Danh từ', definition: 'Tạo ra kết quả cao nhất với mức tiêu hao thời gian và năng lượng tối ưu.', example: 'Đọc sách hiệu quả là kết hợp giữa tốc độ và độ thấu hiểu sâu sắc.' },
+  'TỐI ƯU': { word: 'TỐI ƯU', partOfSpeech: 'Tính từ', definition: 'Đạt trạng thái hoàn hảo nhất trong số các phương án có thể lựa chọn.', example: 'Tối ưu hóa nhịp quét mắt giúp tăng tốc độ đọc lên gấp ba lần.' },
+  'LOGIC': { word: 'LOGIC', partOfSpeech: 'Tính từ / Danh từ', definition: 'Tuân theo quy luật suy luận chặt chẽ, không mâu thuẫn.', example: 'Tư duy logic giúp nhận diện các mẫu hình đảo ngữ nhanh chóng.' },
+  'AN LẠC': { word: 'AN LẠC', partOfSpeech: 'Tính từ', definition: 'Trạng thái bình an, thanh thản, tự tại không vướng bận lo âu.', example: 'Tâm an lạc là mảnh đất màu mỡ cho sự sáng tạo nảy mầm.' },
+  'ĐAM MÊ': { word: 'ĐAM MÊ', partOfSpeech: 'Danh từ', definition: 'Niềm hứng thú và say mê mãnh liệt đối với một lĩnh vực, công việc.', example: 'Đam mê khám phá tri thức là ngọn lửa dẫn đường cho nhà khoa học.' },
+  'TỰ TIN': { word: 'TỰ TIN', partOfSpeech: 'Tính từ', definition: 'Tin tưởng vững chắc vào khả năng, giá trị và bản lĩnh của bản thân.', example: 'Sự tự tin giúp người rèn luyện đối mặt với thử thách vô cực.' }
+};
 
 export const EXERCISE_VARIANTS: IExerciseVariant[] = [
   // Speed Reading

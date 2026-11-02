@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { GameResultModal } from './GameResultModal';
 import { calculateGameScore } from '@brain-exercises/shared';
 import { Delete } from 'lucide-react';
@@ -23,11 +24,14 @@ const PITCH_LABELS: Record<string, string> = {
 };
 
 export const DigitSpanGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { sessionConfig, isCustom } = useExerciseSessionConfig('digit-span');
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const recallStartTimeRef = useRef<number>(Date.now());
-  const effectiveLevel = getExerciseLevel('digit-span') || currentLevel;
-  const isInfinity = effectiveLevel >= 13;
+  const ladderLevel = getExerciseLevel('digit-span') || storeLevel || 1;
+  const playedLevelRef = useRef<number>(isCustom ? 0 : ladderLevel);
+  const effectiveLevel = isCustom ? 0 : playedLevelRef.current;
+  const isInfinity = !isCustom && effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
   const isLetterMode = effectiveLevel === 13;
@@ -79,7 +83,7 @@ export const DigitSpanGame: React.FC = () => {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
-  const maxRounds = 3;
+  const maxRounds = isCustom && sessionConfig.rounds && sessionConfig.rounds > 0 ? sessionConfig.rounds : 3;
 
   useEffect(() => {
     const seq = generateSequence(digitCount);
@@ -430,7 +434,8 @@ export const DigitSpanGame: React.FC = () => {
           score={score}
           accuracyRate={accuracy}
           timeSpentSec={elapsedSec}
-          playedLevel={effectiveLevel}
+          playedLevel={effectiveLevel || 1}
+          isCustom={isCustom}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

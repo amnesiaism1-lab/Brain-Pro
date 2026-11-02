@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { GameResultModal } from './GameResultModal';
 import { Play, Pause, RotateCcw, BookOpen, Layers } from 'lucide-react';
 import { IReadingText, SAMPLE_READING_TEXTS } from '@brain-exercises/shared';
@@ -8,10 +9,13 @@ import { ReadingTextSourceModal } from '../common/ReadingTextSourceModal';
 import { readingContentService } from '../../services/readingContentService';
 
 export const WordChunkingGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { sessionConfig, isCustom } = useExerciseSessionConfig('word-chunking');
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
-  const effectiveLevel = getExerciseLevel('word-chunking') || currentLevel;
-  const isInfinity = effectiveLevel >= 13;
+  const ladderLevel = getExerciseLevel('word-chunking') || storeLevel || 1;
+  const playedLevelRef = useRef<number>(isCustom ? 0 : ladderLevel);
+  const effectiveLevel = isCustom ? 0 : playedLevelRef.current;
+  const isInfinity = !isCustom && effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
   const allTexts = readingContentService.getAllTexts();
@@ -79,7 +83,7 @@ export const WordChunkingGame: React.FC = () => {
       setActiveChunkIndex(prev => {
         emitTrialEvent({
           exerciseSlug: 'word-chunking',
-          level: currentLevel,
+          level: effectiveLevel || 1,
           relationId: 'PART_WHOLE',
           relationWeight: 1.0,
           entities: { chunkIndex: prev, chunkSize, chunkText: chunks[prev], articleTitle: currentArticle.title },
@@ -101,7 +105,7 @@ export const WordChunkingGame: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, isGamePaused, isFinished, chunks.length, chunkSpeedMs, currentArticle.title, chunkSize, currentLevel, emitTrialEvent]);
+  }, [isPlaying, isGamePaused, isFinished, chunks.length, chunkSpeedMs, currentArticle.title, chunkSize, effectiveLevel, emitTrialEvent]);
 
   const handleSelectNewArticle = (article: IReadingText) => {
     setCurrentArticle(article);
@@ -299,10 +303,11 @@ export const WordChunkingGame: React.FC = () => {
 
       {isFinished && (
         <GameResultModal
-          score={chunks.length * 15 * effectiveLevel}
+          score={chunks.length * 15 * (effectiveLevel || 1)}
           accuracyRate={Math.min(100, Math.round(((activeChunkIndex + 1) / Math.max(1, chunks.length)) * 100))}
           timeSpentSec={elapsedSec}
-          playedLevel={effectiveLevel}
+          playedLevel={effectiveLevel || 1}
+          isCustom={isCustom}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

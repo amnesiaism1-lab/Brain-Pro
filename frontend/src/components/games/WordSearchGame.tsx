@@ -10,7 +10,7 @@ import {
 } from '@brain-exercises/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { GameResultModal } from './GameResultModal';
-import { Check, Sparkles, RotateCcw, Infinity as InfinityIcon, CheckCircle2, ArrowRight, Clock } from 'lucide-react';
+import { Check, Sparkles, RotateCcw, Infinity as InfinityIcon, CheckCircle2, ArrowRight, Clock, Eye } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
@@ -331,8 +331,11 @@ export const WordSearchGame: React.FC = () => {
   // Pointer Handlers supporting both:
   // 1. Drag & swipe (mouse/touch press & drag)
   // 2. Two-click selection (click start cell, then click end cell)
-  const handlePointerDown = (r: number, c: number) => {
+  const handlePointerDown = (e: React.PointerEvent, r: number, c: number) => {
     if (isFinished || Boolean(roundTransition)) return;
+    try {
+      (e.target as HTMLElement)?.releasePointerCapture(e.pointerId);
+    } catch {}
 
     if (clickAnchorCell) {
       if (clickAnchorCell.r === r && clickAnchorCell.c === c) {
@@ -377,6 +380,23 @@ export const WordSearchGame: React.FC = () => {
     setSelectedCells(path);
   };
 
+  const handleGridPointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current || !dragStartRef.current || isFinished || Boolean(roundTransition)) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+    const cellBtn = el?.closest('[data-cell-pos]') as HTMLElement | null;
+    if (cellBtn) {
+      const pos = cellBtn.getAttribute('data-cell-pos');
+      if (pos) {
+        const [rStr, cStr] = pos.split('-');
+        const r = parseInt(rStr, 10);
+        const c = parseInt(cStr, 10);
+        if (!isNaN(r) && !isNaN(c)) {
+          handlePointerEnter(r, c);
+        }
+      }
+    }
+  };
+
   const handlePointerUp = () => {
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
@@ -408,6 +428,24 @@ export const WordSearchGame: React.FC = () => {
       setHintsRemaining(h => h - 1);
       setHintCell({ r: unfoundPlaced.row, c: unfoundPlaced.col });
       setTimeout(() => setHintCell(null), 1600);
+    }
+  };
+
+  const handleRevealOneWord = () => {
+    if (isFinished || Boolean(roundTransition)) return;
+    const unfoundPlaced = searchData.placedWords.find(p => !foundWords.includes(p.word));
+    if (unfoundPlaced) {
+      playSound('click');
+      const dr = unfoundPlaced.direction === 'V' ? 1 : 0;
+      const dc = unfoundPlaced.direction === 'H' ? 1 : 0;
+      const path: Array<{ r: number; c: number }> = [];
+      for (let i = 0; i < unfoundPlaced.word.length; i++) {
+        path.push({
+          r: unfoundPlaced.row + i * dr,
+          c: unfoundPlaced.col + i * dc
+        });
+      }
+      verifySelection(path);
     }
   };
 
@@ -506,6 +544,7 @@ export const WordSearchGame: React.FC = () => {
       <div className="p-3 sm:p-5 rounded-3xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 shadow-xl flex items-center justify-center max-w-full overflow-hidden relative">
         <div 
           className="grid gap-1 sm:gap-1.5 select-none touch-none w-full max-w-full"
+          onPointerMove={handleGridPointerMove}
           style={{
             gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`
           }}
@@ -519,7 +558,8 @@ export const WordSearchGame: React.FC = () => {
               return (
                 <button
                   key={`${r}-${c}`}
-                  onPointerDown={() => handlePointerDown(r, c)}
+                  data-cell-pos={`${r}-${c}`}
+                  onPointerDown={(e) => handlePointerDown(e, r, c)}
                   onPointerEnter={() => handlePointerEnter(r, c)}
                   className={`aspect-square rounded-lg sm:rounded-xl font-black flex items-center justify-center transition-all duration-100 ${
                     cols >= 16 ? 'text-[11px] sm:text-xs md:text-sm' : 'text-xs sm:text-sm md:text-base'
@@ -598,6 +638,17 @@ export const WordSearchGame: React.FC = () => {
           <Sparkles className="w-4 h-4 text-amber-500" />
           <span>Soi chữ cái đầu ({hintsRemaining}/3)</span>
         </button>
+
+        {missCount >= 2 && (
+          <button
+            onClick={handleRevealOneWord}
+            disabled={isFinished || Boolean(roundTransition)}
+            className="py-2.5 px-4 rounded-2xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm transition-all animate-pulse"
+          >
+            <Eye className="w-4 h-4 text-rose-500" />
+            <span>Xem & khoanh 1 từ khó</span>
+          </button>
+        )}
 
         <button
           onClick={() => startNewBoard(selectedTheme)}

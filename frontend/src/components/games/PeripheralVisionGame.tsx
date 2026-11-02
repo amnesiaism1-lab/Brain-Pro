@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { GameResultModal } from './GameResultModal';
 import { Crosshair, Type, Sparkles } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
@@ -7,12 +8,15 @@ import { PERIPHERAL_FLASH_WORDS } from '../../services/readingContentService';
 import { infinityApiService, shuffleArray } from '../../services/infinityApiService';
 
 export const PeripheralVisionGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { sessionConfig, isCustom } = useExerciseSessionConfig('peripheral-vision');
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const [elapsedSec, setElapsedSec] = useState(0);
   const lastGuessTimeRef = useRef<number>(Date.now());
-  const effectiveLevel = getExerciseLevel('peripheral-vision') || currentLevel;
-  const isInfinity = effectiveLevel >= 13;
+  const ladderLevel = getExerciseLevel('peripheral-vision') || storeLevel || 1;
+  const playedLevelRef = useRef<number>(isCustom ? 0 : ladderLevel);
+  const effectiveLevel = isCustom ? 0 : playedLevelRef.current;
+  const isInfinity = !isCustom && effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
   
   // Span expands with level
@@ -67,12 +71,15 @@ export const PeripheralVisionGame: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
 
   const maxRounds = useMemo(() => {
+    if (isCustom && sessionConfig.rounds && sessionConfig.rounds > 0) {
+      return sessionConfig.rounds;
+    }
     try {
       const saved = localStorage.getItem('be_pref_peripheral_rounds');
       if (saved) return parseInt(saved, 10);
     } catch {}
-    return currentLevel >= 9 ? 10 : 8;
-  }, [currentLevel]);
+    return effectiveLevel >= 9 ? 10 : 8;
+  }, [isCustom, sessionConfig.rounds, effectiveLevel]);
 
   const nextRound = useCallback(() => {
     const shuffledPool = shuffleArray(pool);
@@ -308,7 +315,8 @@ export const PeripheralVisionGame: React.FC = () => {
           score={score}
           accuracyRate={accuracy}
           timeSpentSec={elapsedSec}
-          playedLevel={effectiveLevel}
+          playedLevel={effectiveLevel || 1}
+          isCustom={isCustom}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

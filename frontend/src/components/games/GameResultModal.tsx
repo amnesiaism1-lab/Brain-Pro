@@ -3,7 +3,7 @@ import confetti from 'canvas-confetti';
 import { Trophy, Award, Clock, ArrowRight, RotateCcw, Brain, Lightbulb, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 
-import { IRawMetricsJson, COGNITIVE_RELATIONS, EXERCISE_RELATION_MAP, EXERCISES_METADATA } from '@brain-exercises/shared';
+import { IRawMetricsJson, COGNITIVE_RELATIONS, EXERCISE_RELATION_MAP, EXERCISES_METADATA, getInfinityLabel } from '@brain-exercises/shared';
 
 interface GameResultProps {
   score: number;
@@ -12,6 +12,7 @@ interface GameResultProps {
   effectiveWpm?: number;
   rawMetricsJson?: IRawMetricsJson;
   playedLevel?: number;
+  isCustom?: boolean;
   onRestart: () => void;
   onClose: () => void;
 }
@@ -23,6 +24,7 @@ export const GameResultModal: React.FC<GameResultProps> = ({
   effectiveWpm,
   rawMetricsJson,
   playedLevel,
+  isCustom,
   onRestart,
   onClose
 }) => {
@@ -34,6 +36,7 @@ export const GameResultModal: React.FC<GameResultProps> = ({
     autoDifficulty,
     recordAttempt,
     activeGameSlug,
+    activeSessionSource,
     activeSynergy,
     playSound,
     setActiveDebriefEvents,
@@ -68,6 +71,8 @@ export const GameResultModal: React.FC<GameResultProps> = ({
       // ignore
     }
 
+    const isCustomSession = isCustom !== undefined ? isCustom : (activeSessionSource === 'custom');
+
     if (activeGameSlug) {
       recordAttempt({
         id: `att-${Date.now()}`,
@@ -78,6 +83,7 @@ export const GameResultModal: React.FC<GameResultProps> = ({
         effectiveWpm,
         xpEarned: Math.round(score / 10) + 20,
         level: currentLevel,
+        isCustom: isCustomSession,
         rawMetricsJson
       });
     }
@@ -145,7 +151,13 @@ export const GameResultModal: React.FC<GameResultProps> = ({
           <h3 className="text-2xl font-black text-slate-800 dark:text-white mt-1">
             +{score} Điểm
           </h3>
-          <p className="text-xs text-slate-500 mt-1">Cấp độ {currentLevel} {autoDifficulty && '(Tự động thích ứng)'}</p>
+          {isCustom ? (
+            <p className="text-xs text-amber-600 dark:text-amber-400 font-bold mt-1">Phiên Tùy Chỉnh</p>
+          ) : currentLevel > 12 ? (
+            <p className="text-xs text-purple-600 dark:text-purple-400 font-bold mt-1">Cấp độ {getInfinityLabel(currentLevel)}</p>
+          ) : (
+            <p className="text-xs text-slate-500 mt-1">Cấp độ {currentLevel} {autoDifficulty && '(Tự động thích ứng)'}</p>
+          )}
         </div>
 
         {/* Stats Grid */}

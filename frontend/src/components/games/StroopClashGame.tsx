@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { GameResultModal } from './GameResultModal';
 import { Zap, AlertTriangle, Infinity as InfinityIcon, Volume2 } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
@@ -33,14 +34,22 @@ export const DIRECTION_OPTIONS = [
 ];
 
 export const StroopClashGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { sessionConfig, isCustom } = useExerciseSessionConfig('stroop-clash');
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
-  const effectiveLevel = getExerciseLevel('stroop-clash') || currentLevel;
+  const ladderLevel = getExerciseLevel('stroop-clash') || storeLevel || 1;
+  const playedLevelRef = useRef<number>(isCustom ? 0 : ladderLevel);
+  const effectiveLevel = isCustom ? 0 : playedLevelRef.current;
 
-  const isInfinity = effectiveLevel >= 13;
-  const infinityTier = getInfinityTier(effectiveLevel);
+  const isInfinity = !isCustom && effectiveLevel >= 13;
+  const infinityTier = isInfinity ? getInfinityTier(effectiveLevel) : 0;
 
-  const totalTrials = effectiveLevel >= 13 ? 20 : 15;
+  const totalTrials = useMemo(() => {
+    if (isCustom && sessionConfig.rounds && sessionConfig.rounds > 0) {
+      return sessionConfig.rounds;
+    }
+    return effectiveLevel >= 13 ? 20 : 15;
+  }, [isCustom, sessionConfig.rounds, effectiveLevel]);
 
   const [trialIndex, setTrialIndex] = useState(0);
   const [wordItem, setWordItem] = useState<{
@@ -593,7 +602,8 @@ export const StroopClashGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={Math.round((reactionTimes.reduce((a, b) => a + b, 0)) / 1000)}
-          playedLevel={effectiveLevel}
+          playedLevel={effectiveLevel || 1}
+          isCustom={isCustom}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

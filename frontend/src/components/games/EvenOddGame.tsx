@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { GameResultModal } from './GameResultModal';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { 
@@ -14,10 +15,13 @@ import { INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@bra
 import { Infinity as InfinityIcon, Sparkles, Zap, Volume2, Eye, Ear } from 'lucide-react';
 
 export const EvenOddGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { sessionConfig, isCustom } = useExerciseSessionConfig('even-odd');
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const lastAnsTimeRef = useRef<number>(Date.now());
-  const effectiveLevel = getExerciseLevel('even-odd') || currentLevel;
+  const ladderLevel = getExerciseLevel('even-odd') || storeLevel || 1;
+  const playedLevelRef = useRef<number>(isCustom ? 0 : ladderLevel);
+  const effectiveLevel = isCustom ? 0 : playedLevelRef.current;
 
   const isInfinity = effectiveLevel >= 13;
   const infinityTier = getInfinityTier(effectiveLevel);
@@ -44,7 +48,7 @@ export const EvenOddGame: React.FC = () => {
   const [isInverted, setIsInverted] = useState(false);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(isSpeedStorm ? 20 : 35);
+  const [timeLeft, setTimeLeft] = useState(isCustom && sessionConfig.timeLimitSec && sessionConfig.timeLimitSec > 0 ? sessionConfig.timeLimitSec : (isSpeedStorm ? 20 : 35));
   const [isFinished, setIsFinished] = useState(false);
   const [answersCount, setAnswersCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
@@ -388,7 +392,8 @@ export const EvenOddGame: React.FC = () => {
           score={score}
           accuracyRate={accuracy}
           timeSpentSec={isSpeedStorm ? 20 - timeLeft : 35 - timeLeft}
-          playedLevel={effectiveLevel}
+          playedLevel={effectiveLevel || 1}
+          isCustom={isCustom}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();
@@ -396,7 +401,7 @@ export const EvenOddGame: React.FC = () => {
             setCombo(0);
             setAnswersCount(0);
             setCorrectCount(0);
-            setTimeLeft(isSpeedStorm ? 20 : 35);
+            setTimeLeft(isCustom && sessionConfig.timeLimitSec && sessionConfig.timeLimitSec > 0 ? sessionConfig.timeLimitSec : (isSpeedStorm ? 20 : 35));
             setIsFinished(false);
             nextNumber();
           }}

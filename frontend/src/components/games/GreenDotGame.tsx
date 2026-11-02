@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { GameResultModal } from './GameResultModal';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { BookOpen, Eye, RotateCcw } from 'lucide-react';
@@ -148,10 +149,13 @@ const ENGLISH_GREEN_DOT_DATASETS: GreenDotSet[] = [
 ];
 
 export const GreenDotGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { sessionConfig, isCustom } = useExerciseSessionConfig('green-dot');
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
-  const effectiveLevel = getExerciseLevel('green-dot') || currentLevel;
-  const isInfinity = effectiveLevel >= 13;
+  const ladderLevel = getExerciseLevel('green-dot') || storeLevel || 1;
+  const playedLevelRef = useRef<number>(isCustom ? 0 : ladderLevel);
+  const effectiveLevel = isCustom ? 0 : playedLevelRef.current;
+  const isInfinity = !isCustom && effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
   const isEnglishMode = effectiveLevel >= 13;
@@ -411,7 +415,8 @@ export const GreenDotGame: React.FC = () => {
           score={score}
           accuracyRate={isCorrect ? 100 : 0}
           timeSpentSec={initialTime}
-          playedLevel={effectiveLevel}
+          playedLevel={effectiveLevel || 1}
+          isCustom={isCustom}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

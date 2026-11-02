@@ -163,6 +163,7 @@ interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, Cus
     effectiveWpm?: number;
     xpEarned: number;
     level: number;
+    isCustom?: boolean;
     synergyBonusXp?: number;
     rawMetricsJson?: IRawMetricsJson;
     date: string;
@@ -178,6 +179,7 @@ interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, Cus
     effectiveWpm?: number;
     xpEarned: number;
     level?: number;
+    isCustom?: boolean;
     rawMetricsJson?: IRawMetricsJson;
     routineId?: string;
     routineTitle?: string;
@@ -310,6 +312,13 @@ export const useAppStore = create<AppState>((set, get) => {
 
   const initialCustomPresets = loadPersistedPresets();
   const initialActivePresetIds = loadPersistedActivePresetIds();
+  let initialActiveSessionSource: 'ladder' | 'custom' = 'ladder';
+  try {
+    const savedSource = localStorage.getItem('be_active_session_source');
+    if (savedSource === 'custom' || savedSource === 'ladder') {
+      initialActiveSessionSource = savedSource;
+    }
+  } catch {}
 
   const initialChallenges: IWeeklyChallenge[] = [...WEEKLY_CHALLENGES];
 
@@ -625,9 +634,14 @@ export const useAppStore = create<AppState>((set, get) => {
     customPresets: initialCustomPresets,
     activeCustomPresetIdBySlug: initialActivePresetIds,
     customWorkingPresetBySlug: {},
-    activeSessionSource: 'ladder',
+    activeSessionSource: initialActiveSessionSource,
 
-    setActiveSessionSource: (source) => set({ activeSessionSource: source }),
+    setActiveSessionSource: (source) => {
+      try {
+        localStorage.setItem('be_active_session_source', source);
+      } catch {}
+      set({ activeSessionSource: source });
+    },
 
     setCustomWorkingPreset: (slug, preset) => {
       set(state => ({
@@ -933,7 +947,7 @@ export const useAppStore = create<AppState>((set, get) => {
         consecutiveLosses: 0
       };
 
-      const isCustomSession = state.activeSessionSource === 'custom';
+      const isCustomSession = state.activeSessionSource === 'custom' || Boolean(attempt.isCustom);
       // Base level for adaptive progression is the level that was actually played!
       const baseLevel = attempt.level || prevMastery.currentLevel;
       let nextLevel = baseLevel;
@@ -947,7 +961,8 @@ export const useAppStore = create<AppState>((set, get) => {
           nextLevel = Math.min(22, baseLevel + 1);
           nextWins = 0;
           nextLosses = 0;
-        } else if (attempt.accuracyRate >= 90) {
+        } else if (attempt.accuracyRate >= 85) {
+          // Mastery promotion requires at least 85% accuracy over 2 consecutive sessions
           nextWins += 1;
           nextLosses = 0;
           if (nextWins >= 2) {
@@ -1048,6 +1063,7 @@ export const useAppStore = create<AppState>((set, get) => {
           ...attempt, 
           id: attempt.id || `att-${Date.now()}`,
           level: attempt.level || currentLevel,
+          isCustom: isCustomSession,
           synergyBonusXp: synergyBonus,
           routineId,
           routineTitle,

@@ -115,7 +115,7 @@ export const ExerciseDetailModal: React.FC = () => {
 
   const exerciseAttempts = attemptsHistory.filter(a => a.exerciseSlug === exercise.slug);
   const mastery = exerciseMasteries[exercise.slug];
-  const totalSessions = mastery?.totalAttempts || exerciseAttempts.length;
+  const totalSessions = exerciseAttempts.length;
   const bestScore = exerciseAttempts.length > 0 ? Math.max(...exerciseAttempts.map(a => a.score)) : null;
   const avgAccuracy = exerciseAttempts.length > 0 
     ? Math.round(exerciseAttempts.reduce((s, a) => s + (a.accuracyRate || 0), 0) / exerciseAttempts.length)
@@ -1092,10 +1092,11 @@ export const ExerciseDetailModal: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 rounded-3xl border border-[#D5CBB9] dark:border-slate-800 shadow-sm">
-              <span className="text-xs text-slate-500 font-medium">Điểm Kỷ Lục</span>
+              <span className="text-xs text-slate-500 font-medium">Kỷ Lục 1 Phiên</span>
               <p className="text-2xl sm:text-3xl font-black text-brand-600 dark:text-brand-400 mt-1">
                 {bestScore !== null ? `${bestScore} Điểm` : '--'}
               </p>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-0.5">Điểm phiên cao nhất</span>
             </div>
             <div className="bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 rounded-3xl border border-[#D5CBB9] dark:border-slate-800 shadow-sm">
               <span className="text-xs text-slate-500 font-medium">Độ Chính Xác TB</span>
@@ -1166,9 +1167,15 @@ export const ExerciseDetailModal: React.FC = () => {
                       <span className="w-6 h-6 rounded-full bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 font-black flex items-center justify-center">
                         {i + 1}
                       </span>
-                      <span className="font-bold text-slate-700 dark:text-slate-300">
-                        Cấp {att.level || exerciseLevel}
-                      </span>
+                      {att.isCustom ? (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 font-bold text-[11px]">
+                          Tùy chỉnh
+                        </span>
+                      ) : (
+                        <span className="font-bold text-slate-700 dark:text-slate-300">
+                          {att.level && att.level > 12 ? getInfinityLabel(att.level) : `Cấp ${att.level || exerciseLevel}`}
+                        </span>
+                      )}
                       {att.routineTitle && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold truncate max-w-[130px]" title={`Lộ trình: ${att.routineTitle}`}>
                           Lộ trình

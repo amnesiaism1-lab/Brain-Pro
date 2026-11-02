@@ -1,14 +1,18 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { GameResultModal } from './GameResultModal';
 import { Sparkles, Eye, CheckCircle2 } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const SpatialMemoryGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { sessionConfig, isCustom } = useExerciseSessionConfig('spatial-memory');
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
-  const effectiveLevel = getExerciseLevel('spatial-memory') || currentLevel;
-  const isInfinity = effectiveLevel >= 13;
+  const ladderLevel = getExerciseLevel('spatial-memory') || storeLevel || 1;
+  const playedLevelRef = useRef<number>(isCustom ? 0 : ladderLevel);
+  const effectiveLevel = isCustom ? 0 : playedLevelRef.current;
+  const isInfinity = !isCustom && effectiveLevel >= 13;
   const infinityTier = isInfinity ? effectiveLevel - 12 : 0;
 
   const gridSize = useMemo(() => {
@@ -41,6 +45,7 @@ export const SpatialMemoryGame: React.FC = () => {
   const [isShowingSequence, setIsShowingSequence] = useState(false);
   const [userInputs, setUserInputs] = useState<number[]>([]);
   const [currentRound, setCurrentRound] = useState(1);
+  const maxRounds = isCustom && sessionConfig.rounds && sessionConfig.rounds > 0 ? sessionConfig.rounds : 5;
   const [score, setScore] = useState(0);
   const [mistakes, setMistakes] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
@@ -156,10 +161,10 @@ export const SpatialMemoryGame: React.FC = () => {
 
     if (nextInputs.length === sequence.length) {
       // Completed round!
-      const addedScore = 100 + (sequence.length * 30) + (currentLevel * 15);
+      const addedScore = 100 + (sequence.length * 30) + ((effectiveLevel || 1) * 15);
       setScore(s => s + addedScore);
 
-      if (currentRound >= 5) {
+      if (currentRound >= maxRounds) {
         // Complete game after 5 progressive rounds
         setTimeout(() => {
           setIsFinished(true);
@@ -226,7 +231,7 @@ export const SpatialMemoryGame: React.FC = () => {
         <div className="text-center">
           <span className="text-xs sm:text-sm text-slate-500 font-semibold">Vòng đấu</span>
           <div className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white mt-0.5">
-            {currentRound} / 5
+            {currentRound} / {maxRounds}
           </div>
         </div>
 
@@ -320,7 +325,8 @@ export const SpatialMemoryGame: React.FC = () => {
           score={score}
           accuracyRate={accuracyRate}
           timeSpentSec={45}
-          playedLevel={effectiveLevel}
+          playedLevel={effectiveLevel || 1}
+          isCustom={isCustom}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
             resetSession();

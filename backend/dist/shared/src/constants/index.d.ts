@@ -1,4 +1,4 @@
-import { ICognitiveCategory, IExercise, IWorkoutRoutine, IReadingText, IExerciseVariant, IExerciseSynergy, IWeeklyChallenge, IExerciseContentPoolItem } from '../types';
+import { ICognitiveCategory, IExercise, IWorkoutRoutine, IReadingText, IExerciseVariant, IExerciseSynergy, IWeeklyChallenge, IExerciseContentPoolItem, IVocabKnowledge } from '../types';
 export * from './infinityConfigs';
 export * from './hanoiMapData';
 export * from './hanoiGraphData';
@@ -8,6 +8,8 @@ export declare const WORKOUT_ROUTINES: IWorkoutRoutine[];
 export declare const SAMPLE_READING_TEXTS: IReadingText[];
 export declare const VIETNAMESE_WORDS_DICTIONARY: string[];
 export declare const ENGLISH_WORDS_DICTIONARY: string[];
+export declare const COMMON_ENGLISH_ANAGRAM_DICTIONARY: string[];
+export declare const VIETNAMESE_WORD_KNOWLEDGE: Record<string, IVocabKnowledge>;
 export declare const EXERCISE_VARIANTS: IExerciseVariant[];
 export declare const EXERCISE_SYNERGIES: IExerciseSynergy[];
 export declare const WEEKLY_CHALLENGES: IWeeklyChallenge[];
