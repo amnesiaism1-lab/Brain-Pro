@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { useOfficeMode } from '../../hooks/useOfficeMode';
 import {
@@ -14,8 +14,13 @@ import {
   Sparkles,
   ArrowRight,
   Lightbulb,
-  Music2
+  Music2,
+  GripVertical,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
+
+const STORAGE_KEY_POS = 'be_office_pill_coords';
 
 export const OfficeModePill: React.FC = () => {
   const {
@@ -27,25 +32,114 @@ export const OfficeModePill: React.FC = () => {
     lastOfficeAnswerResult,
     officeSession,
     secondsUntilNext,
-    toggleOfficeMode,
     togglePauseOfficeMode,
     toggleInfoPanel
   } = useAppStore();
 
   const { handleReplay, handleAnswer, handleFreestylePlayOption, handleNextOrSkip } = useOfficeMode();
 
+  // Tọa độ tùy chỉnh khi người dùng kéo thả tự do
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(() => {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_POS);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [isTopFlipped, setIsTopFlipped] = useState(false);
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number }>({
+    startX: 0,
+    startY: 0,
+    initX: 0,
+    initY: 0
+  });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Kéo thả tự do bằng chuột / cảm ứng (Pointer Events)
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // Chỉ kéo khi nhấn vào thanh handle hoặc vùng đệm container, không cản trở click nút bấm
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('input')) return;
+
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+
+    isDraggingRef.current = true;
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initX: rect.left,
+      initY: rect.top
+    };
+
+    containerRef.current.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current || !containerRef.current) return;
+
+    const deltaX = e.clientX - dragStartRef.current.startX;
+    const deltaY = e.clientY - dragStartRef.current.startY;
+
+    const width = containerRef.current.offsetWidth || 300;
+    const height = containerRef.current.offsetHeight || 50;
+
+    // Giới hạn trong khung nhìn màn hình
+    const maxX = Math.max(10, window.innerWidth - width - 10);
+    const maxY = Math.max(10, window.innerHeight - height - 10);
+
+    const newX = Math.max(10, Math.min(maxX, dragStartRef.current.initX + deltaX));
+    const newY = Math.max(10, Math.min(maxY, dragStartRef.current.initY + deltaY));
+
+    setDragPos({ x: newX, y: newY });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    try {
+      containerRef.current?.releasePointerCapture(e.pointerId);
+    } catch {}
+
+    // Lưu tọa độ vào LocalStorage
+    if (dragPos && typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEY_POS, JSON.stringify(dragPos));
+      } catch {}
+    }
+  };
+
+  // Nút nhanh đẩy thanh Lên trên / Xuống dưới
+  const toggleQuickVerticalPosition = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (dragPos) {
+      // Đặt lại tọa độ kéo thả
+      setDragPos(null);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(STORAGE_KEY_POS);
+      }
+    }
+    setIsTopFlipped(prev => !prev);
+  };
+
   // Nếu người dùng tắt hoàn toàn tính năng hiển thị Pill trong Settings
   if (!officeSettings.showPill) {
     return null;
   }
 
-  // Định vị trí viên nang theo cấu hình
-  const positionClasses = {
-    'bottom-right': 'bottom-6 right-6',
-    'bottom-left': 'bottom-6 left-6',
-    'top-right': 'top-20 right-6',
-    'top-left': 'top-20 left-6'
-  }[officeSettings.pillPosition || 'bottom-right'];
+  // Vị trí mặc định: ĐÃ ĐẨY LÊN CAO (bottom-28 ~112px) để không bao giờ bị đè vào nút "Bắt đầu luyện tập"
+  const defaultPositionClasses = isTopFlipped
+    ? 'top-20 right-6'
+    : {
+        'bottom-right': 'bottom-28 sm:bottom-32 right-6',
+        'bottom-left': 'bottom-28 sm:bottom-32 left-6',
+        'top-right': 'top-20 right-6',
+        'top-left': 'top-20 left-6'
+      }[officeSettings.pillPosition || 'bottom-right'];
 
   // Định dạng thời gian đếm ngược mm:ss
   const formatTimer = (sec: number) => {
@@ -54,18 +148,19 @@ export const OfficeModePill: React.FC = () => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // NẾU OFFICE MODE ĐANG TẮT: Hiển thị thanh mini launcher nhỏ gọn để người dùng biết tính năng ở đâu và có thể bật nhanh
+  // NẾU OFFICE MODE ĐANG TẮT: Hiển thị thanh mini launcher nhỏ gọn
   if (!officeModeActive) {
     return (
       <aside
         role="region"
         aria-label="Khởi động Chế độ Văn phòng"
-        className={`fixed ${positionClasses} z-40 transition-all duration-300 animate-fade-in select-none`}
+        style={dragPos ? { left: `${dragPos.x}px`, top: `${dragPos.y}px`, right: 'auto', bottom: 'auto' } : undefined}
+        className={`fixed ${!dragPos ? defaultPositionClasses : ''} z-40 transition-all duration-200 animate-fade-in select-none`}
       >
         <button
           onClick={() => toggleInfoPanel(true)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 hover:bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80 hover:border-indigo-500/80 shadow-lg backdrop-blur-md text-xs font-bold transition-all cursor-pointer group hover:scale-105 active:scale-95"
-          title="Nhấn để mở Bảng điều khiển & Hướng dẫn Chế độ Văn phòng (Alt+Q để bật)"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/90 hover:bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80 hover:border-indigo-500/80 shadow-xl backdrop-blur-md text-xs font-bold transition-all cursor-pointer group hover:scale-105 active:scale-95"
+          title="Nhấn để mở Bảng điều khiển & Hướng dẫn (Alt+Q để bật)"
         >
           <div className="p-1 rounded-full bg-indigo-500/20 text-indigo-400 group-hover:text-indigo-300">
             <Headphones className="w-3.5 h-3.5" />
@@ -81,14 +176,20 @@ export const OfficeModePill: React.FC = () => {
 
   return (
     <aside
+      ref={containerRef}
       role="region"
       aria-label="Chế độ văn phòng - Luyện tai ngầm"
-      className={`fixed ${positionClasses} z-40 transition-all duration-300 animate-fade-in select-none`}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      style={dragPos ? { left: `${dragPos.x}px`, top: `${dragPos.y}px`, right: 'auto', bottom: 'auto' } : undefined}
+      className={`fixed ${!dragPos ? defaultPositionClasses : ''} z-40 transition-shadow duration-200 animate-fade-in select-none touch-none`}
     >
       <div
         className={`flex flex-col gap-2 p-3 rounded-2xl shadow-2xl backdrop-blur-md border transition-all duration-300 ${
           officeQuestionState === 'freestyle'
-            ? 'bg-slate-900/98 text-white border-amber-500/70 shadow-amber-500/20 max-w-sm'
+            ? 'bg-slate-900/98 text-white border-amber-500/70 shadow-amber-500/25 max-w-sm'
             : officeQuestionState === 'feedback'
             ? lastOfficeAnswerResult?.isCorrect
               ? 'bg-emerald-600/95 text-white border-emerald-400 shadow-emerald-500/20'
@@ -98,32 +199,59 @@ export const OfficeModePill: React.FC = () => {
             : officeQuestionState === 'playing'
             ? 'bg-indigo-600/95 text-white border-indigo-400/50 shadow-indigo-500/20 animate-pulse'
             : officeQuestionState === 'waiting'
-            ? 'bg-slate-900/95 dark:bg-slate-900/95 text-white border-indigo-500/60 shadow-indigo-500/20 ring-2 ring-indigo-500/30'
+            ? 'bg-slate-900/95 text-white border-indigo-500/60 shadow-indigo-500/25 ring-2 ring-indigo-500/30'
             : 'bg-slate-900/90 text-white border-slate-700/80 shadow-black/40 hover:border-slate-500'
         }`}
       >
         {/* 1. Trạng thái: FREESTYLE REVIEW (Ôn tập & Thử nghiệm tự do khi trả lời sai) */}
         {officeQuestionState === 'freestyle' && lastOfficeAnswerResult && currentOfficeQuestion ? (
           <div className="space-y-2.5 animate-scale-up text-left">
-            {/* Header: Đối chiếu Sai vs Đúng */}
+            {/* Header: Tay cầm kéo thả + Đối chiếu Sai vs Đúng */}
             <div className="flex items-start justify-between gap-2 border-b border-slate-700/80 pb-2">
-              <div>
-                <div className="flex items-center gap-1.5 text-xs font-bold text-rose-400">
-                  <XCircle className="w-3.5 h-3.5 shrink-0" />
-                  <span className="line-through">{lastOfficeAnswerResult.selectedLabel}</span>
+              <div className="flex items-start gap-1.5">
+                {/* Tay cầm kéo thả */}
+                <div
+                  className="p-1 -ml-1 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing shrink-0"
+                  title="Kéo thả để di chuyển thanh tự do trên màn hình"
+                >
+                  <GripVertical className="w-4 h-4" />
                 </div>
-                <div className="flex items-center gap-1.5 text-sm font-black text-emerald-400 mt-0.5">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                  <span>Đúng: {lastOfficeAnswerResult.correctLabel}</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-                    {lastOfficeAnswerResult.semitones} nửa cung
-                  </span>
+
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-rose-400">
+                    <XCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span className="line-through">{lastOfficeAnswerResult.selectedLabel}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-sm font-black text-emerald-400 mt-0.5">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    <span>Đúng: {lastOfficeAnswerResult.correctLabel}</span>
+                    {lastOfficeAnswerResult.semitones !== undefined && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                        {lastOfficeAnswerResult.semitones} nửa cung
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold shrink-0">
-                Freestyle
-              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                {/* Nút nhanh đẩy lên / xuống */}
+                <button
+                  onClick={toggleQuickVerticalPosition}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  title={isTopFlipped || (dragPos && dragPos.y < 200) ? 'Đẩy xuống dưới' : 'Đẩy lên trên'}
+                >
+                  {isTopFlipped || (dragPos && dragPos.y < 200) ? (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  )}
+                </button>
+
+                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                  Freestyle
+                </span>
+              </div>
             </div>
 
             {/* Mẹo nhận diện */}
@@ -155,13 +283,13 @@ export const OfficeModePill: React.FC = () => {
                     }`}
                     title={`Bấm phím ${opt.index} để nghe`}
                   >
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-4 h-4 rounded-full bg-black/40 text-[10px] flex items-center justify-center font-mono font-bold">
+                    <span className="flex items-center gap-1.5 truncate">
+                      <span className="w-4 h-4 rounded-full bg-black/40 text-[10px] flex items-center justify-center font-mono font-bold shrink-0">
                         {opt.index}
                       </span>
-                      <span className="truncate max-w-[90px]">{opt.code}</span>
+                      <span className="truncate">{opt.label || opt.code}</span>
                     </span>
-                    <Music2 className="w-3 h-3 opacity-60" />
+                    <Music2 className="w-3 h-3 opacity-60 shrink-0 ml-1" />
                   </button>
                 ))}
               </div>
@@ -180,17 +308,25 @@ export const OfficeModePill: React.FC = () => {
 
               <button
                 onClick={handleNextOrSkip}
-                className="px-3 py-1 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-brand-500/20 active:scale-95"
+                className="px-3 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
                 title="Chuyển sang câu tiếp theo (Alt+N hoặc Enter/Space)"
               >
                 <span>Tiếp tục</span>
                 <ArrowRight className="w-3.5 h-3.5" />
-                <kbd className="px-1 bg-brand-700 rounded text-[9px] font-mono">Alt+N</kbd>
+                <kbd className="px-1 bg-indigo-700 rounded text-[9px] font-mono">Alt+N</kbd>
               </button>
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            {/* Tay cầm kéo thả (Grip Handle) */}
+            <div
+              className="p-1 -ml-1 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing shrink-0"
+              title="Kéo thả để di chuyển thanh tự do trên màn hình"
+            >
+              <GripVertical className="w-3.5 h-3.5" />
+            </div>
+
             {/* 2. Trạng thái: FEEDBACK ĐÚNG */}
             {officeQuestionState === 'feedback' && lastOfficeAnswerResult && (
               <div className="flex items-center gap-2 text-xs font-bold animate-scale-up">
@@ -246,13 +382,13 @@ export const OfficeModePill: React.FC = () => {
                     <button
                       key={opt.index}
                       onClick={() => handleAnswer(opt.index)}
-                      className="group relative flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800/90 hover:bg-indigo-600 text-slate-200 hover:text-white border border-slate-700 hover:border-indigo-400 text-xs font-bold transition-all transform active:scale-95 cursor-pointer shadow-sm"
+                      className="group relative flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800/90 hover:bg-indigo-600 text-slate-200 hover:text-white border border-slate-700 hover:border-indigo-400 text-xs font-bold transition-all transform active:scale-95 cursor-pointer shadow-sm"
                       title={`Phím tắt: Alt+${opt.index} hoặc gõ phím ${opt.index}`}
                     >
                       <span className="w-4 h-4 rounded-full bg-slate-700 group-hover:bg-indigo-700 text-[10px] flex items-center justify-center font-mono font-bold">
                         {opt.index}
                       </span>
-                      <span className="text-xs">{opt.code}</span>
+                      <span className="text-xs">{opt.label || opt.code}</span>
                     </button>
                   ))}
                 </div>
@@ -280,7 +416,7 @@ export const OfficeModePill: React.FC = () => {
             {/* 6. Trạng thái: STANDBY (Đếm ngược) */}
             {!officeModePaused && officeQuestionState === 'standby' && (
               <div className="flex items-center gap-2.5">
-                <div className="flex items-center gap-1.5 text-brand-400">
+                <div className="flex items-center gap-1.5 text-indigo-400">
                   <Headphones className="w-4 h-4" />
                 </div>
 
@@ -315,7 +451,7 @@ export const OfficeModePill: React.FC = () => {
                 {/* Nút phát ngay câu mới */}
                 <button
                   onClick={handleNextOrSkip}
-                  className="p-1 rounded-lg bg-brand-600/80 hover:bg-brand-600 text-white transition-colors cursor-pointer"
+                  className="p-1 rounded-lg bg-indigo-600/90 hover:bg-indigo-600 text-white transition-colors cursor-pointer"
                   title="Phát câu mới ngay (Alt+N)"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
@@ -323,10 +459,23 @@ export const OfficeModePill: React.FC = () => {
               </div>
             )}
 
-            {/* Nút Info / Bảng thống kê & Hướng dẫn (luôn có) */}
+            {/* Nút 1-click đẩy thanh Lên / Xuống */}
+            <button
+              onClick={toggleQuickVerticalPosition}
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer ml-0.5"
+              title={isTopFlipped || (dragPos && dragPos.y < 200) ? 'Đẩy thanh xuống dưới' : 'Đẩy thanh lên trên'}
+            >
+              {isTopFlipped || (dragPos && dragPos.y < 200) ? (
+                <ChevronDown className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronUp className="w-3.5 h-3.5" />
+              )}
+            </button>
+
+            {/* Nút Info / Bảng thống kê & Hướng dẫn */}
             <button
               onClick={() => toggleInfoPanel()}
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer ml-0.5"
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               title="Bảng điều khiển & Hướng dẫn sử dụng (Alt+I)"
             >
               <Info className="w-3.5 h-3.5" />
