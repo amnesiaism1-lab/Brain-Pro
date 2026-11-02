@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { PitchRecallInputRule, RULE_INFO_MAP } from '../../services/pitchRecallKeyMap';
 import {
   Headphones,
   Sliders,
@@ -96,6 +97,60 @@ export const OfficeModeSettings: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Quy tắc bấm bàn phím cho Nhớ Cao Độ */}
+        {officeSettings.exerciseSlug === 'pitch-recall' && (
+          <div className="py-2 border-b border-[#D5CBB9]/60 dark:border-slate-700 space-y-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <div>
+                <span className="text-sm font-bold text-slate-800 dark:text-white block flex items-center gap-1.5">
+                  <Keyboard className="w-4 h-4 text-indigo-500" />
+                  Quy tắc bấm cao độ trên bàn phím
+                </span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Chọn cách ánh xạ phím gõ nốt nhạc khi luyện bài Nhớ Cao Độ ở chế độ ngầm
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {(['scale-degrees', 'piano-keys', 'note-letters', 'multiple-choice'] as PitchRecallInputRule[]).map((ruleKey) => {
+                const info = RULE_INFO_MAP[ruleKey];
+                const isSelected = (officeSettings.pitchRecallInputRule || 'scale-degrees') === ruleKey;
+                return (
+                  <button
+                    key={ruleKey}
+                    type="button"
+                    onClick={() => updateOfficeSettings({ pitchRecallInputRule: ruleKey })}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500 shadow-sm ring-1 ring-indigo-500/30'
+                        : 'bg-white/60 dark:bg-slate-750 border-slate-200 dark:border-slate-700/80 hover:border-slate-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                        <span>{info.icon}</span>
+                        <span>{info.name}</span>
+                      </span>
+                      {isSelected && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-600 text-white font-bold">
+                          Đang chọn
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mb-1.5">
+                      {info.desc}
+                    </p>
+                    <div className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 font-bold bg-white/80 dark:bg-slate-800/80 px-2 py-0.5 rounded-lg border border-indigo-200/50 dark:border-indigo-900/50 truncate">
+                      {info.hotkeyGuide}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Hình thức luyện tập: Nhỏ giọt vs Theo yêu cầu */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-[#D5CBB9]/60 dark:border-slate-700 gap-2">

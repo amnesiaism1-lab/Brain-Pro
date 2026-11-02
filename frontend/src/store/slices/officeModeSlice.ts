@@ -1,5 +1,6 @@
 import { ExerciseSlug } from '@brain-exercises/shared';
 import { INTERVAL_CATALOG } from '../../services/musicTheoryService';
+import { PitchRecallInputRule, sequenceToSolfege } from '../../services/pitchRecallKeyMap';
 
 export type OfficeModeType = 'drip' | 'on-demand';
 export type OfficePillPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
@@ -41,10 +42,12 @@ export interface OfficeLastAnswerResult {
   tipVi?: string;
   ratioDescription?: string;
   sequenceNotes?: string[];
+  userNotes?: string[];
 }
 
 export interface OfficeModeSettings {
   exerciseSlug: ExerciseSlug;   // 'pitch-recall' | 'interval-identify'
+  pitchRecallInputRule: PitchRecallInputRule; // Quy tắc bấm cao độ trên bàn phím
   mode: OfficeModeType;
   intervalMinutes: number;      // 1, 2, 3, 5, 10
   volume: number;               // 0.1 to 1.0
@@ -80,17 +83,22 @@ export interface OfficeModeSliceState {
   officeQuestionState: OfficeQuestionState;
   lastOfficeAnswerResult: OfficeLastAnswerResult | null;
   secondsUntilNext: number;
+  userRecallSequence: string[]; // Các nốt người dùng đã gõ trong câu hỏi Nhớ Cao Độ hiện tại
 
   // Actions
   toggleOfficeMode: (force?: boolean) => void;
   togglePauseOfficeMode: () => void;
   toggleInfoPanel: (open?: boolean) => void;
   updateOfficeSettings: (settings: Partial<OfficeModeSettings>) => void;
+  setPitchRecallInputRule: (rule: PitchRecallInputRule) => void;
   setCurrentOfficeQuestion: (q: OfficeQuestion | null) => void;
   setOfficeQuestionState: (state: OfficeQuestionState) => void;
   setSecondsUntilNext: (s: number | ((prev: number) => number)) => void;
   incrementOfficeReplay: () => void;
   recordOfficeAnswer: (optionIndex: number) => OfficeLastAnswerResult | null;
+  inputPitchRecallNote: (note: string) => OfficeLastAnswerResult | null;
+  backspacePitchRecallNote: () => void;
+  clearPitchRecallSequence: () => void;
   finishFreestyleAndNext: () => void;
   skipOfficeQuestion: () => void;
   resetOfficeSession: () => void;
@@ -100,7 +108,8 @@ const STORAGE_KEY_SETTINGS = 'be_office_mode_settings';
 const STORAGE_KEY_STATS = 'be_office_mode_stats';
 
 const DEFAULT_SETTINGS: OfficeModeSettings = {
-  exerciseSlug: 'pitch-recall', // Mặc định là Nhớ Cao Độ theo yêu cầu người dùng
+  exerciseSlug: 'pitch-recall', // Mặc định là Nhớ Cao Độ
+  pitchRecallInputRule: 'scale-degrees', // Mặc định: Bậc âm 1..7 (Solfege) tối ưu cho văn phòng
   mode: 'drip',
   intervalMinutes: 3,
   volume: 0.7,
@@ -149,6 +158,7 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
   officeQuestionState: 'standby',
   lastOfficeAnswerResult: null,
   secondsUntilNext: 180,
+  userRecallSequence: [],
 
   toggleOfficeMode: (force?: boolean) => {
     set((state: OfficeModeSliceState) => {
@@ -162,6 +172,7 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
         currentOfficeQuestion: nextActive ? state.currentOfficeQuestion : null,
         lastOfficeAnswerResult: null,
         secondsUntilNext: initialSeconds,
+        userRecallSequence: [],
         officeSession: nextActive ? createInitialSession() : state.officeSession
       };
     });
@@ -198,11 +209,16 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
     });
   },
 
+  setPitchRecallInputRule: (rule: PitchRecallInputRule) => {
+    get().updateOfficeSettings({ pitchRecallInputRule: rule });
+  },
+
   setCurrentOfficeQuestion: (q: OfficeQuestion | null) => {
     set({
       currentOfficeQuestion: q,
       officeQuestionState: q ? 'waiting' : 'standby',
-      lastOfficeAnswerResult: null
+      lastOfficeAnswerResult: null,
+      userRecallSequence: []
     });
   },
 
@@ -228,6 +244,9 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
     });
   },
 
+  /**
+   * Trả lời dạng Trắc nghiệm 1..4 (Multiple Choice)
+   */
   recordOfficeAnswer: (optionIndex: number): OfficeLastAnswerResult | null => {
     const state: OfficeModeSliceState = get();
     const q = state.currentOfficeQuestion;
@@ -254,7 +273,8 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
       mnemonicSongVi: cat?.mnemonicSongVi,
       tipVi: cat?.tipVi,
       ratioDescription: cat?.ratioDescription,
-      sequenceNotes: q.sequenceNotes
+      sequenceNotes: q.sequenceNotes,
+      userNotes: chosenOption.notes
     };
 
     set((s: OfficeModeSliceState) => {
@@ -271,7 +291,6 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
         totalXpEarned: s.officeSession.totalXpEarned + awardedXp
       };
 
-      // Nếu sai và bật chế độ freestyleOnWrong -> Chuyển sang freestyle mode để người dùng tự do thử nghiệm
       const nextState: OfficeQuestionState = isCorrect
         ? 'feedback'
         : (s.officeSettings.freestyleOnWrong ? 'freestyle' : 'feedback');
@@ -286,11 +305,98 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
     return result;
   },
 
+  /**
+   * Nhập từng nốt tuần tự cho bài Nhớ Cao Độ (Pitch Recall)
+   * Tự động đánh giá ngay khi người dùng gõ đủ số lượng nốt mục tiêu
+   */
+  inputPitchRecallNote: (note: string): OfficeLastAnswerResult | null => {
+    const state: OfficeModeSliceState = get();
+    const q = state.currentOfficeQuestion;
+    if (!q || state.officeQuestionState !== 'waiting' || q.exerciseSlug !== 'pitch-recall') return null;
+
+    const targetSeq = q.sequenceNotes || [];
+    const nextSeq = [...state.userRecallSequence, note];
+
+    // Chưa gõ đủ số nốt của chuỗi: Cập nhật tiến độ và tiếp tục chờ
+    if (nextSeq.length < targetSeq.length) {
+      set({ userRecallSequence: nextSeq });
+      return null;
+    }
+
+    // Đã gõ đủ chuỗi nốt! Tiến hành chấm điểm
+    const isCorrect = nextSeq.every((n, i) => n === targetSeq[i]);
+    const baseLevelXp = Math.max(5, q.level * 4);
+    const awardedXp = isCorrect ? Math.round(baseLevelXp * 0.5) : 0;
+
+    const userSolfege = sequenceToSolfege(nextSeq);
+    const targetSolfege = sequenceToSolfege(targetSeq);
+
+    const result: OfficeLastAnswerResult = {
+      isCorrect,
+      selectedIndex: 0,
+      correctIndex: 0,
+      selectedLabel: userSolfege,
+      correctLabel: targetSolfege,
+      correctCode: targetSeq.join(' '),
+      awardedXp,
+      sequenceNotes: targetSeq,
+      userNotes: nextSeq
+    };
+
+    set((s: OfficeModeSliceState) => {
+      const currentStreak = isCorrect ? s.officeSession.currentStreak + 1 : 0;
+      const bestStreak = Math.max(s.officeSession.bestStreak, currentStreak);
+
+      const nextSession: OfficeSessionStats = {
+        ...s.officeSession,
+        totalAnswered: s.officeSession.totalAnswered + 1,
+        correctCount: s.officeSession.correctCount + (isCorrect ? 1 : 0),
+        wrongCount: s.officeSession.wrongCount + (isCorrect ? 0 : 1),
+        currentStreak,
+        bestStreak,
+        totalXpEarned: s.officeSession.totalXpEarned + awardedXp
+      };
+
+      const nextState: OfficeQuestionState = isCorrect
+        ? 'feedback'
+        : (s.officeSettings.freestyleOnWrong ? 'freestyle' : 'feedback');
+
+      return {
+        userRecallSequence: nextSeq,
+        lastOfficeAnswerResult: result,
+        officeQuestionState: nextState,
+        officeSession: nextSession
+      };
+    });
+
+    return result;
+  },
+
+  /**
+   * Xóa nốt vừa gõ (Backspace)
+   */
+  backspacePitchRecallNote: () => {
+    set((s: OfficeModeSliceState) => {
+      if (s.userRecallSequence.length === 0 || s.officeQuestionState !== 'waiting') return {};
+      return {
+        userRecallSequence: s.userRecallSequence.slice(0, -1)
+      };
+    });
+  },
+
+  /**
+   * Xóa toàn bộ chuỗi đang gõ dở
+   */
+  clearPitchRecallSequence: () => {
+    set({ userRecallSequence: [] });
+  },
+
   finishFreestyleAndNext: () => {
     set((state: OfficeModeSliceState) => ({
       currentOfficeQuestion: null,
       officeQuestionState: 'standby',
       lastOfficeAnswerResult: null,
+      userRecallSequence: [],
       secondsUntilNext: state.officeSettings.intervalMinutes * 60
     }));
   },
@@ -300,6 +406,7 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
       currentOfficeQuestion: null,
       officeQuestionState: 'standby',
       lastOfficeAnswerResult: null,
+      userRecallSequence: [],
       secondsUntilNext: state.officeSettings.intervalMinutes * 60,
       officeSession: {
         ...state.officeSession,
@@ -314,7 +421,8 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
       officeSession: createInitialSession(),
       currentOfficeQuestion: null,
       officeQuestionState: 'standby',
-      lastOfficeAnswerResult: null
+      lastOfficeAnswerResult: null,
+      userRecallSequence: []
     });
   }
 });

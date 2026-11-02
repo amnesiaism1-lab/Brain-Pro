@@ -160,4 +160,57 @@ describe('Office Mode (Stealth Ear Training)', () => {
     expect(useAppStore.getState().officeQuestionState).toBe('standby');
     expect(useAppStore.getState().officeSession.skippedCount).toBe(1);
   });
+
+  it('supports sequential note entry, backspace, and evaluation for pitch recall', () => {
+    const store = useAppStore.getState();
+    store.toggleOfficeMode(true);
+
+    const question = officeModeEngine.generatePitchRecallQuestion();
+    // Gán chuỗi nốt cố định để kiểm tra
+    question.sequenceNotes = ['C4', 'E4', 'G4'];
+    store.setCurrentOfficeQuestion(question);
+    expect(useAppStore.getState().userRecallSequence).toEqual([]);
+
+    // Gõ nốt 1: C4
+    const res1 = store.inputPitchRecallNote('C4');
+    expect(res1).toBeNull(); // Chưa xong
+    expect(useAppStore.getState().userRecallSequence).toEqual(['C4']);
+
+    // Gõ nhầm nốt 2: D4
+    store.inputPitchRecallNote('D4');
+    expect(useAppStore.getState().userRecallSequence).toEqual(['C4', 'D4']);
+
+    // Backspace để xóa D4
+    store.backspacePitchRecallNote();
+    expect(useAppStore.getState().userRecallSequence).toEqual(['C4']);
+
+    // Gõ lại nốt 2 đúng: E4
+    store.inputPitchRecallNote('E4');
+    expect(useAppStore.getState().userRecallSequence).toEqual(['C4', 'E4']);
+
+    // Gõ nốt 3 đúng: G4 -> Đủ chuỗi và đúng hoàn toàn!
+    const resFinal = store.inputPitchRecallNote('G4');
+    expect(resFinal).not.toBeNull();
+    expect(resFinal!.isCorrect).toBe(true);
+    expect(useAppStore.getState().officeQuestionState).toBe('feedback');
+    expect(useAppStore.getState().officeSession.correctCount).toBe(1);
+  });
+
+  it('handles wrong sequential pitch entry and transitions to freestyle', () => {
+    const store = useAppStore.getState();
+    store.toggleOfficeMode(true);
+
+    const question = officeModeEngine.generatePitchRecallQuestion();
+    question.sequenceNotes = ['C4', 'E4', 'G4'];
+    store.setCurrentOfficeQuestion(question);
+
+    store.inputPitchRecallNote('C4');
+    store.inputPitchRecallNote('D4');
+    const resFinal = store.inputPitchRecallNote('G4'); // C4 D4 G4 != C4 E4 G4
+
+    expect(resFinal).not.toBeNull();
+    expect(resFinal!.isCorrect).toBe(false);
+    expect(useAppStore.getState().officeQuestionState).toBe('freestyle');
+    expect(useAppStore.getState().officeSession.wrongCount).toBe(1);
+  });
 });

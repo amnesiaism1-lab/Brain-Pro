@@ -1,10 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import { mapKeyToNote } from '../services/pitchRecallKeyMap';
 
 interface UseGlobalHotkeysProps {
   onReplay: () => void;
   onNextOrSkip: () => void;
   onAnswer: (index: number) => void;
+  onInputPitchNote: (note: string) => void;
+  onBackspacePitchNote: () => void;
+  onFreestylePlayNote: (note: string) => void;
   onFreestylePlayOption: (index: number) => void;
 }
 
@@ -12,12 +16,17 @@ export const useGlobalHotkeys = ({
   onReplay,
   onNextOrSkip,
   onAnswer,
+  onInputPitchNote,
+  onBackspacePitchNote,
+  onFreestylePlayNote,
   onFreestylePlayOption
 }: UseGlobalHotkeysProps): void => {
   const {
     officeModeActive,
     officeQuestionState,
     isInfoPanelOpen,
+    currentOfficeQuestion,
+    officeSettings,
     toggleOfficeMode,
     togglePauseOfficeMode,
     toggleInfoPanel
@@ -27,10 +36,15 @@ export const useGlobalHotkeys = ({
     onReplay,
     onNextOrSkip,
     onAnswer,
+    onInputPitchNote,
+    onBackspacePitchNote,
+    onFreestylePlayNote,
     onFreestylePlayOption,
     officeModeActive,
     officeQuestionState,
     isInfoPanelOpen,
+    currentOfficeQuestion,
+    officeSettings,
     toggleOfficeMode,
     togglePauseOfficeMode,
     toggleInfoPanel
@@ -41,10 +55,15 @@ export const useGlobalHotkeys = ({
       onReplay,
       onNextOrSkip,
       onAnswer,
+      onInputPitchNote,
+      onBackspacePitchNote,
+      onFreestylePlayNote,
       onFreestylePlayOption,
       officeModeActive,
       officeQuestionState,
       isInfoPanelOpen,
+      currentOfficeQuestion,
+      officeSettings,
       toggleOfficeMode,
       togglePauseOfficeMode,
       toggleInfoPanel
@@ -61,6 +80,9 @@ export const useGlobalHotkeys = ({
         activeEl?.getAttribute('contenteditable') === 'true';
 
       const keyLower = e.key.toLowerCase();
+      const currentQ = propsRef.current.currentOfficeQuestion;
+      const rule = propsRef.current.officeSettings.pitchRecallInputRule || 'scale-degrees';
+      const isPitchRecall = currentQ?.exerciseSlug === 'pitch-recall';
 
       // 1. Phím Escape: Đóng panel thông tin nếu đang mở
       if (e.key === 'Escape') {
@@ -84,7 +106,22 @@ export const useGlobalHotkeys = ({
         return;
       }
 
-      // 3. Các tổ hợp phím có Alt (Alt + Key)
+      // 3. Phím Backspace khi đang gõ chuỗi Nhớ Cao Độ
+      if (
+        propsRef.current.officeModeActive &&
+        propsRef.current.officeQuestionState === 'waiting' &&
+        isPitchRecall &&
+        rule !== 'multiple-choice' &&
+        !isInputFocused &&
+        e.key === 'Backspace'
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        propsRef.current.onBackspacePitchNote();
+        return;
+      }
+
+      // 4. Các tổ hợp phím có Alt (Alt + Key)
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
         // Alt + Q: Bật / Tắt Office Mode
         if (keyLower === 'q') {
@@ -129,43 +166,66 @@ export const useGlobalHotkeys = ({
           return;
         }
 
-        // Alt + 1..6: Chọn đáp án hoặc nghe thử option
+        // Alt + 1..6: Chọn đáp án trắc nghiệm hoặc phím nốt bậc âm
         if (/^[1-6]$/.test(e.key)) {
           e.preventDefault();
           e.stopPropagation();
           const num = parseInt(e.key, 10);
-          if (propsRef.current.officeQuestionState === 'freestyle') {
-            propsRef.current.onFreestylePlayOption(num);
-          } else if (propsRef.current.officeQuestionState === 'waiting') {
-            propsRef.current.onAnswer(num);
+          if (isPitchRecall && rule !== 'multiple-choice') {
+            const mapped = mapKeyToNote(e.key, 'scale-degrees');
+            if (mapped) {
+              if (propsRef.current.officeQuestionState === 'freestyle') {
+                propsRef.current.onFreestylePlayNote(mapped);
+              } else if (propsRef.current.officeQuestionState === 'waiting') {
+                propsRef.current.onInputPitchNote(mapped);
+              }
+            }
+          } else {
+            if (propsRef.current.officeQuestionState === 'freestyle') {
+              propsRef.current.onFreestylePlayOption(num);
+            } else if (propsRef.current.officeQuestionState === 'waiting') {
+              propsRef.current.onAnswer(num);
+            }
           }
           return;
         }
       }
 
-      // 4. Phím số trực tiếp (1..6 không cần Alt)
-      // Kích hoạt khi:
-      // - Office Mode đang bật
-      // - Người dùng KHÔNG đang gõ trong input/textarea
-      // - Không giữ phím Ctrl / Meta / Alt
+      // 5. Bàn phím trực tiếp (Không cần Alt) khi Office Mode đang bật và không gõ trong Input
       if (
         propsRef.current.officeModeActive &&
         !isInputFocused &&
         !e.ctrlKey &&
         !e.metaKey &&
-        !e.altKey &&
-        /^[1-6]$/.test(e.key)
+        !e.altKey
       ) {
-        const num = parseInt(e.key, 10);
-        if (propsRef.current.officeQuestionState === 'waiting') {
-          e.preventDefault();
-          e.stopPropagation();
-          propsRef.current.onAnswer(num);
-        } else if (propsRef.current.officeQuestionState === 'freestyle') {
-          // Trong trạng thái Freestyle: Nhấn số là phát âm thanh của quãng đó để nghe thử tự do
-          e.preventDefault();
-          e.stopPropagation();
-          propsRef.current.onFreestylePlayOption(num);
+        // Trường hợp A: Bài tập Nhớ Cao Độ với quy tắc nhập phím (Bậc âm, Piano, Ký âm chữ cái)
+        if (isPitchRecall && rule !== 'multiple-choice') {
+          const note = mapKeyToNote(e.key, rule);
+          if (note) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (propsRef.current.officeQuestionState === 'waiting') {
+              propsRef.current.onInputPitchNote(note);
+            } else if (propsRef.current.officeQuestionState === 'freestyle') {
+              propsRef.current.onFreestylePlayNote(note);
+            }
+            return;
+          }
+        }
+
+        // Trường hợp B: Bài tập Nhận Diện Quãng hoặc Nhớ Cao Độ dạng Trắc Nghiệm 1..4
+        if (!isPitchRecall || rule === 'multiple-choice') {
+          if (/^[1-6]$/.test(e.key)) {
+            const num = parseInt(e.key, 10);
+            e.preventDefault();
+            e.stopPropagation();
+            if (propsRef.current.officeQuestionState === 'waiting') {
+              propsRef.current.onAnswer(num);
+            } else if (propsRef.current.officeQuestionState === 'freestyle') {
+              propsRef.current.onFreestylePlayOption(num);
+            }
+          }
         }
       }
     };

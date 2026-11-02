@@ -3,33 +3,8 @@ import { generateIntervalQuestion, INTERVAL_CATALOG, transposeNote, generateRand
 import { OfficeQuestion, OfficeQuestionOption } from '../store/slices/officeModeSlice';
 import { useAppStore } from '../store/useAppStore';
 
-export const noteToSolfege = (noteName: string): string => {
-  const pitch = noteName.replace(/[0-9]/g, '');
-  const map: Record<string, string> = {
-    'C': 'Đồ',
-    'C#': 'Đồ#',
-    'Db': 'Rêb',
-    'D': 'Rê',
-    'D#': 'Rê#',
-    'Eb': 'Mib',
-    'E': 'Mi',
-    'F': 'Pha',
-    'F#': 'Pha#',
-    'Gb': 'Solb',
-    'G': 'Sol',
-    'G#': 'Sol#',
-    'Ab': 'Lab',
-    'A': 'La',
-    'A#': 'La#',
-    'Bb': 'Sib',
-    'B': 'Si'
-  };
-  return map[pitch] || pitch;
-};
-
-export const sequenceToSolfege = (notes: string[]): string => {
-  return notes.map(noteToSolfege).join(' - ');
-};
+export { noteToSolfege, sequenceToSolfege } from './pitchRecallKeyMap';
+import { noteToSolfege, sequenceToSolfege, RULE_INFO_MAP } from './pitchRecallKeyMap';
 
 class OfficeModeEngine {
   private recentKeystrokes: number[] = [];
@@ -377,11 +352,20 @@ class OfficeModeEngine {
     if (!document.hidden) return; // Chỉ gửi khi tab đang bị che hoặc ở tab khác
 
     try {
-      const title = question.exerciseSlug === 'pitch-recall'
-        ? '🎵 Nhớ Cao Độ: Đã phát câu hỏi mới!'
-        : '🎵 Nhận Diện Quãng: Đã phát câu hỏi mới!';
+      const store = useAppStore.getState();
+      const rule = store.officeSettings?.pitchRecallInputRule || 'scale-degrees';
+      const isPitch = question.exerciseSlug === 'pitch-recall';
+      const seqLen = question.sequenceNotes?.length || 3;
 
-      const body = 'Bấm vào thông báo này để quay lại tab trả lời (Alt+1..4)';
+      const title = isPitch
+        ? `🎵 Nhớ Cao Độ (Cấp ${question.level}): Vừa phát ${seqLen} nốt!`
+        : `🎵 Nhận Diện Quãng: Đã phát câu hỏi mới!`;
+
+      const ruleGuide = RULE_INFO_MAP[rule]?.hotkeyGuide || 'Phím 1..7';
+      const body = isPitch
+        ? `Nhấp vào đây để quay lại gõ phím trả lời (${ruleGuide}, hoặc Alt+R nghe lại).`
+        : 'Bấm vào thông báo này để quay lại tab trả lời (Alt+1..4).';
+
       const notif = new Notification(title, {
         body,
         icon: '/favicon.png',

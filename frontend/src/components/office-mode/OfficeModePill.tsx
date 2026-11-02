@@ -2,6 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { useOfficeMode } from '../../hooks/useOfficeMode';
 import {
+  getKeyDefinitionsForRule,
+  PitchRecallInputRule,
+  RULE_INFO_MAP,
+  noteToSolfege
+} from '../../services/pitchRecallKeyMap';
+import {
   Headphones,
   RotateCcw,
   SkipForward,
@@ -17,7 +23,8 @@ import {
   Music2,
   GripVertical,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Layers
 } from 'lucide-react';
 
 const STORAGE_KEY_POS = 'be_office_pill_coords';
@@ -33,10 +40,20 @@ export const OfficeModePill: React.FC = () => {
     officeSession,
     secondsUntilNext,
     togglePauseOfficeMode,
-    toggleInfoPanel
+    toggleInfoPanel,
+    setPitchRecallInputRule
   } = useAppStore();
 
-  const { handleReplay, handleAnswer, handleFreestylePlayOption, handleNextOrSkip } = useOfficeMode();
+  const {
+    handleReplay,
+    handleAnswer,
+    handleInputNote,
+    handleBackspaceNote,
+    handleFreestylePlayNote,
+    handleFreestylePlayOption,
+    handleNextOrSkip,
+    userRecallSequence
+  } = useOfficeMode();
 
   // Tọa độ tùy chỉnh khi người dùng kéo thả tự do
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(() => {
@@ -61,7 +78,6 @@ export const OfficeModePill: React.FC = () => {
 
   // Kéo thả tự do bằng chuột / cảm ứng (Pointer Events)
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Chỉ kéo khi nhấn vào thanh handle hoặc vùng đệm container, không cản trở click nút bấm
     const target = e.target as HTMLElement;
     if (target.closest('button') || target.closest('input')) return;
 
@@ -88,7 +104,6 @@ export const OfficeModePill: React.FC = () => {
     const width = containerRef.current.offsetWidth || 300;
     const height = containerRef.current.offsetHeight || 50;
 
-    // Giới hạn trong khung nhìn màn hình
     const maxX = Math.max(10, window.innerWidth - width - 10);
     const maxY = Math.max(10, window.innerHeight - height - 10);
 
@@ -105,7 +120,6 @@ export const OfficeModePill: React.FC = () => {
       containerRef.current?.releasePointerCapture(e.pointerId);
     } catch {}
 
-    // Lưu tọa độ vào LocalStorage
     if (dragPos && typeof localStorage !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_KEY_POS, JSON.stringify(dragPos));
@@ -117,7 +131,6 @@ export const OfficeModePill: React.FC = () => {
   const toggleQuickVerticalPosition = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (dragPos) {
-      // Đặt lại tọa độ kéo thả
       setDragPos(null);
       if (typeof localStorage !== 'undefined') {
         localStorage.removeItem(STORAGE_KEY_POS);
@@ -126,12 +139,20 @@ export const OfficeModePill: React.FC = () => {
     setIsTopFlipped(prev => !prev);
   };
 
-  // Nếu người dùng tắt hoàn toàn tính năng hiển thị Pill trong Settings
+  // Đổi nhanh quy tắc bàn phím
+  const cycleInputRule = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const rules: PitchRecallInputRule[] = ['scale-degrees', 'piano-keys', 'note-letters', 'multiple-choice'];
+    const currentIdx = rules.indexOf(officeSettings.pitchRecallInputRule || 'scale-degrees');
+    const nextRule = rules[(currentIdx + 1) % rules.length];
+    setPitchRecallInputRule(nextRule);
+  };
+
   if (!officeSettings.showPill) {
     return null;
   }
 
-  // Vị trí mặc định: ĐÃ ĐẨY LÊN CAO (bottom-28 ~112px) để không bao giờ bị đè vào nút "Bắt đầu luyện tập"
+  // Vị trí mặc định: ĐÃ ĐẨY LÊN CAO (bottom-28 ~112px) để không che nút chính
   const defaultPositionClasses = isTopFlipped
     ? 'top-20 right-6'
     : {
@@ -141,14 +162,17 @@ export const OfficeModePill: React.FC = () => {
         'top-left': 'top-20 left-6'
       }[officeSettings.pillPosition || 'bottom-right'];
 
-  // Định dạng thời gian đếm ngược mm:ss
   const formatTimer = (sec: number) => {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // NẾU OFFICE MODE ĐANG TẮT: Hiển thị thanh mini launcher nhỏ gọn
+  const currentRule = officeSettings.pitchRecallInputRule || 'scale-degrees';
+  const ruleInfo = RULE_INFO_MAP[currentRule];
+  const isPitchRecall = currentOfficeQuestion?.exerciseSlug === 'pitch-recall';
+
+  // NẾU OFFICE MODE ĐANG TẮT: Mini launcher nhỏ gọn
   if (!officeModeActive) {
     return (
       <aside
@@ -184,12 +208,12 @@ export const OfficeModePill: React.FC = () => {
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       style={dragPos ? { left: `${dragPos.x}px`, top: `${dragPos.y}px`, right: 'auto', bottom: 'auto' } : undefined}
-      className={`fixed ${!dragPos ? defaultPositionClasses : ''} z-40 transition-shadow duration-200 animate-fade-in select-none touch-none`}
+      className={`fixed ${!dragPos ? defaultPositionClasses : ''} z-40 transition-shadow duration-200 animate-fade-in select-none touch-none max-w-full`}
     >
       <div
         className={`flex flex-col gap-2 p-3 rounded-2xl shadow-2xl backdrop-blur-md border transition-all duration-300 ${
           officeQuestionState === 'freestyle'
-            ? 'bg-slate-900/98 text-white border-amber-500/70 shadow-amber-500/25 max-w-sm'
+            ? 'bg-slate-900/98 text-white border-amber-500/70 shadow-amber-500/25 max-w-md'
             : officeQuestionState === 'feedback'
             ? lastOfficeAnswerResult?.isCorrect
               ? 'bg-emerald-600/95 text-white border-emerald-400 shadow-emerald-500/20'
@@ -209,7 +233,6 @@ export const OfficeModePill: React.FC = () => {
             {/* Header: Tay cầm kéo thả + Đối chiếu Sai vs Đúng */}
             <div className="flex items-start justify-between gap-2 border-b border-slate-700/80 pb-2">
               <div className="flex items-start gap-1.5">
-                {/* Tay cầm kéo thả */}
                 <div
                   className="p-1 -ml-1 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing shrink-0"
                   title="Kéo thả để di chuyển thanh tự do trên màn hình"
@@ -225,17 +248,11 @@ export const OfficeModePill: React.FC = () => {
                   <div className="flex items-center gap-1.5 text-sm font-black text-emerald-400 mt-0.5">
                     <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
                     <span>Đúng: {lastOfficeAnswerResult.correctLabel}</span>
-                    {lastOfficeAnswerResult.semitones !== undefined && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-                        {lastOfficeAnswerResult.semitones} nửa cung
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center gap-1 shrink-0">
-                {/* Nút nhanh đẩy lên / xuống */}
                 <button
                   onClick={toggleQuickVerticalPosition}
                   className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
@@ -254,6 +271,34 @@ export const OfficeModePill: React.FC = () => {
               </div>
             </div>
 
+            {/* Chi tiết từng nốt đối chiếu (Nếu là bài Nhớ Cao Độ) */}
+            {isPitchRecall && lastOfficeAnswerResult.sequenceNotes && (
+              <div className="flex items-center gap-1.5 py-1 overflow-x-auto">
+                {lastOfficeAnswerResult.sequenceNotes.map((targetNote, idx) => {
+                  const userNote = lastOfficeAnswerResult.userNotes?.[idx];
+                  const isSlotCorrect = userNote === targetNote;
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex flex-col items-center px-2 py-1 rounded-xl border text-xs font-mono font-bold min-w-[2.6rem] ${
+                        isSlotCorrect
+                          ? 'bg-emerald-950/60 border-emerald-500/70 text-emerald-300'
+                          : 'bg-rose-950/60 border-rose-500/70 text-rose-300'
+                      }`}
+                    >
+                      <span className="text-[9px] text-slate-400">Nốt {idx + 1}</span>
+                      <span className="text-xs font-black">{noteToSolfege(targetNote)}</span>
+                      {!isSlotCorrect && (
+                        <span className="text-[9px] line-through text-rose-400">
+                          {userNote ? noteToSolfege(userNote) : '?'}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Mẹo nhận diện */}
             {(lastOfficeAnswerResult.mnemonicSongVi || lastOfficeAnswerResult.tipVi) && (
               <div className="p-2 rounded-xl bg-slate-800/80 border border-slate-700/60 text-[11px] text-slate-300 flex items-start gap-1.5">
@@ -264,35 +309,59 @@ export const OfficeModePill: React.FC = () => {
               </div>
             )}
 
-            {/* Bàn phím thử nghiệm tự do (Bấm nghe thử đối chiếu các đáp án) */}
+            {/* Bàn phím thử nghiệm tự do */}
             <div className="space-y-1">
               <span className="text-[10px] text-slate-400 font-semibold block">
-                Bấm phím 1..{currentOfficeQuestion.options.length} hoặc click để nghe thử tự do:
+                {isPitchRecall && currentRule !== 'multiple-choice'
+                  ? `Bấm phím (${ruleInfo.hotkeyGuide}) hoặc click để nghe thử đối chiếu:`
+                  : `Bấm phím 1..${currentOfficeQuestion.options.length} hoặc click để nghe thử tự do:`}
               </span>
-              <div className="grid grid-cols-2 gap-1.5">
-                {currentOfficeQuestion.options.map((opt) => (
-                  <button
-                    key={opt.index}
-                    onClick={() => handleFreestylePlayOption(opt.index)}
-                    className={`flex items-center justify-between px-2 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                      opt.isCorrect
-                        ? 'bg-emerald-950/70 hover:bg-emerald-900 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/40'
-                        : opt.index === lastOfficeAnswerResult.selectedIndex
-                        ? 'bg-rose-950/50 hover:bg-rose-900/60 border-rose-500/60 text-rose-300'
-                        : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-300'
-                    }`}
-                    title={`Bấm phím ${opt.index} để nghe`}
-                  >
-                    <span className="flex items-center gap-1.5 truncate">
-                      <span className="w-4 h-4 rounded-full bg-black/40 text-[10px] flex items-center justify-center font-mono font-bold shrink-0">
-                        {opt.index}
+
+              {isPitchRecall && currentRule !== 'multiple-choice' ? (
+                <div className="flex items-center gap-1 flex-wrap">
+                  {getKeyDefinitionsForRule(currentRule).map((k) => (
+                    <button
+                      key={k.key}
+                      onClick={() => handleFreestylePlayNote(k.note)}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-bold transition-all cursor-pointer active:scale-95 ${
+                        k.isBlack
+                          ? 'bg-slate-950 hover:bg-slate-800 border-slate-700 text-amber-300'
+                          : 'bg-slate-800 hover:bg-indigo-600 border-slate-700 text-slate-200 hover:text-white'
+                      }`}
+                      title={`Bấm phím ${k.key} để nghe`}
+                    >
+                      <span className="font-mono text-indigo-400">{k.key}</span>
+                      <span>{k.solfege}</span>
+                      <Music2 className="w-2.5 h-2.5 opacity-50 ml-0.5" />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {currentOfficeQuestion.options.map((opt) => (
+                    <button
+                      key={opt.index}
+                      onClick={() => handleFreestylePlayOption(opt.index)}
+                      className={`flex items-center justify-between px-2 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                        opt.isCorrect
+                          ? 'bg-emerald-950/70 hover:bg-emerald-900 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/40'
+                          : opt.index === lastOfficeAnswerResult.selectedIndex
+                          ? 'bg-rose-950/50 hover:bg-rose-900/60 border-rose-500/60 text-rose-300'
+                          : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-300'
+                      }`}
+                      title={`Bấm phím ${opt.index} để nghe`}
+                    >
+                      <span className="flex items-center gap-1.5 truncate">
+                        <span className="w-4 h-4 rounded-full bg-black/40 text-[10px] flex items-center justify-center font-mono font-bold shrink-0">
+                          {opt.index}
+                        </span>
+                        <span className="truncate">{opt.label || opt.code}</span>
                       </span>
-                      <span className="truncate">{opt.label || opt.code}</span>
-                    </span>
-                    <Music2 className="w-3 h-3 opacity-60 shrink-0 ml-1" />
-                  </button>
-                ))}
-              </div>
+                      <Music2 className="w-3 h-3 opacity-60 shrink-0 ml-1" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Nút hành động */}
@@ -360,7 +429,9 @@ export const OfficeModePill: React.FC = () => {
             {!officeModePaused && officeQuestionState === 'playing' && (
               <div className="flex items-center gap-2.5">
                 <Volume2 className="w-4 h-4 text-indigo-200 animate-bounce" />
-                <span className="text-xs font-bold text-indigo-100">Đang phát âm thanh...</span>
+                <span className="text-xs font-bold text-indigo-100">
+                  {isPitchRecall ? `Đang phát ${currentOfficeQuestion?.sequenceNotes?.length || 3} nốt...` : 'Đang phát âm thanh...'}
+                </span>
                 <div className="flex items-center gap-1">
                   <span className="w-1 h-3 bg-indigo-200 rounded-full animate-pulse" />
                   <span className="w-1 h-4 bg-indigo-100 rounded-full animate-pulse delay-75" />
@@ -372,26 +443,107 @@ export const OfficeModePill: React.FC = () => {
             {/* 5. Trạng thái: WAITING FOR ANSWER */}
             {!officeModePaused && officeQuestionState === 'waiting' && currentOfficeQuestion && (
               <div className="flex items-center gap-2">
+                {/* Level badge */}
                 <span className="text-[11px] font-mono font-bold text-indigo-300 bg-indigo-950/60 px-2 py-0.5 rounded-md border border-indigo-800">
                   Cấp {currentOfficeQuestion.level}
                 </span>
 
-                {/* Các nút đáp án */}
-                <div className="flex items-center gap-1.5">
-                  {currentOfficeQuestion.options.map((opt) => (
+                {/* Nhớ Cao Độ với Quy tắc Bàn Phím (Bậc âm, Piano, Ký âm chữ cái) */}
+                {isPitchRecall && currentRule !== 'multiple-choice' ? (
+                  <div className="flex items-center gap-2">
+                    {/* Tiến độ nhập nốt (Slots) */}
+                    <div className="flex items-center gap-1">
+                      {currentOfficeQuestion.sequenceNotes?.map((_, idx) => {
+                        const note = userRecallSequence[idx];
+                        const isCurrentSlot = idx === userRecallSequence.length;
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex items-center justify-center px-1.5 py-0.5 rounded-md text-[11px] font-mono font-bold min-w-[1.8rem] border transition-all ${
+                              note
+                                ? 'bg-indigo-600 border-indigo-400 text-white shadow-sm shadow-indigo-500/40'
+                                : isCurrentSlot
+                                ? 'bg-slate-800 border-indigo-500/80 text-indigo-300 ring-2 ring-indigo-500/30 animate-pulse'
+                                : 'bg-slate-850 border-slate-700 text-slate-500'
+                            }`}
+                          >
+                            {note ? noteToSolfege(note) : '•'}
+                          </div>
+                        );
+                      })}
+
+                      {/* Nút Backspace xóa nốt vừa nhập */}
+                      {userRecallSequence.length > 0 && (
+                        <button
+                          onClick={handleBackspaceNote}
+                          className="px-1.5 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer text-[10px] font-mono"
+                          title="Xóa nốt vừa gõ (Backspace)"
+                        >
+                          ⌫
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Hàng phím nốt tương tác */}
+                    <div className="flex items-center gap-1">
+                      {getKeyDefinitionsForRule(currentRule).map((k) => (
+                        <button
+                          key={k.key}
+                          onClick={() => handleInputNote(k.note)}
+                          className={`group flex items-center gap-1 px-1.5 py-0.5 rounded-lg border text-xs font-bold transition-all transform active:scale-95 cursor-pointer shadow-sm ${
+                            k.isBlack
+                              ? 'bg-slate-950 hover:bg-slate-800 border-slate-700 text-amber-300'
+                              : 'bg-slate-800/90 hover:bg-indigo-600 text-slate-200 hover:text-white border-slate-700 hover:border-indigo-400'
+                          }`}
+                          title={`Bấm phím ${k.key} (${k.solfege})`}
+                        >
+                          <span className="w-3.5 h-3.5 rounded-full bg-slate-700 group-hover:bg-indigo-700 text-[9px] flex items-center justify-center font-mono font-bold">
+                            {k.key}
+                          </span>
+                          <span className="text-[10px] hidden sm:inline">{k.solfege}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Nút chuyển đổi nhanh quy tắc bàn phím */}
                     <button
-                      key={opt.index}
-                      onClick={() => handleAnswer(opt.index)}
-                      className="group relative flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800/90 hover:bg-indigo-600 text-slate-200 hover:text-white border border-slate-700 hover:border-indigo-400 text-xs font-bold transition-all transform active:scale-95 cursor-pointer shadow-sm"
-                      title={`Phím tắt: Alt+${opt.index} hoặc gõ phím ${opt.index}`}
+                      onClick={cycleInputRule}
+                      className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-400 hover:text-indigo-300 border border-slate-700 text-[10px] font-mono flex items-center gap-1 cursor-pointer"
+                      title={`Đang dùng quy tắc: ${ruleInfo.name}. Nhấn để đổi quy tắc.`}
                     >
-                      <span className="w-4 h-4 rounded-full bg-slate-700 group-hover:bg-indigo-700 text-[10px] flex items-center justify-center font-mono font-bold">
-                        {opt.index}
-                      </span>
-                      <span className="text-xs">{opt.label || opt.code}</span>
+                      <Layers className="w-3 h-3" />
+                      <span>{ruleInfo.badge}</span>
                     </button>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  /* Trắc nghiệm 1..4 (Multiple Choice) hoặc Nhận Diện Quãng */
+                  <div className="flex items-center gap-1.5">
+                    {currentOfficeQuestion.options.map((opt) => (
+                      <button
+                        key={opt.index}
+                        onClick={() => handleAnswer(opt.index)}
+                        className="group relative flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800/90 hover:bg-indigo-600 text-slate-200 hover:text-white border border-slate-700 hover:border-indigo-400 text-xs font-bold transition-all transform active:scale-95 cursor-pointer shadow-sm"
+                        title={`Phím tắt: Alt+${opt.index} hoặc gõ phím ${opt.index}`}
+                      >
+                        <span className="w-4 h-4 rounded-full bg-slate-700 group-hover:bg-indigo-700 text-[10px] flex items-center justify-center font-mono font-bold">
+                          {opt.index}
+                        </span>
+                        <span className="text-xs">{opt.label || opt.code}</span>
+                      </button>
+                    ))}
+
+                    {isPitchRecall && (
+                      <button
+                        onClick={cycleInputRule}
+                        className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-400 hover:text-indigo-300 border border-slate-700 text-[10px] font-mono flex items-center gap-1 cursor-pointer"
+                        title="Đổi sang chế độ gõ nốt tuần tự"
+                      >
+                        <Layers className="w-3 h-3" />
+                        <span>{ruleInfo.badge}</span>
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {/* Nút nghe lại */}
                 <button

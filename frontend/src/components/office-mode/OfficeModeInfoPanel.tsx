@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { PitchRecallInputRule, RULE_INFO_MAP } from '../../services/pitchRecallKeyMap';
 import {
   Headphones,
   X,
@@ -175,6 +176,47 @@ export const OfficeModeInfoPanel: React.FC = () => {
               </div>
             </div>
 
+            {/* Quy tắc bàn phím cho Nhớ Cao Độ */}
+            {officeSettings.exerciseSlug === 'pitch-recall' && (
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-1.5">
+                    <Keyboard className="w-3.5 h-3.5 text-indigo-500" />
+                    Quy tắc bàn phím:
+                  </span>
+                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold font-mono">
+                    {RULE_INFO_MAP[officeSettings.pitchRecallInputRule || 'scale-degrees']?.hotkeyGuide}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(['scale-degrees', 'piano-keys', 'note-letters', 'multiple-choice'] as PitchRecallInputRule[]).map((ruleKey) => {
+                    const info = RULE_INFO_MAP[ruleKey];
+                    const isSelected = (officeSettings.pitchRecallInputRule || 'scale-degrees') === ruleKey;
+                    return (
+                      <button
+                        key={ruleKey}
+                        onClick={() => updateOfficeSettings({ pitchRecallInputRule: ruleKey })}
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-500 text-indigo-900 dark:text-indigo-200 ring-1 ring-indigo-500/30'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1 font-bold text-xs">
+                          <span>{info.icon}</span>
+                          <span className="truncate">{info.shortName}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                          {info.desc}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Thống kê phiên */}
             <div className="grid grid-cols-3 gap-2.5">
               <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
@@ -312,17 +354,43 @@ export const OfficeModeInfoPanel: React.FC = () => {
               </p>
             </div>
 
-            {/* Mục 2: Bài tập Nhớ Cao Độ & Nhận Diện Quãng */}
+            {/* Mục 2: Bài tập Nhớ Cao Độ & Các Quy Tắc Bàn Phím */}
             <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-2">
               <h4 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                🎵 2. Cách chơi bài "Nhớ Cao Độ"
+                🎵 2. Cách chơi bài "Nhớ Cao Độ" với Quy Tắc Bàn Phím
               </h4>
               <p>
-                Khi đến giờ luyện tập, hệ thống sẽ phát một chuỗi giai điệu gồm 3–5 nốt nhạc (ví dụ: <em>Đồ - Mi - Sol</em>).
+                Khi đến giờ luyện tập, hệ thống phát chuỗi giai điệu gồm 3–5 nốt nhạc (ví dụ: <em>Đồ - Mi - Sol</em>). Bạn có thể chọn 1 trong 4 quy tắc bấm phím phù hợp với thói quen của mình:
               </p>
-              <ul className="list-disc pl-4 space-y-1">
-                <li>Bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Alt+1</kbd>..<kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">4</kbd> hoặc gõ phím số <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">1</kbd>..<kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">4</kbd> để chọn chuỗi nốt bạn vừa nghe.</li>
-                <li>Bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Alt+R</kbd> để nghe lại chuỗi giai điệu nếu chưa nghe kịp.</li>
+              <div className="space-y-1.5 pt-1">
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border">
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400">🔢 Quy tắc Bậc âm 1..7 (Khuyên dùng cho văn phòng):</span>
+                  <p className="text-[11px] mt-0.5">
+                    Gõ lần lượt các phím số: <strong>1</strong> (Đồ), <strong>2</strong> (Rê), <strong>3</strong> (Mi), <strong>4</strong> (Fa), <strong>5</strong> (Sol), <strong>6</strong> (La), <strong>7</strong> (Si), <strong>8</strong> (Đố). Dễ gõ mù 1 tay trên hàng số hoặc Numpad mà không cần nhìn màn hình.
+                  </p>
+                </div>
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border">
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400">🎹 Quy tắc Hàng phím Piano (A S D F G H J K):</span>
+                  <p className="text-[11px] mt-0.5">
+                    Mô phỏng phím đàn piano chuẩn DAW (Home row: A S D F G H J K là nốt trắng, W E T Y U là nốt đen). Thích hợp với người quen đàn phím ảo.
+                  </p>
+                </div>
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border">
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400">🔤 Quy tắc Ký âm chữ cái (C D E F G A B):</span>
+                  <p className="text-[11px] mt-0.5">
+                    Gõ trực tiếp các phím chữ cái theo tên nốt nhạc quốc tế.
+                  </p>
+                </div>
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border">
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400">📋 Quy tắc Trắc nghiệm 1..4:</span>
+                  <p className="text-[11px] mt-0.5">
+                    Hiển thị 4 phương án trên màn hình, bấm 1..4 để chọn phương án bạn muốn.
+                  </p>
+                </div>
+              </div>
+              <ul className="list-disc pl-4 space-y-1 pt-1 text-slate-500 dark:text-slate-400">
+                <li>Bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Backspace</kbd> để xóa nốt vừa gõ nếu lỡ tay bấm nhầm.</li>
+                <li>Bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Alt+R</kbd> để nghe lại chuỗi giai điệu nếu chưa nghe rõ.</li>
               </ul>
             </div>
 
