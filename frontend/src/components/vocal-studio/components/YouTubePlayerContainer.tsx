@@ -172,22 +172,34 @@ export const YouTubePlayerContainer: React.FC<YouTubePlayerContainerProps> = ({
           </div>
         )}
 
-        {/* Custom Play/Pause Overlay Hitbox (hidden if hidePlayButtonOverlay is true, e.g. during active recording) */}
+        {/* Play/Pause Overlay: discreet non-obstructive bottom-left badge on hover, never blocking center lyrics */}
         {!errorInfo && !isLoading && onTogglePlay && !hidePlayButtonOverlay && (
-          <button
-            type="button"
+          <div
             onClick={onTogglePlay}
-            className="absolute inset-0 bg-black/20 hover:bg-black/30 transition flex items-center justify-center group/btn cursor-pointer"
-            title={isCustomPlaying ? 'Tạm dừng Beat' : 'Phát Beat'}
+            className="absolute inset-0 cursor-pointer group/overlay"
+            title={isCustomPlaying ? 'Nhấn để tạm dừng Beat' : 'Nhấn để phát Beat'}
           >
-            <div className="w-14 h-14 rounded-full bg-slate-900/80 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-lg transition-transform group-hover/btn:scale-110">
+            {/* Sleek bottom-left floating badge that NEVER covers lyrics in the center or bottom-center */}
+            <div
+              className={`absolute bottom-3 left-3 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-950/85 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-xl transition-all ${
+                isCustomPlaying
+                  ? 'opacity-0 group-hover/overlay:opacity-100 hover:scale-105'
+                  : 'opacity-90 hover:opacity-100 hover:scale-105'
+              }`}
+            >
               {isCustomPlaying ? (
-                <Pause className="w-6 h-6 text-white" />
+                <>
+                  <Pause className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Tạm dừng</span>
+                </>
               ) : (
-                <Play className="w-6 h-6 text-white ml-0.5" />
+                <>
+                  <Play className="w-3.5 h-3.5 text-emerald-400 ml-0.5" />
+                  <span>Phát Beat</span>
+                </>
               )}
             </div>
-          </button>
+          </div>
         )}
 
         {/* Custom Children Overlay (e.g. Countdown or Live Recording HUD) */}

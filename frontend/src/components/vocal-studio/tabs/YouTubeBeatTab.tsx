@@ -189,6 +189,16 @@ export const YouTubeBeatTab: React.FC = () => {
     }
   };
 
+  const handlePlayerStateChange = (state: number) => {
+    // 0 = ended, 2 = paused
+    if (state === 0 || state === 2) {
+      if (isPlayingMix) {
+        setIsPlayingMix(false);
+        youtubeSyncMixer.pause();
+      }
+    }
+  };
+
   // Step 2 -> 3: Countdown and Start Recording
   const handleStartCountdown = async () => {
     // Ensure audio context and mic are ready (critical for mobile iOS)
@@ -283,6 +293,11 @@ export const YouTubeBeatTab: React.FC = () => {
       // Transition to Review & Mix
       setCurrentStep('review_mix');
 
+      // Prime YouTube playback head at startPointSec
+      if (ytPlayerInstance && typeof ytPlayerInstance.seekTo === 'function') {
+        ytPlayerInstance.seekTo(startPointSec, true);
+      }
+
       const est = await youtubeTakeStorageService.getStorageUsageEstimate();
       if (est) setStorageEstimateMb(est.usedMb);
     } catch (err) {
@@ -303,6 +318,7 @@ export const YouTubeBeatTab: React.FC = () => {
       ytPlayerInstance.pauseVideo();
     }
     vocalRecordingEngine.stopMicCheck();
+    vocalRecordingEngine.stopRecording().catch(() => {});
     setCurrentStep('prepare');
   };
 
@@ -478,7 +494,8 @@ export const YouTubeBeatTab: React.FC = () => {
             <button
               type="button"
               onClick={() => setCurrentStep('choose_beat')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 ${
+              disabled={isRecording || isCountingDown}
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                 currentStep === 'choose_beat'
                   ? 'bg-sky-500 text-slate-950 shadow-sm'
                   : 'text-slate-400 hover:text-white'
@@ -490,7 +507,8 @@ export const YouTubeBeatTab: React.FC = () => {
             <button
               type="button"
               onClick={() => setCurrentStep('prepare')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 ${
+              disabled={isRecording || isCountingDown}
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                 currentStep === 'prepare'
                   ? 'bg-amber-400 text-slate-950 shadow-sm'
                   : 'text-slate-400 hover:text-white'
@@ -501,96 +519,284 @@ export const YouTubeBeatTab: React.FC = () => {
 
             <button
               type="button"
+              onClick={() => {
+                if (!isRecording && !isCountingDown) {
+                  handleStartCountdown();
+                }
+              }}
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                currentStep === 'recording'
+                  ? 'bg-rose-500 text-white shadow-sm ring-2 ring-rose-400/40'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {isRecording && <span className="w-2 h-2 rounded-full bg-white animate-ping" />}
+              <span>③ Thu Âm</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => takes.length > 0 && setCurrentStep('review_mix')}
-              disabled={takes.length === 0}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 ${
+              disabled={takes.length === 0 || isRecording || isCountingDown}
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 currentStep === 'review_mix'
                   ? 'bg-emerald-400 text-slate-950 shadow-sm'
                   : 'text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed'
               }`}
             >
-              <span>③ Nghe & Mix ({takes.length})</span>
+              <span>④ Nghe & Mix ({takes.length})</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* 2. DYNAMIC WORKSPACE: KARAOKE CENTER STAGE (RECORDING) VS 2-COLUMN STUDIO */}
-      {currentStep === 'recording' ? (
-        /* ================= KARAOKE CENTER STAGE (RECORDING MODE) ================= */
-        <div className="max-w-4xl mx-auto space-y-4 animate-in fade-in duration-200">
-          {/* Main Karaoke Video Player with Synced Lyrics Screen */}
-          <div className="relative rounded-3xl overflow-hidden border-2 border-rose-500/50 shadow-2xl bg-slate-950">
-            <YouTubePlayerContainer
-              videoId={activeVideoId}
-              onPlayerReady={handlePlayerReady}
-              onError={(err) => setPlayerError(err)}
-              isCustomPlaying={true}
-              hidePlayButtonOverlay={true}
-              className="w-full"
-            >
-              {/* Translucent 3-2-1 Countdown HUD over video (singer sees video playing underneath!) */}
-              {isCountingDown && (
-                <div className="absolute inset-0 z-30 bg-black/45 backdrop-blur-[1px] flex flex-col items-center justify-center text-center select-none pointer-events-none">
-                  <div className="w-24 h-24 rounded-full bg-slate-900/90 border-2 border-amber-400 text-amber-400 flex items-center justify-center text-5xl font-black shadow-2xl animate-scale-up">
+      {/* 2. THE PERMANENT KARAOKE STAGE (ALWAYS MOUNTED, FULL FOCUS & UNBLOCKED LYRICS) */}
+      <div className={`w-full mx-auto space-y-3 transition-all duration-300 ${isTheaterMode ? 'max-w-6xl' : 'max-w-4xl'}`}>
+        <div className={`relative rounded-3xl overflow-hidden border-2 shadow-2xl bg-slate-950 transition-all ${
+          currentStep === 'recording'
+            ? 'border-rose-500/70 ring-4 ring-rose-500/20'
+            : isPlayingMix
+            ? 'border-sky-500/50 shadow-sky-500/10'
+            : 'border-slate-800'
+        }`}>
+          <YouTubePlayerContainer
+            videoId={activeVideoId}
+            onPlayerReady={handlePlayerReady}
+            onStateChange={handlePlayerStateChange}
+            onError={(err) => setPlayerError(err)}
+            isCustomPlaying={isPlayingMix || isRecording || isCountingDown}
+            onTogglePlay={currentStep !== 'recording' ? handleTogglePlayMix : undefined}
+            hidePlayButtonOverlay={currentStep === 'recording' || isCountingDown}
+            isTheaterMode={isTheaterMode}
+            onToggleTheaterMode={() => setIsTheaterMode(!isTheaterMode)}
+            className="w-full"
+          >
+            {/* Subtle Non-Obstructive Countdown Badge at Top-Center */}
+            {isCountingDown && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none select-none">
+                <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-slate-950/90 border-2 border-amber-400 shadow-2xl backdrop-blur-md animate-bounce">
+                  <div className="w-8 h-8 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center text-xl font-black">
                     {countdownNumber}
                   </div>
-                  <span className="text-sm font-black text-white uppercase tracking-widest mt-3 drop-shadow-md">
-                    Chuẩn bị vào hát...
-                  </span>
-                  <span className="text-xs text-amber-200 mt-1 font-semibold drop-shadow-md">
-                    Beat đang chạy đoạn dạo để đồng bộ đúng câu đầu!
-                  </span>
-                </div>
-              )}
-
-              {/* Live Recording HUD overlay at top of video */}
-              {!isCountingDown && (
-                <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between p-2.5 rounded-xl bg-slate-950/85 backdrop-blur-md border border-rose-500/40 text-xs shadow-xl">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-rose-500 animate-ping" />
-                    <span className="font-bold text-rose-400 uppercase tracking-wider text-[11px]">
-                      Đang Thu (Take #{takes.length + 1})
-                    </span>
-                    <span className="text-white font-mono font-black text-sm ml-2">
-                      {formatTimeMs(recordDurationSec * 1000)}
-                    </span>
-                  </div>
-
-                  {/* Live Mic VU Level */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-slate-400 hidden sm:inline font-mono">Mic:</span>
-                    <div className="w-24 sm:w-36 h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
-                      <div
-                        className="h-full bg-gradient-to-r from-emerald-500 via-sky-400 to-rose-500 rounded-full transition-all duration-75"
-                        style={{ width: `${Math.min(100, Math.max(4, (liveVuDb + 60) * 1.8))}%` }}
-                      />
+                  <div className="text-left">
+                    <div className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                      Chuẩn bị vào hát ({countdownNumber}s)
                     </div>
-                    <span className="font-mono text-[10px] text-emerald-400 font-bold">
-                      {Math.round(liveVuDb)} dB
-                    </span>
+                    <div className="text-[10px] text-slate-300 font-medium">
+                      Beat đang dạo - nhìn chữ trên video để vào đúng nhịp!
+                    </div>
                   </div>
                 </div>
-              )}
-            </YouTubePlayerContainer>
+              </div>
+            )}
+
+            {/* Live Recording HUD at Top-Edge (Lyrics area in middle/bottom is 100% visible!) */}
+            {currentStep === 'recording' && !isCountingDown && (
+              <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between p-2.5 rounded-xl bg-slate-950/85 backdrop-blur-md border border-rose-500/40 text-xs shadow-xl pointer-events-none select-none">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-rose-500 animate-ping" />
+                  <span className="font-bold text-rose-400 uppercase tracking-wider text-[11px]">
+                    Đang Thu (Take #{takes.length + 1})
+                  </span>
+                  <span className="text-white font-mono font-black text-sm ml-2">
+                    {formatTimeMs(recordDurationSec * 1000)}
+                  </span>
+                </div>
+
+                {/* Live Mic VU Level */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400 hidden sm:inline font-mono">Mic:</span>
+                  <div className="w-24 sm:w-36 h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-500 via-sky-400 to-rose-500 rounded-full transition-all duration-75"
+                      style={{ width: `${Math.min(100, Math.max(4, (liveVuDb + 60) * 1.8))}%` }}
+                    />
+                  </div>
+                  <span className="font-mono text-[10px] text-emerald-400 font-bold">
+                    {Math.round(liveVuDb)} dB
+                  </span>
+                </div>
+              </div>
+            )}
+          </YouTubePlayerContainer>
+        </div>
+
+        {/* In-tab Lyric Prompter Drawer (if toggled open) */}
+        <LyricPrompterDrawer
+          videoId={activeVideoId}
+          isOpen={isLyricPrompterOpen}
+          onClose={() => setIsLyricPrompterOpen(false)}
+          isPlaying={isPlayingMix || isRecording}
+        />
+      </div>
+
+      {/* 3. CONTEXTUAL STEP CONTROLS (DIRECTLY BELOW VIDEO) */}
+      <div className={`w-full mx-auto transition-all duration-300 ${isTheaterMode ? 'max-w-6xl' : 'max-w-4xl'}`}>
+        {/* STEP 1: CHOOSE BEAT */}
+        {currentStep === 'choose_beat' && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Video URL Input & Preset Selector */}
+            <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Music className="w-4 h-4 text-sky-400" />
+                    <span>Dán Link YouTube hoặc Chọn Beat Mẫu</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Hỗ trợ link YouTube thường, link rút gọn youtu.be, và link có mốc thời gian (?t=15s)
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep('prepare')}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-slate-950 font-bold text-xs transition flex items-center gap-2 shadow-lg shadow-sky-500/20 cursor-pointer"
+                >
+                  <span>Tiếp tục: Chuẩn Bị Thu</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=... hoặc dán link karaoke bất kỳ"
+                    className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-sky-400 font-mono"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleLoadYouTubeUrl();
+                    }}
+                  />
+                  <Link2 className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-3" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleLoadYouTubeUrl()}
+                  className="px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs transition cursor-pointer"
+                >
+                  Tải Beat
+                </button>
+              </div>
+
+              {/* Quick Backing Track Presets */}
+              <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                <span className="text-xs font-semibold text-slate-300 block">
+                  Beat mẫu gợi ý (1-click thử ngay):
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                  {POPULAR_BEAT_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => handleSelectPreset(preset)}
+                      className={`p-2.5 rounded-xl border text-left transition text-xs flex flex-col justify-between cursor-pointer ${
+                        activeVideoId === preset.videoId
+                          ? 'bg-sky-500/15 border-sky-500 text-sky-200'
+                          : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      <span className="font-bold truncate">{preset.title}</span>
+                      <span className="text-[10px] text-slate-400 font-mono mt-1">
+                        {preset.genre} • Intro: {preset.suggestedStartSec}s
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Storage & Legal */}
+              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/60">
+                <span className="flex items-center gap-1.5">
+                  <HardDrive className="w-3.5 h-3.5 text-slate-400" />
+                  Bản thu lưu cục bộ trên trình duyệt (IndexedDB)
+                </span>
+                {storageEstimateMb !== null && (
+                  <span className="font-mono text-slate-400">Đã dùng: {storageEstimateMb} MB</span>
+                )}
+              </div>
+            </div>
+
+            {/* Previous Takes if any */}
+            {takes.length > 0 && (
+              <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2">
+                <span className="text-xs font-bold text-slate-200 block">
+                  Các take đã thu của bài này ({takes.length} bản):
+                </span>
+                <TakeManagerList
+                  takes={takes}
+                  activeTakeId={activeTake?.id || null}
+                  isPlaying={isPlayingMix}
+                  onSelectTake={handleSelectTake}
+                  onTogglePlayTake={handleTogglePlayTake}
+                  onMarkBestTake={handleMarkBestTake}
+                  onDeleteTake={handleDeleteTake}
+                  onUpdateTakeNote={handleUpdateTakeNote}
+                  onDownloadVocalWav={handleDownloadVocalWav}
+                  onClearAllTakes={handleClearAllTakes}
+                  storageUsageMb={storageEstimateMb}
+                />
+              </div>
+            )}
           </div>
+        )}
 
-          {/* Bottom Stage Recording Dock */}
-          <div className="p-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xl">
-            <button
-              type="button"
-              onClick={() => setIsLyricPrompterOpen(!isLyricPrompterOpen)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                isLyricPrompterOpen
-                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                  : 'bg-slate-800 text-slate-300 hover:text-white'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5 text-rose-400" />
-              <span>{isLyricPrompterOpen ? 'Đóng Sổ Nhắc Lời' : 'Mở Sổ Nhắc Lời (Teleprompter)'}</span>
-            </button>
+        {/* STEP 2: PREPARE */}
+        {currentStep === 'prepare' && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            <MicPreflightCheck
+              onCheckCompleted={(ready) => setIsMicReady(ready)}
+              beatCurrentTimeSec={beatCurrentTimeSec}
+              beatDurationSec={beatDurationSec}
+              selectedStartPointSec={startPointSec}
+              onSetStartPointSec={(sec) => setStartPointSec(sec)}
+              onPreviewBeatSeek={(sec) => handleSeekBeat(sec)}
+              onTogglePreviewBeat={handleTogglePlayMix}
+              isPreviewingBeat={isPlayingMix}
+            />
 
-            <div className="flex items-center gap-2.5">
+            {/* Big Start Recording CTA */}
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
+              <div>
+                <span className="text-xs sm:text-sm font-bold text-white block">
+                  Sẵn sàng để ghi âm?
+                </span>
+                <span className="text-xs text-slate-400">
+                  Video YouTube trên sẽ phát đúng đoạn dạo và đếm nhịp 3-2-1 để bạn nhìn chữ bắt nhịp chuẩn xác.
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleStartCountdown}
+                disabled={isCountingDown}
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white font-black text-sm transition flex items-center justify-center gap-2 shadow-xl shadow-rose-500/20 cursor-pointer disabled:opacity-50 active:scale-95 shrink-0"
+              >
+                <Radio className="w-4 h-4 animate-pulse" />
+                <span>Bắt Đầu Thu (3-2-1)</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: RECORDING DOCK */}
+        {currentStep === 'recording' && (
+          <div className="p-4 bg-slate-900/95 border border-rose-500/40 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xl animate-in fade-in duration-200">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" />
+                <span className="font-bold text-white text-sm">
+                  Beat YouTube đang chạy • Microphone đang ghi âm trực tiếp
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                Hãy nhìn vào màn hình video phía trên để đọc chữ karaoke. Khi hát xong, bấm nút &ldquo;Dừng Thu & Lưu Take&rdquo;.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0">
               <button
                 type="button"
                 onClick={handleDiscardRecording}
@@ -608,426 +814,226 @@ export const YouTubeBeatTab: React.FC = () => {
               </button>
             </div>
           </div>
+        )}
 
-          {/* Teleprompter Drawer under Stage if toggled */}
-          <LyricPrompterDrawer
-            videoId={activeVideoId}
-            isOpen={isLyricPrompterOpen}
-            onClose={() => setIsLyricPrompterOpen(false)}
-            isPlaying={true}
-          />
-        </div>
-      ) : (
-        /* ================= 2-COLUMN OR THEATER WORKSPACE (STEPS 1, 2, 4) ================= */
-        <div className={`grid grid-cols-1 ${isTheaterMode ? 'gap-6' : 'lg:grid-cols-12 gap-6'}`}>
-          {/* VIDEO COLUMN (Takes full width in Theater Mode, or Left 5 Cols) */}
-          <div className={`${isTheaterMode ? 'w-full max-w-4xl mx-auto space-y-4' : 'lg:col-span-5 space-y-4'}`}>
-            {/* YouTube Video Player Embed */}
-            <YouTubePlayerContainer
-              videoId={activeVideoId}
-              onPlayerReady={handlePlayerReady}
-              onError={(err) => setPlayerError(err)}
-              isCustomPlaying={isPlayingMix}
-              onTogglePlay={handleTogglePlayMix}
-              isTheaterMode={isTheaterMode}
-              onToggleTheaterMode={() => setIsTheaterMode(!isTheaterMode)}
-            />
-
-            {/* Video URL Input & Preset Selector */}
-            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-sm space-y-3">
-              <span className="text-xs font-bold text-white block">
-                Dán Link YouTube hoặc Chọn Beat Mẫu
-              </span>
-
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    value={urlInput}
-                    onChange={(e) => setUrlInput(e.target.value)}
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    className="w-full pl-8 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-sky-400 font-mono"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleLoadYouTubeUrl();
-                    }}
-                  />
-                  <Link2 className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleLoadYouTubeUrl()}
-                  className="px-3 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs transition cursor-pointer"
-                >
-                  Tải Beat
-                </button>
-              </div>
-
-              {/* Quick Backing Track Presets */}
-              <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
-                <span className="text-[11px] font-semibold text-slate-400 block">
-                  Beat mẫu gợi ý (1-click thử ngay):
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                  {POPULAR_BEAT_PRESETS.map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => handleSelectPreset(preset)}
-                      className={`p-2 rounded-xl border text-left transition text-xs flex flex-col justify-between cursor-pointer ${
-                        activeVideoId === preset.videoId
-                          ? 'bg-sky-500/15 border-sky-500 text-sky-200'
-                          : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
-                      }`}
-                    >
-                      <span className="font-bold truncate">{preset.title}</span>
-                      <span className="text-[10px] text-slate-400 font-mono mt-0.5">
-                        {preset.genre} • Intro: {preset.suggestedStartSec}s
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Local Storage Notice */}
-              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                <span className="flex items-center gap-1">
-                  <HardDrive className="w-3 h-3 text-slate-400" />
-                  Lưu trên thiết bị này (IndexedDB)
-                </span>
-                {storageEstimateMb !== null && (
-                  <span className="font-mono text-slate-400">{storageEstimateMb} MB</span>
-                )}
-              </div>
-            </div>
-
-            {/* In-tab Lyric Prompter Drawer */}
-            <LyricPrompterDrawer
-              videoId={activeVideoId}
-              isOpen={isLyricPrompterOpen}
-              onClose={() => setIsLyricPrompterOpen(false)}
-              isPlaying={isPlayingMix}
-            />
-          </div>
-
-          {/* CONTROLS COLUMN (Below video in Theater Mode, or Right 7 Cols) */}
-          <div className={`${isTheaterMode ? 'w-full max-w-4xl mx-auto space-y-4' : 'lg:col-span-7 space-y-4'}`}>
-            {/* STEP 1: CHOOSE BEAT OVERVIEW */}
-            {currentStep === 'choose_beat' && (
-              <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-4">
-                <div className="flex items-center justify-between">
+        {/* STEP 4: REVIEW & MIX */}
+        {currentStep === 'review_mix' && activeTake && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Virtual Mix Control Deck */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
+              {/* Unified Transport & Playhead */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleTogglePlayMix}
+                    className="w-11 h-11 rounded-xl bg-gradient-to-tr from-sky-400 to-indigo-500 text-slate-950 flex items-center justify-center font-bold shadow-lg shadow-sky-500/20 hover:scale-105 transition cursor-pointer"
+                  >
+                    {isPlayingMix ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                  </button>
                   <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Music className="w-4 h-4 text-sky-400" />
-                      <span>Bước 1: Chọn Beat Hoàn Tất</span>
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      Beat đã sẵn sàng. Chuyển sang bước chuẩn bị thu âm để kiểm tra mic và chọn mốc vào hát.
-                    </p>
+                    <span className="text-xs font-bold text-white block">
+                      Đang Nghe: Take #{activeTake.takeNumber} ({activeTake.note || 'Bản thu'})
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      {formatTimeMs(Math.round(beatCurrentTimeSec * 1000))} /{' '}
+                      {formatTimeMs(Math.round(beatDurationSec * 1000))}
+                    </span>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center">
-                      <Play className="w-5 h-5 ml-0.5" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-white block">{videoTitle}</span>
-                      <span className="text-[11px] text-slate-400 font-mono">
-                        Thời lượng: {formatTimeMs(Math.round(beatDurationSec * 1000))}
-                      </span>
-                    </div>
-                  </div>
-
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setCurrentStep('prepare')}
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-slate-950 font-bold text-xs transition flex items-center gap-2 shadow-lg shadow-sky-500/20 cursor-pointer"
+                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span>Sang Bước 2: Chuẩn Bị Thu</span>
-                    <ChevronRight className="w-4 h-4" />
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Thu Take Khác</span>
                   </button>
-                </div>
-
-                {takes.length > 0 && (
-                  <div className="pt-2">
-                    <span className="text-xs font-bold text-slate-300 block mb-2">
-                      Các take đã thu trước đó của beat này:
-                    </span>
-                    <TakeManagerList
-                      takes={takes}
-                      activeTakeId={activeTake?.id || null}
-                      isPlaying={isPlayingMix}
-                      onSelectTake={handleSelectTake}
-                      onTogglePlayTake={handleTogglePlayTake}
-                      onMarkBestTake={handleMarkBestTake}
-                      onDeleteTake={handleDeleteTake}
-                      onUpdateTakeNote={handleUpdateTakeNote}
-                      onDownloadVocalWav={handleDownloadVocalWav}
-                      onClearAllTakes={handleClearAllTakes}
-                      storageUsageMb={storageEstimateMb}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* STEP 2: PREPARE TO RECORD */}
-            {currentStep === 'prepare' && (
-              <div className="space-y-4">
-                <MicPreflightCheck
-                  onCheckCompleted={(ready) => setIsMicReady(ready)}
-                  beatCurrentTimeSec={beatCurrentTimeSec}
-                  beatDurationSec={beatDurationSec}
-                  selectedStartPointSec={startPointSec}
-                  onSetStartPointSec={(sec) => setStartPointSec(sec)}
-                  onPreviewBeatSeek={(sec) => handleSeekBeat(sec)}
-                  onTogglePreviewBeat={handleTogglePlayMix}
-                  isPreviewingBeat={isPlayingMix}
-                />
-
-                {/* Big Start Recording CTA */}
-                <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
-                  <div>
-                    <span className="text-xs font-bold text-white block">Sẵn sàng để ghi âm?</span>
-                    <span className="text-[11px] text-slate-400">
-                      Beat sẽ mở đúng mốc đồng bộ trên sân khấu lớn và đếm nhịp 3-2-1 để bạn đọc lyric chuẩn xác.
-                    </span>
-                  </div>
 
                   <button
                     type="button"
-                    onClick={handleStartCountdown}
-                    disabled={isCountingDown}
-                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white font-bold text-sm transition flex items-center justify-center gap-2 shadow-xl shadow-rose-500/20 cursor-pointer disabled:opacity-50 active:scale-95"
+                    onClick={() => setIsExportModalOpen(true)}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer"
                   >
-                    <Radio className="w-4 h-4 animate-pulse" />
-                    <span>Bắt Đầu Thu (3-2-1)</span>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Xuất File</span>
                   </button>
                 </div>
               </div>
-            )}
 
-            {/* STEP 4: REVIEW, ADJUST & VIRTUAL MIX */}
-            {currentStep === 'review_mix' && activeTake && (
-              <div className="space-y-4">
-                {/* Virtual Mix Control Deck */}
-                <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
-                  {/* Unified Transport & Playhead */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={handleTogglePlayMix}
-                        className="w-11 h-11 rounded-xl bg-gradient-to-tr from-sky-400 to-indigo-500 text-slate-950 flex items-center justify-center font-bold shadow-lg shadow-sky-500/20 hover:scale-105 transition cursor-pointer"
-                      >
-                        {isPlayingMix ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
-                      </button>
-                      <div>
-                        <span className="text-xs font-bold text-white block">
-                          Đang Nghe: Take #{activeTake.takeNumber}
-                        </span>
-                        <span className="text-[11px] text-slate-400 font-mono">
-                          {formatTimeMs(Math.round(beatCurrentTimeSec * 1000))} /{' '}
-                          {formatTimeMs(Math.round(beatDurationSec * 1000))}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setCurrentStep('prepare')}
-                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Thu Take Khác</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setIsExportModalOpen(true)}
-                        className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Xuất File</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Unified Seekbar */}
-                  <div className="space-y-1">
-                    <input
-                      type="range"
-                      min={0}
-                      max={Math.max(10, beatDurationSec || 240)}
-                      step={0.5}
-                      value={beatCurrentTimeSec}
-                      onChange={(e) => handleSeekBeat(parseFloat(e.target.value))}
-                      className="w-full accent-sky-400 cursor-pointer"
-                    />
-                    <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-                      <span>00:00</span>
-                      <span>Thanh tua đồng bộ chung</span>
-                      <span>{formatTimeMs(Math.round((beatDurationSec || 240) * 1000))}</span>
-                    </div>
-                  </div>
-
-                  {/* Vocal Waveform Track with Visual Nudge */}
-                  <VocalWaveformTrack
-                    take={activeTake}
-                    beatCurrentTimeSec={beatCurrentTimeSec}
-                    beatDurationSec={beatDurationSec}
-                    nudgeOffsetMs={nudgeOffsetMs}
-                    onSeekToBeatSec={handleSeekBeat}
-                  />
-
-                  {/* Dual Volume Knobs & Nudge Slider */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
-                    {/* Beat Volume */}
-                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-300">Âm lượng Beat YT</span>
-                        <span className="font-mono font-bold text-sky-400">
-                          {Math.round(beatVolume * 100)}%
-                        </span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.02}
-                        value={beatVolume}
-                        onChange={(e) => handleBeatVolumeChange(parseFloat(e.target.value))}
-                        className="w-full accent-sky-400 cursor-pointer"
-                      />
-                    </div>
-
-                    {/* Vocal Volume */}
-                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-300">Âm lượng Giọng Thu</span>
-                        <span className="font-mono font-bold text-emerald-400">
-                          {Math.round(vocalVolume * 100)}%
-                        </span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={1.5}
-                        step={0.05}
-                        value={vocalVolume}
-                        onChange={(e) => handleVocalVolumeChange(parseFloat(e.target.value))}
-                        className="w-full accent-emerald-400 cursor-pointer"
-                      />
-                    </div>
-
-                    {/* Nudge Slider (-500ms to +500ms) */}
-                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-300">Dịch Giọng (Nudge)</span>
-                        <span className={`font-mono font-bold ${
-                          nudgeOffsetMs === 0
-                            ? 'text-slate-400'
-                            : nudgeOffsetMs > 0
-                            ? 'text-emerald-400'
-                            : 'text-amber-400'
-                        }`}>
-                          {nudgeOffsetMs > 0 ? `+${nudgeOffsetMs}ms` : `${nudgeOffsetMs}ms`}
-                        </span>
-                      </div>
-
-                      <input
-                        type="range"
-                        min={-500}
-                        max={500}
-                        step={5}
-                        value={nudgeOffsetMs}
-                        onChange={(e) => handleNudgeChange(parseInt(e.target.value, 10))}
-                        className="w-full accent-amber-400 cursor-pointer"
-                      />
-
-                      {/* Quick nudge buttons */}
-                      <div className="flex items-center justify-between gap-1 pt-0.5">
-                        <button
-                          type="button"
-                          onClick={() => handleNudgeChange(nudgeOffsetMs - 20)}
-                          className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 hover:text-white"
-                        >
-                          -20ms
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleNudgeChange(0)}
-                          className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-400 hover:text-white"
-                        >
-                          0ms
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleNudgeChange(nudgeOffsetMs + 20)}
-                          className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 hover:text-white"
-                        >
-                          +20ms
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Vocal FX: Compressor & Reverb */}
-                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between gap-4 text-xs">
-                    <div className="flex items-center gap-2">
-                      <Sliders className="w-3.5 h-3.5 text-indigo-400" />
-                      <span className="font-bold text-slate-300">Hiệu ứng giọng (Vocal FX):</span>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      {/* Compressor toggle */}
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isCompressor}
-                          onChange={handleToggleCompressor}
-                          className="rounded border-slate-700 bg-slate-800 text-sky-500 cursor-pointer"
-                        />
-                        <span className="text-slate-300 font-medium">Compressor (Dính giọng)</span>
-                      </label>
-
-                      {/* Reverb toggle */}
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isReverb}
-                          onChange={handleToggleReverb}
-                          className="rounded border-slate-700 bg-slate-800 text-sky-500 cursor-pointer"
-                        />
-                        <span className="text-slate-300 font-medium">Reverb phòng nhẹ</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Takes Manager Deck */}
-                <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800">
-                  <TakeManagerList
-                    takes={takes}
-                    activeTakeId={activeTake.id}
-                    isPlaying={isPlayingMix}
-                    onSelectTake={handleSelectTake}
-                    onTogglePlayTake={handleTogglePlayTake}
-                    onMarkBestTake={handleMarkBestTake}
-                    onDeleteTake={handleDeleteTake}
-                    onUpdateTakeNote={handleUpdateTakeNote}
-                    onDownloadVocalWav={handleDownloadVocalWav}
-                    onClearAllTakes={handleClearAllTakes}
-                    storageUsageMb={storageEstimateMb}
-                  />
+              {/* Unified Seekbar */}
+              <div className="space-y-1">
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.max(10, beatDurationSec || 240)}
+                  step={0.5}
+                  value={beatCurrentTimeSec}
+                  onChange={(e) => handleSeekBeat(parseFloat(e.target.value))}
+                  className="w-full accent-sky-400 cursor-pointer"
+                />
+                <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                  <span>00:00</span>
+                  <span>Thanh tua đồng bộ chung Beat + Giọng</span>
+                  <span>{formatTimeMs(Math.round((beatDurationSec || 240) * 1000))}</span>
                 </div>
               </div>
-            )}
+
+              {/* Vocal Waveform Track with Visual Nudge */}
+              <VocalWaveformTrack
+                take={activeTake}
+                beatCurrentTimeSec={beatCurrentTimeSec}
+                beatDurationSec={beatDurationSec}
+                nudgeOffsetMs={nudgeOffsetMs}
+                onSeekToBeatSec={handleSeekBeat}
+              />
+
+              {/* Dual Volume Knobs & Nudge Slider */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
+                {/* Beat Volume */}
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-300">Âm lượng Beat YT</span>
+                    <span className="font-mono font-bold text-sky-400">
+                      {Math.round(beatVolume * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.02}
+                    value={beatVolume}
+                    onChange={(e) => handleBeatVolumeChange(parseFloat(e.target.value))}
+                    className="w-full accent-sky-400 cursor-pointer"
+                  />
+                </div>
+
+                {/* Vocal Volume */}
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-300">Âm lượng Giọng Thu</span>
+                    <span className="font-mono font-bold text-emerald-400">
+                      {Math.round(vocalVolume * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1.5}
+                    step={0.05}
+                    value={vocalVolume}
+                    onChange={(e) => handleVocalVolumeChange(parseFloat(e.target.value))}
+                    className="w-full accent-emerald-400 cursor-pointer"
+                  />
+                </div>
+
+                {/* Nudge Slider (-500ms to +500ms) */}
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-300">Dịch Giọng (Nudge)</span>
+                    <span className={`font-mono font-bold ${
+                      nudgeOffsetMs === 0
+                        ? 'text-slate-400'
+                        : nudgeOffsetMs > 0
+                        ? 'text-emerald-400'
+                        : 'text-amber-400'
+                    }`}>
+                      {nudgeOffsetMs > 0 ? `+${nudgeOffsetMs}ms` : `${nudgeOffsetMs}ms`}
+                    </span>
+                  </div>
+
+                  <input
+                    type="range"
+                    min={-500}
+                    max={500}
+                    step={5}
+                    value={nudgeOffsetMs}
+                    onChange={(e) => handleNudgeChange(parseInt(e.target.value, 10))}
+                    className="w-full accent-amber-400 cursor-pointer"
+                  />
+
+                  {/* Quick nudge buttons */}
+                  <div className="flex items-center justify-between gap-1 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleNudgeChange(nudgeOffsetMs - 20)}
+                      className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 hover:text-white"
+                    >
+                      -20ms
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNudgeChange(0)}
+                      className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-400 hover:text-white"
+                    >
+                      0ms
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNudgeChange(nudgeOffsetMs + 20)}
+                      className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 hover:text-white"
+                    >
+                      +20ms
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Vocal FX: Compressor & Reverb */}
+              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between gap-4 text-xs">
+                <div className="flex items-center gap-2">
+                  <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+                  <span className="font-bold text-slate-300">Hiệu ứng giọng (Vocal FX):</span>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  {/* Compressor toggle */}
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isCompressor}
+                      onChange={handleToggleCompressor}
+                      className="rounded border-slate-700 bg-slate-800 text-sky-500 cursor-pointer"
+                    />
+                    <span className="text-slate-300 font-medium">Compressor (Dính giọng)</span>
+                  </label>
+
+                  {/* Reverb toggle */}
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isReverb}
+                      onChange={handleToggleReverb}
+                      className="rounded border-slate-700 bg-slate-800 text-sky-500 cursor-pointer"
+                    />
+                    <span className="text-slate-300 font-medium">Reverb phòng nhẹ</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Takes Manager Deck */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800">
+              <TakeManagerList
+                takes={takes}
+                activeTakeId={activeTake.id}
+                isPlaying={isPlayingMix}
+                onSelectTake={handleSelectTake}
+                onTogglePlayTake={handleTogglePlayTake}
+                onMarkBestTake={handleMarkBestTake}
+                onDeleteTake={handleDeleteTake}
+                onUpdateTakeNote={handleUpdateTakeNote}
+                onDownloadVocalWav={handleDownloadVocalWav}
+                onClearAllTakes={handleClearAllTakes}
+                storageUsageMb={storageEstimateMb}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* EXPORT & COPYRIGHT MODAL */}
       <ExportMixModal
