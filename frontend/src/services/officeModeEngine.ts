@@ -1,7 +1,35 @@
 import { auditoryEngine } from './auditoryEngine';
-import { generateIntervalQuestion, INTERVAL_CATALOG, transposeNote } from './musicTheoryService';
+import { generateIntervalQuestion, INTERVAL_CATALOG, transposeNote, generateRandomPitchSequence } from './musicTheoryService';
 import { OfficeQuestion, OfficeQuestionOption } from '../store/slices/officeModeSlice';
 import { useAppStore } from '../store/useAppStore';
+
+export const noteToSolfege = (noteName: string): string => {
+  const pitch = noteName.replace(/[0-9]/g, '');
+  const map: Record<string, string> = {
+    'C': 'Đồ',
+    'C#': 'Đồ#',
+    'Db': 'Rêb',
+    'D': 'Rê',
+    'D#': 'Rê#',
+    'Eb': 'Mib',
+    'E': 'Mi',
+    'F': 'Pha',
+    'F#': 'Pha#',
+    'Gb': 'Solb',
+    'G': 'Sol',
+    'G#': 'Sol#',
+    'Ab': 'Lab',
+    'A': 'La',
+    'A#': 'La#',
+    'Bb': 'Sib',
+    'B': 'Si'
+  };
+  return map[pitch] || pitch;
+};
+
+export const sequenceToSolfege = (notes: string[]): string => {
+  return notes.map(noteToSolfege).join(' - ');
+};
 
 class OfficeModeEngine {
   private recentKeystrokes: number[] = [];
@@ -45,7 +73,104 @@ class OfficeModeEngine {
   }
 
   /**
-   * Tạo câu hỏi mới cho bài tập Nhận Diện Quãng
+   * Tạo câu hỏi tổng quát dựa trên cấu hình exerciseSlug đang chọn ('pitch-recall' | 'interval-identify')
+   */
+  public generateNextQuestion(): OfficeQuestion {
+    const store = useAppStore.getState();
+    const slug = store.officeSettings?.exerciseSlug || 'pitch-recall';
+
+    if (slug === 'pitch-recall') {
+      return this.generatePitchRecallQuestion();
+    }
+    return this.generateIntervalQuestion();
+  }
+
+  /**
+   * Tạo câu hỏi cho bài tập "Nhớ Cao Độ" (Pitch Recall)
+   */
+  public generatePitchRecallQuestion(): OfficeQuestion {
+    const store = useAppStore.getState();
+    const effectiveLevel = store.getExerciseLevel('pitch-recall') || store.currentLevel || 1;
+    const isInfinity = effectiveLevel >= 13;
+
+    // Chiều dài chuỗi nốt theo cấp độ
+    let seqLength = 3;
+    if (effectiveLevel >= 5 || isInfinity) {
+      seqLength = 5;
+    } else if (effectiveLevel >= 3) {
+      seqLength = 4;
+    }
+
+    const octaves = effectiveLevel >= 5 || isInfinity ? [4, 5] : [4];
+    const includeAccidentals = effectiveLevel >= 4 || isInfinity;
+
+    // 1. Sinh chuỗi nốt mục tiêu
+    const targetSeq = generateRandomPitchSequence(seqLength, octaves, includeAccidentals);
+
+    // 2. Tạo 3 chuỗi gây nhiễu (distractors)
+    const diatonicPool = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+    const pool = includeAccidentals
+      ? ['C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4', 'A#4', 'B4', 'C5']
+      : diatonicPool;
+
+    const distractors: string[][] = [];
+    const maxTries = 30;
+    let tries = 0;
+
+    while (distractors.length < 3 && tries < maxTries) {
+      tries++;
+      const candidate = [...targetSeq];
+      const modifyIdx = Math.floor(Math.random() * seqLength);
+      const randomNote = pool[Math.floor(Math.random() * pool.length)];
+
+      if (randomNote !== candidate[modifyIdx]) {
+        candidate[modifyIdx] = randomNote;
+        const candidateKey = candidate.join('-');
+        const isDuplicateTarget = candidateKey === targetSeq.join('-');
+        const isDuplicateDistractor = distractors.some(d => d.join('-') === candidateKey);
+
+        if (!isDuplicateTarget && !isDuplicateDistractor) {
+          distractors.push(candidate);
+        }
+      }
+    }
+
+    // Fallback nếu không đủ 3 distractor
+    while (distractors.length < 3) {
+      const fallback = generateRandomPitchSequence(seqLength, octaves, includeAccidentals);
+      if (fallback.join('-') !== targetSeq.join('-')) {
+        distractors.push(fallback);
+      }
+    }
+
+    // 3. Xáo trộn đáp án
+    const allCandidates = [
+      { notes: targetSeq, isCorrect: true },
+      ...distractors.map(d => ({ notes: d, isCorrect: false }))
+    ].sort(() => 0.5 - Math.random());
+
+    const mappedOptions: OfficeQuestionOption[] = allCandidates.map((c, idx) => ({
+      index: idx + 1,
+      code: c.notes.join('-'),
+      label: `${sequenceToSolfege(c.notes)} (${c.notes.join(' ')})`,
+      isCorrect: c.isCorrect,
+      notes: c.notes
+    }));
+
+    return {
+      id: `office-pitch-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      exerciseSlug: 'pitch-recall',
+      level: effectiveLevel,
+      rootNote: targetSeq[0],
+      sequenceNotes: targetSeq,
+      options: mappedOptions,
+      createdAt: Date.now(),
+      replays: 0
+    };
+  }
+
+  /**
+   * Tạo câu hỏi mới cho bài tập Nhận Diện Quãng (Interval Identify)
    */
   public generateIntervalQuestion(): OfficeQuestion {
     const store = useAppStore.getState();
@@ -68,18 +193,16 @@ class OfficeModeEngine {
     const confusion = store.earConfusionMatrix || {};
     const confusionKeys = Object.keys(confusion);
     if (confusionKeys.length > 0 && Math.random() < 0.3) {
-      // Tìm cặp có số lần nhầm nhiều nhất
       const sorted = [...confusionKeys].sort((a, b) => (confusion[b] || 0) - (confusion[a] || 0));
-      const topPair = sorted[0]; // e.g. "3m:3M"
+      const topPair = sorted[0];
       const pairParts = topPair.split(':');
       const validCandidate = pairParts.find(p => intervalPool.includes(p));
       if (validCandidate) {
-        // Đặt quãng này lên đầu pool để tăng xác suất chọn
         intervalPool = [validCandidate, ...intervalPool.filter(c => c !== validCandidate)];
       }
     }
 
-    // 3. Chế độ phát âm thanh (playback direction)
+    // 3. Chế độ phát âm thanh
     let playbackMode: 'ascending' | 'descending' | 'harmonic' | 'mixed' = 'ascending';
     if (effectiveLevel >= 7 || effectiveLevel === 22) {
       playbackMode = 'harmonic';
@@ -87,10 +210,7 @@ class OfficeModeEngine {
       playbackMode = 'mixed';
     }
 
-    // 4. Số lượng đáp án (4..6)
     const optionsCount = effectiveLevel >= 8 || isInfinity ? 5 : 4;
-
-    // 5. Sinh câu hỏi bằng musicTheoryService
     const rawQ = generateIntervalQuestion(intervalPool, playbackMode, optionsCount);
 
     const mappedOptions: OfficeQuestionOption[] = rawQ.options.map((opt, idx) => ({
@@ -102,7 +222,7 @@ class OfficeModeEngine {
     }));
 
     return {
-      id: `office-q-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      id: `office-int-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       exerciseSlug: 'interval-identify',
       level: effectiveLevel,
       rootNote: rawQ.rootNote,
@@ -135,20 +255,30 @@ class OfficeModeEngine {
         await new Promise(r => setTimeout(r, 450));
       }
 
-      // Phát nốt chủ âm (Tonic Anchor) nếu được bật
-      if (settings?.enableTonicBefore && !isReplay) {
-        await auditoryEngine.playTonicAnchor(question.rootNote, 'single', volume * 0.6);
-        await new Promise(r => setTimeout(r, 260));
-      }
+      // Xử lý phát theo từng loại bài tập
+      if (question.exerciseSlug === 'pitch-recall' && question.sequenceNotes && question.sequenceNotes.length > 0) {
+        // Phát chuỗi nốt Nhớ Cao Độ
+        for (const note of question.sequenceNotes) {
+          auditoryEngine.playNote(note, 0.45, { volume });
+          await new Promise(r => setTimeout(r, 460));
+        }
+      } else {
+        // Phát bài Nhận Diện Quãng
+        if (settings?.enableTonicBefore && !isReplay) {
+          await auditoryEngine.playTonicAnchor(question.rootNote, 'single', volume * 0.6);
+          await new Promise(r => setTimeout(r, 260));
+        }
 
-      // Phát quãng âm chính
-      await auditoryEngine.playInterval(
-        question.rootNote,
-        question.targetNote,
-        question.playbackDirection,
-        0.6,
-        420
-      );
+        if (question.targetNote && question.playbackDirection) {
+          await auditoryEngine.playInterval(
+            question.rootNote,
+            question.targetNote,
+            question.playbackDirection,
+            0.6,
+            420
+          );
+        }
+      }
     } catch (err) {
       console.warn('Office mode audio playback error:', err);
     } finally {
@@ -169,17 +299,25 @@ class OfficeModeEngine {
       const volume = settings?.volume ?? 0.7;
 
       await auditoryEngine.resumeAudioContext();
-      const targetNote = question.playbackDirection === 'descending'
-        ? transposeNote(question.rootNote, '-' + opt.code)
-        : transposeNote(question.rootNote, opt.code);
 
-      await auditoryEngine.playInterval(
-        question.rootNote,
-        targetNote,
-        question.playbackDirection,
-        0.55,
-        380
-      );
+      if (question.exerciseSlug === 'pitch-recall' && opt.notes && opt.notes.length > 0) {
+        for (const note of opt.notes) {
+          auditoryEngine.playNote(note, 0.42, { volume });
+          await new Promise(r => setTimeout(r, 430));
+        }
+      } else if (opt.code && question.playbackDirection) {
+        const targetNote = question.playbackDirection === 'descending'
+          ? transposeNote(question.rootNote, '-' + opt.code)
+          : transposeNote(question.rootNote, opt.code);
+
+        await auditoryEngine.playInterval(
+          question.rootNote,
+          targetNote,
+          question.playbackDirection,
+          0.55,
+          380
+        );
+      }
     } catch (err) {
       console.warn('Play option audio error:', err);
     }
@@ -206,17 +344,56 @@ class OfficeModeEngine {
       auditoryEngine.playFeedback(false);
 
       if (autoReplay) {
-        await new Promise(r => setTimeout(r, 400));
-        await auditoryEngine.playInterval(
-          question.rootNote,
-          question.targetNote,
-          question.playbackDirection,
-          0.6,
-          400
-        );
+        await new Promise(r => setTimeout(r, 450));
+        const store = useAppStore.getState();
+        const volume = store.officeSettings?.volume ?? 0.7;
+
+        if (question.exerciseSlug === 'pitch-recall' && question.sequenceNotes) {
+          for (const note of question.sequenceNotes) {
+            auditoryEngine.playNote(note, 0.45, { volume });
+            await new Promise(r => setTimeout(r, 460));
+          }
+        } else if (question.targetNote && question.playbackDirection) {
+          await auditoryEngine.playInterval(
+            question.rootNote,
+            question.targetNote,
+            question.playbackDirection,
+            0.6,
+            400
+          );
+        }
       }
     } catch (e) {
       console.warn('Wrong feedback error:', e);
+    }
+  }
+
+  /**
+   * Gửi thông báo Desktop khi tab đang chạy ngầm (Background)
+   */
+  public showBackgroundNotification(question: OfficeQuestion): void {
+    if (typeof window === 'undefined') return;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    if (!document.hidden) return; // Chỉ gửi khi tab đang bị che hoặc ở tab khác
+
+    try {
+      const title = question.exerciseSlug === 'pitch-recall'
+        ? '🎵 Nhớ Cao Độ: Đã phát câu hỏi mới!'
+        : '🎵 Nhận Diện Quãng: Đã phát câu hỏi mới!';
+
+      const body = 'Bấm vào thông báo này để quay lại tab trả lời (Alt+1..4)';
+      const notif = new Notification(title, {
+        body,
+        icon: '/favicon.png',
+        tag: 'office-mode-question'
+      });
+
+      notif.onclick = () => {
+        window.focus();
+        notif.close();
+      };
+    } catch (e) {
+      console.warn('Failed to send notification:', e);
     }
   }
 }

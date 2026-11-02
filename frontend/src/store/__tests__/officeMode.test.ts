@@ -73,6 +73,19 @@ describe('Office Mode (Stealth Ear Training)', () => {
     expect(updated.volume).toBe(0.8);
   });
 
+  it('generates valid pitch recall questions from officeModeEngine', () => {
+    const q = officeModeEngine.generatePitchRecallQuestion();
+    expect(q.id).toBeDefined();
+    expect(q.exerciseSlug).toBe('pitch-recall');
+    expect(q.sequenceNotes).toBeDefined();
+    expect(q.sequenceNotes!.length).toBeGreaterThanOrEqual(3);
+    expect(q.options.length).toBe(4);
+
+    const correctOptions = q.options.filter(o => o.isCorrect);
+    expect(correctOptions.length).toBe(1);
+    expect(correctOptions[0].code).toBe(q.sequenceNotes!.join('-'));
+  });
+
   it('generates valid interval questions from officeModeEngine', () => {
     const q = officeModeEngine.generateIntervalQuestion();
     expect(q.id).toBeDefined();

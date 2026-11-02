@@ -8,7 +8,9 @@ import {
   Keyboard,
   ShieldAlert,
   Sparkles,
-  RotateCcw
+  RotateCcw,
+  Music2,
+  Bell
 } from 'lucide-react';
 
 export const OfficeModeSettings: React.FC = () => {
@@ -63,6 +65,38 @@ export const OfficeModeSettings: React.FC = () => {
       </div>
 
       <div className="space-y-4 pt-2">
+        {/* Chọn bài tập luyện ngầm: Nhớ Cao Độ vs Nhận Diện Quãng */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-[#D5CBB9]/60 dark:border-slate-700 gap-2">
+          <div>
+            <span className="text-sm font-bold text-slate-800 dark:text-white block">Bài tập luyện ngầm</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              Chọn nội dung bài tập rèn luyện thính giác khi ngồi làm việc
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-slate-200 dark:bg-slate-700/60 p-1 rounded-2xl">
+            <button
+              onClick={() => updateOfficeSettings({ exerciseSlug: 'pitch-recall' })}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
+                officeSettings.exerciseSlug === 'pitch-recall'
+                  ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-800'
+              }`}
+            >
+              🎵 Nhớ Cao Độ
+            </button>
+            <button
+              onClick={() => updateOfficeSettings({ exerciseSlug: 'interval-identify' })}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
+                officeSettings.exerciseSlug === 'interval-identify'
+                  ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-800'
+              }`}
+            >
+              🎹 Nhận Diện Quãng
+            </button>
+          </div>
+        </div>
+
         {/* Hình thức luyện tập: Nhỏ giọt vs Theo yêu cầu */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-[#D5CBB9]/60 dark:border-slate-700 gap-2">
           <div>
@@ -124,6 +158,38 @@ export const OfficeModeSettings: React.FC = () => {
           </div>
         )}
 
+        {/* Thông báo Desktop khi tab ở background */}
+        <div className="flex items-center justify-between py-2 border-b border-[#D5CBB9]/60 dark:border-slate-700">
+          <div>
+            <span className="text-sm font-bold text-slate-800 dark:text-white block flex items-center gap-1.5">
+              <Bell className="w-4 h-4 text-indigo-500" />
+              Thông báo Desktop (Windows Toast)
+            </span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              Đẩy thông báo ra góc màn hình khi phát câu hỏi lúc bạn đang ở tab khác hoặc ứng dụng khác
+            </span>
+          </div>
+          <button
+            role="switch"
+            aria-checked={officeSettings.enableNotifications}
+            onClick={() => {
+              if (!officeSettings.enableNotifications && typeof Notification !== 'undefined') {
+                Notification.requestPermission();
+              }
+              updateOfficeSettings({ enableNotifications: !officeSettings.enableNotifications });
+            }}
+            className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+              officeSettings.enableNotifications ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${
+                officeSettings.enableNotifications ? 'translate-x-6' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+
         {/* Âm lượng câu hỏi riêng */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-[#D5CBB9]/60 dark:border-slate-700 gap-2">
           <div>
@@ -176,9 +242,9 @@ export const OfficeModeSettings: React.FC = () => {
         {/* Tự động phát lại đáp án đúng khi trả lời sai */}
         <div className="flex items-center justify-between py-2 border-b border-[#D5CBB9]/60 dark:border-slate-700">
           <div>
-            <span className="text-sm font-bold text-slate-800 dark:text-white block">Tự động phát lại quãng đúng</span>
+            <span className="text-sm font-bold text-slate-800 dark:text-white block">Tự động phát lại đáp án đúng</span>
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              Khi bấm sai, hệ thống sẽ phát lại ngay âm thanh quãng chuẩn để tai bạn học lại
+              Khi bấm sai, hệ thống sẽ phát lại ngay âm thanh giai điệu chuẩn để tai bạn học lại
             </span>
           </div>
           <button
@@ -192,30 +258,6 @@ export const OfficeModeSettings: React.FC = () => {
             <span
               className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${
                 officeSettings.autoReplayOnWrong ? 'translate-x-6' : 'translate-x-0'
-              }`}
-            />
-          </button>
-        </div>
-
-        {/* Phát nốt chủ âm (Tonic Anchor) trước */}
-        <div className="flex items-center justify-between py-2 border-b border-[#D5CBB9]/60 dark:border-slate-700">
-          <div>
-            <span className="text-sm font-bold text-slate-800 dark:text-white block">Phát nốt chủ âm (Tonic Anchor)</span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              Phát điểm neo cao độ trước khi phát quãng giúp định vị tai nghe
-            </span>
-          </div>
-          <button
-            role="switch"
-            aria-checked={officeSettings.enableTonicBefore}
-            onClick={() => updateOfficeSettings({ enableTonicBefore: !officeSettings.enableTonicBefore })}
-            className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-              officeSettings.enableTonicBefore ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${
-                officeSettings.enableTonicBefore ? 'translate-x-6' : 'translate-x-0'
               }`}
             />
           </button>

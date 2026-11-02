@@ -35,6 +35,15 @@ export const useOfficeMode = () => {
     }
   }, [activeGameSlug, officeModeActive, officeModePaused, togglePauseOfficeMode]);
 
+  // Yêu cầu quyền thông báo nếu bật
+  useEffect(() => {
+    if (officeModeActive && officeSettings.enableNotifications && typeof Notification !== 'undefined') {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
+      }
+    }
+  }, [officeModeActive, officeSettings.enableNotifications]);
+
   // 2. Kích hoạt phát câu hỏi mới
   const triggerNewQuestion = useCallback(async () => {
     if (!officeModeActive || officeModePaused) return;
@@ -49,9 +58,13 @@ export const useOfficeMode = () => {
     }
     typingDelayCountRef.current = 0;
 
-    const newQ = officeModeEngine.generateIntervalQuestion();
+    const newQ = officeModeEngine.generateNextQuestion();
     setCurrentOfficeQuestion(newQ);
     setOfficeQuestionState('playing');
+
+    if (officeSettings.enableNotifications) {
+      officeModeEngine.showBackgroundNotification(newQ);
+    }
 
     try {
       await officeModeEngine.playQuestionAudio(newQ, false);
@@ -64,6 +77,7 @@ export const useOfficeMode = () => {
     officeModeActive,
     officeModePaused,
     officeSettings.delayWhenTyping,
+    officeSettings.enableNotifications,
     setCurrentOfficeQuestion,
     setOfficeQuestionState,
     setSecondsUntilNext
@@ -119,14 +133,16 @@ export const useOfficeMode = () => {
         feedbackTimerRef.current = null;
       }, 1600);
     } else {
-      // Ghi nhận nhầm lẫn quãng vào Confusion Matrix
-      const chosenOpt = currentOfficeQuestion.options.find(o => o.index === optionIndex);
-      if (chosenOpt) {
-        const pairKey = [chosenOpt.code, result.correctCode].sort().join(':');
-        recordEarConfusion(pairKey);
+      // Ghi nhận nhầm lẫn quãng vào Confusion Matrix nếu là bài quãng
+      if (currentOfficeQuestion.exerciseSlug === 'interval-identify') {
+        const chosenOpt = currentOfficeQuestion.options.find(o => o.index === optionIndex);
+        if (chosenOpt) {
+          const pairKey = [chosenOpt.code, result.correctCode].sort().join(':');
+          recordEarConfusion(pairKey);
+        }
       }
 
-      // Phản hồi sai (buzz + phát lại quãng đúng)
+      // Phản hồi sai (buzz + phát lại đáp án đúng)
       await officeModeEngine.playWrongFeedback(
         currentOfficeQuestion,
         officeSettings.autoReplayOnWrong
@@ -175,6 +191,27 @@ export const useOfficeMode = () => {
     onAnswer: handleAnswer,
     onFreestylePlayOption: handleFreestylePlayOption
   });
+
+  // Hỗ trợ MediaSession (Nút tai nghe Bluetooth hoặc phím media bàn phím khi tab ở background)
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && officeModeActive) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: officeSettings.exerciseSlug === 'pitch-recall' ? 'Nhớ Cao Độ (Office Mode)' : 'Nhận Diện Quãng (Office Mode)',
+          artist: 'Brain Pro - Luyện Tai Ngầm',
+          album: 'Brain Exercises Pro'
+        });
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+          handleReplay();
+        });
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+          handleNextOrSkip();
+        });
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [officeModeActive, officeSettings.exerciseSlug, handleReplay, handleNextOrSkip]);
 
   // 8. Đồng hồ đếm ngược (Drip Mode Timer)
   useEffect(() => {

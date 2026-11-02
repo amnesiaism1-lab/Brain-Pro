@@ -7,20 +7,22 @@ export type OfficeQuestionState = 'standby' | 'playing' | 'waiting' | 'feedback'
 
 export interface OfficeQuestionOption {
   index: number;         // 1-based (1..6)
-  code: string;          // e.g. '3M'
-  label: string;         // e.g. 'Quãng 3 Trưởng'
+  code: string;          // e.g. '3M' or 'C4-E4-G4'
+  label: string;         // e.g. 'Quãng 3 Trưởng' or 'Đồ - Mi - Sol'
   isCorrect: boolean;
   semitones?: number;
+  notes?: string[];      // Cho bài Nhớ Cao Độ (chuỗi nốt)
 }
 
 export interface OfficeQuestion {
   id: string;
-  exerciseSlug: ExerciseSlug;
+  exerciseSlug: ExerciseSlug; // 'pitch-recall' | 'interval-identify'
   level: number;
   rootNote: string;
-  targetNote: string;
-  intervalCode: string;
-  playbackDirection: 'ascending' | 'descending' | 'harmonic';
+  targetNote?: string;
+  intervalCode?: string;
+  playbackDirection?: 'ascending' | 'descending' | 'harmonic';
+  sequenceNotes?: string[];   // Cho bài Nhớ Cao Độ: ví dụ ['C4', 'E4', 'G4']
   options: OfficeQuestionOption[];
   createdAt: number;
   replays: number;
@@ -38,10 +40,11 @@ export interface OfficeLastAnswerResult {
   mnemonicSongVi?: string;
   tipVi?: string;
   ratioDescription?: string;
+  sequenceNotes?: string[];
 }
 
 export interface OfficeModeSettings {
-  exerciseSlug: ExerciseSlug;
+  exerciseSlug: ExerciseSlug;   // 'pitch-recall' | 'interval-identify'
   mode: OfficeModeType;
   intervalMinutes: number;      // 1, 2, 3, 5, 10
   volume: number;               // 0.1 to 1.0
@@ -52,6 +55,7 @@ export interface OfficeModeSettings {
   pillPosition: OfficePillPosition;
   autoReplayOnWrong: boolean;   // automatically replay correct answer on wrong
   freestyleOnWrong: boolean;    // enter freestyle self-practice mode on wrong answer
+  enableNotifications: boolean; // browser notifications when tab is backgrounded
 }
 
 export interface OfficeSessionStats {
@@ -96,7 +100,7 @@ const STORAGE_KEY_SETTINGS = 'be_office_mode_settings';
 const STORAGE_KEY_STATS = 'be_office_mode_stats';
 
 const DEFAULT_SETTINGS: OfficeModeSettings = {
-  exerciseSlug: 'interval-identify',
+  exerciseSlug: 'pitch-recall', // Mặc định là Nhớ Cao Độ theo yêu cầu người dùng
   mode: 'drip',
   intervalMinutes: 3,
   volume: 0.7,
@@ -106,7 +110,8 @@ const DEFAULT_SETTINGS: OfficeModeSettings = {
   showPill: true,
   pillPosition: 'bottom-right',
   autoReplayOnWrong: true,
-  freestyleOnWrong: true
+  freestyleOnWrong: true,
+  enableNotifications: true
 };
 
 const loadSettings = (): OfficeModeSettings => {
@@ -236,7 +241,7 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
     const baseLevelXp = Math.max(5, q.level * 4);
     const awardedXp = isCorrect ? Math.round(baseLevelXp * 0.5) : 0; // 50% XP for office mode
 
-    const cat = INTERVAL_CATALOG[correctOption.code];
+    const cat = q.intervalCode ? INTERVAL_CATALOG[q.intervalCode] : undefined;
     const result: OfficeLastAnswerResult = {
       isCorrect,
       selectedIndex: chosenOption.index,
@@ -248,7 +253,8 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
       semitones: correctOption.semitones ?? cat?.semitones,
       mnemonicSongVi: cat?.mnemonicSongVi,
       tipVi: cat?.tipVi,
-      ratioDescription: cat?.ratioDescription
+      ratioDescription: cat?.ratioDescription,
+      sequenceNotes: q.sequenceNotes
     };
 
     set((s: OfficeModeSliceState) => {

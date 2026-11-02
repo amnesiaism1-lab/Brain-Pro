@@ -13,11 +13,11 @@ import {
   Sliders,
   Sparkles,
   BookOpen,
-  HelpCircle,
-  CheckCircle2,
-  Volume2,
+  Music2,
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  Bell,
+  HelpCircle
 } from 'lucide-react';
 
 export const OfficeModeInfoPanel: React.FC = () => {
@@ -141,6 +141,36 @@ export const OfficeModeInfoPanel: React.FC = () => {
                   title="Alt+Q"
                 >
                   {officeModeActive ? 'Tắt chế độ' : 'Bật ngay (Alt+Q)'}
+                </button>
+              </div>
+            </div>
+
+            {/* Chọn bài tập luyện ngầm: Nhớ Cao Độ vs Nhận Diện Quãng */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-xs gap-2">
+              <span className="font-bold flex items-center gap-1.5">
+                <Music2 className="w-3.5 h-3.5 text-indigo-500" />
+                Bài tập luyện ngầm:
+              </span>
+              <div className="flex items-center gap-1 bg-slate-200 dark:bg-slate-700/60 p-0.5 rounded-xl">
+                <button
+                  onClick={() => updateOfficeSettings({ exerciseSlug: 'pitch-recall' })}
+                  className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                    officeSettings.exerciseSlug === 'pitch-recall'
+                      ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-800'
+                  }`}
+                >
+                  🎵 Nhớ Cao Độ
+                </button>
+                <button
+                  onClick={() => updateOfficeSettings({ exerciseSlug: 'interval-identify' })}
+                  className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                    officeSettings.exerciseSlug === 'interval-identify'
+                      ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-800'
+                  }`}
+                >
+                  🎹 Nhận Diện Quãng
                 </button>
               </div>
             </div>
@@ -282,25 +312,18 @@ export const OfficeModeInfoPanel: React.FC = () => {
               </p>
             </div>
 
-            {/* Mục 2: Luồng chơi */}
+            {/* Mục 2: Bài tập Nhớ Cao Độ & Nhận Diện Quãng */}
             <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-2">
               <h4 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                ⚡ 2. Quy trình luyện tập trong giờ làm việc
+                🎵 2. Cách chơi bài "Nhớ Cao Độ"
               </h4>
-              <div className="space-y-1.5">
-                <div className="flex items-start gap-2">
-                  <span className="w-4 h-4 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">1</span>
-                  <span><strong>Đeo tai nghe & Bật chế độ:</strong> Bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Alt+Q</kbd> hoặc bấm nút BẬT trên bảng điều khiển.</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="w-4 h-4 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">2</span>
-                  <span><strong>Nghe câu hỏi:</strong> Cứ mỗi 3 phút (hoặc khi bạn bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Alt+N</kbd>), bạn sẽ nghe tiếng chime nhẹ rồi 2 nốt nhạc vang lên. Bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Alt+R</kbd> nếu muốn nghe lại.</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="w-4 h-4 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">3</span>
-                  <span><strong>Bấm phím trả lời:</strong> Bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Alt+1</kbd>..<kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">6</kbd> hoặc gõ trực tiếp phím số <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">1</kbd>..<kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">6</kbd> (khi không ở ô nhập văn bản).</span>
-                </div>
-              </div>
+              <p>
+                Khi đến giờ luyện tập, hệ thống sẽ phát một chuỗi giai điệu gồm 3–5 nốt nhạc (ví dụ: <em>Đồ - Mi - Sol</em>).
+              </p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>Bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Alt+1</kbd>..<kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">4</kbd> hoặc gõ phím số <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">1</kbd>..<kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">4</kbd> để chọn chuỗi nốt bạn vừa nghe.</li>
+                <li>Bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Alt+R</kbd> để nghe lại chuỗi giai điệu nếu chưa nghe kịp.</li>
+              </ul>
             </div>
 
             {/* Mục 3: Chế độ Freestyle khi sai */}
@@ -312,9 +335,9 @@ export const OfficeModeInfoPanel: React.FC = () => {
                 Khi trả lời sai, hệ thống <strong>KHÔNG tự động biến mất</strong> sau 2 giây! Thay vào đó, viên nang sẽ chuyển sang chế độ <strong>Freestyle Review</strong> để bạn tự do học lại:
               </p>
               <ul className="list-disc pl-4 space-y-1">
-                <li>Hiển thị rõ <strong>Quãng bạn chọn ✗</strong> và <strong>Đáp án đúng ✓</strong> (kèm số nửa cung và bài hát gợi nhớ).</li>
-                <li><strong>Gõ phím tự do:</strong> Bạn có thể bấm các phím <kbd className="px-1 bg-white dark:bg-slate-800 rounded border">1</kbd>..<kbd className="px-1 bg-white dark:bg-slate-800 rounded border">6</kbd> để nghe thử từng đáp án đối chiếu (A/B testing) mà không bị phạt điểm.</li>
-                <li>Bấm <kbd className="px-1 bg-white dark:bg-slate-800 rounded border">Alt+R</kbd> để nghe lại 2 nốt đề bài gốc.</li>
+                <li>Hiển thị rõ <strong>Chuỗi bạn chọn ✗</strong> và <strong>Đáp án đúng ✓</strong>.</li>
+                <li><strong>Gõ phím tự do:</strong> Bạn có thể bấm các phím <kbd className="px-1 bg-white dark:bg-slate-800 rounded border">1</kbd>..<kbd className="px-1 bg-white dark:bg-slate-800 rounded border">4</kbd> để nghe thử từng chuỗi nốt đối chiếu (A/B testing) mà không bị phạt điểm.</li>
+                <li>Bấm <kbd className="px-1 bg-white dark:bg-slate-800 rounded border">Alt+R</kbd> để nghe lại chuỗi đề bài gốc.</li>
                 <li>Sau khi tai đã nghe hiểu rõ, bạn nhấn <kbd className="px-1 bg-white dark:bg-slate-800 rounded border">Alt+N</kbd> (hoặc <kbd className="px-1 bg-white dark:bg-slate-800 rounded border">Enter</kbd> / <kbd className="px-1 bg-white dark:bg-slate-800 rounded border">Space</kbd>) để chuyển tiếp sang câu kế tiếp!</li>
               </ul>
             </div>
@@ -329,12 +352,45 @@ export const OfficeModeInfoPanel: React.FC = () => {
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+P</span>: Tạm dừng / Tiếp tục</div>
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+R</span>: Nghe lại âm thanh</div>
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+N</span>: Câu tiếp / Bỏ qua</div>
-                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+1..6</span>: Chọn đáp án</div>
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+1..4</span>: Chọn đáp án</div>
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+I</span>: Mở Bảng / Hướng dẫn</div>
               </div>
             </div>
 
-            {/* Mục 5: Tính năng chống ngắt quãng */}
+            {/* Mục 5: Giải pháp khi ở tab khác / ứng dụng khác */}
+            <div className="p-3.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/60 space-y-2.5">
+              <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-2">
+                <HelpCircle className="w-4 h-4 text-indigo-500" />
+                5. Khi ở tab khác hoặc app khác thì làm sao để bấm?
+              </h4>
+              <p>
+                <strong>Về mặt kỹ thuật:</strong> Các trình duyệt (Chrome, Edge) ngăn chặn các trang web đọc phím bấm khi bạn đang ở tab khác hoặc app khác (để bảo vệ an toàn thông tin, tránh website độc hại theo dõi bàn phím khi gõ mật khẩu). Do đó, khi bạn đang gõ trong Word/Excel/VS Code, phím gõ sẽ gửi vào ứng dụng đó chứ web không tự cướp tiêu điểm được.
+              </p>
+              <div className="space-y-2 pt-1">
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-indigo-100 dark:border-indigo-900">
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-0.5">
+                    💡 Giải pháp 1: Bấm qua Thông báo Desktop (Windows Toast)
+                  </span>
+                  <span>Khi tab đang chạy ngầm phát câu hỏi, một thông báo Windows Toast xuất hiện ở góc màn hình. Bạn chỉ cần <strong>click vào thông báo</strong> là tab được đưa lên hàng đầu ngay lập tức để bạn gõ số <kbd className="px-1 bg-slate-100 dark:bg-slate-700 rounded border">1</kbd>..<kbd className="px-1 bg-slate-100 dark:bg-slate-700 rounded border">4</kbd>!</span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-indigo-100 dark:border-indigo-900">
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-0.5">
+                    🎧 Giải pháp 2: Điều khiển bằng nút tai nghe Bluetooth / Media Key
+                  </span>
+                  <span>Dù tab đang ở nền hay bị thu nhỏ, bạn vẫn có thể bấm nút đa phương tiện trên bàn phím hoặc nút bấm tai nghe: bấm nghe lại (<kbd>Alt+R</kbd>) hoặc bấm Next Track để sang câu kế tiếp (<kbd>Alt+N</kbd>).</span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-indigo-100 dark:border-indigo-900">
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-0.5">
+                    🪟 Giải pháp 3: Chia đôi màn hình hoặc mở cửa sổ riêng
+                  </span>
+                  <span>Mở Brain Pro trong một cửa sổ riêng nhỏ ở góc màn hình (Snap Window sang góc phải). Khi nghe thấy tiếng đàn, bạn chỉ cần click một click hoặc gõ phím số mà không cần mất công tìm tab giữa hàng chục tab đang mở!</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Mục 6: Tính năng chống ngắt quãng */}
             <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 text-[11px] space-y-1">
               <div className="font-bold flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                 <ShieldAlert className="w-3.5 h-3.5 text-brand-500" />
