@@ -464,7 +464,7 @@ export class VocalRecordingEngine {
       view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
     }
 
-    return new Blob([view], { type: 'audio/wav' });
+    return new Blob([buffer], { type: 'audio/wav' });
   }
 
   private writeString(view: DataView, offset: number, string: string): void {

@@ -176,11 +176,14 @@ export const YouTubeBeatTab: React.FC = () => {
     initSession(activeVideoId, videoTitle);
   }, [activeVideoId, initSession, videoTitle]);
 
+  const beatDurationSecRef = useRef(beatDurationSec);
+  beatDurationSecRef.current = beatDurationSec;
+
   // Sync mixer hooks
   useEffect(() => {
     youtubeSyncMixer.onTimeUpdate((currTime, duration) => {
       setBeatCurrentTimeSec(currTime);
-      if (duration > 0 && Math.abs(duration - beatDurationSec) > 1) {
+      if (duration > 0 && Math.abs(duration - beatDurationSecRef.current) > 1) {
         setBeatDurationSec(duration);
       }
     });
@@ -197,7 +200,7 @@ export const YouTubeBeatTab: React.FC = () => {
       youtubeSyncMixer.dispose();
       vocalRecordingEngine.dispose();
     };
-  }, [beatDurationSec]);
+  }, []); // Only runs on component mount & teardown!
 
   // Handle URL Paste / Search
   const handleLoadYouTubeUrl = (url?: string) => {
@@ -320,10 +323,12 @@ export const YouTubeBeatTab: React.FC = () => {
       // Transition to Review & Mix
       setCurrentStep('review_mix');
 
-      // Prime YouTube playback head at finalStartSec
+      // Prime YouTube and Sync Mixer playback head at finalStartSec
       if (ytPlayerInstance && typeof ytPlayerInstance.seekTo === 'function') {
         ytPlayerInstance.seekTo(finalStartSec, true);
       }
+      youtubeSyncMixer.seekTo(finalStartSec);
+      setBeatCurrentTimeSec(finalStartSec);
 
       const est = await youtubeTakeStorageService.getStorageUsageEstimate();
       if (est) setStorageEstimateMb(est.usedMb);
@@ -353,6 +358,12 @@ export const YouTubeBeatTab: React.FC = () => {
       if (isPlayingMixRef.current) {
         setIsPlayingMix(false);
         youtubeSyncMixer.pause();
+      }
+    } else if (state === 1) {
+      // 4. If YouTube starts playing in review mode outside our button, keep vocal synchronized!
+      if (!isRecordingRef.current && !isCountingDownRef.current && !isPlayingMixRef.current) {
+        setIsPlayingMix(true);
+        youtubeSyncMixer.play();
       }
     }
   }, [handleStopRecording, handleDiscardRecording]);
@@ -456,6 +467,18 @@ export const YouTubeBeatTab: React.FC = () => {
       youtubeSyncMixer.pause();
       setIsPlayingMix(false);
     } else {
+      if (activeTake) {
+        await youtubeSyncMixer.loadVocalTake(activeTake);
+
+        const curr = youtubeSyncMixer.getCurrentBeatTime();
+        const effectiveStart = Math.max(0, activeTake.startPointSec - ((nudgeOffsetMs || 0) / 1000));
+        const effectiveEnd = effectiveStart + (activeTake.durationSec || 60);
+
+        // If current position is before start or after end of vocal take, cue to start
+        if (curr < effectiveStart || curr >= effectiveEnd) {
+          handleSeekBeat(effectiveStart);
+        }
+      }
       await youtubeSyncMixer.play();
       setIsPlayingMix(true);
     }
@@ -504,13 +527,26 @@ export const YouTubeBeatTab: React.FC = () => {
     setNudgeOffsetMs(take.nudgeOffsetMs || 0);
     setVocalVolume(take.volume ?? 1.0);
     await youtubeSyncMixer.loadVocalTake(take);
+
+    // Auto-cue playhead to the beginning of the selected take
+    const effectiveStart = Math.max(0, take.startPointSec - ((take.nudgeOffsetMs || 0) / 1000));
+    handleSeekBeat(effectiveStart);
   };
 
   const handleTogglePlayTake = async (take: IYouTubeTake) => {
-    if (activeTake?.id !== take.id) {
+    const isSameTake = activeTake?.id === take.id;
+    if (!isSameTake) {
       await handleSelectTake(take);
-      await youtubeSyncMixer.play();
-      setIsPlayingMix(true);
+    }
+
+    if (isPlayingMix) {
+      if (isSameTake) {
+        youtubeSyncMixer.pause();
+        setIsPlayingMix(false);
+      } else {
+        await youtubeSyncMixer.play();
+        setIsPlayingMix(true);
+      }
     } else {
       await handleTogglePlayMix();
     }

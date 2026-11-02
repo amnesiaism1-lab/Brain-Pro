@@ -1,5 +1,5 @@
 import { auditoryEngine } from './auditoryEngine';
-import { generateIntervalQuestion, INTERVAL_CATALOG } from './musicTheoryService';
+import { generateIntervalQuestion, INTERVAL_CATALOG, transposeNote } from './musicTheoryService';
 import { OfficeQuestion, OfficeQuestionOption } from '../store/slices/officeModeSlice';
 import { useAppStore } from '../store/useAppStore';
 
@@ -153,6 +153,35 @@ class OfficeModeEngine {
       console.warn('Office mode audio playback error:', err);
     } finally {
       this.isPlayingAudio = false;
+    }
+  }
+
+  /**
+   * Phát âm thanh của một đáp án cụ thể (dành cho chế độ Freestyle và nghe thử đối chiếu)
+   */
+  public async playOptionAudio(question: OfficeQuestion, optionIndex: number): Promise<void> {
+    const opt = question.options.find(o => o.index === optionIndex);
+    if (!opt) return;
+
+    try {
+      const store = useAppStore.getState();
+      const settings = store.officeSettings;
+      const volume = settings?.volume ?? 0.7;
+
+      await auditoryEngine.resumeAudioContext();
+      const targetNote = question.playbackDirection === 'descending'
+        ? transposeNote(question.rootNote, '-' + opt.code)
+        : transposeNote(question.rootNote, opt.code);
+
+      await auditoryEngine.playInterval(
+        question.rootNote,
+        targetNote,
+        question.playbackDirection,
+        0.55,
+        380
+      );
+    } catch (err) {
+      console.warn('Play option audio error:', err);
     }
   }
 

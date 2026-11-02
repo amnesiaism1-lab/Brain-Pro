@@ -18,6 +18,7 @@ export const useOfficeMode = () => {
     setSecondsUntilNext,
     incrementOfficeReplay,
     recordOfficeAnswer,
+    finishFreestyleAndNext,
     skipOfficeQuestion,
     addXp,
     recordEarConfusion
@@ -68,10 +69,11 @@ export const useOfficeMode = () => {
     setSecondsUntilNext
   ]);
 
-  // 3. Xử lý nghe lại (Alt+R)
+  // 3. Xử lý nghe lại (Alt+R) - hỗ trợ cả lúc waiting và freestyle
   const handleReplay = useCallback(async () => {
-    if (!currentOfficeQuestion || officeQuestionState !== 'waiting') return;
+    if (!currentOfficeQuestion || (officeQuestionState !== 'waiting' && officeQuestionState !== 'freestyle')) return;
 
+    const previousState = officeQuestionState;
     incrementOfficeReplay();
     setOfficeQuestionState('playing');
 
@@ -80,11 +82,17 @@ export const useOfficeMode = () => {
     } catch (e) {
       console.warn('Replay error:', e);
     } finally {
-      setOfficeQuestionState('waiting');
+      setOfficeQuestionState(previousState);
     }
   }, [currentOfficeQuestion, officeQuestionState, incrementOfficeReplay, setOfficeQuestionState]);
 
-  // 4. Xử lý Trả lời câu hỏi (Alt+1..6 hoặc phím 1..6)
+  // 4. Phát âm thanh của đáp án trong chế độ Freestyle
+  const handleFreestylePlayOption = useCallback(async (optionIndex: number) => {
+    if (!currentOfficeQuestion) return;
+    await officeModeEngine.playOptionAudio(currentOfficeQuestion, optionIndex);
+  }, [currentOfficeQuestion]);
+
+  // 5. Xử lý Trả lời câu hỏi (Alt+1..6 hoặc phím 1..6)
   const handleAnswer = useCallback(async (optionIndex: number) => {
     if (!currentOfficeQuestion || officeQuestionState !== 'waiting') return;
 
@@ -102,6 +110,14 @@ export const useOfficeMode = () => {
       if (result.awardedXp > 0) {
         addXp(result.awardedXp);
       }
+
+      // Khi đúng: tự động chuyển về standby đếm ngược sau 1.6s
+      feedbackTimerRef.current = window.setTimeout(() => {
+        setCurrentOfficeQuestion(null);
+        setOfficeQuestionState('standby');
+        setSecondsUntilNext(officeSettings.intervalMinutes * 60);
+        feedbackTimerRef.current = null;
+      }, 1600);
     } else {
       // Ghi nhận nhầm lẫn quãng vào Confusion Matrix
       const chosenOpt = currentOfficeQuestion.options.find(o => o.index === optionIndex);
@@ -115,16 +131,18 @@ export const useOfficeMode = () => {
         currentOfficeQuestion,
         officeSettings.autoReplayOnWrong
       );
-    }
 
-    // Hiển thị feedback trong 1.8 giây rồi chuyển về standby đếm ngược
-    const delayMs = result.isCorrect ? 1500 : 2200;
-    feedbackTimerRef.current = window.setTimeout(() => {
-      setCurrentOfficeQuestion(null);
-      setOfficeQuestionState('standby');
-      setSecondsUntilNext(officeSettings.intervalMinutes * 60);
-      feedbackTimerRef.current = null;
-    }, delayMs);
+      // Nếu không bật freestyleOnWrong thì mới tự tắt sau 2.5s,
+      // ngược lại (mặc định) hệ thống GIỮ NGUYÊN trạng thái freestyle để người dùng tự do thử nghiệm!
+      if (!officeSettings.freestyleOnWrong) {
+        feedbackTimerRef.current = window.setTimeout(() => {
+          setCurrentOfficeQuestion(null);
+          setOfficeQuestionState('standby');
+          setSecondsUntilNext(officeSettings.intervalMinutes * 60);
+          feedbackTimerRef.current = null;
+        }, 2500);
+      }
+    }
   }, [
     currentOfficeQuestion,
     officeQuestionState,
@@ -132,29 +150,33 @@ export const useOfficeMode = () => {
     addXp,
     recordEarConfusion,
     officeSettings.autoReplayOnWrong,
+    officeSettings.freestyleOnWrong,
     officeSettings.intervalMinutes,
     setCurrentOfficeQuestion,
     setOfficeQuestionState,
     setSecondsUntilNext
   ]);
 
-  // 5. Xử lý Câu tiếp / Bỏ qua (Alt+N)
+  // 6. Xử lý Câu tiếp / Bỏ qua / Kết thúc Freestyle (Alt+N)
   const handleNextOrSkip = useCallback(() => {
-    if (officeQuestionState === 'waiting') {
+    if (officeQuestionState === 'freestyle') {
+      finishFreestyleAndNext();
+    } else if (officeQuestionState === 'waiting') {
       skipOfficeQuestion();
     } else if (officeQuestionState === 'standby') {
       triggerNewQuestion();
     }
-  }, [officeQuestionState, skipOfficeQuestion, triggerNewQuestion]);
+  }, [officeQuestionState, finishFreestyleAndNext, skipOfficeQuestion, triggerNewQuestion]);
 
-  // 6. Gắn phím tắt toàn cục
+  // 7. Gắn phím tắt toàn cục
   useGlobalHotkeys({
     onReplay: handleReplay,
     onNextOrSkip: handleNextOrSkip,
-    onAnswer: handleAnswer
+    onAnswer: handleAnswer,
+    onFreestylePlayOption: handleFreestylePlayOption
   });
 
-  // 7. Đồng hồ đếm ngược (Drip Mode Timer)
+  // 8. Đồng hồ đếm ngược (Drip Mode Timer)
   useEffect(() => {
     if (!officeModeActive || officeModePaused) return;
 
@@ -185,7 +207,7 @@ export const useOfficeMode = () => {
     triggerNewQuestion
   ]);
 
-  // 8. Auto-skip nếu user không trả lời sau 60 giây khi đang chờ
+  // 9. Auto-skip nếu user không trả lời sau 60 giây khi đang chờ
   useEffect(() => {
     if (officeQuestionState === 'waiting') {
       waitingTimerRef.current = window.setTimeout(() => {
@@ -212,6 +234,7 @@ export const useOfficeMode = () => {
   return {
     handleReplay,
     handleAnswer,
+    handleFreestylePlayOption,
     handleNextOrSkip,
     triggerNewQuestion
   };

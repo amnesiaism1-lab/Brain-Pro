@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Brain, BookOpen, History, Settings, User, Cloud, LogIn, LogOut, Mic2, Sparkles, Radio } from 'lucide-react';
+import { Home, Brain, BookOpen, History, Settings, User, Cloud, LogIn, LogOut, Mic2, Sparkles, Radio, Headphones } from 'lucide-react';
 import { useAppStore, MainNavTab } from '../../store/useAppStore';
 import { useVocalStudioStore } from '../../store/vocalStudioStore';
 
@@ -15,7 +15,9 @@ export const Navbar: React.FC = () => {
     authUser,
     setIsAuthModalOpen,
     logout,
-    wrongAnswers
+    wrongAnswers,
+    officeModeActive,
+    toggleInfoPanel
   } = useAppStore();
 
   const openVocalStudio = useVocalStudioStore((s) => s.openStudio);
@@ -151,6 +153,38 @@ export const Navbar: React.FC = () => {
             );
           })}
         </nav>
+
+        {/* Office Mode Stealth Training Direct Pill */}
+        <div className="mt-3 mb-1.5 px-1">
+          <button
+            onClick={() => {
+              playSound('click');
+              toggleInfoPanel(true);
+            }}
+            className={`w-full p-2.5 rounded-2xl border transition-all flex items-center justify-between group cursor-pointer active:scale-95 ${
+              officeModeActive
+                ? 'bg-gradient-to-r from-indigo-600 to-brand-600 text-white border-indigo-400 shadow-md shadow-indigo-500/20'
+                : 'bg-white/70 dark:bg-slate-800/70 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-[#D5CBB9]/60 dark:border-slate-700'
+            }`}
+            title="Chế độ Văn phòng (Alt+Q): Luyện tai ngầm khi ngồi làm việc"
+          >
+            <div className="flex items-center gap-2">
+              <div className={`p-1.5 rounded-xl ${officeModeActive ? 'bg-white/20 text-white' : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400'}`}>
+                <Headphones className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-black leading-tight flex items-center gap-1.5">
+                  Chế độ Văn phòng
+                  {officeModeActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                </p>
+                <p className="text-[10px] opacity-75">Alt+Q • Luyện ngầm</p>
+              </div>
+            </div>
+            <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${officeModeActive ? 'bg-emerald-400 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+              {officeModeActive ? 'BẬT' : 'TẮT'}
+            </span>
+          </button>
+        </div>
 
         {/* Vocal Studio Direct Fast-Launch Pill */}
         <div className="my-3 px-1">

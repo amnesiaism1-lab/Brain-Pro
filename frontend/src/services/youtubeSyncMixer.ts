@@ -44,6 +44,7 @@ export class YouTubeSyncMixer {
   // Active Take Audio Buffer
   private currentTake: IYouTubeTake | null = null;
   private vocalAudioBuffer: AudioBuffer | null = null;
+  private lastSeekTargetSec: number | null = null;
 
   // Web Audio Graph
   private vocalSourceNode: AudioBufferSourceNode | null = null;
@@ -80,8 +81,18 @@ export class YouTubeSyncMixer {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (!this.audioContext || this.audioContext.state === 'closed') {
       this.audioContext = new AudioCtx();
+      this.resetAudioGraphNodes();
     }
     return this.audioContext;
+  }
+
+  private resetAudioGraphNodes(): void {
+    this.vocalGainNode = null;
+    this.compressorNode = null;
+    this.dryGainNode = null;
+    this.wetGainNode = null;
+    this.convolverNode = null;
+    this.vocalSourceNode = null;
   }
 
   /**
@@ -105,12 +116,17 @@ export class YouTubeSyncMixer {
 
     const ctx = this.getAudioContext();
     if (ctx.state === 'suspended') {
-      await ctx.resume();
+      try {
+        await ctx.resume();
+      } catch (e) {
+        console.warn('AudioContext resume error:', e);
+      }
     }
 
     try {
       const arrayBuffer = await take.audioBlob.arrayBuffer();
-      this.vocalAudioBuffer = await ctx.decodeAudioData(arrayBuffer);
+      // Slice arrayBuffer to ensure a detached buffer cannot cause error
+      this.vocalAudioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
     } catch (err) {
       console.warn('Failed to decode vocal take audio blob:', err);
       this.vocalAudioBuffer = null;
@@ -125,9 +141,16 @@ export class YouTubeSyncMixer {
   private setupAudioGraph(): void {
     const ctx = this.getAudioContext();
 
+    // If existing nodes belong to another context, reset them completely
+    if (this.vocalGainNode && (this.vocalGainNode as any).context !== ctx) {
+      this.resetAudioGraphNodes();
+    }
+
     if (!this.vocalGainNode) {
       this.vocalGainNode = ctx.createGain();
       this.vocalGainNode.gain.value = this.vocalVolume;
+    } else {
+      this.vocalGainNode.gain.setValueAtTime(this.vocalVolume, ctx.currentTime);
     }
 
     // Dynamics Compressor (Vocals Glue)
@@ -135,9 +158,11 @@ export class YouTubeSyncMixer {
       this.compressorNode = ctx.createDynamicsCompressor();
       this.compressorNode.threshold.setValueAtTime(-24, ctx.currentTime);
       this.compressorNode.knee.setValueAtTime(12, ctx.currentTime);
-      this.compressorNode.ratio.setValueAtTime(3.0, ctx.currentTime);
+      this.compressorNode.ratio.setValueAtTime(this.isCompressorEnabled ? 3.0 : 1.0, ctx.currentTime);
       this.compressorNode.attack.setValueAtTime(0.01, ctx.currentTime);
       this.compressorNode.release.setValueAtTime(0.12, ctx.currentTime);
+    } else {
+      this.compressorNode.ratio.setValueAtTime(this.isCompressorEnabled ? 3.0 : 1.0, ctx.currentTime);
     }
 
     // Dry / Wet Reverb setup
@@ -148,6 +173,8 @@ export class YouTubeSyncMixer {
     if (!this.wetGainNode) {
       this.wetGainNode = ctx.createGain();
       this.wetGainNode.gain.value = this.isReverbEnabled ? this.reverbLevel : 0.0;
+    } else {
+      this.wetGainNode.gain.setValueAtTime(this.isReverbEnabled ? this.reverbLevel : 0.0, ctx.currentTime);
     }
     if (!this.convolverNode) {
       this.convolverNode = ctx.createConvolver();
@@ -248,6 +275,8 @@ export class YouTubeSyncMixer {
       this.pause();
     }
 
+    this.lastSeekTargetSec = targetTimeSec;
+
     // Seek YouTube
     if (this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
       this.ytPlayer.seekTo(targetTimeSec, true);
@@ -257,7 +286,7 @@ export class YouTubeSyncMixer {
       // Small timeout to allow YouTube iframe player to buffer seek
       setTimeout(() => {
         this.play();
-      }, 50);
+      }, 80);
     } else {
       if (this.onTimeUpdateCallback) {
         this.onTimeUpdateCallback(targetTimeSec, this.getDuration());
@@ -276,6 +305,8 @@ export class YouTubeSyncMixer {
     }
 
     const ctx = this.getAudioContext();
+    this.setupAudioGraph();
+
     const effectiveStartPoint = this.currentTake.startPointSec - (this.nudgeOffsetMs / 1000);
     const vocalDuration = this.vocalAudioBuffer.duration;
 
@@ -301,7 +332,7 @@ export class YouTubeSyncMixer {
       this.vocalSourceNode.buffer = this.vocalAudioBuffer;
       this.vocalSourceNode.connect(this.vocalGainNode!);
 
-      this.vocalSourceNode.start(0, vocalOffset);
+      this.vocalSourceNode.start(ctx.currentTime, Math.max(0, vocalOffset));
       this.vocalStartTimeInAudioCtx = ctx.currentTime;
       this.vocalOffsetWhenStartedSec = vocalOffset;
     }
@@ -322,7 +353,7 @@ export class YouTubeSyncMixer {
 
   /**
    * requestAnimationFrame loop that tracks beat time and checks drift threshold.
-   * "nếu lệch quá khoảng 80–100ms thì chỉnh lại thời gian giọng, đừng chỉnh liên tục từng frame"
+   * "nếu lệch quá khoảng 250–300ms thì chỉnh lại thời gian giọng, đừng chỉnh liên tục từng frame"
    */
   private startSyncLoop(): void {
     this.stopSyncLoop();
@@ -350,8 +381,8 @@ export class YouTubeSyncMixer {
           const driftSec = Math.abs(expectedVocalPosition - currentVocalPosition);
           const now = performance.now();
 
-          // Resync only if drift exceeds 85ms and at least 350ms elapsed since last resync
-          if (driftSec > 0.085 && now - this.lastResyncTime > 350) {
+          // Resync only if drift exceeds 300ms and at least 1500ms elapsed since last resync (filters out 4Hz postMessage jitter)
+          if (driftSec > 0.300 && now - this.lastResyncTime > 1500) {
             this.lastResyncTime = now;
             this.startVocalAtBeatTime(beatTime);
           }
@@ -372,6 +403,21 @@ export class YouTubeSyncMixer {
   }
 
   public getCurrentBeatTime(): number {
+    if (this.lastSeekTargetSec !== null) {
+      if (this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function') {
+        try {
+          const ytTime = this.ytPlayer.getCurrentTime() || 0;
+          if (Math.abs(ytTime - this.lastSeekTargetSec) < 0.6) {
+            this.lastSeekTargetSec = null;
+            return ytTime;
+          }
+        } catch {
+          // ignore
+        }
+      }
+      return this.lastSeekTargetSec ?? 0;
+    }
+
     if (this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function') {
       try {
         return this.ytPlayer.getCurrentTime() || 0;
@@ -641,6 +687,10 @@ export class YouTubeSyncMixer {
   public dispose(): void {
     this.pause();
     this.stopVocalNode();
+    this.resetAudioGraphNodes();
+    this.vocalAudioBuffer = null;
+    this.currentTake = null;
+    this.lastSeekTargetSec = null;
     if (this.audioContext && this.audioContext.state !== 'closed') {
       try {
         this.audioContext.close();

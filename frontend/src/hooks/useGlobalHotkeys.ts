@@ -5,12 +5,14 @@ interface UseGlobalHotkeysProps {
   onReplay: () => void;
   onNextOrSkip: () => void;
   onAnswer: (index: number) => void;
+  onFreestylePlayOption: (index: number) => void;
 }
 
 export const useGlobalHotkeys = ({
   onReplay,
   onNextOrSkip,
-  onAnswer
+  onAnswer,
+  onFreestylePlayOption
 }: UseGlobalHotkeysProps): void => {
   const {
     officeModeActive,
@@ -25,6 +27,7 @@ export const useGlobalHotkeys = ({
     onReplay,
     onNextOrSkip,
     onAnswer,
+    onFreestylePlayOption,
     officeModeActive,
     officeQuestionState,
     isInfoPanelOpen,
@@ -38,6 +41,7 @@ export const useGlobalHotkeys = ({
       onReplay,
       onNextOrSkip,
       onAnswer,
+      onFreestylePlayOption,
       officeModeActive,
       officeQuestionState,
       isInfoPanelOpen,
@@ -67,7 +71,20 @@ export const useGlobalHotkeys = ({
         }
       }
 
-      // 2. Các tổ hợp phím có Alt (Alt + Key)
+      // 2. Phím Space hoặc Enter khi đang ở chế độ Freestyle: Chuyển câu tiếp theo
+      if (
+        propsRef.current.officeModeActive &&
+        propsRef.current.officeQuestionState === 'freestyle' &&
+        !isInputFocused &&
+        (e.key === 'Enter' || e.code === 'Space')
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        propsRef.current.onNextOrSkip();
+        return;
+      }
+
+      // 3. Các tổ hợp phím có Alt (Alt + Key)
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
         // Alt + Q: Bật / Tắt Office Mode
         if (keyLower === 'q') {
@@ -88,7 +105,7 @@ export const useGlobalHotkeys = ({
           return;
         }
 
-        // Alt + I: Mở / Đóng panel thông tin
+        // Alt + I: Mở / Đóng panel thông tin & hướng dẫn
         if (keyLower === 'i') {
           e.preventDefault();
           e.stopPropagation();
@@ -104,7 +121,7 @@ export const useGlobalHotkeys = ({
           return;
         }
 
-        // Alt + N: Câu tiếp theo / Bỏ qua câu hiện tại
+        // Alt + N: Câu tiếp theo / Bỏ qua câu hiện tại / Kết thúc Freestyle
         if (keyLower === 'n') {
           e.preventDefault();
           e.stopPropagation();
@@ -112,35 +129,44 @@ export const useGlobalHotkeys = ({
           return;
         }
 
-        // Alt + 1..6: Chọn đáp án 1 đến 6
+        // Alt + 1..6: Chọn đáp án hoặc nghe thử option
         if (/^[1-6]$/.test(e.key)) {
           e.preventDefault();
           e.stopPropagation();
           const num = parseInt(e.key, 10);
-          propsRef.current.onAnswer(num);
+          if (propsRef.current.officeQuestionState === 'freestyle') {
+            propsRef.current.onFreestylePlayOption(num);
+          } else if (propsRef.current.officeQuestionState === 'waiting') {
+            propsRef.current.onAnswer(num);
+          }
           return;
         }
       }
 
-      // 3. Phím số trực tiếp (1..6 không cần Alt)
-      // CHỈ kích hoạt khi:
+      // 4. Phím số trực tiếp (1..6 không cần Alt)
+      // Kích hoạt khi:
       // - Office Mode đang bật
-      // - Đang ở trạng thái chờ trả lời ('waiting')
       // - Người dùng KHÔNG đang gõ trong input/textarea
       // - Không giữ phím Ctrl / Meta / Alt
       if (
         propsRef.current.officeModeActive &&
-        propsRef.current.officeQuestionState === 'waiting' &&
         !isInputFocused &&
         !e.ctrlKey &&
         !e.metaKey &&
         !e.altKey &&
         /^[1-6]$/.test(e.key)
       ) {
-        e.preventDefault();
-        e.stopPropagation();
         const num = parseInt(e.key, 10);
-        propsRef.current.onAnswer(num);
+        if (propsRef.current.officeQuestionState === 'waiting') {
+          e.preventDefault();
+          e.stopPropagation();
+          propsRef.current.onAnswer(num);
+        } else if (propsRef.current.officeQuestionState === 'freestyle') {
+          // Trong trạng thái Freestyle: Nhấn số là phát âm thanh của quãng đó để nghe thử tự do
+          e.preventDefault();
+          e.stopPropagation();
+          propsRef.current.onFreestylePlayOption(num);
+        }
       }
     };
 

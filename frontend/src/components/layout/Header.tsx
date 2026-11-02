@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, HelpCircle, Flame, Sparkles, AlertTriangle, X, Pause, Play } from 'lucide-react';
+import { ChevronLeft, HelpCircle, Flame, Sparkles, AlertTriangle, X, Pause, Play, Headphones } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { EXERCISES_METADATA } from '@brain-exercises/shared';
 
@@ -18,7 +18,9 @@ export const Header: React.FC = () => {
     xp,
     authUser,
     setIsAuthModalOpen,
-    playSound 
+    playSound,
+    officeModeActive,
+    toggleInfoPanel
   } = useAppStore();
 
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -150,6 +152,28 @@ export const Header: React.FC = () => {
             </div>
           ) : (
             <>
+              {/* Office Mode Quick Toggle Button in Header */}
+              <button
+                onClick={() => {
+                  playSound('click');
+                  toggleInfoPanel(true);
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                  officeModeActive
+                    ? 'bg-emerald-400 text-slate-950 border-emerald-300 shadow-md shadow-emerald-400/30'
+                    : 'bg-white/15 hover:bg-white/25 text-white border-white/20'
+                }`}
+                title="Chế độ Văn phòng (Alt+Q): Luyện tai ngầm khi ngồi làm việc"
+              >
+                <Headphones className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">
+                  {officeModeActive ? 'Văn phòng: BẬT' : 'Chế độ Văn phòng'}
+                </span>
+                {officeModeActive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-pulse" />
+                )}
+              </button>
+
               <div className="hidden xs:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-xs sm:text-sm font-bold shadow-inner">
                 <Sparkles className="w-4 h-4 text-amber-300" />
                 <span>{xp} XP</span>

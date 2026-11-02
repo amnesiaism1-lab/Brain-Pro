@@ -1,8 +1,9 @@
 import { ExerciseSlug } from '@brain-exercises/shared';
+import { INTERVAL_CATALOG } from '../../services/musicTheoryService';
 
 export type OfficeModeType = 'drip' | 'on-demand';
 export type OfficePillPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
-export type OfficeQuestionState = 'standby' | 'playing' | 'waiting' | 'feedback' | 'paused';
+export type OfficeQuestionState = 'standby' | 'playing' | 'waiting' | 'feedback' | 'freestyle' | 'paused';
 
 export interface OfficeQuestionOption {
   index: number;         // 1-based (1..6)
@@ -33,6 +34,10 @@ export interface OfficeLastAnswerResult {
   correctLabel: string;
   correctCode: string;
   awardedXp: number;
+  semitones?: number;
+  mnemonicSongVi?: string;
+  tipVi?: string;
+  ratioDescription?: string;
 }
 
 export interface OfficeModeSettings {
@@ -46,6 +51,7 @@ export interface OfficeModeSettings {
   showPill: boolean;            // show the floating pill
   pillPosition: OfficePillPosition;
   autoReplayOnWrong: boolean;   // automatically replay correct answer on wrong
+  freestyleOnWrong: boolean;    // enter freestyle self-practice mode on wrong answer
 }
 
 export interface OfficeSessionStats {
@@ -81,6 +87,7 @@ export interface OfficeModeSliceState {
   setSecondsUntilNext: (s: number | ((prev: number) => number)) => void;
   incrementOfficeReplay: () => void;
   recordOfficeAnswer: (optionIndex: number) => OfficeLastAnswerResult | null;
+  finishFreestyleAndNext: () => void;
   skipOfficeQuestion: () => void;
   resetOfficeSession: () => void;
 }
@@ -98,7 +105,8 @@ const DEFAULT_SETTINGS: OfficeModeSettings = {
   pauseOnBlur: false,
   showPill: true,
   pillPosition: 'bottom-right',
-  autoReplayOnWrong: true
+  autoReplayOnWrong: true,
+  freestyleOnWrong: true
 };
 
 const loadSettings = (): OfficeModeSettings => {
@@ -228,6 +236,7 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
     const baseLevelXp = Math.max(5, q.level * 4);
     const awardedXp = isCorrect ? Math.round(baseLevelXp * 0.5) : 0; // 50% XP for office mode
 
+    const cat = INTERVAL_CATALOG[correctOption.code];
     const result: OfficeLastAnswerResult = {
       isCorrect,
       selectedIndex: chosenOption.index,
@@ -235,7 +244,11 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
       selectedLabel: chosenOption.label,
       correctLabel: correctOption.label,
       correctCode: correctOption.code,
-      awardedXp
+      awardedXp,
+      semitones: correctOption.semitones ?? cat?.semitones,
+      mnemonicSongVi: cat?.mnemonicSongVi,
+      tipVi: cat?.tipVi,
+      ratioDescription: cat?.ratioDescription
     };
 
     set((s: OfficeModeSliceState) => {
@@ -252,14 +265,28 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
         totalXpEarned: s.officeSession.totalXpEarned + awardedXp
       };
 
+      // Nếu sai và bật chế độ freestyleOnWrong -> Chuyển sang freestyle mode để người dùng tự do thử nghiệm
+      const nextState: OfficeQuestionState = isCorrect
+        ? 'feedback'
+        : (s.officeSettings.freestyleOnWrong ? 'freestyle' : 'feedback');
+
       return {
         lastOfficeAnswerResult: result,
-        officeQuestionState: 'feedback',
+        officeQuestionState: nextState,
         officeSession: nextSession
       };
     });
 
     return result;
+  },
+
+  finishFreestyleAndNext: () => {
+    set((state: OfficeModeSliceState) => ({
+      currentOfficeQuestion: null,
+      officeQuestionState: 'standby',
+      lastOfficeAnswerResult: null,
+      secondsUntilNext: state.officeSettings.intervalMinutes * 60
+    }));
   },
 
   skipOfficeQuestion: () => {

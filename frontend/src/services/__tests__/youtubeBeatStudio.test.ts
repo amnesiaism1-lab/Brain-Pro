@@ -184,5 +184,39 @@ describe('YouTube Beat Service & Recording Engine', () => {
       const fullDurationSec = Math.max(beatDuration, effectiveVocalStart + vocalDuration);
       expect(fullDurationSec).toBe(180.0);
     });
+
+    it('returns target seek time immediately when seekTo is called without waiting for postMessage lag', () => {
+      // Mock player that lags behind
+      let playerReportedTime = 10.0;
+      const mockPlayer = {
+        getCurrentTime: () => playerReportedTime,
+        seekTo: vi.fn(),
+      };
+      youtubeSyncMixer.attachYouTubePlayer(mockPlayer);
+
+      // Seek to 45.0s
+      youtubeSyncMixer.seekTo(45.0);
+
+      // Even though mock player still returns 10.0, getCurrentBeatTime returns the seek target (45.0)
+      expect(youtubeSyncMixer.getCurrentBeatTime()).toBe(45.0);
+
+      // Once mock player catches up to 45.1s, it switches to real player time
+      playerReportedTime = 45.1;
+      expect(youtubeSyncMixer.getCurrentBeatTime()).toBe(45.1);
+    });
+
+    it('identifies if playhead is out of take bounds to cue start point', () => {
+      const takeStartSec = 15.0;
+      const nudgeOffsetMs = 0;
+      const durationSec = 30.0;
+      const effectiveStart = Math.max(0, takeStartSec - (nudgeOffsetMs / 1000));
+      const effectiveEnd = effectiveStart + durationSec;
+
+      const isOutOfBounds = (time: number) => time < effectiveStart || time >= effectiveEnd;
+
+      expect(isOutOfBounds(5.0)).toBe(true);  // Before start -> should cue to 15.0
+      expect(isOutOfBounds(50.0)).toBe(true); // After end -> should cue to 15.0
+      expect(isOutOfBounds(20.0)).toBe(false); // Inside bounds -> play as is
+    });
   });
 });

@@ -110,7 +110,7 @@ describe('Office Mode (Stealth Ear Training)', () => {
     expect(useAppStore.getState().officeQuestionState).toBe('feedback');
   });
 
-  it('handles wrong answers by resetting current streak and recording wrong count', () => {
+  it('handles wrong answers by entering freestyle mode, resetting current streak and recording wrong count', () => {
     const store = useAppStore.getState();
     store.toggleOfficeMode(true);
 
@@ -127,6 +127,12 @@ describe('Office Mode (Stealth Ear Training)', () => {
     const session = useAppStore.getState().officeSession;
     expect(session.wrongCount).toBe(1);
     expect(session.currentStreak).toBe(0);
+    expect(useAppStore.getState().officeQuestionState).toBe('freestyle');
+
+    // Finishes freestyle
+    store.finishFreestyleAndNext();
+    expect(useAppStore.getState().officeQuestionState).toBe('standby');
+    expect(useAppStore.getState().currentOfficeQuestion).toBeNull();
   });
 
   it('handles skip properly', () => {
