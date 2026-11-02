@@ -304,6 +304,36 @@ export interface IVocalPitchAttemptTelemetry {
     pitchTraceDownsampled: IVocalPitchTracePoint[];
     accuracyPct: number;
 }
+export interface ITwinWordConfusablePair {
+    correct: string;
+    confusable: string;
+    note: string;
+    partOfSpeech?: string;
+    exampleSentence?: string;
+}
+export interface ITwinWordSinglePair {
+    wordA: string;
+    wordB: string;
+    isMatch: boolean;
+    diffChar?: string;
+    meaningA?: string;
+    meaningB?: string;
+}
+export interface ITwinWordSentencePair {
+    sentenceA: string;
+    sentenceB: string;
+    isMatch: boolean;
+    diffWord?: string;
+    note?: string;
+}
+export interface ITwinWordContextualPair {
+    contextSentence: string;
+    optionA: string;
+    optionB: string;
+    isMatch: boolean;
+    correctWord: string;
+    explanation: string;
+}
 export * from './wrong-answer.types';
 export * from './hanoi-graph.types';
 //# sourceMappingURL=index.d.ts.map

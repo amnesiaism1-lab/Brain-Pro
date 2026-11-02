@@ -987,12 +987,25 @@ export const useAppStore = create<AppState>((set, get) => {
         }
       }
 
+      const newTotalAttempts = prevMastery.totalAttempts + 1;
+      const prevAcc = prevMastery.avgAccuracy || 0;
+      const newAvgAccuracy = Math.round(
+        ((prevAcc * prevMastery.totalAttempts) + attempt.accuracyRate) / newTotalAttempts
+      );
+      const prevReaction = prevMastery.avgReactionMs || 0;
+      const attemptReaction = (attempt.rawMetricsJson as any)?.averageReactionMs || (attempt.rawMetricsJson as any)?.avgReactionMs || 0;
+      const newAvgReaction = attemptReaction > 0
+        ? Math.round(((prevReaction * prevMastery.totalAttempts) + attemptReaction) / newTotalAttempts)
+        : prevReaction;
+
       const updatedMastery: IUserExerciseMastery = {
         ...prevMastery,
         currentLevel: nextLevel,
         highestLevelReached: Math.max(prevMastery.highestLevelReached, nextLevel),
-        totalAttempts: prevMastery.totalAttempts + 1,
+        totalAttempts: newTotalAttempts,
         perfectAttempts: attempt.accuracyRate === 100 ? prevMastery.perfectAttempts + 1 : prevMastery.perfectAttempts,
+        avgAccuracy: newAvgAccuracy,
+        avgReactionMs: newAvgReaction,
         consecutiveWins: nextWins,
         consecutiveLosses: nextLosses,
         lastPlayedAt: new Date().toISOString()

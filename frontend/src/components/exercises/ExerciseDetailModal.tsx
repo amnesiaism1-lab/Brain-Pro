@@ -911,7 +911,7 @@ export const ExerciseDetailModal: React.FC = () => {
                     Tự Động Thích Ứng Độ Khó (Adaptive Engine)
                   </h4>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Tự động tăng cấp khi đạt chính xác 100% trong 1 phiên hoặc ≥90% trong 2 phiên liên tiếp. Tự hạ cấp khi chính xác &lt;60% liên tiếp.
+                    Tự động tăng cấp khi đạt chính xác 100% trong 1 phiên hoặc ≥85% trong 2 phiên liên tiếp. Tự hạ cấp khi chính xác &lt;60% trong 2 phiên liên tiếp.
                   </p>
                 </div>
               </div>

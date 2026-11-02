@@ -49,7 +49,8 @@ export const ProfileView: React.FC = () => {
     logout,
     syncWithCloud,
     isSyncing,
-    playSound
+    playSound,
+    attemptsHistory
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<'brain-map' | 'radar' | 'masteries'>('brain-map');
@@ -577,8 +578,11 @@ export const ProfileView: React.FC = () => {
                 const isInfinity = curLevel > 12;
                 const infinityTier = isInfinity ? curLevel - 12 : null;
                 const mastery = exerciseMasteries[ex.slug];
-                const accuracy = mastery?.avgAccuracy ? Math.round(mastery.avgAccuracy) : 0;
-                const attempts = mastery?.totalAttempts || 0;
+                const exAttempts = attemptsHistory.filter(a => a.exerciseSlug === ex.slug);
+                const attempts = exAttempts.length > 0 ? exAttempts.length : (mastery?.totalAttempts || 0);
+                const accuracy = exAttempts.length > 0
+                  ? Math.round(exAttempts.reduce((sum, a) => sum + (a.accuracyRate || 0), 0) / exAttempts.length)
+                  : (mastery?.avgAccuracy ? Math.round(mastery.avgAccuracy) : 0);
 
                 return (
                   <div

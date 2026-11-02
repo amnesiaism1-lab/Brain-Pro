@@ -330,8 +330,8 @@ export const EXERCISES_METADATA: IExercise[] = [
     subtitle: 'So sánh chớp nhoáng hai từ cạnh nhau: Giống nhau hay Khác biệt?',
     iconName: 'Copy',
     scientificBasis: 'Phát hiện sự sai lệch hình thái học (Morphological Verification) với độ chính xác cao ở tốc độ nhanh.',
-    instructions: 'Hai từ hiển thị song song (ví dụ MAMA - MAMA hoặc META - BETA). Hãy bấm "GIỐNG NHAU" hoặc "KHÁC NHAU" thật nhanh.',
-    rulesSummary: 'Mỗi câu chỉ xuất hiện trong 1-2 giây. Trả lời đúng liên tiếp để nhân hệ số điểm.',
+    instructions: 'Hai từ hoặc câu hiển thị song song. Bấm phím ← (hoặc 1 / A) khi GIỐNG NHAU; bấm phím → (hoặc 2 / D) khi KHÁC NHAU. Nhấn phím Space hoặc Esc để Tạm dừng/Tiếp tục.',
+    rulesSummary: 'Phân biệt từ vựng, lỗi sai chính tả và ngữ cảnh chuẩn xác trước khi đồng hồ đếm ngược kết thúc.',
     maxDifficultyLevel: 12,
     defaultDurationSec: 45,
     isFeatured: false,
@@ -2245,5 +2245,359 @@ export const CONTENT_POOLS: IExerciseContentPoolItem[] = [
     timesUsed: 0
   }
 ];
+
+export const VIETNAMESE_SINGLE_SYLLABLE_PAIRS: import('../types').ITwinWordSinglePair[] = [
+  { wordA: 'NÃO', wordB: 'NÃO', isMatch: true, meaningA: 'Bộ não, trung tâm điều khiển tư duy và nhận thức' },
+  { wordA: 'NÃO', wordB: 'BÃO', isMatch: false, diffChar: 'B ≠ N', meaningA: 'Bộ não (tư duy)', meaningB: 'Cơn bão (thiên tai gió bão)' },
+  { wordA: 'SÁCH', wordB: 'SÁCH', isMatch: true, meaningA: 'Tài liệu ghi chép kiến thức nhân loại' },
+  { wordA: 'SÁCH', wordB: 'BÁCH', isMatch: false, diffChar: 'B ≠ S', meaningA: 'Sách vở', meaningB: 'Bách (trăm, đa dạng)' },
+  { wordA: 'MẮT', wordB: 'MẮT', isMatch: true, meaningA: 'Cơ quan thị giác tiếp nhận ánh sáng' },
+  { wordA: 'MẮT', wordB: 'MẶT', isMatch: false, diffChar: 'Ặ ≠ Ắ', meaningA: 'Đôi mắt', meaningB: 'Khuôn mặt hoặc bề mặt phẳng' },
+  { wordA: 'HỌC', wordB: 'HỌC', isMatch: true, meaningA: 'Tiếp thu tri thức và rèn luyện kỹ năng' },
+  { wordA: 'HỌC', wordB: 'HỌP', isMatch: false, diffChar: 'P ≠ C', meaningA: 'Học tập', meaningB: 'Họp mặt, tụ họp hội nghị' },
+  { wordA: 'TRÍ', wordB: 'TRÍ', isMatch: true, meaningA: 'Trí tuệ, khả năng suy luận sắc bén' },
+  { wordA: 'TRÍ', wordB: 'KHÍ', isMatch: false, diffChar: 'KH ≠ TR', meaningA: 'Trí óc', meaningB: 'Khí quyển, năng lượng sức sống' },
+  { wordA: 'TÂM', wordB: 'TÂM', isMatch: true, meaningA: 'Tâm trí, nội tâm và sự tĩnh lặng' },
+  { wordA: 'TÂM', wordB: 'TẦM', isMatch: false, diffChar: 'Ầ ≠ Â', meaningA: 'Tâm trí', meaningB: 'Tầm nhìn, phạm vi ảnh hưởng' },
+  { wordA: 'ĐỌC', wordB: 'ĐỌC', isMatch: true, meaningA: 'Nhận diện ký tự và thấu hiểu văn bản' },
+  { wordA: 'ĐỌC', wordB: 'ĐỘC', isMatch: false, diffChar: 'Ộ ≠ Ọ', meaningA: 'Đọc chữ', meaningB: 'Độc đáo hoặc chất độc hại' },
+  { wordA: 'TẬP', wordB: 'TẬP', isMatch: true, meaningA: 'Luyện tập thường xuyên để nâng cao phản xạ' },
+  { wordA: 'TẬP', wordB: 'TẠP', isMatch: false, diffChar: 'Ạ ≠ Ậ', meaningA: 'Luyện tập', meaningB: 'Hỗn tạp, pha lẫn nhiều loại' },
+  { wordA: 'NHỚ', wordB: 'NHỚ', isMatch: true, meaningA: 'Lưu giữ và tái hiện thông tin từ não bộ' },
+  { wordA: 'NHỚ', wordB: 'NHỜ', isMatch: false, diffChar: 'Ờ ≠ Ớ', meaningA: 'Ghi nhớ', meaningB: 'Nhờ vả, trông cậy trợ giúp' },
+  { wordA: 'BẠN', wordB: 'BẠN', isMatch: true, meaningA: 'Người bạn đồng hành tri thức' },
+  { wordA: 'BẠN', wordB: 'BÀN', isMatch: false, diffChar: 'À ≠ Ạ', meaningA: 'Bạn bè', meaningB: 'Cái bàn làm việc hoặc bàn bạc' },
+  { wordA: 'ĐẦU', wordB: 'ĐẦU', isMatch: true, meaningA: 'Bộ phận chứa não, vị trí khởi đầu' },
+  { wordA: 'ĐẦU', wordB: 'ĐẤU', isMatch: false, diffChar: 'Ấ ≠ Ầ', meaningA: 'Phần đầu', meaningB: 'Chiến đấu, thi đấu thử thách' },
+  { wordA: 'NHÌN', wordB: 'NHÌN', isMatch: true, meaningA: 'Quan sát tập trung bằng đôi mắt' },
+  { wordA: 'NHÌN', wordB: 'NHỊN', isMatch: false, diffChar: 'Ị ≠ Ì', meaningA: 'Nhìn thấy', meaningB: 'Nhẫn nhịn, kiềm chế bản thân' },
+  { wordA: 'VIẾT', wordB: 'VIẾT', isMatch: true, meaningA: 'Ghi chép thông tin qua ký tự chữ viết' },
+  { wordA: 'VIẾT', wordB: 'VIỆT', isMatch: false, diffChar: 'Ệ ≠ IẾ', meaningA: 'Viết lách', meaningB: 'Việt Nam hoặc siêu việt' },
+  { wordA: 'HIỂU', wordB: 'HIỂU', isMatch: true, meaningA: 'Thấu suốt bản chất và ý nghĩa thông tin' },
+  { wordA: 'HIỂU', wordB: 'HIỆU', isMatch: false, diffChar: 'Ệ ≠ IỂ', meaningA: 'Thấu hiểu', meaningB: 'Tín hiệu, hiệu quả công việc' },
+  { wordA: 'NGHĨ', wordB: 'NGHĨ', isMatch: true, meaningA: 'Suy nghĩ, vận động tư duy logic' },
+  { wordA: 'NGHĨ', wordB: 'NGHỈ', isMatch: false, diffChar: 'Ỉ ≠ Ĩ', meaningA: 'Suy nghĩ', meaningB: 'Nghỉ ngơi, hồi phục năng lượng' }
+];
+
+export const VIETNAMESE_CONFUSABLE_PAIRS: import('../types').ITwinWordConfusablePair[] = [
+  {
+    correct: 'XỬ LÝ',
+    confusable: 'SỬ LÝ',
+    note: '"Xử" trong giải quyết, xử trí. "Sử" chỉ dùng trong lịch sử, sử dụng.',
+    partOfSpeech: 'Động từ',
+    exampleSentence: 'Bộ não xử lý hàng ngàn tín hiệu thị giác mỗi giây.'
+  },
+  {
+    correct: 'DÀNH DỤM',
+    confusable: 'GIÀNH DỤM',
+    note: '"Dành" là tích lũy, để lại. "Giành" là tranh đoạt, đoạt lấy (giành giật).',
+    partOfSpeech: 'Động từ',
+    exampleSentence: 'Anh ấy dành dụm từng khoảng thời gian nhỏ để rèn luyện trí nhớ.'
+  },
+  {
+    correct: 'CHIA SẺ',
+    confusable: 'CHIA SẼ',
+    note: '"Sẻ" là san sẻ, chia sớt. "Sẽ" là phó từ chỉ thời gian tương lai.',
+    partOfSpeech: 'Động từ',
+    exampleSentence: 'Hãy chia sẻ phương pháp đọc sách hiệu quả cho bạn bè.'
+  },
+  {
+    correct: 'SƠ SUẤT',
+    confusable: 'SƠ XUẤT',
+    note: '"Suất" trong sơ suất (không cẩn thận). "Xuất" trong xuất hiện, xuất khẩu.',
+    partOfSpeech: 'Danh từ / Tính từ',
+    exampleSentence: 'Chỉ một sơ suất nhỏ trong chú ý cũng khiến ta bỏ lỡ từ khóa.'
+  },
+  {
+    correct: 'CHẨN ĐOÁN',
+    confusable: 'CHUẨN ĐOÁN',
+    note: '"Chẩn" là xem xét để xác định bệnh. "Chuẩn" là tiêu chuẩn, khuôn mẫu.',
+    partOfSpeech: 'Động từ',
+    exampleSentence: 'Bác sĩ thực hiện chẩn đoán lâm sàng chức năng tiền đình.'
+  },
+  {
+    correct: 'SÁP NHẬP',
+    confusable: 'SÁT NHẬP',
+    note: '"Sáp" là gộp chung lại làm một. "Sát" là gần kề hoặc giết chóc.',
+    partOfSpeech: 'Động từ',
+    exampleSentence: 'Hai dự án nghiên cứu trí tuệ nhân tạo vừa được sáp nhập.'
+  },
+  {
+    correct: 'CHẦN CHỪ',
+    confusable: 'TRẦN TRỪ',
+    note: '"Chần chừ" là do dự, không dứt khoát. Viết phụ âm "Ch", không viết "Tr".',
+    partOfSpeech: 'Động từ / Tính từ',
+    exampleSentence: 'Đừng chần chừ khi cơ hội rèn luyện phản xạ xuất hiện.'
+  },
+  {
+    correct: 'BẠT MẠNG',
+    confusable: 'BẠC MẠNG',
+    note: '"Bạt" là liều lĩnh xông pha coi thường nguy hiểm. "Bạc" là mỏng hoặc tiền bạc.',
+    partOfSpeech: 'Tính từ / Phó từ',
+    exampleSentence: 'Tập trung cao độ khác hoàn toàn với làm việc bạt mạng kiệt sức.'
+  },
+  {
+    correct: 'XUẤT SẮC',
+    confusable: 'SUẤT SẮC',
+    note: '"Xuất" là vượt trội (xuất chúng, xuất sắc). "Suất" là phần chia (suất ăn).',
+    partOfSpeech: 'Tính từ',
+    exampleSentence: 'Bạn đã đạt điểm số xuất sắc ở bài tập thị giác ngoại vi.'
+  },
+  {
+    correct: 'ĐƯỜNG SÁ',
+    confusable: 'ĐƯỜNG XÁ',
+    note: '"Sá" là lối đi (đường sá). Viết "s" uốn lưỡi, khác với "phố xá" viết "x".',
+    partOfSpeech: 'Danh từ',
+    exampleSentence: 'Mạng lưới đường sá thành phố tựa như các mạng nơ-ron liên kết.'
+  },
+  {
+    correct: 'PHỐ XÁ',
+    confusable: 'PHỐ SÁ',
+    note: '"Phố xá" viết phụ âm "X". Ngược lại "đường sá" viết phụ âm "S".',
+    partOfSpeech: 'Danh từ',
+    exampleSentence: 'Phố xá tấp nập kích thích khả năng lọc tác nhân gây xao nhãng.'
+  },
+  {
+    correct: 'THAM QUAN',
+    confusable: 'THĂM QUAN',
+    note: '"Tham" là tham gia, dự vào để quan sát mở rộng hiểu biết. "Thăm" là thăm hỏi.',
+    partOfSpeech: 'Động từ',
+    exampleSentence: 'Học sinh được tổ chức đi tham quan bảo tàng khoa học.'
+  },
+  {
+    correct: 'BỔ SUNG',
+    confusable: 'BỔ XUNG',
+    note: '"Sung" là đầy đủ, thêm vào (bổ sung, sung túc). "Xung" là xung đột, xung kích.',
+    partOfSpeech: 'Động từ',
+    exampleSentence: 'Hãy bổ sung đầy đủ nước và dinh dưỡng trước khi luyện não.'
+  },
+  {
+    correct: 'CHẤP BÚT',
+    confusable: 'CHẮP BÚT',
+    note: '"Chấp" là cầm, nắm, nhận trách nhiệm soạn thảo văn bản.',
+    partOfSpeech: 'Động từ',
+    exampleSentence: 'Giáo sư đã chấp bút cho tài liệu hướng dẫn tốc ký nhận thức.'
+  },
+  {
+    correct: 'TRAU CHUỐT',
+    confusable: 'CHAU CHUỐT',
+    note: '"Trau" viết "Tr" trong trau dồi, trau chuốt. "Chau" chỉ dùng trong chau mày.',
+    partOfSpeech: 'Động từ / Tính từ',
+    exampleSentence: 'Bài viết được trau chuốt từng luận điểm chặt chẽ.'
+  },
+  {
+    correct: 'CỌ XÁT',
+    confusable: 'CỌ SÁT',
+    note: '"Xát" là cọ chà tiếp xúc thực tế. "Sát" là liền kề hoặc tiêu diệt.',
+    partOfSpeech: 'Động từ',
+    exampleSentence: 'Cọ xát với các thử thách cấp cao giúp nâng tầm phản xạ não bộ.'
+  },
+  {
+    correct: 'RẬP KHUÔN',
+    confusable: 'DẬP KHUÔN',
+    note: '"Rập khuôn" (bắt chước máy móc y hệt khuôn mẫu) chuẩn chính tả hơn.',
+    partOfSpeech: 'Tính từ / Động từ',
+    exampleSentence: 'Tư duy sáng tạo đòi hỏi phá bỏ lối suy nghĩ rập khuôn.'
+  },
+  {
+    correct: 'XÁN LẠN',
+    confusable: 'SÁNG LẠNG',
+    note: '"Xán lạn" là từ gốc Hán chỉ sự tươi sáng, rực rỡ, huy hoàng (tiền đồ xán lạn).',
+    partOfSpeech: 'Tính từ',
+    exampleSentence: 'Tương lai xán lạn đang chờ đón những người không ngừng học hỏi.'
+  },
+  {
+    correct: 'GIẢ THUYẾT',
+    confusable: 'GIẢ THIẾT',
+    note: '"Giả thuyết" là luận điểm khoa học chưa kiểm chứng; "Giả thiết" dùng trong toán học (điều kiện ban đầu).',
+    partOfSpeech: 'Danh từ',
+    exampleSentence: 'Nhà khoa học đưa ra giả thuyết mới về tính dẻo thần kinh.'
+  },
+  {
+    correct: 'TRÍ TUỆ',
+    confusable: 'CHÍ TUỆ',
+    note: '"Trí" là năng lực hiểu biết, nhận thức; "Chí" là ý chí, quyết tâm.',
+    partOfSpeech: 'Danh từ',
+    exampleSentence: 'Trí tuệ được tôi luyện qua việc đọc sâu và giải quyết vấn đề.'
+  },
+  {
+    correct: 'TẬP TRUNG',
+    confusable: 'TẬP CHUNG',
+    note: '"Trung" là ở giữa, hội tụ lại; "Chung" là chung sức, nói chung.',
+    partOfSpeech: 'Động từ / Tính từ',
+    exampleSentence: 'Khả năng tập trung chú ý là chìa khóa của trí nhớ dài hạn.'
+  },
+  {
+    correct: 'KIÊN TRÌ',
+    confusable: 'KIÊN CHÌ',
+    note: '"Trì" là giữ vững bền bỉ; "Chì" là kim loại chì nặng.',
+    partOfSpeech: 'Tính từ',
+    exampleSentence: 'Kiên trì rèn luyện 15 phút mỗi ngày mang lại kết quả vượt bậc.'
+  },
+  {
+    correct: 'KHẮC CỐT GHI TÂM',
+    confusable: 'KHẮC CỐT TRI TÂM',
+    note: '"Ghi tâm" là khắc ghi sâu vào đáy lòng; không dùng "tri tâm".',
+    partOfSpeech: 'Thành ngữ',
+    exampleSentence: 'Bài học đắt giá này tôi luôn khắc cốt ghi tâm.'
+  },
+  {
+    correct: 'VÔ HÌNH TRUNG',
+    confusable: 'VÔ HÌNH CHUNG',
+    note: '"Vô hình trung" có nghĩa là ngẫu nhiên, không chủ ý mà tạo ra kết quả nào đó.',
+    partOfSpeech: 'Phó từ',
+    exampleSentence: 'Thói quen lướt điện thoại vô hình trung làm suy giảm khoảng chú ý.'
+  },
+  {
+    correct: 'SUÔN SẺ',
+    confusable: 'SUÔN XẺ',
+    note: '"Sẻ" viết phụ âm "S", biểu thị sự trôi chảy, thuận buồm xuôi gió.',
+    partOfSpeech: 'Tính từ',
+    exampleSentence: 'Phiên kiểm tra tốc độ đọc diễn ra rất suôn sẻ.'
+  }
+];
+
+export const VIETNAMESE_SENTENCE_PAIRS: import('../types').ITwinWordSentencePair[] = [
+  {
+    sentenceA: 'Bộ não con người có tính dẻo thần kinh kỳ diệu.',
+    sentenceB: 'Bộ não con người có tính dẻo thần kinh kỳ diệu.',
+    isMatch: true
+  },
+  {
+    sentenceA: 'Bộ não con người có tính dẻo thần kinh kỳ diệu.',
+    sentenceB: 'Bộ não con người có tính dẻo thân kinh kỳ diệu.',
+    isMatch: false,
+    diffWord: 'thần ≠ thân',
+    note: 'Sai chính tả: "thần kinh" chứ không phải "thân kinh".'
+  },
+  {
+    sentenceA: 'Rèn luyện đọc nhanh giúp loại bỏ thói quen đọc thầm.',
+    sentenceB: 'Rèn luyện đọc nhanh giúp loại bỏ thói quen đọc thầm.',
+    isMatch: true
+  },
+  {
+    sentenceA: 'Rèn luyện đọc nhanh giúp loại bỏ thói quen đọc thầm.',
+    sentenceB: 'Rèn luyện đọc nhanh giúp loại bỏ thói quen đọc thẩm.',
+    isMatch: false,
+    diffWord: 'thầm ≠ thẩm',
+    note: 'Sai dấu thanh: "đọc thầm" (đọc ngầm trong đầu) ≠ "đọc thẩm".'
+  },
+  {
+    sentenceA: 'Tập trung chú ý là nền tảng của trí nhớ siêu đẳng.',
+    sentenceB: 'Tập trung chú ý là nền tảng của trí nhớ siêu đẳng.',
+    isMatch: true
+  },
+  {
+    sentenceA: 'Tập trung chú ý là nền tảng của trí nhớ siêu đẳng.',
+    sentenceB: 'Tập chung chú ý là nền tảng của trí nhớ siêu đẳng.',
+    isMatch: false,
+    diffWord: 'trung ≠ chung',
+    note: 'Sai chính tả: "tập trung" (hội tụ) chứ không phải "tập chung".'
+  },
+  {
+    sentenceA: 'Thị giác ngoại vi mở rộng góc nhìn toàn cảnh hiệu quả.',
+    sentenceB: 'Thị giác ngoại vi mở rộng góc nhìn toàn cảnh hiệu quả.',
+    isMatch: true
+  },
+  {
+    sentenceA: 'Thị giác ngoại vi mở rộng góc nhìn toàn cảnh hiệu quả.',
+    sentenceB: 'Thị giác ngoại vi mở rộng góc nhìn toàn cảnh hiệu quả?',
+    isMatch: false,
+    diffWord: '. ≠ ?',
+    note: 'Khác dấu câu kết thúc: Dấu chấm câu trần thuật vs Dấu hỏi chấm.'
+  },
+  {
+    sentenceA: 'Phản xạ nhận thức nhanh nhạy quyết định độ chuẩn xác.',
+    sentenceB: 'Phản xạ nhận thức nhanh nhạy quyết định độ chuẩn xác.',
+    isMatch: true
+  },
+  {
+    sentenceA: 'Phản xạ nhận thức nhanh nhạy quyết định độ chuẩn xác.',
+    sentenceB: 'Phản xạ nhận thức nhanh nhậy quyết định độ chuẩn xác.',
+    isMatch: false,
+    diffWord: 'nhạy ≠ nhậy',
+    note: 'Khác biệt chính tả: "nhanh nhạy" (chuẩn tiếng Việt hiện đại).'
+  },
+  {
+    sentenceA: 'Kiên trì mỗi ngày tạo nên bước đột phá lớn.',
+    sentenceB: 'Kiên trì mỗi ngày tạo nên bước đột phá lớn.',
+    isMatch: true
+  },
+  {
+    sentenceA: 'Kiên trì mỗi ngày tạo nên bước đột phá lớn.',
+    sentenceB: 'Kiên chì mỗi ngày tạo nên bước đột phá lớn.',
+    isMatch: false,
+    diffWord: 'trì ≠ chì',
+    note: 'Sai chính tả: "kiên trì" (bền bỉ) chứ không phải "kiên chì".'
+  }
+];
+
+export const VIETNAMESE_CONTEXTUAL_PAIRS: import('../types').ITwinWordContextualPair[] = [
+  {
+    contextSentence: 'Bác sĩ thực hiện [...] để xác định nguyên nhân gây bệnh.',
+    optionA: 'CHẨN ĐOÁN',
+    optionB: 'CHẨN ĐOÁN',
+    isMatch: true,
+    correctWord: 'CHẨN ĐOÁN',
+    explanation: '"Chẩn đoán" là từ chuẩn xác chỉ việc xem xét triệu chứng lâm sàng.'
+  },
+  {
+    contextSentence: 'Bác sĩ thực hiện [...] để xác định nguyên nhân gây bệnh.',
+    optionA: 'CHẨN ĐOÁN',
+    optionB: 'CHUẨN ĐOÁN',
+    isMatch: false,
+    correctWord: 'CHẨN ĐOÁN',
+    explanation: 'Từ đúng là "Chẩn đoán". "Chuẩn đoán" là cách dùng sai rất phổ biến.'
+  },
+  {
+    contextSentence: 'Hội đồng quản trị quyết định [...] hai chi nhánh lại làm một.',
+    optionA: 'SÁP NHẬP',
+    optionB: 'SÁP NHẬP',
+    isMatch: true,
+    correctWord: 'SÁP NHẬP',
+    explanation: '"Sáp nhập" nghĩa là gộp chung các đơn vị thành một thực thể.'
+  },
+  {
+    contextSentence: 'Hội đồng quản trị quyết định [...] hai chi nhánh lại làm một.',
+    optionA: 'SÁP NHẬP',
+    optionB: 'SÁT NHẬP',
+    isMatch: false,
+    correctWord: 'SÁP NHẬP',
+    explanation: '"Sáp nhập" mới đúng; "Sát" mang nghĩa kề bên hoặc giết chóc.'
+  },
+  {
+    contextSentence: 'Bài tiểu luận cần được [...] kỹ lưỡng trước khi nộp lên giáo sư.',
+    optionA: 'TRAU CHUỐT',
+    optionB: 'CHAU CHUỐT',
+    isMatch: false,
+    correctWord: 'TRAU CHUỐT',
+    explanation: '"Trau chuốt" viết "Tr". "Chau" chỉ dùng khi nói về "chau mày".'
+  },
+  {
+    contextSentence: 'Bài tiểu luận cần được [...] kỹ lưỡng trước khi nộp lên giáo sư.',
+    optionA: 'TRAU CHUỐT',
+    optionB: 'TRAU CHUỐT',
+    isMatch: true,
+    correctWord: 'TRAU CHUỐT',
+    explanation: '"Trau chuốt" diễn tả sự gọt giũa tỉ mỉ văn phong.'
+  },
+  {
+    contextSentence: 'Chúng ta cần [...] nguồn nhân lực có chuyên môn cao cho dự án.',
+    optionA: 'BỔ SUNG',
+    optionB: 'BỔ XUNG',
+    isMatch: false,
+    correctWord: 'BỔ SUNG',
+    explanation: '"Bổ sung" (thêm vào cho đủ); "Xung" mang nghĩa xung khắc, xung kích.'
+  },
+  {
+    contextSentence: 'Người học cần tránh lối suy nghĩ [...] thụ động, rập theo mẫu cũ.',
+    optionA: 'RẬP KHUÔN',
+    optionB: 'RẬP KHUÔN',
+    isMatch: true,
+    correctWord: 'RẬP KHUÔN',
+    explanation: '"Rập khuôn" phản ánh tư duy máy móc, thiếu sáng tạo linh hoạt.'
+  }
+];
+
 
 

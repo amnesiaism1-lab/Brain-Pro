@@ -14,4 +14,8 @@ export declare const EXERCISE_VARIANTS: IExerciseVariant[];
 export declare const EXERCISE_SYNERGIES: IExerciseSynergy[];
 export declare const WEEKLY_CHALLENGES: IWeeklyChallenge[];
 export declare const CONTENT_POOLS: IExerciseContentPoolItem[];
+export declare const VIETNAMESE_SINGLE_SYLLABLE_PAIRS: import('../types').ITwinWordSinglePair[];
+export declare const VIETNAMESE_CONFUSABLE_PAIRS: import('../types').ITwinWordConfusablePair[];
+export declare const VIETNAMESE_SENTENCE_PAIRS: import('../types').ITwinWordSentencePair[];
+export declare const VIETNAMESE_CONTEXTUAL_PAIRS: import('../types').ITwinWordContextualPair[];
 //# sourceMappingURL=index.d.ts.map
