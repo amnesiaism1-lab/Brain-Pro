@@ -289,7 +289,14 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
 
         {/* Score & Tuner HUD Overlay (Top Left) */}
         <div className="absolute top-3 left-4 flex flex-wrap items-center gap-2 z-10">
-          <div className="px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md flex items-center gap-2 text-xs">
+          <div
+            className="px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md flex items-center gap-2 text-xs"
+            title={
+              realtimeScorePct !== null
+                ? `Tỷ lệ cao độ đúng tông trong các đoạn hát: ${realtimeScorePct}% (Tổng frame chuẩn: ${sessionStats.inTuneFrames || 0}/${sessionStats.totalVocalFrames || 0})`
+                : 'Bắt đầu hát vào mic để hệ thống tính điểm chuẩn tông theo thời gian thực'
+            }
+          >
             <span className="text-[10px] font-mono text-slate-400 uppercase">Chuẩn Tông:</span>
             <span
               className={`font-black font-mono text-sm ${

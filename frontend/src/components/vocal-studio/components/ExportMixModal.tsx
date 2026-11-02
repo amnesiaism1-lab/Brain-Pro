@@ -119,6 +119,33 @@ export const ExportMixModal: React.FC<ExportMixModalProps> = ({
             </p>
           </div>
 
+          {/* Active Take Metadata Preview */}
+          {activeTake && (
+            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
+              <div className="space-y-0.5">
+                <span className="font-bold text-white flex items-center gap-2">
+                  <span>Take #{activeTake.takeNumber}</span>
+                  {activeTake.isBestTake && (
+                    <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold">
+                      ★ Best Take
+                    </span>
+                  )}
+                  <span className="text-slate-400 font-normal">({activeTake.note || 'Bản thu giọng'})</span>
+                </span>
+                <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+                  <span>Thời lượng: {Math.round(activeTake.durationSec)}s</span>
+                  <span>•</span>
+                  <span>WAV 16-bit PCM / 44.1kHz</span>
+                  <span>•</span>
+                  <span>~{Math.max(0.1, (activeTake.durationSec * 44100 * 2 * 2 / 1024 / 1024)).toFixed(1)} MB</span>
+                </div>
+              </div>
+              <div className="text-right text-[10px] font-mono text-emerald-400">
+                Sẵn sàng xuất file
+              </div>
+            </div>
+          )}
+
           {/* 2. EXPORT OPTIONS */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-white">Các tùy chọn xuất file có sẵn:</h4>

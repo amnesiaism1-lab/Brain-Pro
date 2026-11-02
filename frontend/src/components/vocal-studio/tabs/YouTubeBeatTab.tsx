@@ -72,6 +72,7 @@ export const YouTubeBeatTab: React.FC = () => {
   const [liveVuRms, setLiveVuRms] = useState(0);
   const [liveVuDb, setLiveVuDb] = useState(-80);
   const recordingTimerRef = useRef<any>(null);
+  const countdownTimerRef = useRef<any>(null);
 
   // Step 4: Playback, Mix & Takes
   const [session, setSession] = useState<IYouTubeSession | null>(null);
@@ -143,6 +144,14 @@ export const YouTubeBeatTab: React.FC = () => {
     });
 
     return () => {
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
       youtubeSyncMixer.dispose();
       vocalRecordingEngine.dispose();
     };
@@ -220,13 +229,21 @@ export const YouTubeBeatTab: React.FC = () => {
       ytPlayerInstance.playVideo();
     }
 
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+
     let count = 3;
-    const countTimer = setInterval(() => {
+    countdownTimerRef.current = setInterval(() => {
       count -= 1;
       if (count > 0) {
         setCountdownNumber(count);
       } else {
-        clearInterval(countTimer);
+        if (countdownTimerRef.current) {
+          clearInterval(countdownTimerRef.current);
+          countdownTimerRef.current = null;
+        }
         setIsCountingDown(false);
         triggerActualRecording();
       }
@@ -253,6 +270,10 @@ export const YouTubeBeatTab: React.FC = () => {
     if (!isRecording && !isCountingDown) return;
     setIsRecording(false);
     setIsCountingDown(false);
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
     if (recordingTimerRef.current) {
       clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = null;
@@ -310,6 +331,10 @@ export const YouTubeBeatTab: React.FC = () => {
   const handleDiscardRecording = () => {
     setIsRecording(false);
     setIsCountingDown(false);
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
     if (recordingTimerRef.current) {
       clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = null;
@@ -435,6 +460,57 @@ export const YouTubeBeatTab: React.FC = () => {
     youtubeTakeStorageService.downloadVocalTake(take);
   };
 
+  // Global Keyboard Shortcuts (Space, Enter, Esc, T, B)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName || '')) {
+        return;
+      }
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (currentStep === 'review_mix' || currentStep === 'prepare') {
+          handleTogglePlayMix();
+        }
+      } else if (e.code === 'Enter') {
+        e.preventDefault();
+        if (currentStep === 'recording') {
+          handleStopRecording();
+        } else if (currentStep === 'prepare' && !isCountingDown) {
+          handleStartCountdown();
+        }
+      } else if (e.code === 'Escape') {
+        e.preventDefault();
+        if (currentStep === 'recording' || isCountingDown) {
+          handleDiscardRecording();
+        } else if (isLyricPrompterOpen) {
+          setIsLyricPrompterOpen(false);
+        } else if (isExportModalOpen) {
+          setIsExportModalOpen(false);
+        }
+      } else if (e.code === 'KeyT') {
+        e.preventDefault();
+        setIsTheaterMode((prev) => !prev);
+      } else if (e.code === 'KeyB') {
+        if (currentStep === 'review_mix' && activeTake) {
+          e.preventDefault();
+          handleMarkBestTake(activeTake.id);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    currentStep,
+    isCountingDown,
+    isRecording,
+    isPlayingMix,
+    activeTake,
+    isLyricPrompterOpen,
+    isExportModalOpen,
+  ]);
+
   return (
     <div className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
       {/* 1. TOP HEADER & STEPPERS */}
@@ -474,21 +550,19 @@ export const YouTubeBeatTab: React.FC = () => {
           </button>
 
           {/* Theater Mode Toggle Button */}
-          {currentStep !== 'recording' && (
-            <button
-              type="button"
-              onClick={() => setIsTheaterMode(!isTheaterMode)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                isTheaterMode
-                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
-                  : 'bg-slate-950 border border-slate-800 text-slate-300 hover:text-white'
-              }`}
-              title={isTheaterMode ? 'Thu nhỏ về chế độ 2 cột' : 'Mở rộng màn hình Sân Khấu Karaoke'}
-            >
-              {isTheaterMode ? <Minimize2 className="w-3.5 h-3.5 text-sky-400" /> : <Maximize2 className="w-3.5 h-3.5 text-sky-400" />}
-              <span className="hidden sm:inline">{isTheaterMode ? 'Thu nhỏ' : 'Sân khấu to'}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setIsTheaterMode(!isTheaterMode)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              isTheaterMode
+                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
+                : 'bg-slate-950 border border-slate-800 text-slate-300 hover:text-white'
+            }`}
+            title={isTheaterMode ? 'Thu nhỏ về chế độ 2 cột (Phím T)' : 'Mở rộng màn hình Sân Khấu Karaoke (Phím T)'}
+          >
+            {isTheaterMode ? <Minimize2 className="w-3.5 h-3.5 text-sky-400" /> : <Maximize2 className="w-3.5 h-3.5 text-sky-400" />}
+            <span className="hidden sm:inline">{isTheaterMode ? 'Thu nhỏ' : 'Sân khấu to'}</span>
+          </button>
 
           <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
             <button
@@ -552,6 +626,29 @@ export const YouTubeBeatTab: React.FC = () => {
 
       {/* 2. THE PERMANENT KARAOKE STAGE (ALWAYS MOUNTED, FULL FOCUS & UNBLOCKED LYRICS) */}
       <div className={`w-full mx-auto space-y-3 transition-all duration-300 ${isTheaterMode ? 'max-w-6xl' : 'max-w-4xl'}`}>
+        {/* YouTube Block / Error Banner Alert with 1-click fallback */}
+        {playerError && (
+          <div className="p-3.5 rounded-2xl bg-rose-950/80 border border-rose-500/50 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-in fade-in">
+            <div className="flex items-center gap-2 text-rose-300">
+              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+              <div>
+                <span className="font-bold">{playerError.title}: </span>
+                <span>{playerError.message}</span>
+                <span className="block text-[11px] text-rose-300/80 mt-0.5">💡 {playerError.actionHint}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleSelectPreset(POPULAR_BEAT_PRESETS[0])}
+                className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition cursor-pointer"
+              >
+                Đổi sang Beat Mẫu
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className={`relative rounded-3xl overflow-hidden border-2 shadow-2xl bg-slate-950 transition-all ${
           currentStep === 'recording'
             ? 'border-rose-500/70 ring-4 ring-rose-500/20'
@@ -627,6 +724,8 @@ export const YouTubeBeatTab: React.FC = () => {
           isOpen={isLyricPrompterOpen}
           onClose={() => setIsLyricPrompterOpen(false)}
           isPlaying={isPlayingMix || isRecording}
+          currentTimeSec={beatCurrentTimeSec}
+          durationSec={beatDurationSec}
         />
       </div>
 
@@ -680,6 +779,42 @@ export const YouTubeBeatTab: React.FC = () => {
                   Tải Beat
                 </button>
               </div>
+
+              {/* Active Beat Selection & Thumbnail Preview Card */}
+              {activeVideoId && (
+                <div className="p-3.5 rounded-xl bg-slate-950/90 border border-sky-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={`https://img.youtube.com/vi/${activeVideoId}/mqdefault.jpg`}
+                      alt="YouTube Beat Thumbnail"
+                      className="w-24 h-14 object-cover rounded-lg border border-slate-700 shadow shrink-0"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white line-clamp-1">{videoTitle}</span>
+                        <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 text-[10px] font-mono">
+                          {activeVideoId}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Intro đề xuất: <strong className="text-slate-300">{startPointSec}s</strong> • Sẵn sàng chuyển sang phòng thu
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep('prepare')}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-sky-400 to-indigo-500 hover:from-sky-300 hover:to-indigo-400 text-slate-950 font-black text-xs transition flex items-center justify-center gap-1.5 shrink-0 shadow-md shadow-sky-500/10 cursor-pointer"
+                  >
+                    <span>Sẵn Sàng Hát Beat Này</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Quick Backing Track Presets */}
               <div className="space-y-2 pt-2 border-t border-slate-800/80">
@@ -1033,6 +1168,18 @@ export const YouTubeBeatTab: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Keyboard Shortcuts Quick Bar */}
+      <div className="flex items-center justify-between text-[11px] text-slate-400 px-3 py-2 bg-slate-900/60 border border-slate-800/60 rounded-xl">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-semibold text-slate-300">Phím tắt nhanh:</span>
+          <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[10px]">Space (Phát / Dừng)</span>
+          <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[10px]">Enter (Bắt đầu / Lưu take)</span>
+          <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[10px]">Esc (Hủy / Đóng)</span>
+          <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[10px]">T (Sân khấu to)</span>
+          <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[10px]">B (Chọn Take tốt nhất)</span>
+        </div>
       </div>
 
       {/* EXPORT & COPYRIGHT MODAL */}
