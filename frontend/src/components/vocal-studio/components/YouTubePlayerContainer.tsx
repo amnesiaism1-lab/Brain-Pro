@@ -8,6 +8,8 @@ import {
   Play,
   Pause,
   Music,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import {
   diagnoseYouTubeError,
@@ -23,6 +25,10 @@ interface YouTubePlayerContainerProps {
   className?: string;
   isCustomPlaying?: boolean;
   onTogglePlay?: () => void;
+  isTheaterMode?: boolean;
+  onToggleTheaterMode?: () => void;
+  hidePlayButtonOverlay?: boolean;
+  children?: React.ReactNode;
 }
 
 export const YouTubePlayerContainer: React.FC<YouTubePlayerContainerProps> = ({
@@ -33,6 +39,10 @@ export const YouTubePlayerContainer: React.FC<YouTubePlayerContainerProps> = ({
   className = '',
   isCustomPlaying,
   onTogglePlay,
+  isTheaterMode = false,
+  onToggleTheaterMode,
+  hidePlayButtonOverlay = false,
+  children,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
@@ -162,8 +172,8 @@ export const YouTubePlayerContainer: React.FC<YouTubePlayerContainerProps> = ({
           </div>
         )}
 
-        {/* Custom Play/Pause Overlay Hitbox */}
-        {!errorInfo && !isLoading && onTogglePlay && (
+        {/* Custom Play/Pause Overlay Hitbox (hidden if hidePlayButtonOverlay is true, e.g. during active recording) */}
+        {!errorInfo && !isLoading && onTogglePlay && !hidePlayButtonOverlay && (
           <button
             type="button"
             onClick={onTogglePlay}
@@ -179,9 +189,12 @@ export const YouTubePlayerContainer: React.FC<YouTubePlayerContainerProps> = ({
             </div>
           </button>
         )}
+
+        {/* Custom Children Overlay (e.g. Countdown or Live Recording HUD) */}
+        {children}
       </div>
 
-      {/* Discreet Bottom Bar Notice */}
+      {/* Discreet Bottom Bar Notice with Theater Mode Switch */}
       <div className="px-3 py-1.5 bg-slate-900/90 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
         <div className="flex items-center gap-1.5 truncate">
           <Music className="w-3.5 h-3.5 text-sky-400 shrink-0" />
@@ -189,9 +202,33 @@ export const YouTubePlayerContainer: React.FC<YouTubePlayerContainerProps> = ({
             YouTube Backing Track ({videoId})
           </span>
         </div>
-        <span className="text-[10px] text-slate-400 font-mono shrink-0 hidden sm:inline">
-          Controls = App Managed
-        </span>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {onToggleTheaterMode && (
+            <button
+              type="button"
+              onClick={onToggleTheaterMode}
+              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-semibold transition flex items-center gap-1 cursor-pointer"
+              title={isTheaterMode ? 'Thu nhỏ về chế độ 2 cột' : 'Phóng to chế độ Sân khấu Karaoke'}
+            >
+              {isTheaterMode ? (
+                <>
+                  <Minimize2 className="w-3 h-3 text-sky-400" />
+                  <span>Thu nhỏ</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-3 h-3 text-sky-400" />
+                  <span>Sân khấu to</span>
+                </>
+              )}
+            </button>
+          )}
+
+          <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
+            Controls = App Managed
+          </span>
+        </div>
       </div>
     </div>
   );
