@@ -6,6 +6,7 @@ import {
   POPULAR_BEAT_PRESETS,
 } from '../youtubeBeatService';
 import { vocalRecordingEngine } from '../vocalRecordingEngine';
+import { youtubeSyncMixer } from '../youtubeSyncMixer';
 
 describe('YouTube Beat Service & Recording Engine', () => {
   describe('extractYouTubeVideoId', () => {
@@ -133,6 +134,55 @@ describe('YouTube Beat Service & Recording Engine', () => {
       const negativeNudge = -60; // 60ms delay
       const effectiveStartDelayed = startPointSec - (negativeNudge / 1000);
       expect(effectiveStartDelayed).toBe(15.06);
+    });
+  });
+
+  describe('Full Master Mix (Beat + Vocal) Export Logic', () => {
+    it('generates valid 16-bit PCM WAV headers via encodeAudioBufferToWav', () => {
+      const sampleRate = 44100;
+      const numChannels = 2;
+      const length = 1000;
+
+      // Mock AudioBuffer
+      const mockBuffer = {
+        sampleRate,
+        numberOfChannels: numChannels,
+        length,
+        duration: length / sampleRate,
+        getChannelData: (ch: number) => new Float32Array(length).fill(ch === 0 ? 0.25 : -0.25),
+      } as unknown as AudioBuffer;
+
+      // Call encodeAudioBufferToWav
+      const wavBlob = youtubeSyncMixer.encodeAudioBufferToWav(mockBuffer);
+
+      expect(wavBlob).toBeDefined();
+      expect(wavBlob.type).toBe('audio/wav');
+      // 44 bytes header + (1000 * 2 channels * 2 bytes/sample) = 4044 bytes
+      expect(wavBlob.size).toBe(44 + 4000);
+    });
+
+    it('correctly calculates trim-to-take vs full-track render windows', () => {
+      const beatDuration = 180.0;
+      const takeStartSec = 30.0;
+      const vocalDuration = 45.0;
+      const nudgeOffsetMs = 50; // 50ms ahead
+
+      const effectiveVocalStart = Math.max(0, takeStartSec - (nudgeOffsetMs / 1000));
+      expect(effectiveVocalStart).toBe(29.95);
+
+      // Trimmed calculation: 1.5s lead-in, 3.0s tail
+      const leadIn = Math.min(1.5, effectiveVocalStart);
+      const renderStartSec = Math.max(0, effectiveVocalStart - leadIn);
+      const renderEndSec = Math.min(beatDuration, effectiveVocalStart + vocalDuration + 3.0);
+      const trimmedDurationSec = renderEndSec - renderStartSec;
+
+      expect(renderStartSec).toBe(28.45);
+      expect(renderEndSec).toBe(77.95);
+      expect(trimmedDurationSec).toBe(49.5);
+
+      // Full track calculation
+      const fullDurationSec = Math.max(beatDuration, effectiveVocalStart + vocalDuration);
+      expect(fullDurationSec).toBe(180.0);
     });
   });
 });

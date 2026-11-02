@@ -1125,10 +1125,10 @@ export const YouTubeBeatTab: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsExportModalOpen(true)}
-                    className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>Xuất File</span>
+                    <span>Xuất Beat + Vocal</span>
                   </button>
                 </div>
               </div>
@@ -1324,6 +1324,12 @@ export const YouTubeBeatTab: React.FC = () => {
         session={session}
         activeTake={activeTake}
         takes={takes}
+        beatVolume={beatVolume}
+        vocalVolume={vocalVolume}
+        nudgeOffsetMs={nudgeOffsetMs}
+        isReverb={isReverb}
+        isCompressor={isCompressor}
+        ytPlayerInstance={ytPlayerInstance}
       />
     </div>
   );

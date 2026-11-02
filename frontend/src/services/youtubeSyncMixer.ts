@@ -27,6 +27,16 @@ export interface IMixerState {
   isCompressorEnabled: boolean;
 }
 
+export interface IOfflineMixOptions {
+  beatVolume?: number;
+  vocalVolume?: number;
+  nudgeOffsetMs?: number;
+  isReverbEnabled?: boolean;
+  reverbLevel?: number;
+  isCompressorEnabled?: boolean;
+  trimToTake?: boolean;
+}
+
 export class YouTubeSyncMixer {
   private audioContext: AudioContext | null = null;
   private ytPlayer: any = null;
@@ -172,7 +182,7 @@ export class YouTubeSyncMixer {
   /**
    * Synthesizes an impulse response for subtle studio room/hall reverb without external files.
    */
-  private buildImpulseResponse(ctx: AudioContext, duration = 1.5, decay = 2.0): AudioBuffer {
+  public buildImpulseResponse(ctx: BaseAudioContext, duration = 1.8, decay = 2.5): AudioBuffer {
     const sampleRate = ctx.sampleRate;
     const length = Math.floor(sampleRate * duration);
     const impulse = ctx.createBuffer(2, length, sampleRate);
@@ -451,8 +461,17 @@ export class YouTubeSyncMixer {
   public async renderOfflineMixdown(
     beatFile: File | Blob,
     take: IYouTubeTake,
-    onProgress?: (pct: number) => void
+    onProgress?: (pct: number) => void,
+    options?: IOfflineMixOptions
   ): Promise<Blob> {
+    const beatVol = options?.beatVolume ?? this.beatVolume;
+    const vocalVol = options?.vocalVolume ?? this.vocalVolume;
+    const nudge = options?.nudgeOffsetMs ?? take.nudgeOffsetMs ?? this.nudgeOffsetMs;
+    const reverbOn = options?.isReverbEnabled ?? this.isReverbEnabled;
+    const revLevel = options?.reverbLevel ?? this.reverbLevel;
+    const compOn = options?.isCompressorEnabled ?? this.isCompressorEnabled;
+    const trimToTake = options?.trimToTake ?? false;
+
     const beatBuffer = await beatFile.arrayBuffer();
     const vocalBuffer = await take.audioBlob.arrayBuffer();
 
@@ -462,19 +481,42 @@ export class YouTubeSyncMixer {
     tempCtx.close();
 
     const sampleRate = decodedBeat.sampleRate || 44100;
-    const durationSec = Math.max(
-      decodedBeat.duration,
-      take.startPointSec + decodedVocal.duration
-    );
+    const effectiveVocalStart = Math.max(0, take.startPointSec - (nudge / 1000));
+    const vocalDuration = decodedVocal.duration;
+
+    let renderDurationSec: number;
+    let beatOffsetSec = 0;
+    let vocalOffsetSec = effectiveVocalStart;
+
+    if (trimToTake) {
+      // Trim: start slightly before vocal (1.5s lead-in), end 3s after vocal tail (reverb tail)
+      const leadIn = Math.min(1.5, effectiveVocalStart);
+      const renderStartSec = Math.max(0, effectiveVocalStart - leadIn);
+      const renderEndSec = Math.min(
+        decodedBeat.duration,
+        effectiveVocalStart + vocalDuration + 3.0
+      );
+      renderDurationSec = Math.max(1.0, renderEndSec - renderStartSec);
+      beatOffsetSec = -renderStartSec;
+      vocalOffsetSec = effectiveVocalStart - renderStartSec;
+    } else {
+      // Full track duration
+      renderDurationSec = Math.max(
+        decodedBeat.duration,
+        effectiveVocalStart + vocalDuration
+      );
+      beatOffsetSec = 0;
+      vocalOffsetSec = effectiveVocalStart;
+    }
 
     const OfflineCtx = window.OfflineAudioContext || (window as any).webkitOfflineAudioContext;
-    const offlineCtx = new OfflineCtx(2, Math.ceil(durationSec * sampleRate), sampleRate);
+    const offlineCtx = new OfflineCtx(2, Math.ceil(renderDurationSec * sampleRate), sampleRate);
 
     // 1. Beat Track Node
     const beatSource = offlineCtx.createBufferSource();
     beatSource.buffer = decodedBeat;
     const beatGain = offlineCtx.createGain();
-    beatGain.gain.value = this.beatVolume;
+    beatGain.gain.value = beatVol;
     beatSource.connect(beatGain);
     beatGain.connect(offlineCtx.destination);
 
@@ -482,24 +524,50 @@ export class YouTubeSyncMixer {
     const vocalSource = offlineCtx.createBufferSource();
     vocalSource.buffer = decodedVocal;
     const vocalGain = offlineCtx.createGain();
-    vocalGain.gain.value = this.vocalVolume;
+    vocalGain.gain.value = vocalVol;
 
-    // Optional Compressor & Reverb in offline render
+    // Dynamics Compressor (Vocals Glue)
     const compressor = offlineCtx.createDynamicsCompressor();
     compressor.threshold.setValueAtTime(-24, 0);
     compressor.knee.setValueAtTime(12, 0);
-    compressor.ratio.setValueAtTime(this.isCompressorEnabled ? 3.0 : 1.0, 0);
+    compressor.ratio.setValueAtTime(compOn ? 3.0 : 1.0, 0);
     compressor.attack.setValueAtTime(0.01, 0);
     compressor.release.setValueAtTime(0.12, 0);
 
     vocalSource.connect(vocalGain);
     vocalGain.connect(compressor);
-    compressor.connect(offlineCtx.destination);
 
-    // Start points
-    const effectiveVocalStart = Math.max(0, take.startPointSec - (take.nudgeOffsetMs / 1000));
-    beatSource.start(0);
-    vocalSource.start(effectiveVocalStart);
+    // Dry / Wet Reverb
+    if (reverbOn && revLevel > 0) {
+      const dryGain = offlineCtx.createGain();
+      dryGain.gain.value = 1.0;
+      compressor.connect(dryGain);
+      dryGain.connect(offlineCtx.destination);
+
+      const convolver = offlineCtx.createConvolver();
+      convolver.buffer = this.buildImpulseResponse(offlineCtx, 1.8, 2.5);
+      const wetGain = offlineCtx.createGain();
+      wetGain.gain.value = revLevel;
+      compressor.connect(convolver);
+      convolver.connect(wetGain);
+      wetGain.connect(offlineCtx.destination);
+    } else {
+      compressor.connect(offlineCtx.destination);
+    }
+
+    // Start schedules
+    if (beatOffsetSec >= 0) {
+      beatSource.start(beatOffsetSec);
+    } else {
+      // Offset into beat buffer
+      beatSource.start(0, Math.abs(beatOffsetSec));
+    }
+
+    if (vocalOffsetSec >= 0) {
+      vocalSource.start(vocalOffsetSec);
+    } else {
+      vocalSource.start(0, Math.abs(vocalOffsetSec));
+    }
 
     if (onProgress) onProgress(30);
 
@@ -513,7 +581,10 @@ export class YouTubeSyncMixer {
     return wavBlob;
   }
 
-  private encodeAudioBufferToWav(buffer: AudioBuffer): Blob {
+  /**
+   * Encodes a Web Audio AudioBuffer to a 16-bit PCM WAV Blob.
+   */
+  public encodeAudioBufferToWav(buffer: AudioBuffer): Blob {
     const numChannels = buffer.numberOfChannels;
     const sampleRate = buffer.sampleRate;
     const length = buffer.length;
