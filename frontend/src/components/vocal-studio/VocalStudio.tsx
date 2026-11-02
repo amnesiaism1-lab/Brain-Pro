@@ -6,6 +6,7 @@ import {
   Music,
   Award,
   AlertCircle,
+  Radio,
 } from 'lucide-react';
 import {
   RunwayRenderState,
@@ -50,6 +51,7 @@ import { useVocalStudioStore } from '../../store/vocalStudioStore';
 import { AnalysisTab } from './tabs/AnalysisTab';
 import { SingAlongTab } from './tabs/SingAlongTab';
 import { ReportTab } from './tabs/ReportTab';
+import { YouTubeBeatTab } from './tabs/YouTubeBeatTab';
 import { evaluateCentsDeviation, NOTE_NAMES, SOLFEGE_NAMES } from '@brain-exercises/shared';
 
 interface VocalStudioProps {
@@ -863,7 +865,11 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
               </span>
             </h2>
             <p className="text-[10px] sm:text-[11px] text-slate-400 truncate hidden sm:block">
-              {store.analysisResult ? store.analysisResult.fileName : 'Nhập file bài hát để bắt đầu'}
+              {store.activeTab === 'youtube_beat'
+                ? 'Hát với Beat YouTube & Mix Ảo Multi-Take'
+                : store.analysisResult
+                ? store.analysisResult.fileName
+                : 'Nhập file bài hát để bắt đầu'}
             </p>
           </div>
         </div>
@@ -897,6 +903,20 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             <Music className="w-3.5 h-3.5" />
             <span className="hidden sm:inline whitespace-nowrap">② Luyện Hát</span>
             <span className="sm:hidden font-mono font-bold">②</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => store.setActiveTab('youtube_beat')}
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 ${
+              store.activeTab === 'youtube_beat'
+                ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Radio className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline whitespace-nowrap">Beat YouTube</span>
+            <span className="sm:hidden font-mono font-bold">YT</span>
           </button>
 
           <button
@@ -958,6 +978,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onOpenLyricModal={handleOpenLyricModal}
             onOpenSongCandidateModal={() => setIsSongCandidateModalOpen(true)}
             onTrimLeadingSilence={handleTrimLeadingSilence}
+            onOpenYouTubeBeat={() => store.setActiveTab('youtube_beat')}
             onSkipIntro={(ms) => {
               handleSeek(ms);
               store.setActiveTab('sing_along');
@@ -1057,6 +1078,10 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             }}
             onChooseAnotherSong={() => store.setActiveTab('analysis')}
           />
+        )}
+
+        {store.activeTab === 'youtube_beat' && (
+          <YouTubeBeatTab />
         )}
       </div>
 

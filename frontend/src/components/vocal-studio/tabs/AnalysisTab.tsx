@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   ShieldCheck,
   CheckCircle2,
+  Radio,
 } from 'lucide-react';
 import { IVocalAnalysisResult, IVocalPhrase } from '../../../services/vocalFileAnalysisService';
 import { searchAndTracePhrases } from '../../../services/lyricAlignmentService';
@@ -36,6 +37,7 @@ interface AnalysisTabProps {
   onOpenSongCandidateModal?: () => void;
   onTrimLeadingSilence?: (trimMs: number) => void;
   onSkipIntro?: (targetMs: number) => void;
+  onOpenYouTubeBeat?: () => void;
 }
 
 export const AnalysisTab: React.FC<AnalysisTabProps> = ({
@@ -51,6 +53,7 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
   onOpenSongCandidateModal,
   onTrimLeadingSilence,
   onSkipIntro,
+  onOpenYouTubeBeat,
 }) => {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [showHelpGuide, setShowHelpGuide] = useState(false);
@@ -200,6 +203,36 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
           </div>
         )}
       </div>
+
+      {/* Quick Entry: Hát với Beat YouTube (Virtual Mix) */}
+      {onOpenYouTubeBeat && (
+        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-rose-950/40 via-slate-900 to-indigo-950/40 border border-rose-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-rose-500 to-amber-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-rose-500/20">
+              <Radio className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                <span>Hát Với Beat YouTube & Mix Ảo</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-mono font-bold uppercase">
+                  Mới
+                </span>
+              </h4>
+              <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5 leading-relaxed">
+                Không cần tải file beat! Dán link YouTube, kiểm tra mic 5s, nhắc tai nghe, đếm nhịp 3-2-1, thu nhiều take và chỉnh lệch ms.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenYouTubeBeat}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-rose-500/20 shrink-0 cursor-pointer active:scale-95"
+          >
+            <span>Mở Studio Beat YouTube</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* 2. Analysis Overview Cards */}
       {analysisResult && (

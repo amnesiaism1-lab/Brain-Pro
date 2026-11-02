@@ -119,7 +119,7 @@ export interface VocalStudioState extends VocalStudioPreferences {
   canRedo: boolean;
 
   // Actions
-  openStudio: () => void;
+  openStudio: (initialTab?: StudioTab) => void;
   closeStudio: () => void;
   setActiveTab: (tab: StudioTab) => void;
   setToleranceCents: (val: TuningTolerance) => void;
@@ -231,8 +231,11 @@ export const useVocalStudioStore = create<VocalStudioState>((set) => ({
     return result;
   },
 
-  openStudio: () => {
-    set({ isOpen: true });
+  openStudio: (initialTab?: StudioTab) => {
+    set({
+      isOpen: true,
+      ...(initialTab ? { activeTab: initialTab } : {}),
+    });
     if (typeof window !== 'undefined' && window.location.hash !== '#/vocal-studio') {
       window.history.pushState(null, '', '#/vocal-studio');
     }

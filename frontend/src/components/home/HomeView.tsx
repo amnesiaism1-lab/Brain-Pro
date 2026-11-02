@@ -19,7 +19,8 @@ import {
   CheckCircle2,
   ChevronRight,
   Mic2,
-  Compass
+  Compass,
+  Radio
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useVocalStudioStore } from '../../store/vocalStudioStore';
@@ -319,8 +320,19 @@ export const HomeView: React.FC = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-between pt-2 border-t border-cyan-500/20">
-            <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300">Hát theo mẫu & Cảm âm</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-cyan-500/20">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                playSound('click');
+                openVocalStudio('youtube_beat');
+              }}
+              className="px-2.5 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-[11px] font-black flex items-center gap-1.5 transition active:scale-95"
+            >
+              <Radio className="w-3.5 h-3.5 text-rose-500" />
+              <span>Hát Beat YouTube</span>
+            </button>
             <button className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-black text-xs flex items-center gap-1.5 shadow-sm group-hover:translate-x-0.5 transition-all">
               <span>Mở Studio</span>
               <ArrowRight className="w-3.5 h-3.5" />

@@ -1,7 +1,7 @@
 import { IVocalAnalysisResult, IVocalPhrase, IReferencePitchPoint } from '../../services/vocalFileAnalysisService';
 import { IVocalPitchReading } from '../../services/vocalPitchService';
 
-export type StudioTab = 'analysis' | 'sing_along' | 'report';
+export type StudioTab = 'analysis' | 'sing_along' | 'youtube_beat' | 'report';
 
 export type MicStatus = 'idle' | 'connecting' | 'listening' | 'error' | 'permission_denied';
 

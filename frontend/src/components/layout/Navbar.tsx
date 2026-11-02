@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Brain, BookOpen, History, Settings, User, Cloud, LogIn, LogOut, Mic2, Sparkles } from 'lucide-react';
+import { Home, Brain, BookOpen, History, Settings, User, Cloud, LogIn, LogOut, Mic2, Sparkles, Radio } from 'lucide-react';
 import { useAppStore, MainNavTab } from '../../store/useAppStore';
 import { useVocalStudioStore } from '../../store/vocalStudioStore';
 
@@ -179,6 +179,19 @@ export const Navbar: React.FC = () => {
               <Sparkles className="w-2.5 h-2.5 fill-slate-950" />
               LIVE
             </span>
+          </button>
+          <button
+            onClick={() => {
+              playSound('click');
+              setSelectedExerciseSlug(null);
+              setActiveGameSlug(null);
+              openVocalStudio('youtube_beat');
+            }}
+            className="w-full mt-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-[10px] font-black flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+            title="Mở Studio Hát Beat YouTube & Mix Ảo"
+          >
+            <Radio className="w-3.5 h-3.5 text-rose-500" />
+            <span>Hát Beat YouTube</span>
           </button>
         </div>
 
