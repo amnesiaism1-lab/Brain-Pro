@@ -21,6 +21,7 @@ import {
 } from '@brain-exercises/shared';
 import { createWrongAnswerSlice, WrongAnswerSliceState } from './slices/wrongAnswerSlice';
 import { createPersonalAnchorsSlice, PersonalAnchorsSliceState } from './slices/personalAnchorsSlice';
+import { createOfficeModeSlice, OfficeModeSliceState } from './slices/officeModeSlice';
 import {
   CustomPresetsSlice,
   loadPersistedPresets,
@@ -31,7 +32,7 @@ import {
 
 export type MainNavTab = 'home' | 'exercises' | 'learn' | 'wrong-history' | 'settings' | 'user';
 
-interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, CustomPresetsSlice {
+interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, CustomPresetsSlice, OfficeModeSliceState {
   // Navigation & Modals
   activeTab: MainNavTab;
   setActiveTab: (tab: MainNavTab) => void;
@@ -129,6 +130,7 @@ interface AppState extends WrongAnswerSliceState, PersonalAnchorsSliceState, Cus
 
   // Gamification & User Stats
   xp: number;
+  addXp: (amount: number) => void;
   level: number;
   streak: number;
   bestStreak: number;
@@ -266,29 +268,38 @@ function playSynthSound(type: 'correct' | 'wrong' | 'click' | 'victory') {
   }
 }
 
+const safeGetStorage = (key: string, fallback: string = ''): string => {
+  if (typeof localStorage === 'undefined') return fallback;
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
 export const useAppStore = create<AppState>((set, get) => {
   // Load persisted state if any
-  const savedXp = parseInt(localStorage.getItem('be_xp') || '420', 10);
-  const savedStreak = parseInt(localStorage.getItem('be_streak') || '4', 10);
-  const savedBestStreak = parseInt(localStorage.getItem('be_best_streak') || '7', 10);
+  const savedXp = parseInt(safeGetStorage('be_xp', '420'), 10);
+  const savedStreak = parseInt(safeGetStorage('be_streak', '4'), 10);
+  const savedBestStreak = parseInt(safeGetStorage('be_best_streak', '7'), 10);
   const savedLevel = Math.floor(Math.sqrt(savedXp / 100)) + 1;
-  const savedSound = localStorage.getItem('be_sound') !== 'false';
-  const savedDark = localStorage.getItem('be_dark') === 'true';
-  const savedLang = (localStorage.getItem('be_lang') as 'vi' | 'en') || 'vi';
-  const savedTonicAnchor = localStorage.getItem('be_tonic_anchor') !== 'false';
-  const savedAmbientDrone = localStorage.getItem('be_ambient_drone') === 'true';
-  const savedAutoHints = localStorage.getItem('be_auto_hints') === 'true'; // Mặc định tắt hoàn toàn (false)
-  const savedEnableHints = localStorage.getItem('be_enable_hints') !== 'false';
+  const savedSound = safeGetStorage('be_sound') !== 'false';
+  const savedDark = safeGetStorage('be_dark') === 'true';
+  const savedLang = (safeGetStorage('be_lang') as 'vi' | 'en') || 'vi';
+  const savedTonicAnchor = safeGetStorage('be_tonic_anchor') !== 'false';
+  const savedAmbientDrone = safeGetStorage('be_ambient_drone') === 'true';
+  const savedAutoHints = safeGetStorage('be_auto_hints') === 'true'; // Mặc định tắt hoàn toàn (false)
+  const savedEnableHints = safeGetStorage('be_enable_hints') !== 'false';
 
   let initialEarConfusion: Record<string, number> = {};
   try {
-    const raw = localStorage.getItem('be_ear_confusion');
+    const raw = safeGetStorage('be_ear_confusion');
     if (raw) initialEarConfusion = JSON.parse(raw);
   } catch { }
 
   let initialMasteries: Record<string, IUserExerciseMastery> = {};
   try {
-    const raw = localStorage.getItem('be_masteries');
+    const raw = safeGetStorage('be_masteries');
     if (raw) initialMasteries = JSON.parse(raw);
   } catch {
     initialMasteries = {};
@@ -314,7 +325,7 @@ export const useAppStore = create<AppState>((set, get) => {
   const initialActivePresetIds = loadPersistedActivePresetIds();
   let initialActiveSessionSource: 'ladder' | 'custom' = 'ladder';
   try {
-    const savedSource = localStorage.getItem('be_active_session_source');
+    const savedSource = safeGetStorage('be_active_session_source');
     if (savedSource === 'custom' || savedSource === 'ladder') {
       initialActiveSessionSource = savedSource;
     }
@@ -349,7 +360,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
   const initialRelationMasteries: Record<RelationId, IRelationshipMastery> = (() => {
     try {
-      const saved = localStorage.getItem('be_relation_masteries');
+      const saved = safeGetStorage('be_relation_masteries');
       if (saved) return JSON.parse(saved);
     } catch { }
     return createInitialMasteriesMap();
@@ -358,15 +369,15 @@ export const useAppStore = create<AppState>((set, get) => {
   let initialAuthToken: string | null = null;
   let initialAuthUser: IAuthUser | null = null;
   try {
-    initialAuthToken = localStorage.getItem('brain_pro_auth_token');
-    const rawUser = localStorage.getItem('brain_pro_auth_user');
+    initialAuthToken = safeGetStorage('brain_pro_auth_token') || null;
+    const rawUser = safeGetStorage('brain_pro_auth_user');
     if (rawUser) initialAuthUser = JSON.parse(rawUser);
   } catch { }
 
   let initialWorkoutRoutine: IWorkoutRoutine | null = null;
   let initialWorkoutStepIndex = 0;
   try {
-    const savedWorkout = localStorage.getItem('be_active_workout');
+    const savedWorkout = safeGetStorage('be_active_workout');
     if (savedWorkout) {
       const parsed = JSON.parse(savedWorkout);
       if (parsed?.routine?.items) {
@@ -378,7 +389,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
   let initialAttemptsHistory: any[] = [];
   try {
-    const rawHistory = localStorage.getItem('be_attempts_history');
+    const rawHistory = safeGetStorage('be_attempts_history');
     if (rawHistory) {
       initialAttemptsHistory = JSON.parse(rawHistory);
       if (!Array.isArray(initialAttemptsHistory)) initialAttemptsHistory = [];
@@ -388,6 +399,7 @@ export const useAppStore = create<AppState>((set, get) => {
   return {
     ...createWrongAnswerSlice(set, get),
     ...createPersonalAnchorsSlice(set, get),
+    ...createOfficeModeSlice(set, get),
 
     // Auth state & Cloud Sync
     authUser: initialAuthUser,
@@ -532,7 +544,7 @@ export const useAppStore = create<AppState>((set, get) => {
     setTheoryHighlightEntity: (entity) => set({ theoryHighlightEntity: entity }),
     masteredTheoryModules: (() => {
       try {
-        const saved = localStorage.getItem('be_mastered_theory_modules');
+        const saved = safeGetStorage('be_mastered_theory_modules');
         return saved ? JSON.parse(saved) : [];
       } catch {
         return [];
@@ -797,6 +809,17 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     xp: savedXp,
+    addXp: (amount: number) => {
+      set((state: AppState) => {
+        const newXp = state.xp + amount;
+        const newLevel = Math.floor(Math.sqrt(newXp / 100)) + 1;
+        localStorage.setItem('be_xp', String(newXp));
+        return {
+          xp: newXp,
+          level: newLevel
+        };
+      });
+    },
     level: savedLevel,
     streak: savedStreak,
     bestStreak: savedBestStreak,

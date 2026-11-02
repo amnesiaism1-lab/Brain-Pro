@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { Volume2, VolumeX, Moon, Sun, Globe, Sparkles, Info, EyeOff } from 'lucide-react';
+import { OfficeModeSettings } from '../office-mode/OfficeModeSettings';
 
 export const SettingsView: React.FC = () => {
   const { 
@@ -182,6 +183,9 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Office Mode Stealth Training Settings */}
+      <OfficeModeSettings />
 
       {/* App info */}
       <div className="p-4 rounded-3xl bg-[#F5EFE6]/80 dark:bg-slate-800/50 border border-[#D5CBB9] dark:border-slate-700 text-xs text-slate-500 flex items-center justify-between">

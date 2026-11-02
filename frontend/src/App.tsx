@@ -24,6 +24,8 @@ import { VocalStudio } from './components/vocal-studio/VocalStudio';
 import { useVocalStudioStore } from './store/vocalStudioStore';
 import { useNavigationSync } from './hooks/useNavigationSync';
 import { useReminderScheduler } from './hooks/useReminderScheduler';
+import { OfficeModePill } from './components/office-mode/OfficeModePill';
+import { OfficeModeInfoPanel } from './components/office-mode/OfficeModeInfoPanel';
 
 export const App: React.FC = () => {
   const { 
@@ -105,6 +107,10 @@ export const App: React.FC = () => {
           isOpen={isVocalStudioOpen}
           onClose={closeVocalStudio}
         />
+
+        {/* Global Office Mode (Stealth Ear Training) */}
+        <OfficeModePill />
+        <OfficeModeInfoPanel />
 
         {/* Real-time In-App Reminder Toast */}
         {activeAlert && (
