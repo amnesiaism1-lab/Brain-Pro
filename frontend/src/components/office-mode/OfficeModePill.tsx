@@ -610,6 +610,25 @@ export const OfficeModePill: React.FC = () => {
                   </span>
                 )}
 
+                {/* Hàng phím nốt tự do ngay trong lúc chờ */}
+                <div className="flex items-center gap-0.5 overflow-x-auto py-0.5">
+                  {getKeyDefinitionsForRule(currentRule === 'multiple-choice' ? 'scale-degrees' : currentRule).map((k) => (
+                    <button
+                      key={k.key}
+                      onClick={() => handleFreestylePlayNote(k.note)}
+                      className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border text-[10px] font-bold transition-all transform active:scale-95 cursor-pointer ${
+                        k.isBlack
+                          ? 'bg-slate-900 text-amber-300 border-slate-700'
+                          : 'bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white border-slate-700'
+                      }`}
+                      title={`Bấm phím ${k.key} để nghe nốt ${k.solfege}`}
+                    >
+                      <span className="font-mono text-[9px] text-indigo-400 font-black">{k.key}</span>
+                      <span className="text-[10px]">{k.solfege}</span>
+                    </button>
+                  ))}
+                </div>
+
                 {/* Nút phát ngay câu mới */}
                 <button
                   onClick={handleNextOrSkip}

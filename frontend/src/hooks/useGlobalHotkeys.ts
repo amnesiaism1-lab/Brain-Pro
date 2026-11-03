@@ -204,15 +204,18 @@ export const useGlobalHotkeys = ({
           }
         }
 
-        // Alt + 1..6: Chọn đáp án trắc nghiệm hoặc phím nốt bậc âm
-        if (/^[1-6]$/.test(e.key)) {
+        // Alt + 1..8: Chọn đáp án trắc nghiệm hoặc phím nốt bậc âm
+        if (/^[1-8]$/.test(e.key)) {
           e.preventDefault();
           e.stopPropagation();
           const num = parseInt(e.key, 10);
           if (isPitchRecall && rule !== 'multiple-choice') {
             const mapped = mapKeyToNote(e.key, 'scale-degrees');
             if (mapped) {
-              if (propsRef.current.officeQuestionState === 'freestyle') {
+              if (
+                propsRef.current.officeQuestionState === 'freestyle' ||
+                propsRef.current.officeQuestionState === 'standby'
+              ) {
                 propsRef.current.onFreestylePlayNote(mapped);
               } else if (propsRef.current.officeQuestionState === 'waiting') {
                 propsRef.current.onInputPitchNote(mapped);
@@ -223,6 +226,10 @@ export const useGlobalHotkeys = ({
               propsRef.current.onFreestylePlayOption(num);
             } else if (propsRef.current.officeQuestionState === 'waiting') {
               propsRef.current.onAnswer(num);
+            } else if (propsRef.current.officeQuestionState === 'standby') {
+              // Ở màn hình chờ (standby), bấm Alt+1..8 luôn phát âm thanh nốt Đồ..Đố tự do!
+              const mapped = mapKeyToNote(e.key, 'scale-degrees');
+              if (mapped) propsRef.current.onFreestylePlayNote(mapped);
             }
           }
           return;
@@ -245,7 +252,10 @@ export const useGlobalHotkeys = ({
             e.stopPropagation();
             if (propsRef.current.officeQuestionState === 'waiting') {
               propsRef.current.onInputPitchNote(note);
-            } else if (propsRef.current.officeQuestionState === 'freestyle') {
+            } else if (
+              propsRef.current.officeQuestionState === 'freestyle' ||
+              propsRef.current.officeQuestionState === 'standby'
+            ) {
               propsRef.current.onFreestylePlayNote(note);
             }
             return;
@@ -254,7 +264,7 @@ export const useGlobalHotkeys = ({
 
         // Trường hợp B: Bài tập Nhận Diện Quãng hoặc Nhớ Cao Độ dạng Trắc Nghiệm 1..4
         if (!isPitchRecall || rule === 'multiple-choice') {
-          if (/^[1-6]$/.test(e.key)) {
+          if (/^[1-8]$/.test(e.key)) {
             const num = parseInt(e.key, 10);
             e.preventDefault();
             e.stopPropagation();
@@ -262,6 +272,10 @@ export const useGlobalHotkeys = ({
               propsRef.current.onAnswer(num);
             } else if (propsRef.current.officeQuestionState === 'freestyle') {
               propsRef.current.onFreestylePlayOption(num);
+            } else if (propsRef.current.officeQuestionState === 'standby') {
+              // Ở màn hình chờ (chưa chuyển câu), gõ 1..8 luôn phát ra nốt cao độ tương ứng!
+              const mapped = mapKeyToNote(e.key, 'scale-degrees');
+              if (mapped) propsRef.current.onFreestylePlayNote(mapped);
             }
           }
         }
