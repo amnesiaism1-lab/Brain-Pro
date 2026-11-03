@@ -8,6 +8,7 @@ interface UseGlobalHotkeysProps {
   onAnswer: (index: number) => void;
   onInputPitchNote: (note: string) => void;
   onBackspacePitchNote: () => void;
+  onClearPitchSequence?: () => void;
   onFreestylePlayNote: (note: string) => void;
   onFreestylePlayOption: (index: number) => void;
 }
@@ -18,6 +19,7 @@ export const useGlobalHotkeys = ({
   onAnswer,
   onInputPitchNote,
   onBackspacePitchNote,
+  onClearPitchSequence,
   onFreestylePlayNote,
   onFreestylePlayOption
 }: UseGlobalHotkeysProps): void => {
@@ -38,6 +40,7 @@ export const useGlobalHotkeys = ({
     onAnswer,
     onInputPitchNote,
     onBackspacePitchNote,
+    onClearPitchSequence,
     onFreestylePlayNote,
     onFreestylePlayOption,
     officeModeActive,
@@ -57,6 +60,7 @@ export const useGlobalHotkeys = ({
       onAnswer,
       onInputPitchNote,
       onBackspacePitchNote,
+      onClearPitchSequence,
       onFreestylePlayNote,
       onFreestylePlayOption,
       officeModeActive,
@@ -84,13 +88,37 @@ export const useGlobalHotkeys = ({
       const rule = propsRef.current.officeSettings.pitchRecallInputRule || 'scale-degrees';
       const isPitchRecall = currentQ?.exerciseSlug === 'pitch-recall';
 
-      // 1. Phím Escape: Đóng panel thông tin nếu đang mở
+      // 1. Phím Escape: Đóng panel thông tin nếu đang mở, hoặc xóa toàn bộ nốt đang gõ để làm lại
       if (e.key === 'Escape') {
         if (propsRef.current.isInfoPanelOpen) {
           e.preventDefault();
           propsRef.current.toggleInfoPanel(false);
           return;
         }
+        if (
+          propsRef.current.officeModeActive &&
+          propsRef.current.officeQuestionState === 'waiting' &&
+          isPitchRecall
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
+          propsRef.current.onClearPitchSequence?.();
+          return;
+        }
+      }
+
+      // 1b. Phím Delete: Xóa sạch toàn bộ chuỗi nốt đang gõ dở
+      if (
+        propsRef.current.officeModeActive &&
+        propsRef.current.officeQuestionState === 'waiting' &&
+        isPitchRecall &&
+        !isInputFocused &&
+        e.key === 'Delete'
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        propsRef.current.onClearPitchSequence?.();
+        return;
       }
 
       // 2. Phím Space hoặc Enter khi đang ở chế độ Freestyle: Chuyển câu tiếp theo
@@ -164,6 +192,16 @@ export const useGlobalHotkeys = ({
           e.stopPropagation();
           propsRef.current.onNextOrSkip();
           return;
+        }
+
+        // Alt + C hoặc Alt + X: Xóa sạch toàn bộ câu trả lời để gõ lại từ đầu (Clear/Reset)
+        if (keyLower === 'c' || keyLower === 'x') {
+          if (isPitchRecall) {
+            e.preventDefault();
+            e.stopPropagation();
+            propsRef.current.onClearPitchSequence?.();
+            return;
+          }
         }
 
         // Alt + 1..6: Chọn đáp án trắc nghiệm hoặc phím nốt bậc âm

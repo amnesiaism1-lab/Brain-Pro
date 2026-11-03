@@ -44,6 +44,7 @@ export const OfficePillStandalone: React.FC = () => {
     handleAnswer,
     handleInputNote,
     handleBackspaceNote,
+    handleClearSequence,
     handleFreestylePlayNote,
     handleFreestylePlayOption,
     handleNextOrSkip,
@@ -83,6 +84,8 @@ export const OfficePillStandalone: React.FC = () => {
         handleNextOrSkip();
       } else if (data === 'hotkey:backspace') {
         handleBackspaceNote();
+      } else if (data === 'hotkey:clear' || data === 'hotkey:reset') {
+        handleClearSequence();
       } else if (data === 'hotkey:cycle-rule') {
         cycleInputRule();
       } else if (data === 'hotkey:theme') {
@@ -117,6 +120,7 @@ export const OfficePillStandalone: React.FC = () => {
     handleNextOrSkip,
     handleInputNote,
     handleBackspaceNote,
+    handleClearSequence,
     handleAnswer,
     togglePauseOfficeMode,
     officeSettings.exerciseSlug
@@ -371,16 +375,28 @@ export const OfficePillStandalone: React.FC = () => {
                   })}
 
                   {userRecallSequence.length > 0 && (
-                    <button
-                      onClick={handleBackspaceNote}
-                      className={`px-1.5 py-0.5 rounded-md border text-[10px] font-mono transition-colors cursor-pointer ${isLightMode
-                          ? 'bg-white hover:bg-slate-100 text-slate-500 border-slate-200'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border-slate-700'
-                        }`}
-                      title="Xóa nốt vừa gõ (Backspace)"
-                    >
-                      ⌫
-                    </button>
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={handleBackspaceNote}
+                        className={`px-1.5 py-0.5 rounded-md border text-[10px] font-mono transition-colors cursor-pointer ${isLightMode
+                            ? 'bg-white hover:bg-slate-100 text-slate-500 border-slate-200'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border-slate-700'
+                          }`}
+                        title="Xóa 1 nốt vừa gõ (Backspace)"
+                      >
+                        ⌫
+                      </button>
+                      <button
+                        onClick={handleClearSequence}
+                        className={`px-1.5 py-0.5 rounded-md border text-[9px] font-mono font-bold transition-colors cursor-pointer ${isLightMode
+                            ? 'bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-200'
+                            : 'bg-rose-950/60 hover:bg-rose-900 text-rose-300 border-rose-800'
+                          }`}
+                        title="Xóa toàn bộ làm lại từ đầu (Alt+C hoặc Esc / Del)"
+                      >
+                        CLR
+                      </button>
+                    </div>
                   )}
                 </div>
 

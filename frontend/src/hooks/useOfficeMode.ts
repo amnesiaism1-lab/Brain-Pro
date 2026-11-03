@@ -249,6 +249,11 @@ export const useOfficeMode = () => {
     backspacePitchRecallNote();
   }, [backspacePitchRecallNote]);
 
+  // Xóa toàn bộ chuỗi đang gõ dở để gõ lại từ đầu (Clear/Reset)
+  const handleClearSequence = useCallback(() => {
+    clearPitchRecallSequence();
+  }, [clearPitchRecallSequence]);
+
   // 7. Xử lý Câu tiếp / Bỏ qua / Kết thúc Freestyle (Alt+N)
   const handleNextOrSkip = useCallback(() => {
     if (officeQuestionState === 'freestyle') {
@@ -267,6 +272,7 @@ export const useOfficeMode = () => {
     onAnswer: handleAnswer,
     onInputPitchNote: handleInputNote,
     onBackspacePitchNote: handleBackspaceNote,
+    onClearPitchSequence: handleClearSequence,
     onFreestylePlayNote: handleFreestylePlayNote,
     onFreestylePlayOption: handleFreestylePlayOption
   });
@@ -349,6 +355,7 @@ export const useOfficeMode = () => {
     handleAnswer,
     handleInputNote,
     handleBackspaceNote,
+    handleClearSequence,
     handleFreestylePlayNote,
     handleFreestylePlayOption,
     handleNextOrSkip,

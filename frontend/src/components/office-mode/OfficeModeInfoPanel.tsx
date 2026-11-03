@@ -389,7 +389,8 @@ export const OfficeModeInfoPanel: React.FC = () => {
                 </div>
               </div>
               <ul className="list-disc pl-4 space-y-1 pt-1 text-slate-500 dark:text-slate-400">
-                <li>Bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Backspace</kbd> để xóa nốt vừa gõ nếu lỡ tay bấm nhầm.</li>
+                <li>Bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Backspace</kbd> để xóa 1 nốt vừa gõ nếu lỡ tay bấm nhầm.</li>
+                <li>Bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Alt+C</kbd> (hoặc <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Esc</kbd> / <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Del</kbd>) để <strong>Reset xóa sạch chuỗi nốt</strong> và làm lại từ đầu nhanh mà không cần gõ Backspace nhiều lần!</li>
                 <li>Bấm <kbd className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">Alt+R</kbd> để nghe lại chuỗi giai điệu nếu chưa nghe rõ.</li>
               </ul>
             </div>
@@ -419,9 +420,11 @@ export const OfficeModeInfoPanel: React.FC = () => {
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+Q</span>: Bật / Tắt chế độ</div>
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+P</span>: Tạm dừng / Tiếp tục</div>
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+R</span>: Nghe lại âm thanh</div>
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+C</span>: Reset xóa chuỗi gõ lại</div>
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+N</span>: Câu tiếp / Bỏ qua</div>
-                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+1..4</span>: Chọn đáp án</div>
-                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+I</span>: Mở Bảng / Hướng dẫn</div>
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+1..8</span>: Bấm nốt / Chọn</div>
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Alt+I</span>: Bảng điều khiển</div>
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border"><span className="text-indigo-600 dark:text-indigo-400 font-bold">Esc / Del</span>: Reset chuỗi nốt</div>
               </div>
             </div>
 

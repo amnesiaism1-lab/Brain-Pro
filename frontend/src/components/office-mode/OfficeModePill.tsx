@@ -49,6 +49,7 @@ export const OfficeModePill: React.FC = () => {
     handleAnswer,
     handleInputNote,
     handleBackspaceNote,
+    handleClearSequence,
     handleFreestylePlayNote,
     handleFreestylePlayOption,
     handleNextOrSkip,
@@ -472,15 +473,24 @@ export const OfficeModePill: React.FC = () => {
                         );
                       })}
 
-                      {/* Nút Backspace xóa nốt vừa nhập */}
+                      {/* Nút Backspace xóa nốt vừa nhập & Nút Reset xóa hết */}
                       {userRecallSequence.length > 0 && (
-                        <button
-                          onClick={handleBackspaceNote}
-                          className="px-1.5 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer text-[10px] font-mono"
-                          title="Xóa nốt vừa gõ (Backspace)"
-                        >
-                          ⌫
-                        </button>
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            onClick={handleBackspaceNote}
+                            className="px-1.5 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer text-[10px] font-mono"
+                            title="Xóa nốt vừa gõ (Backspace)"
+                          >
+                            ⌫
+                          </button>
+                          <button
+                            onClick={handleClearSequence}
+                            className="px-1.5 py-0.5 rounded-md bg-rose-950/60 hover:bg-rose-900 border border-rose-800 text-rose-300 transition-colors cursor-pointer text-[9px] font-mono font-bold"
+                            title="Xóa toàn bộ làm lại từ đầu (Alt+C hoặc Esc / Del)"
+                          >
+                            CLR
+                          </button>
+                        </div>
                       )}
                     </div>
 
