@@ -224,18 +224,18 @@ class OfficeModeEngine {
 
       await auditoryEngine.resumeAudioContext();
 
-      // Âm báo trước nhẹ (chime) trước câu hỏi mới
+      // Âm báo trước nhẹ (chime) siêu nhanh trước câu hỏi mới
       if (!isReplay) {
-        auditoryEngine.playNote('A5', 0.08, { volume: volume * 0.2, waveform: 'sine' });
-        await new Promise(r => setTimeout(r, 450));
+        auditoryEngine.playNote('A5', 0.06, { volume: volume * 0.15, waveform: 'sine' });
+        await new Promise(r => setTimeout(r, 120));
       }
 
       // Xử lý phát theo từng loại bài tập
       if (question.exerciseSlug === 'pitch-recall' && question.sequenceNotes && question.sequenceNotes.length > 0) {
         // Phát chuỗi nốt Nhớ Cao Độ
         for (const note of question.sequenceNotes) {
-          auditoryEngine.playNote(note, 0.45, { volume });
-          await new Promise(r => setTimeout(r, 460));
+          auditoryEngine.playNote(note, 0.42, { volume });
+          await new Promise(r => setTimeout(r, 400));
         }
       } else {
         // Phát bài Nhận Diện Quãng
