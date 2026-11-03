@@ -50,6 +50,12 @@ export function useNavigationSync() {
         return;
       }
 
+      // Route: #/office-pill (Standalone Desktop Companion / PiP)
+      if (root === 'office-pill') {
+        if (isVocalStudioOpen) closeVocalStudio();
+        return;
+      }
+
       // If vocal studio was open but hash changed away from it, close it
       if (isVocalStudioOpen) {
         closeVocalStudio();
@@ -126,6 +132,9 @@ export function useNavigationSync() {
 
   // 2. Compute expected hash based on current Zustand Store
   const computeExpectedHash = (): string => {
+    if (typeof window !== 'undefined' && window.location.hash.startsWith('#/office-pill')) {
+      return '#/office-pill';
+    }
     if (isVocalStudioOpen) {
       return '#/vocal-studio';
     }
@@ -172,6 +181,7 @@ export function useNavigationSync() {
   // 4. Update window.location.hash when Zustand store state changes
   useEffect(() => {
     if (isHandlingHashChangeRef.current) return;
+    if (typeof window !== 'undefined' && window.location.hash.startsWith('#/office-pill')) return;
 
     const expectedHash = computeExpectedHash();
     const currentHash = window.location.hash || '#/home';

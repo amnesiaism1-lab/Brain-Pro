@@ -26,8 +26,20 @@ import { useNavigationSync } from './hooks/useNavigationSync';
 import { useReminderScheduler } from './hooks/useReminderScheduler';
 import { OfficeModePill } from './components/office-mode/OfficeModePill';
 import { OfficeModeInfoPanel } from './components/office-mode/OfficeModeInfoPanel';
+import { OfficePillStandalone } from './components/office-mode/OfficePillStandalone';
 
 export const App: React.FC = () => {
+  const [isOfficePillRoute, setIsOfficePillRoute] = React.useState(() =>
+    typeof window !== 'undefined' && window.location.hash.startsWith('#/office-pill')
+  );
+
+  React.useEffect(() => {
+    const handleHashCheck = () => {
+      setIsOfficePillRoute(window.location.hash.startsWith('#/office-pill'));
+    };
+    window.addEventListener('hashchange', handleHashCheck);
+    return () => window.removeEventListener('hashchange', handleHashCheck);
+  }, []);
   const { 
     activeTab, 
     selectedExerciseSlug, 
@@ -75,6 +87,15 @@ export const App: React.FC = () => {
         return <HomeView />;
     }
   };
+
+  // Nếu đang ở route độc lập dành cho Desktop Companion / PiP: chỉ hiển thị Widget gọn gàng
+  if (isOfficePillRoute) {
+    return (
+      <ErrorBoundary>
+        <OfficePillStandalone />
+      </ErrorBoundary>
+    );
+  }
 
   return (
     <ErrorBoundary>
