@@ -696,4 +696,161 @@ describe('Vocal File Analysis & Range Extraction', () => {
     expect(points[5].isVocal).toBe(false);
     expect(points[5].freqHz).toBe(0);
   });
+
+  it('TC-41: Belting volume surge octave doubling (G#4 -> G#5 -> G#4) resolved by Viterbi HMM & Octave Sandwich Collapse', () => {
+    // Exact user bug reproduction:
+    // Phrase singing on G#4 (MIDI 68, 415.3Hz)
+    // Syllable 1: G#4 (10 frames, ~220ms, -14dB)
+    // Syllable 2: Belting note with volume surge (-6dB), detected as G#5 (MIDI 80, 830.6Hz) for 25 frames (~550ms)
+    // Syllable 3: G#4 (12 frames, ~260ms, -13dB)
+    const points: any[] = [];
+    let t = 0;
+
+    // Syllable 1: G#4
+    for (let f = 0; f < 10; f++) {
+      points.push({
+        timeMs: t,
+        freqHz: 415.3,
+        midi: 68.0,
+        noteName: 'G#4',
+        solfegeName: 'Sol# 4',
+        clarity: 0.88,
+        volumeDb: -14,
+        isVocal: true,
+      });
+      t += 22;
+    }
+
+    // Syllable 2: Belting volume peak, 2nd harmonic dominance detected as G#5
+    for (let f = 0; f < 25; f++) {
+      points.push({
+        timeMs: t,
+        freqHz: 830.6,
+        midi: 80.0,
+        noteName: 'G#5',
+        solfegeName: 'Sol# 5',
+        clarity: 0.92,
+        volumeDb: -6, // Volume peak
+        isVocal: true,
+      });
+      t += 22;
+    }
+
+    // Syllable 3: G#4
+    for (let f = 0; f < 12; f++) {
+      points.push({
+        timeMs: t,
+        freqHz: 415.3,
+        midi: 68.0,
+        noteName: 'G#4',
+        solfegeName: 'Sol# 4',
+        clarity: 0.86,
+        volumeDb: -13,
+        isVocal: true,
+      });
+      t += 22;
+    }
+
+    vocalFileAnalysisService.applyViterbiSmoothing(points);
+    const noteBars = vocalFileAnalysisService.segmentNoteBars(points);
+
+    // All note bars should be G#4 (MIDI 68), ZERO G#5 note bars!
+    const noteNames = noteBars.map((b) => b.noteName);
+    expect(noteNames.every((n) => n === 'G#4')).toBe(true);
+    expect(noteBars.every((b) => b.midi === 68)).toBe(true);
+
+    // Underlying pitchTrack points in syllable 2 must also be folded down to G#4 (~415Hz)
+    for (const pt of points) {
+      expect(pt.midi).toBeGreaterThanOrEqual(67.5);
+      expect(pt.midi).toBeLessThanOrEqual(68.5);
+    }
+  });
+
+  it('TC-42: Isolated belting syllable separated by breath gap (G#4 -> 180ms pause -> G#5 -> G#4) collapses to G#4', () => {
+    // When a 180ms breath pause isolates the loud syllable into a separate segment:
+    const points: any[] = [];
+    let t = 0;
+
+    // Segment 1: G#4
+    for (let f = 0; f < 10; f++) {
+      points.push({
+        timeMs: t,
+        freqHz: 415.3,
+        midi: 68.0,
+        noteName: 'G#4',
+        solfegeName: 'Sol# 4',
+        clarity: 0.88,
+        volumeDb: -14,
+        isVocal: true,
+      });
+      t += 22;
+    }
+
+    // 180ms breath pause (8 frames silence)
+    for (let f = 0; f < 8; f++) {
+      points.push({
+        timeMs: t,
+        freqHz: 0,
+        midi: 0,
+        noteName: '',
+        solfegeName: '',
+        clarity: 0,
+        volumeDb: -60,
+        isVocal: false,
+      });
+      t += 22;
+    }
+
+    // Segment 2: Isolated loud syllable detected as G#5 (100% of segment is G#5)
+    for (let f = 0; f < 20; f++) {
+      points.push({
+        timeMs: t,
+        freqHz: 830.6,
+        midi: 80.0,
+        noteName: 'G#5',
+        solfegeName: 'Sol# 5',
+        clarity: 0.90,
+        volumeDb: -5,
+        isVocal: true,
+      });
+      t += 22;
+    }
+
+    // 180ms breath pause (8 frames silence)
+    for (let f = 0; f < 8; f++) {
+      points.push({
+        timeMs: t,
+        freqHz: 0,
+        midi: 0,
+        noteName: '',
+        solfegeName: '',
+        clarity: 0,
+        volumeDb: -60,
+        isVocal: false,
+      });
+      t += 22;
+    }
+
+    // Segment 3: G#4
+    for (let f = 0; f < 10; f++) {
+      points.push({
+        timeMs: t,
+        freqHz: 415.3,
+        midi: 68.0,
+        noteName: 'G#4',
+        solfegeName: 'Sol# 4',
+        clarity: 0.88,
+        volumeDb: -14,
+        isVocal: true,
+      });
+      t += 22;
+    }
+
+    vocalFileAnalysisService.applyViterbiSmoothing(points);
+    const noteBars = vocalFileAnalysisService.segmentNoteBars(points);
+
+    // Segment 2 must collapse to G#4
+    expect(noteBars.every((b) => b.midi === 68)).toBe(true);
+    expect(noteBars.every((b) => b.noteName === 'G#4')).toBe(true);
+  });
 });

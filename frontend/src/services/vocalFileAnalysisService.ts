@@ -907,8 +907,31 @@ class VocalFileAnalysisService {
       segments.push(currentSegment);
     }
 
-    for (const seg of segments) {
+    for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+      const seg = segments[segIdx];
       const T = seg.length;
+
+      // Extract boundary context from adjacent segments (if gap is <= 650ms, i.e. short breath or consonant pause)
+      let prevSegmentEndMidi = 0;
+      if (segIdx > 0) {
+        const prevSeg = segments[segIdx - 1];
+        const prevLastIdx = prevSeg[prevSeg.length - 1];
+        const gapMs = pitchTrack[seg[0]].timeMs - pitchTrack[prevLastIdx].timeMs;
+        if (gapMs <= 650 && pitchTrack[prevLastIdx].midi > 0) {
+          prevSegmentEndMidi = pitchTrack[prevLastIdx].midi;
+        }
+      }
+
+      let nextSegmentStartMidi = 0;
+      if (segIdx < segments.length - 1) {
+        const nextSeg = segments[segIdx + 1];
+        const nextFirstIdx = nextSeg[0];
+        const fwdGapMs = pitchTrack[nextFirstIdx].timeMs - pitchTrack[seg[T - 1]].timeMs;
+        if (fwdGapMs <= 650 && pitchTrack[nextFirstIdx].midi > 0) {
+          nextSegmentStartMidi = pitchTrack[nextFirstIdx].midi;
+        }
+      }
+
       // For each frame t, generate candidate harmonic states:
       // State 0: nominal f0 (MPM fundamental)
       // State 1: f0 / 2 (candidate octave doubling error, -12 semitones)
@@ -944,12 +967,24 @@ class VocalFileAnalysisService {
           dp[0][s] = Infinity;
           continue;
         }
-        // Prior toward state 0 (measured MPM fundamental)
-        const priorCost = s === 0 ? 0 : s === 1 ? 4.5 : s === 2 ? 6.0 : s === 3 ? 7.5 : 5.5;
-        const emissionCost = s === 0
-          ? (1 - clarity0) * 3.0
-          : 2.2 + (1 - clarity0) * 3.0;
-        dp[0][s] = priorCost + emissionCost;
+        const midi0 = getCandidateMidi(seg[0], s);
+        let priorCost = s === 0 ? 0 : s === 1 ? 4.5 : s === 2 ? 6.0 : s === 3 ? 7.5 : 5.5;
+        let baseEmission = (1 - clarity0) * 3.0;
+        let extraEmission = s === 0 ? 0 : 2.2;
+
+        // Context boundary reinforcement from previous note
+        if (prevSegmentEndMidi > 0) {
+          const diffToPrev = Math.abs(midi0 - prevSegmentEndMidi);
+          if (diffToPrev <= 2.2) {
+            priorCost = 0;
+            extraEmission = 0.2;
+          } else if (s === 0 && (Math.abs(diffToPrev - 12.0) <= 1.2 || Math.abs(diffToPrev - 24.0) <= 1.2)) {
+            // Abrupt harmonic jump in State 0 across short pause
+            priorCost += 28.0;
+          }
+        }
+
+        dp[0][s] = priorCost + baseEmission + extraEmission;
       }
 
       // Forward step: compute min cost path
@@ -964,12 +999,16 @@ class VocalFileAnalysisService {
             continue;
           }
 
-          // Active per-frame emission penalty on harmonic states to prevent unwarranted octave shift
-          const emissionCost = sCurr === 0
-            ? (1 - clarity) * 3.0
-            : 2.2 + (1 - clarity) * 3.0;
-
           const midiCurr = getCandidateMidi(currFrameIdx, sCurr);
+
+          // Contextual emission cost:
+          // If state sCurr is 1 (f0 / 2) and continuing from prevSegmentEndMidi, reduce emission cost
+          let extraEmission = sCurr === 0 ? 0 : 2.2;
+          if (sCurr === 1 && prevSegmentEndMidi > 0 && Math.abs(midiCurr - prevSegmentEndMidi) <= 2.2) {
+            extraEmission = 0.2;
+          }
+          const emissionCost = (1 - clarity) * 3.0 + extraEmission;
+
           let minCost = Infinity;
           let bestPrevState = 0;
 
@@ -1024,13 +1063,41 @@ class VocalFileAnalysisService {
 
       // Safety Guard: Check how many frames in this segment chose non-state 0
       let shiftedCount = 0;
+      const shiftedMidis: number[] = [];
       for (let t = 0; t < T; t++) {
-        if (optimalStates[t] !== 0) shiftedCount++;
+        if (optimalStates[t] !== 0) {
+          shiftedCount++;
+          shiftedMidis.push(getCandidateMidi(seg[t], optimalStates[t]));
+        }
       }
 
-      // If more than 45% of frames were shifted away from MPM despite high clarity, revert entire segment
+      // If more than 45% of frames were shifted away from MPM despite high clarity:
       if (shiftedCount / T > 0.45 && avgSegClarity >= 0.55) {
-        continue;
+        // Check if shifted frames form a tight, coherent sustain (standard deviation < 1.5 semitones)
+        let isCoherentShift = false;
+        if (shiftedMidis.length >= 3) {
+          let sum = 0;
+          for (const m of shiftedMidis) sum += m;
+          const mean = sum / shiftedMidis.length;
+          let variance = 0;
+          for (const m of shiftedMidis) variance += (m - mean) * (m - mean);
+          const stdDev = Math.sqrt(variance / shiftedMidis.length);
+
+          // A coherent shift with low standard deviation indicates a steady, valid note
+          // (e.g. loud belting G#4 falsely detected as G#5)
+          const connectsToPrev = prevSegmentEndMidi > 0 && Math.abs(mean - prevSegmentEndMidi) <= 2.5;
+          const connectsToNext = nextSegmentStartMidi > 0 && Math.abs(mean - nextSegmentStartMidi) <= 2.5;
+          const isHarmonicBeltCorrection = mean <= 76 && (mean + 12 >= 76); // e.g. G#4 (68) corrected from G#5 (80)
+
+          if (stdDev <= 1.5 && (connectsToPrev || connectsToNext || isHarmonicBeltCorrection)) {
+            isCoherentShift = true;
+          }
+        }
+
+        // Only revert if the shift is erratic/incoherent
+        if (!isCoherentShift) {
+          continue;
+        }
       }
 
       // Apply optimal states
@@ -1220,6 +1287,72 @@ class VocalFileAnalysisService {
 
     if (currentCluster.length > 0) {
       flushCluster();
+    }
+
+    // Octave Sandwich & Harmonic Doubling Collapse (FL Studio NewTone / Melodyne alignment)
+    // Detects isolated note bars that jumped +12 or +24 semitones due to 2nd/4th harmonic dominance,
+    // especially during loud belting syllables flanked by lower notes (e.g. G#4 -> G#5 -> G#4)
+    for (let i = 0; i < rawNoteBars.length; i++) {
+      const cur = rawNoteBars[i];
+      const prev = i > 0 ? rawNoteBars[i - 1] : null;
+      const next = i < rawNoteBars.length - 1 ? rawNoteBars[i + 1] : null;
+
+      let shouldFoldOctaveDown = false;
+      let foldSemitones = 0;
+
+      // 1. Sandwich check: flanked by prev and next on similar pitch plane (within 2.5 semitones)
+      if (prev && next) {
+        const prevNextDiff = Math.abs(prev.midi - next.midi);
+        const prevGap = cur.startTimeMs - prev.endTimeMs;
+        const nextGap = next.startTimeMs - cur.endTimeMs;
+
+        if (prevNextDiff <= 2.5 && prevGap <= 420 && nextGap <= 420) {
+          const jumpPrev = cur.midi - prev.midi;
+          const jumpNext = cur.midi - next.midi;
+          if (Math.abs(jumpPrev - 12) <= 1.2 && Math.abs(jumpNext - 12) <= 1.2) {
+            shouldFoldOctaveDown = true;
+            foldSemitones = 12;
+          } else if (Math.abs(jumpPrev - 24) <= 1.2 && Math.abs(jumpNext - 24) <= 1.2) {
+            shouldFoldOctaveDown = true;
+            foldSemitones = 24;
+          }
+        }
+      }
+
+      // 2. Preceded & Followed check across micro consonant pauses
+      if (!shouldFoldOctaveDown && prev && next) {
+        const jumpPrev = cur.midi - prev.midi;
+        const jumpNext = cur.midi - next.midi;
+        const prevGap = cur.startTimeMs - prev.endTimeMs;
+        const nextGap = next.startTimeMs - cur.endTimeMs;
+        if (prevGap <= 280 && nextGap <= 280 && cur.midi >= 76) {
+          if (Math.abs(jumpPrev - 12) <= 1.2 && (Math.abs(jumpNext - 12) <= 1.2 || Math.abs(next.midi - prev.midi) <= 2.5)) {
+            shouldFoldOctaveDown = true;
+            foldSemitones = 12;
+          }
+        }
+      }
+
+      if (shouldFoldOctaveDown && foldSemitones > 0) {
+        cur.midi -= foldSemitones;
+        cur.exactMidi = Math.round((cur.exactMidi - foldSemitones) * 100) / 100;
+        const noteInfo = this.midiToNoteInfo(cur.midi);
+        cur.noteName = noteInfo.noteName;
+        cur.solfegeName = noteInfo.solfegeName;
+        cur.avgCentsDiff = Math.round((cur.exactMidi - cur.midi) * 100);
+
+        // Also fold underlying pitchTrack points in this time range so the visual pitch contour snaps down
+        const mult = Math.pow(2, -foldSemitones / 12);
+        for (const pt of pitchTrack) {
+          if (pt.isVocal && pt.timeMs >= cur.startTimeMs && pt.timeMs <= cur.endTimeMs && pt.midi >= cur.midi + foldSemitones - 1.5) {
+            pt.midi = Math.round((pt.midi - foldSemitones) * 100) / 100;
+            pt.freqHz = Math.round(pt.freqHz * mult * 10) / 10;
+            const ptInfo = this.midiToNoteInfo(Math.round(pt.midi));
+            pt.noteName = ptInfo.noteName;
+            pt.solfegeName = ptInfo.solfegeName;
+          }
+        }
+      }
     }
 
     // Merge adjacent note bars that share the same nominal MIDI only across micro-flickers (<= 45ms)
