@@ -375,6 +375,7 @@ class VocalFileAnalysisService {
     notify(80, 'Giai đoạn 4/5: Cầu nối phụ âm & Triệt tiêu nhiễu kích âm NewTone...');
     await new Promise((resolve) => setTimeout(resolve, 400));
     this.pruneTransientSpikes(pitchTrack);
+    this.prunePitchValleys(pitchTrack);
     this.bridgeMicroGaps(pitchTrack);
 
     notify(88, 'Giai đoạn 5/5: Giải mã toàn cục Viterbi HMM & Phân đoạn Note Blocks...');
@@ -812,6 +813,164 @@ class VocalFileAnalysisService {
           }
         }
         islandStart = -1;
+      }
+    }
+
+    // Also prune deep pitch valleys (accompaniment bass / 808 bleed into E2/F#2)
+    this.prunePitchValleys(pitchTrack);
+  }
+
+  /**
+   * Deep Pitch Valley & Sub-Bass Bleed Pruning (FL Studio NewTone / Melodyne alignment)
+   * In modern mixed tracks, bass guitars and 808 sub-bass sit in the stereo center (40-120Hz, E1-B2).
+   * Between sung words or syllables, when the vocal pauses for a consonant or breath (80-250ms),
+   * the pitch detector picks up the backing bassline (e.g. E2 at 82Hz or F#2 at 92Hz).
+   * This causes the pitch contour to plunge 20-30 semitones straight down into the floor and shoot back up.
+   *
+   * We detect and eliminate these non-vocal abyssal plunges:
+   * 1. Sandwich/Valley check: A cluster of pitch points whose pitch is deep (MIDI < 52 / < 165Hz) and drops
+   *    by >= 10.0 semitones below BOTH the preceding and following vocal notes within 350ms.
+   * 2. Isolated sub-bass island: An island of pitch points in the sub-bass (< 130Hz / MIDI < 48)
+   *    flanked by pauses or occurring in a track whose modal vocal register is higher (Octave 3.5-5).
+   * 3. Intra-run plunge: Sudden step-down into sub-bass (< 52) flanked by higher notes within a continuous run.
+   */
+  public prunePitchValleys(pitchTrack: IReferencePitchPoint[]): void {
+    if (pitchTrack.length < 5) return;
+
+    // A. Intra-run deep valley check:
+    // Look for spans of frames with midi < 52 that are flanked within 350ms on both sides by frames >= 55
+    for (let i = 0; i < pitchTrack.length; i++) {
+      if (pitchTrack[i].isVocal && pitchTrack[i].midi > 0 && pitchTrack[i].midi < 52) {
+        let spanEnd = i;
+        while (spanEnd + 1 < pitchTrack.length && pitchTrack[spanEnd + 1].isVocal && pitchTrack[spanEnd + 1].midi > 0 && pitchTrack[spanEnd + 1].midi < 52) {
+          spanEnd++;
+        }
+        const spanDurMs = pitchTrack[spanEnd].timeMs - pitchTrack[i].timeMs;
+
+        if (spanDurMs <= 380) {
+          // Look backward for preceding vocal note
+          let prevMidi = 0;
+          for (let b = i - 1; b >= Math.max(0, i - 15); b--) {
+            if (pitchTrack[b].isVocal && pitchTrack[b].midi >= 55) {
+              prevMidi = pitchTrack[b].midi;
+              break;
+            }
+          }
+
+          // Look forward for following vocal note
+          let nextMidi = 0;
+          for (let f = spanEnd + 1; f <= Math.min(pitchTrack.length - 1, spanEnd + 15); f++) {
+            if (pitchTrack[f].isVocal && pitchTrack[f].midi >= 55) {
+              nextMidi = pitchTrack[f].midi;
+              break;
+            }
+          }
+
+          // If flanked on both sides by higher singing notes (drop >= 10 semitones)
+          if (prevMidi >= 55 && nextMidi >= 55) {
+            for (let k = i; k <= spanEnd; k++) {
+              pitchTrack[k].isVocal = false;
+              pitchTrack[k].freqHz = 0;
+              pitchTrack[k].midi = 0;
+              pitchTrack[k].noteName = '';
+              pitchTrack[k].solfegeName = '';
+            }
+          }
+        }
+        i = spanEnd;
+      }
+    }
+
+    // B. Inter-syllable island check (runs separated by unvoiced frames)
+    interface IVoicedRun {
+      startIdx: number;
+      endIdx: number;
+      startTimeMs: number;
+      endTimeMs: number;
+      durationMs: number;
+      avgMidi: number;
+    }
+
+    const runs: IVoicedRun[] = [];
+    let rStart = -1;
+    let midiSum = 0;
+
+    for (let i = 0; i <= pitchTrack.length; i++) {
+      const isVoiced = i < pitchTrack.length && pitchTrack[i].isVocal && pitchTrack[i].freqHz > 0 && pitchTrack[i].midi > 0;
+      if (isVoiced) {
+        if (rStart === -1) {
+          rStart = i;
+          midiSum = 0;
+        }
+        midiSum += pitchTrack[i].midi;
+      } else if (rStart !== -1) {
+        const count = i - rStart;
+        runs.push({
+          startIdx: rStart,
+          endIdx: i - 1,
+          startTimeMs: pitchTrack[rStart].timeMs,
+          endTimeMs: pitchTrack[i - 1].timeMs,
+          durationMs: pitchTrack[i - 1].timeMs - pitchTrack[rStart].timeMs,
+          avgMidi: midiSum / count,
+        });
+        rStart = -1;
+      }
+    }
+
+    if (runs.length < 2) return;
+
+    // Estimate modal vocal register from runs >= 150ms
+    const substantialRuns = runs.filter((r) => r.durationMs >= 150);
+    const modalVocalMidi = substantialRuns.length > 0
+      ? substantialRuns.map((r) => r.avgMidi).sort((a, b) => a - b)[Math.floor(substantialRuns.length / 2)]
+      : 60;
+
+    for (let idx = 0; idx < runs.length; idx++) {
+      const cur = runs[idx];
+      const prev = idx > 0 ? runs[idx - 1] : null;
+      const next = idx < runs.length - 1 ? runs[idx + 1] : null;
+
+      let isValley = false;
+
+      // Deep valley sandwiched between higher notes within 380ms
+      if (prev && next) {
+        const prevGap = cur.startTimeMs - prev.endTimeMs;
+        const nextGap = next.startTimeMs - cur.endTimeMs;
+        const dropFromPrev = prev.avgMidi - cur.avgMidi;
+        const riseToNext = next.avgMidi - cur.avgMidi;
+
+        if (
+          prevGap <= 380 &&
+          nextGap <= 380 &&
+          cur.durationMs <= 380 &&
+          cur.avgMidi < 52 &&
+          dropFromPrev >= 10.0 &&
+          riseToNext >= 10.0
+        ) {
+          isValley = true;
+        }
+      }
+
+      // Sub-bass accompaniment bleed (< 130Hz / MIDI < 48) near vocal phrases
+      if (!isValley && cur.avgMidi < 48 && cur.durationMs <= 350 && modalVocalMidi >= 57) {
+        const prevGap = prev ? cur.startTimeMs - prev.endTimeMs : 9999;
+        const nextGap = next ? next.startTimeMs - cur.endTimeMs : 9999;
+        const dropFromPrev = prev ? prev.avgMidi - cur.avgMidi : 0;
+        const riseToNext = next ? next.avgMidi - cur.avgMidi : 0;
+
+        if ((dropFromPrev >= 12.0 && prevGap <= 450) || (riseToNext >= 12.0 && nextGap <= 450)) {
+          isValley = true;
+        }
+      }
+
+      if (isValley) {
+        for (let k = cur.startIdx; k <= cur.endIdx; k++) {
+          pitchTrack[k].isVocal = false;
+          pitchTrack[k].freqHz = 0;
+          pitchTrack[k].midi = 0;
+          pitchTrack[k].noteName = '';
+          pitchTrack[k].solfegeName = '';
+        }
       }
     }
   }
@@ -1351,6 +1510,21 @@ class VocalFileAnalysisService {
             pt.noteName = ptInfo.noteName;
             pt.solfegeName = ptInfo.solfegeName;
           }
+        }
+      }
+    }
+
+    // Filter out rogue accompaniment sub-bass bleed note bars (< 130Hz / MIDI < 48, e.g. E2, F#2)
+    // that occur between higher singing notes (e.g. F#4 -> E2 -> G#4)
+    for (let i = rawNoteBars.length - 1; i >= 0; i--) {
+      const cur = rawNoteBars[i];
+      if (cur.midi < 48 && cur.durationMs <= 380) {
+        const prev = i > 0 ? rawNoteBars[i - 1] : null;
+        const next = i < rawNoteBars.length - 1 ? rawNoteBars[i + 1] : null;
+        if (prev && next && prev.midi >= 55 && next.midi >= 55) {
+          rawNoteBars.splice(i, 1);
+        } else if ((prev && prev.midi >= 58 && cur.startTimeMs - prev.endTimeMs <= 400) || (next && next.midi >= 58 && next.startTimeMs - cur.endTimeMs <= 400)) {
+          rawNoteBars.splice(i, 1);
         }
       }
     }

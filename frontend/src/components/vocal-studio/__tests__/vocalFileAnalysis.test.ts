@@ -853,4 +853,73 @@ describe('Vocal File Analysis & Range Extraction', () => {
     expect(noteBars.every((b) => b.midi === 68)).toBe(true);
     expect(noteBars.every((b) => b.noteName === 'G#4')).toBe(true);
   });
+
+  it('TC-43: Inter-syllable bass bleed plunge (F#4 -> 100ms E2 bass bleed -> G#4) is pruned and bridged smoothly', () => {
+    // Exact user reproduction from "Mà sao anh chưa về" (AMEE):
+    // Word 1: F#4 (MIDI 66, 370Hz) for 10 frames (~220ms)
+    // Inter-word pause with Bass guitar bleed at E2 (MIDI 40, 82.4Hz) for 5 frames (~110ms)
+    // Word 2: G#4 (MIDI 68, 415Hz) for 10 frames (~220ms)
+    const points: any[] = [];
+    let t = 0;
+
+    // Word 1: F#4
+    for (let f = 0; f < 10; f++) {
+      points.push({
+        timeMs: t,
+        freqHz: 370.0,
+        midi: 66.0,
+        noteName: 'F#4',
+        solfegeName: 'Fa# 4',
+        clarity: 0.88,
+        volumeDb: -14,
+        isVocal: true,
+      });
+      t += 22;
+    }
+
+    // Inter-word gap: 5 frames of Bass guitar bleed at E2 (82.4Hz, MIDI 40)
+    for (let f = 0; f < 5; f++) {
+      points.push({
+        timeMs: t,
+        freqHz: 82.4,
+        midi: 40.0,
+        noteName: 'E2',
+        solfegeName: 'Mi 2',
+        clarity: 0.82, // Bass guitar has high clarity
+        volumeDb: -18,
+        isVocal: true,
+      });
+      t += 22;
+    }
+
+    // Word 2: G#4
+    for (let f = 0; f < 10; f++) {
+      points.push({
+        timeMs: t,
+        freqHz: 415.3,
+        midi: 68.0,
+        noteName: 'G#4',
+        solfegeName: 'Sol# 4',
+        clarity: 0.88,
+        volumeDb: -14,
+        isVocal: true,
+      });
+      t += 22;
+    }
+
+    vocalFileAnalysisService.pruneTransientSpikes(points);
+    vocalFileAnalysisService.bridgeMicroGaps(points);
+    const noteBars = vocalFileAnalysisService.segmentNoteBars(points);
+
+    // ZERO note bars at E2 / MIDI 40!
+    expect(noteBars.some((b) => b.midi < 50)).toBe(false);
+
+    // The plunge frames at E2 must be wiped or bridged to F#4/G#4, NEVER left at E2 (MIDI 40)
+    for (const pt of points) {
+      if (pt.isVocal) {
+        expect(pt.midi).toBeGreaterThanOrEqual(65.0);
+        expect(pt.midi).toBeLessThanOrEqual(69.0);
+      }
+    }
+  });
 });

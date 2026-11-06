@@ -894,6 +894,8 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         ctx.strokeStyle = '#fbbf24';
 
         let drawing = false;
+        let lastDrawnMidi = 0;
+        let lastDrawnTimeMs = 0;
         ctx.beginPath();
         for (let i = 0; i < pitchTrack.length; i++) {
           const pt = pitchTrack[i];
@@ -901,12 +903,22 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           const x = playheadX + ((pt.timeMs - effectiveTimeMs) / totalWindowMs) * width;
           if (pt.isVocal && pt.midi > 0) {
             const y = midiToY(pt.midi + transposeSemitones);
+            // Sudden plunge / leap guard: if pitch jumps by >= 12 semitones in <= 40ms, lift pen
+            const hasViolentPlunge = drawing && (pt.timeMs - lastDrawnTimeMs <= 40) && Math.abs(pt.midi - lastDrawnMidi) >= 12.0;
+            if (hasViolentPlunge) {
+              ctx.stroke();
+              ctx.beginPath();
+              drawing = false;
+            }
+
             if (!drawing) {
               ctx.moveTo(x, y);
               drawing = true;
             } else {
               ctx.lineTo(x, y);
             }
+            lastDrawnMidi = pt.midi;
+            lastDrawnTimeMs = pt.timeMs;
           } else if (drawing) {
             ctx.stroke();
             ctx.beginPath();
