@@ -24,7 +24,9 @@ import {
   GripVertical,
   ChevronUp,
   ChevronDown,
-  Layers
+  Layers,
+  X,
+  Minus
 } from 'lucide-react';
 
 const STORAGE_KEY_POS = 'be_office_pill_coords';
@@ -39,6 +41,7 @@ export const OfficeModePill: React.FC = () => {
     lastOfficeAnswerResult,
     officeSession,
     secondsUntilNext,
+    toggleOfficeMode,
     togglePauseOfficeMode,
     toggleInfoPanel,
     setPitchRecallInputRule
@@ -68,6 +71,7 @@ export const OfficeModePill: React.FC = () => {
   });
 
   const [isTopFlipped, setIsTopFlipped] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number }>({
     startX: 0,
@@ -149,7 +153,8 @@ export const OfficeModePill: React.FC = () => {
     setPitchRecallInputRule(nextRule);
   };
 
-  if (!officeSettings.showPill) {
+  // Nếu người dùng tắt hiển thị Pill hoặc Office Mode đang TẮT: Ẩn hoàn toàn (không còn nút ghim thừa)
+  if (!officeSettings.showPill || !officeModeActive) {
     return null;
   }
 
@@ -171,30 +176,39 @@ export const OfficeModePill: React.FC = () => {
 
   const currentRule = officeSettings.pitchRecallInputRule || 'scale-degrees';
   const ruleInfo = RULE_INFO_MAP[currentRule];
-  const isPitchRecall = currentOfficeQuestion?.exerciseSlug === 'pitch-recall';
+  const isPitchRecall = (currentOfficeQuestion?.exerciseSlug || officeSettings.exerciseSlug) === 'pitch-recall';
 
-  // NẾU OFFICE MODE ĐANG TẮT: Mini launcher nhỏ gọn
-  if (!officeModeActive) {
+  // NẾU ĐANG THU GỌN (Minimized): Capsule nhỏ gọn ở góc màn hình Desktop
+  if (isMinimized) {
     return (
       <aside
         role="region"
-        aria-label="Khởi động Chế độ Văn phòng"
+        aria-label="Chế độ văn phòng - Thu nhỏ"
         style={dragPos ? { left: `${dragPos.x}px`, top: `${dragPos.y}px`, right: 'auto', bottom: 'auto' } : undefined}
-        className={`fixed ${!dragPos ? defaultPositionClasses : ''} z-40 transition-all duration-200 animate-fade-in select-none`}
+        className={`fixed ${!dragPos ? defaultPositionClasses : ''} z-40 transition-all duration-200 select-none hidden md:block`}
       >
-        <button
-          onClick={() => toggleInfoPanel(true)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/90 hover:bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80 hover:border-indigo-500/80 shadow-xl backdrop-blur-md text-xs font-bold transition-all cursor-pointer group hover:scale-105 active:scale-95"
-          title="Nhấn để mở Bảng điều khiển & Hướng dẫn (Alt+Q để bật)"
-        >
-          <div className="p-1 rounded-full bg-indigo-500/20 text-indigo-400 group-hover:text-indigo-300">
-            <Headphones className="w-3.5 h-3.5" />
-          </div>
-          <span>Chế độ Văn phòng</span>
-          <kbd className="px-1.5 py-0.2 bg-slate-800 text-slate-400 border border-slate-600 rounded text-[9px] font-mono">
-            Alt+Q
-          </kbd>
-        </button>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/95 text-white border border-indigo-500/50 shadow-xl backdrop-blur-md text-xs font-bold animate-fade-in">
+          <button
+            onClick={() => setIsMinimized(false)}
+            className="flex items-center gap-1.5 hover:text-indigo-300 transition-colors cursor-pointer"
+            title="Nhấn để mở rộng thanh Chế độ Văn phòng"
+          >
+            <Headphones className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+            <span className="font-mono text-[11px]">
+              {officeQuestionState === 'waiting' ? 'Có bài tập!' : formatTimer(secondsUntilNext)}
+            </span>
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleOfficeMode(false);
+            }}
+            className="p-0.5 rounded-full hover:bg-white/20 text-slate-400 hover:text-rose-400 transition-colors ml-0.5 cursor-pointer"
+            title="Tắt Chế độ Văn phòng (Alt+Q)"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
       </aside>
     );
   }
@@ -209,7 +223,7 @@ export const OfficeModePill: React.FC = () => {
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       style={dragPos ? { left: `${dragPos.x}px`, top: `${dragPos.y}px`, right: 'auto', bottom: 'auto' } : undefined}
-      className={`fixed ${!dragPos ? defaultPositionClasses : ''} z-40 transition-shadow duration-200 animate-fade-in select-none touch-none max-w-full`}
+      className={`fixed ${!dragPos ? defaultPositionClasses : ''} z-40 transition-shadow duration-200 animate-fade-in select-none touch-none max-w-full hidden md:block`}
     >
       <div
         className={`flex flex-col gap-2 p-3 rounded-2xl shadow-2xl backdrop-blur-md border transition-all duration-300 ${
@@ -269,6 +283,28 @@ export const OfficeModePill: React.FC = () => {
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
                   Freestyle
                 </span>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsMinimized(true);
+                  }}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Thu gọn thanh"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleOfficeMode(false);
+                  }}
+                  className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Tắt Chế độ Văn phòng (Alt+Q)"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
 
@@ -660,6 +696,30 @@ export const OfficeModePill: React.FC = () => {
               title="Bảng điều khiển & Hướng dẫn sử dụng (Alt+I)"
             >
               <Info className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Nút Thu nhỏ thanh */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMinimized(true);
+              }}
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Thu gọn thanh"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Nút Tắt Chế độ Văn phòng */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleOfficeMode(false);
+              }}
+              className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Tắt Chế độ Văn phòng (Alt+Q)"
+            >
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
