@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAppStore } from '../../../store/useAppStore';
 import { useOfficeMode } from '../../../hooks/useOfficeMode';
+import { bluetoothMediaSession } from '../../../services/bluetoothMediaSession';
 import {
   getKeyDefinitionsForRule,
   PitchRecallInputRule,
@@ -75,8 +76,25 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
     handleClearSequence,
     handleFreestylePlayNote,
     handleNextOrSkip,
+    executeEarbudAction,
     userRecallSequence,
   } = useOfficeMode();
+
+  // Toast phản hồi trực quan khi chạm tai nghe Bluetooth (1-click / 2-click)
+  const [earbudToast, setEarbudToast] = useState<{ gesture: string; actionLabel: string } | null>(null);
+
+  useEffect(() => {
+    // Đảm bảo session âm thanh nền của tai nghe Bluetooth được giữ kích hoạt với Windows SMTC
+    bluetoothMediaSession.ensureActive().catch(() => {});
+
+    return bluetoothMediaSession.subscribe((evt) => {
+      setEarbudToast({ gesture: evt.gesture, actionLabel: evt.actionLabel });
+      const timer = window.setTimeout(() => {
+        setEarbudToast(null);
+      }, 2600);
+      return () => window.clearTimeout(timer);
+    });
+  }, []);
 
   // Theme: Spotify Dark (default) vs Soft Light
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
@@ -233,6 +251,43 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
         return;
       }
 
+      // Hardware Media Keys từ tai nghe Bluetooth (HID channel) hoặc bàn phím
+      if (e.key === 'MediaPlayPause' || e.code === 'MediaPlayPause') {
+        e.preventDefault();
+        e.stopPropagation();
+        bluetoothMediaSession.ensureActive();
+        bluetoothMediaSession.playFeedbackChime('tap');
+        bluetoothMediaSession.emitNotification('1 chạm (Play/Pause)', 'Nghe lại & Khôi phục');
+        executeEarbudAction(officeSettings.earbudSingleTapAction || 'replay-focus');
+        return;
+      }
+      if (e.key === 'MediaTrackNext' || e.code === 'MediaTrackNext') {
+        e.preventDefault();
+        e.stopPropagation();
+        bluetoothMediaSession.ensureActive();
+        bluetoothMediaSession.playFeedbackChime('double-tap');
+        const isLeftProf = (officeSettings.earbudProfile || 'right-hand') === 'left-hand';
+        bluetoothMediaSession.emitNotification(
+          isLeftProf ? '2 chạm tai trái (Next)' : '2 chạm tai phải (Next)',
+          'Câu tiếp theo'
+        );
+        executeEarbudAction(officeSettings.earbudDoubleTapRightAction || 'next-question');
+        return;
+      }
+      if (e.key === 'MediaTrackPrevious' || e.code === 'MediaTrackPrevious') {
+        e.preventDefault();
+        e.stopPropagation();
+        bluetoothMediaSession.ensureActive();
+        bluetoothMediaSession.playFeedbackChime('double-tap');
+        const isLeftProf = (officeSettings.earbudProfile || 'right-hand') === 'left-hand';
+        bluetoothMediaSession.emitNotification(
+          isLeftProf ? '2 chạm tai phải (Prev)' : '2 chạm tai trái (Prev)',
+          'Nghe lại & Khôi phục'
+        );
+        executeEarbudAction(officeSettings.earbudDoubleTapLeftAction || 'replay-focus');
+        return;
+      }
+
       // Backspace: delete last note in recall sequence
       if (e.key === 'Backspace') {
         if (officeQuestionState === 'waiting') {
@@ -283,6 +338,8 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
     handleClearSequence,
     handleFreestylePlayNote,
     handleInputNote,
+    executeEarbudAction,
+    officeSettings,
     toggleOfficePopUpMinimize,
   ]);
 
@@ -290,12 +347,19 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
     <div
       ref={containerRef}
       tabIndex={-1}
-      className={`w-full h-full select-none flex flex-col justify-between transition-colors duration-200 overflow-hidden outline-none font-sans ${
+      className={`relative w-full h-full select-none flex flex-col justify-between transition-colors duration-200 overflow-hidden outline-none font-sans ${
         isDarkMode
           ? 'bg-gradient-to-b from-slate-900 via-slate-950 to-black text-white border border-slate-800'
           : 'bg-slate-50 text-slate-800 border border-slate-300 shadow-2xl'
       } ${isCompact ? 'p-1.5 justify-center' : 'p-3'}`}
     >
+      {/* Toast thông báo phản hồi cử chỉ tai nghe Bluetooth Moondrop Pudding */}
+      {earbudToast && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 px-3 py-1 rounded-full bg-emerald-500 text-slate-950 font-bold text-[11px] flex items-center gap-1.5 shadow-2xl animate-bounce border border-emerald-300 whitespace-nowrap pointer-events-none">
+          <Headphones className="w-3.5 h-3.5 shrink-0" />
+          <span>{earbudToast.gesture}: {earbudToast.actionLabel}</span>
+        </div>
+      )}
       {/* =========================================================================
           CHẾ ĐỘ THU NHỎ DẤU TRỪ (MINIMIZED COMPACT RIBBON BAR - 70px Height)
           ========================================================================= */}
@@ -401,6 +465,20 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
               {officeSettings.earbudProfile === 'left-hand' ? '🎧L' : '🎧R'}
             </button>
 
+            {/* Quick Earbud Test & Keepalive in Ribbon Mode */}
+            <button
+              onClick={async () => {
+                await bluetoothMediaSession.ensureActive();
+                bluetoothMediaSession.playFeedbackChime('tap');
+                bluetoothMediaSession.emitNotification('Test 1 chạm (Play)', 'Đã nhận diện tai nghe');
+                executeEarbudAction(officeSettings.earbudSingleTapAction || 'replay-focus');
+              }}
+              className="px-1 py-1 rounded-lg text-[9px] font-mono bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 transition cursor-pointer mr-0.5 active:scale-95"
+              title="Test nhận diện tai nghe Moondrop Pudding"
+            >
+              Test
+            </button>
+
             {/* Window Controls Trio matching user's image */}
             <div className="flex items-center bg-slate-800/80 rounded-lg p-0.5 border border-slate-700/60">
               {/* Minimize / Restore button (—) */}
@@ -498,6 +576,21 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
                 }`}
               >
                 <span>{officeSettings.earbudProfile === 'left-hand' ? '🎧 Trái' : '🎧 Phải'}</span>
+              </button>
+
+              {/* Test & Keepalive Earbud Touch */}
+              <button
+                onClick={async () => {
+                  await bluetoothMediaSession.ensureActive();
+                  bluetoothMediaSession.playFeedbackChime('tap');
+                  bluetoothMediaSession.emitNotification('Test 1 chạm (Play)', 'Đã kích hoạt & Nhận diện thành công!');
+                  executeEarbudAction(officeSettings.earbudSingleTapAction || 'replay-focus');
+                }}
+                className="px-1.5 py-0.5 rounded text-[10px] font-mono border border-emerald-500/50 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 transition flex items-center gap-1 cursor-pointer active:scale-95"
+                title="Bấm để test và giữ kết nối âm thanh nền với tai nghe Moondrop Pudding"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                <span>Test Tai</span>
               </button>
 
               {/* Toggle Theme */}

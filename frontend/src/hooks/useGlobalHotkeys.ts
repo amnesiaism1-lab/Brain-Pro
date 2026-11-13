@@ -11,6 +11,7 @@ interface UseGlobalHotkeysProps {
   onClearPitchSequence?: () => void;
   onFreestylePlayNote: (note: string) => void;
   onFreestylePlayOption: (index: number) => void;
+  onEarbudAction?: (action?: any) => void;
 }
 
 export const useGlobalHotkeys = ({
@@ -21,7 +22,8 @@ export const useGlobalHotkeys = ({
   onBackspacePitchNote,
   onClearPitchSequence,
   onFreestylePlayNote,
-  onFreestylePlayOption
+  onFreestylePlayOption,
+  onEarbudAction
 }: UseGlobalHotkeysProps): void => {
   const {
     officeModeActive,
@@ -46,6 +48,7 @@ export const useGlobalHotkeys = ({
     onClearPitchSequence,
     onFreestylePlayNote,
     onFreestylePlayOption,
+    onEarbudAction,
     officeModeActive,
     officeQuestionState,
     isInfoPanelOpen,
@@ -69,6 +72,7 @@ export const useGlobalHotkeys = ({
       onClearPitchSequence,
       onFreestylePlayNote,
       onFreestylePlayOption,
+      onEarbudAction,
       officeModeActive,
       officeQuestionState,
       isInfoPanelOpen,
@@ -160,6 +164,26 @@ export const useGlobalHotkeys = ({
         e.preventDefault();
         e.stopPropagation();
         propsRef.current.onBackspacePitchNote();
+        return;
+      }
+
+      // 3b. Phím Media phần cứng (Bàn phím hoặc tai nghe Bluetooth phát tín hiệu qua HID)
+      if (e.key === 'MediaPlayPause' || e.code === 'MediaPlayPause') {
+        e.preventDefault();
+        e.stopPropagation();
+        propsRef.current.onEarbudAction?.(propsRef.current.officeSettings.earbudSingleTapAction || 'replay-focus');
+        return;
+      }
+      if (e.key === 'MediaTrackNext' || e.code === 'MediaTrackNext') {
+        e.preventDefault();
+        e.stopPropagation();
+        propsRef.current.onEarbudAction?.(propsRef.current.officeSettings.earbudDoubleTapRightAction || 'next-question');
+        return;
+      }
+      if (e.key === 'MediaTrackPrevious' || e.code === 'MediaTrackPrevious') {
+        e.preventDefault();
+        e.stopPropagation();
+        propsRef.current.onEarbudAction?.(propsRef.current.officeSettings.earbudDoubleTapLeftAction || 'replay-focus');
         return;
       }
 

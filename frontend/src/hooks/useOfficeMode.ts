@@ -3,6 +3,7 @@ import { useAppStore } from '../store/useAppStore';
 import { EarbudAction } from '../store/slices/officeModeSlice';
 import { officeModeEngine } from '../services/officeModeEngine';
 import { auditoryEngine } from '../services/auditoryEngine';
+import { bluetoothMediaSession } from '../services/bluetoothMediaSession';
 import { useGlobalHotkeys } from './useGlobalHotkeys';
 
 export const useOfficeMode = () => {
@@ -266,28 +267,23 @@ export const useOfficeMode = () => {
     }
   }, [officeQuestionState, finishFreestyleAndNext, skipOfficeQuestion, triggerNewQuestion]);
 
-  // 8. Gắn phím tắt toàn cục
-  useGlobalHotkeys({
-    onReplay: handleReplay,
-    onNextOrSkip: handleNextOrSkip,
-    onAnswer: handleAnswer,
-    onInputPitchNote: handleInputNote,
-    onBackspacePitchNote: handleBackspaceNote,
-    onClearPitchSequence: handleClearSequence,
-    onFreestylePlayNote: handleFreestylePlayNote,
-    onFreestylePlayOption: handleFreestylePlayOption
-  });
-
   // Thực thi hành vi tai nghe Bluetooth linh hoạt (Moondrop Pudding, TWS)
   const executeEarbudAction = useCallback((action?: EarbudAction) => {
     const act = action || 'replay-focus';
     const store = useAppStore.getState();
+    bluetoothMediaSession.ensureActive();
+
     switch (act) {
       case 'replay-focus':
         if (store.isOfficePopUpMinimized) {
           store.restoreOfficePopUp();
         }
-        handleReplay();
+        if (store.currentOfficeQuestion) {
+          handleReplay();
+        } else {
+          // Nếu đang ở màn hình chờ (standby), chạm tai nghe sẽ kích hoạt bài tập ngay
+          handleNextOrSkip();
+        }
         break;
       case 'next-question':
         if (store.isOfficePopUpMinimized) {
@@ -309,50 +305,92 @@ export const useOfficeMode = () => {
     }
   }, [handleReplay, handleNextOrSkip, handleBackspaceNote]);
 
+  // 8. Gắn phím tắt toàn cục
+  useGlobalHotkeys({
+    onReplay: handleReplay,
+    onNextOrSkip: handleNextOrSkip,
+    onAnswer: handleAnswer,
+    onInputPitchNote: handleInputNote,
+    onBackspacePitchNote: handleBackspaceNote,
+    onClearPitchSequence: handleClearSequence,
+    onFreestylePlayNote: handleFreestylePlayNote,
+    onFreestylePlayOption: handleFreestylePlayOption,
+    onEarbudAction: executeEarbudAction,
+  });
+
   // Hỗ trợ MediaSession (Nút tai nghe Bluetooth hoặc phím media bàn phím khi tab ở background)
   useEffect(() => {
     if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && officeModeActive) {
       try {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: officeSettings.exerciseSlug === 'pitch-recall' ? 'Nhớ Cao Độ (Office Mode)' : 'Nhận Diện Quãng (Office Mode)',
-          artist: 'Brain Pro - Luyện Tai Ngầm',
-          album: 'Brain Exercises Pro'
-        });
+        bluetoothMediaSession.ensureActive();
+        bluetoothMediaSession.updateMetadata(
+          officeSettings.exerciseSlug === 'pitch-recall' ? 'Nhớ Cao Độ (Pitch Recall)' : 'Nhận Diện Quãng (Interval)',
+          'Brain Pro • Luyện Tai Ngầm'
+        );
 
         // 1 chạm nút tai nghe (Play/Pause) cả 2 tai
         navigator.mediaSession.setActionHandler('play', () => {
+          bluetoothMediaSession.ensureActive();
+          bluetoothMediaSession.playFeedbackChime('tap');
+          bluetoothMediaSession.emitNotification('1 chạm (Play)', 'Nghe lại & Khôi phục');
           executeEarbudAction(officeSettings.earbudSingleTapAction || 'replay-focus');
         });
         navigator.mediaSession.setActionHandler('pause', () => {
+          bluetoothMediaSession.ensureActive();
+          bluetoothMediaSession.playFeedbackChime('tap');
+          bluetoothMediaSession.emitNotification('1 chạm (Pause)', 'Nghe lại & Khôi phục');
           executeEarbudAction(officeSettings.earbudSingleTapAction || 'replay-focus');
         });
 
         // 2 chạm tai trái (Previous Track)
         navigator.mediaSession.setActionHandler('previoustrack', () => {
+          bluetoothMediaSession.ensureActive();
+          bluetoothMediaSession.playFeedbackChime('double-tap');
+          const isLeftProf = (officeSettings.earbudProfile || 'right-hand') === 'left-hand';
+          bluetoothMediaSession.emitNotification(
+            isLeftProf ? '2 chạm tai phải (Prev)' : '2 chạm tai trái (Prev)',
+            'Nghe lại & Khôi phục'
+          );
           executeEarbudAction(officeSettings.earbudDoubleTapLeftAction || 'replay-focus');
         });
 
         // 2 chạm tai phải (Next Track)
         navigator.mediaSession.setActionHandler('nexttrack', () => {
+          bluetoothMediaSession.ensureActive();
+          bluetoothMediaSession.playFeedbackChime('double-tap');
+          const isLeftProf = (officeSettings.earbudProfile || 'right-hand') === 'left-hand';
+          bluetoothMediaSession.emitNotification(
+            isLeftProf ? '2 chạm tai trái (Next)' : '2 chạm tai phải (Next)',
+            'Câu tiếp theo'
+          );
           executeEarbudAction(officeSettings.earbudDoubleTapRightAction || 'next-question');
         });
 
         // Phím Seek Backward (lùi): Xóa nốt vừa gõ (Backspace)
         navigator.mediaSession.setActionHandler('seekbackward', () => {
+          bluetoothMediaSession.ensureActive();
+          bluetoothMediaSession.playFeedbackChime('tap');
+          bluetoothMediaSession.emitNotification('Seek Backward', 'Xóa nốt');
           executeEarbudAction('backspace-note');
         });
 
         // Phím Seek Forward (tiến): Tiếp tục
         navigator.mediaSession.setActionHandler('seekforward', () => {
+          bluetoothMediaSession.ensureActive();
+          bluetoothMediaSession.playFeedbackChime('tap');
+          bluetoothMediaSession.emitNotification('Seek Forward', 'Tiếp tục');
           executeEarbudAction('next-question');
         });
       } catch (e) {
         // ignore
       }
+    } else if (!officeModeActive) {
+      bluetoothMediaSession.deactivate();
     }
   }, [
     officeModeActive,
     officeSettings.exerciseSlug,
+    officeSettings.earbudProfile,
     officeSettings.earbudSingleTapAction,
     officeSettings.earbudDoubleTapRightAction,
     officeSettings.earbudDoubleTapLeftAction,
@@ -421,6 +459,7 @@ export const useOfficeMode = () => {
     handleFreestylePlayOption,
     handleNextOrSkip,
     triggerNewQuestion,
+    executeEarbudAction,
     userRecallSequence
   };
 };
