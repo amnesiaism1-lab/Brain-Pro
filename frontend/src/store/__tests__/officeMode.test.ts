@@ -294,4 +294,21 @@ describe('Office Mode (Stealth Ear Training)', () => {
     store.clearPitchRecallSequence();
     expect(useAppStore.getState().userRecallSequence).toEqual([]);
   });
+
+  it('updates and persists popUpTheme across dark, word-white, and win-bar', () => {
+    const store = useAppStore.getState();
+    expect(store.officeSettings.popUpTheme).toBe('dark');
+
+    // Switch to Word pure white (#ffffff)
+    store.setPopUpTheme('word-white');
+    expect(useAppStore.getState().officeSettings.popUpTheme).toBe('word-white');
+
+    // Switch to Windows taskbar ice blue (#d7eaf5)
+    store.setPopUpTheme('win-bar');
+    expect(useAppStore.getState().officeSettings.popUpTheme).toBe('win-bar');
+
+    // Switch back to dark
+    store.setPopUpTheme('dark');
+    expect(useAppStore.getState().officeSettings.popUpTheme).toBe('dark');
+  });
 });

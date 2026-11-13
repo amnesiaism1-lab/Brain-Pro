@@ -53,6 +53,7 @@ export type EarbudAction =
   | 'toggle-pause';     // Tạm dừng / Tiếp tục chế độ văn phòng
 
 export type EarbudProfile = 'right-hand' | 'left-hand' | 'custom';
+export type OfficePopUpTheme = 'dark' | 'word-white' | 'win-bar';
 
 export interface OfficeModeSettings {
   exerciseSlug: ExerciseSlug;   // 'pitch-recall' | 'interval-identify'
@@ -72,6 +73,7 @@ export interface OfficeModeSettings {
   earbudSingleTapAction: EarbudAction;           // 1 chạm (Play/Pause - cả 2 tai)
   earbudDoubleTapRightAction: EarbudAction;      // 2 chạm tai phải (Next Track)
   earbudDoubleTapLeftAction: EarbudAction;       // 2 chạm tai trái (Previous Track)
+  popUpTheme?: OfficePopUpTheme;                // 'dark' (Spotify) | 'word-white' (#ffffff) | 'win-bar' (#d7eaf5)
 }
 
 export interface OfficeSessionStats {
@@ -127,6 +129,7 @@ export interface OfficeModeSliceState {
   resetOfficeSession: () => void;
   setEarbudProfile: (profile: EarbudProfile) => void;
   swapEarbudActions: () => void;
+  setPopUpTheme: (theme: OfficePopUpTheme) => void;
 }
 
 const STORAGE_KEY_SETTINGS = 'be_office_mode_settings';
@@ -150,6 +153,7 @@ const DEFAULT_SETTINGS: OfficeModeSettings = {
   earbudSingleTapAction: 'replay-focus',
   earbudDoubleTapRightAction: 'next-question',
   earbudDoubleTapLeftAction: 'replay-focus',
+  popUpTheme: 'dark',
 };
 
 const loadSettings = (): OfficeModeSettings => {
@@ -338,6 +342,10 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
       earbudDoubleTapRightAction: nextRight,
       earbudDoubleTapLeftAction: nextLeft,
     });
+  },
+
+  setPopUpTheme: (theme: OfficePopUpTheme) => {
+    get().updateOfficeSettings({ popUpTheme: theme });
   },
 
   setPitchRecallInputRule: (rule: PitchRecallInputRule) => {
