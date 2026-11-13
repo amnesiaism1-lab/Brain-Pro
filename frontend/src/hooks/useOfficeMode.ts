@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import { EarbudAction } from '../store/slices/officeModeSlice';
 import { officeModeEngine } from '../services/officeModeEngine';
 import { auditoryEngine } from '../services/auditoryEngine';
 import { useGlobalHotkeys } from './useGlobalHotkeys';
@@ -277,6 +278,37 @@ export const useOfficeMode = () => {
     onFreestylePlayOption: handleFreestylePlayOption
   });
 
+  // Thực thi hành vi tai nghe Bluetooth linh hoạt (Moondrop Pudding, TWS)
+  const executeEarbudAction = useCallback((action?: EarbudAction) => {
+    const act = action || 'replay-focus';
+    const store = useAppStore.getState();
+    switch (act) {
+      case 'replay-focus':
+        if (store.isOfficePopUpMinimized) {
+          store.restoreOfficePopUp();
+        }
+        handleReplay();
+        break;
+      case 'next-question':
+        if (store.isOfficePopUpMinimized) {
+          store.restoreOfficePopUp();
+        }
+        handleNextOrSkip();
+        break;
+      case 'backspace-note':
+        handleBackspaceNote();
+        break;
+      case 'toggle-popup':
+        store.toggleOfficePopUp();
+        break;
+      case 'toggle-pause':
+        store.togglePauseOfficeMode();
+        break;
+      default:
+        handleReplay();
+    }
+  }, [handleReplay, handleNextOrSkip, handleBackspaceNote]);
+
   // Hỗ trợ MediaSession (Nút tai nghe Bluetooth hoặc phím media bàn phím khi tab ở background)
   useEffect(() => {
     if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && officeModeActive) {
@@ -287,54 +319,45 @@ export const useOfficeMode = () => {
           album: 'Brain Exercises Pro'
         });
 
-        // 1 chạm nút tai nghe (Play/Pause) tai phải: Nghe lại chuỗi nốt + bung cửa sổ nếu đang thu nhỏ
+        // 1 chạm nút tai nghe (Play/Pause) cả 2 tai
         navigator.mediaSession.setActionHandler('play', () => {
-          const store = useAppStore.getState();
-          if (store.isOfficePopUpMinimized) {
-            store.restoreOfficePopUp();
-          }
-          handleReplay();
+          executeEarbudAction(officeSettings.earbudSingleTapAction || 'replay-focus');
         });
         navigator.mediaSession.setActionHandler('pause', () => {
-          const store = useAppStore.getState();
-          if (store.isOfficePopUpMinimized) {
-            store.restoreOfficePopUp();
-          }
-          handleReplay();
+          executeEarbudAction(officeSettings.earbudSingleTapAction || 'replay-focus');
         });
 
-        // 2 chạm tai trái (Previous Track): Nghe lại chuỗi nốt (Alt+R)
+        // 2 chạm tai trái (Previous Track)
         navigator.mediaSession.setActionHandler('previoustrack', () => {
-          const store = useAppStore.getState();
-          if (store.isOfficePopUpMinimized) {
-            store.restoreOfficePopUp();
-          }
-          handleReplay();
+          executeEarbudAction(officeSettings.earbudDoubleTapLeftAction || 'replay-focus');
         });
 
-        // 2 chạm tai phải (Next Track): Sang câu mới / Luyện tập ngay / Bỏ qua (Alt+N)
+        // 2 chạm tai phải (Next Track)
         navigator.mediaSession.setActionHandler('nexttrack', () => {
-          const store = useAppStore.getState();
-          if (store.isOfficePopUpMinimized) {
-            store.restoreOfficePopUp();
-          }
-          handleNextOrSkip();
+          executeEarbudAction(officeSettings.earbudDoubleTapRightAction || 'next-question');
         });
 
         // Phím Seek Backward (lùi): Xóa nốt vừa gõ (Backspace)
         navigator.mediaSession.setActionHandler('seekbackward', () => {
-          handleBackspaceNote();
+          executeEarbudAction('backspace-note');
         });
 
         // Phím Seek Forward (tiến): Tiếp tục
         navigator.mediaSession.setActionHandler('seekforward', () => {
-          handleNextOrSkip();
+          executeEarbudAction('next-question');
         });
       } catch (e) {
         // ignore
       }
     }
-  }, [officeModeActive, officeSettings.exerciseSlug, handleReplay, handleNextOrSkip, handleBackspaceNote]);
+  }, [
+    officeModeActive,
+    officeSettings.exerciseSlug,
+    officeSettings.earbudSingleTapAction,
+    officeSettings.earbudDoubleTapRightAction,
+    officeSettings.earbudDoubleTapLeftAction,
+    executeEarbudAction
+  ]);
 
   // 9. Đồng hồ đếm ngược (Drip Mode Timer)
   useEffect(() => {

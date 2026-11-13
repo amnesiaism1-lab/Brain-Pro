@@ -19,7 +19,8 @@ import {
   ArrowRight,
   Bell,
   HelpCircle,
-  AppWindow
+  AppWindow,
+  ArrowRightLeft
 } from 'lucide-react';
 
 export const OfficeModeInfoPanel: React.FC = () => {
@@ -34,7 +35,9 @@ export const OfficeModeInfoPanel: React.FC = () => {
     toggleInfoPanel,
     updateOfficeSettings,
     resetOfficeSession,
-    openOfficePopUp
+    openOfficePopUp,
+    setEarbudProfile,
+    swapEarbudActions
   } = useAppStore();
 
   const [activeSubTab, setActiveSubTab] = useState<'controls' | 'guide'>('controls');
@@ -218,6 +221,127 @@ export const OfficeModeInfoPanel: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Cài đặt cảm ứng Tai nghe Bluetooth (TWS Earbuds - Moondrop Pudding, AirPods...) */}
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                  <Headphones className="w-3.5 h-3.5 text-emerald-500" />
+                  Cảm ứng Tai nghe Bluetooth (Moondrop Pudding, TWS):
+                </span>
+                <button
+                  type="button"
+                  onClick={swapEarbudActions}
+                  className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-600/50 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1 transition active:scale-95 cursor-pointer hover:bg-emerald-200"
+                  title="Hoán đổi nhanh chức năng giữa Tai Trái và Tai Phải"
+                >
+                  <ArrowRightLeft className="w-3 h-3" />
+                  <span>Đổi Trái ⇄ Phải</span>
+                </button>
+              </div>
+
+              {/* Profiles: Thuận tai phải vs Thuận tai trái */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEarbudProfile('right-hand')}
+                  className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                    (officeSettings.earbudProfile || 'right-hand') === 'right-hand'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-1 ring-emerald-500/30'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center justify-between">
+                    <span>👉 Thuận Tai Phải (R)</span>
+                    {(officeSettings.earbudProfile || 'right-hand') === 'right-hand' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    )}
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 space-y-0.5">
+                    <div>• 1 chạm: Nghe lại + Focus</div>
+                    <div>• Phải 2x: Câu tiếp / Luyện ngay</div>
+                    <div>• Trái 2x: Nghe lại</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEarbudProfile('left-hand')}
+                  className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                    officeSettings.earbudProfile === 'left-hand'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-1 ring-emerald-500/30'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center justify-between">
+                    <span>👈 Thuận Tai Trái (L)</span>
+                    {officeSettings.earbudProfile === 'left-hand' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    )}
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 space-y-0.5">
+                    <div>• 1 chạm: Nghe lại + Focus</div>
+                    <div>• Trái 2x: Câu tiếp / Luyện ngay</div>
+                    <div>• Phải 2x: Nghe lại</div>
+                  </div>
+                </button>
+              </div>
+
+              {/* Tùy chỉnh chi tiết từng tai */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-700/60 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-600 dark:text-slate-400">1 Chạm (Cả 2 tai):</span>
+                  <select
+                    value={officeSettings.earbudSingleTapAction || 'replay-focus'}
+                    onChange={(e) => updateOfficeSettings({
+                      earbudProfile: 'custom',
+                      earbudSingleTapAction: e.target.value as any
+                    })}
+                    className="p-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold"
+                  >
+                    <option value="replay-focus">Nghe lại + Focus cửa sổ</option>
+                    <option value="next-question">Sang câu tiếp / Luyện ngay</option>
+                    <option value="backspace-note">Xóa nốt vừa gõ</option>
+                    <option value="toggle-popup">Bật / Thu nhỏ Pop-up</option>
+                    <option value="toggle-pause">Tạm dừng / Tiếp tục</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-600 dark:text-slate-400">2 Chạm Tai Phải (R):</span>
+                  <select
+                    value={officeSettings.earbudDoubleTapRightAction || 'next-question'}
+                    onChange={(e) => updateOfficeSettings({
+                      earbudProfile: 'custom',
+                      earbudDoubleTapRightAction: e.target.value as any
+                    })}
+                    className="p-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold"
+                  >
+                    <option value="next-question">Sang câu tiếp / Luyện ngay</option>
+                    <option value="replay-focus">Nghe lại + Focus cửa sổ</option>
+                    <option value="backspace-note">Xóa nốt vừa gõ</option>
+                    <option value="toggle-popup">Bật / Thu nhỏ Pop-up</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-600 dark:text-slate-400">2 Chạm Tai Trái (L):</span>
+                  <select
+                    value={officeSettings.earbudDoubleTapLeftAction || 'replay-focus'}
+                    onChange={(e) => updateOfficeSettings({
+                      earbudProfile: 'custom',
+                      earbudDoubleTapLeftAction: e.target.value as any
+                    })}
+                    className="p-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold"
+                  >
+                    <option value="replay-focus">Nghe lại + Focus cửa sổ</option>
+                    <option value="next-question">Sang câu tiếp / Luyện ngay</option>
+                    <option value="backspace-note">Xóa nốt vừa gõ</option>
+                    <option value="toggle-popup">Bật / Thu nhỏ Pop-up</option>
+                  </select>
+                </div>
+              </div>
+            </div>
 
             {/* Thống kê phiên */}
             <div className="grid grid-cols-3 gap-2.5">

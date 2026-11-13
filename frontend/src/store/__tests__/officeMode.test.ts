@@ -254,4 +254,27 @@ describe('Office Mode (Stealth Ear Training)', () => {
     expect(state.isOfficePopUpOpen).toBe(false);
     expect(state.isOfficePopUpMinimized).toBe(false);
   });
+
+  it('configures and swaps Bluetooth earbud touch actions flexibly', () => {
+    const store = useAppStore.getState();
+
+    // Default right-hand profile
+    expect(store.officeSettings.earbudProfile).toBe('right-hand');
+    expect(store.officeSettings.earbudDoubleTapRightAction).toBe('next-question');
+    expect(store.officeSettings.earbudDoubleTapLeftAction).toBe('replay-focus');
+
+    // Switch to left-hand profile
+    store.setEarbudProfile('left-hand');
+    let state = useAppStore.getState();
+    expect(state.officeSettings.earbudProfile).toBe('left-hand');
+    expect(state.officeSettings.earbudDoubleTapRightAction).toBe('replay-focus');
+    expect(state.officeSettings.earbudDoubleTapLeftAction).toBe('next-question');
+
+    // Swap Left and Right
+    store.swapEarbudActions();
+    state = useAppStore.getState();
+    expect(state.officeSettings.earbudProfile).toBe('custom');
+    expect(state.officeSettings.earbudDoubleTapRightAction).toBe('next-question');
+    expect(state.officeSettings.earbudDoubleTapLeftAction).toBe('replay-focus');
+  });
 });

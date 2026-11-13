@@ -45,6 +45,15 @@ export interface OfficeLastAnswerResult {
   userNotes?: string[];
 }
 
+export type EarbudAction = 
+  | 'replay-focus'      // Nghe lại chuỗi nốt + Focus / Bung cửa sổ
+  | 'next-question'     // Sang câu tiếp theo / Luyện tập ngay
+  | 'backspace-note'    // Xóa nốt vừa gõ (Backspace)
+  | 'toggle-popup'      // Thu nhỏ (—) hoặc Mở rộng cửa sổ Pop-up
+  | 'toggle-pause';     // Tạm dừng / Tiếp tục chế độ văn phòng
+
+export type EarbudProfile = 'right-hand' | 'left-hand' | 'custom';
+
 export interface OfficeModeSettings {
   exerciseSlug: ExerciseSlug;   // 'pitch-recall' | 'interval-identify'
   pitchRecallInputRule: PitchRecallInputRule; // Quy tắc bấm cao độ trên bàn phím
@@ -59,6 +68,10 @@ export interface OfficeModeSettings {
   autoReplayOnWrong: boolean;   // automatically replay correct answer on wrong
   freestyleOnWrong: boolean;    // enter freestyle self-practice mode on wrong answer
   enableNotifications: boolean; // browser notifications when tab is backgrounded
+  earbudProfile: EarbudProfile;                  // 'right-hand' | 'left-hand' | 'custom'
+  earbudSingleTapAction: EarbudAction;           // 1 chạm (Play/Pause - cả 2 tai)
+  earbudDoubleTapRightAction: EarbudAction;      // 2 chạm tai phải (Next Track)
+  earbudDoubleTapLeftAction: EarbudAction;       // 2 chạm tai trái (Previous Track)
 }
 
 export interface OfficeSessionStats {
@@ -112,6 +125,8 @@ export interface OfficeModeSliceState {
   finishFreestyleAndNext: () => void;
   skipOfficeQuestion: () => void;
   resetOfficeSession: () => void;
+  setEarbudProfile: (profile: EarbudProfile) => void;
+  swapEarbudActions: () => void;
 }
 
 const STORAGE_KEY_SETTINGS = 'be_office_mode_settings';
@@ -130,7 +145,11 @@ const DEFAULT_SETTINGS: OfficeModeSettings = {
   pillPosition: 'bottom-right',
   autoReplayOnWrong: true,
   freestyleOnWrong: true,
-  enableNotifications: true
+  enableNotifications: true,
+  earbudProfile: 'right-hand',
+  earbudSingleTapAction: 'replay-focus',
+  earbudDoubleTapRightAction: 'next-question',
+  earbudDoubleTapLeftAction: 'replay-focus',
 };
 
 const loadSettings = (): OfficeModeSettings => {
@@ -287,6 +306,37 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
         }
       }
       return { officeSettings: nextSettings };
+    });
+  },
+
+  setEarbudProfile: (profile: EarbudProfile) => {
+    let partial: Partial<OfficeModeSettings> = { earbudProfile: profile };
+    if (profile === 'right-hand') {
+      partial = {
+        earbudProfile: 'right-hand',
+        earbudSingleTapAction: 'replay-focus',
+        earbudDoubleTapRightAction: 'next-question',
+        earbudDoubleTapLeftAction: 'replay-focus',
+      };
+    } else if (profile === 'left-hand') {
+      partial = {
+        earbudProfile: 'left-hand',
+        earbudSingleTapAction: 'replay-focus',
+        earbudDoubleTapRightAction: 'replay-focus',
+        earbudDoubleTapLeftAction: 'next-question',
+      };
+    }
+    get().updateOfficeSettings(partial);
+  },
+
+  swapEarbudActions: () => {
+    const current = get().officeSettings;
+    const nextRight = current.earbudDoubleTapLeftAction || 'replay-focus';
+    const nextLeft = current.earbudDoubleTapRightAction || 'next-question';
+    get().updateOfficeSettings({
+      earbudProfile: 'custom',
+      earbudDoubleTapRightAction: nextRight,
+      earbudDoubleTapLeftAction: nextLeft,
     });
   },
 

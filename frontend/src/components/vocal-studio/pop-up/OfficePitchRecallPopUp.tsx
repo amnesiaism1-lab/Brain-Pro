@@ -61,6 +61,8 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
     restoreOfficePopUp,
     toggleOfficePopUpMinimize,
     setOfficePopUpSize,
+    setEarbudProfile,
+    swapEarbudActions,
     setSelectedExerciseSlug,
     setActiveTab,
   } = useAppStore();
@@ -331,6 +333,18 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
               </button>
             )}
 
+            {/* Quick Earbud Swap in Ribbon Mode */}
+            <button
+              onClick={() => {
+                const currentProf = officeSettings.earbudProfile || 'right-hand';
+                setEarbudProfile(currentProf === 'right-hand' ? 'left-hand' : 'right-hand');
+              }}
+              className="px-1.5 py-1 rounded-lg text-[10px] font-mono bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition cursor-pointer mr-0.5"
+              title={`Đang ưu tiên ${officeSettings.earbudProfile === 'left-hand' ? 'Tai Trái (L)' : 'Tai Phải (R)'}. Click để đổi.`}
+            >
+              {officeSettings.earbudProfile === 'left-hand' ? '🎧L' : '🎧R'}
+            </button>
+
             {/* Window Controls Trio matching user's image */}
             <div className="flex items-center bg-slate-800/80 rounded-lg p-0.5 border border-slate-700/60">
               {/* Minimize / Restore button (—) */}
@@ -408,6 +422,26 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
               >
                 <Layers className="w-2.5 h-2.5 inline mr-1 text-emerald-400" />
                 <span>{ruleInfo.shortName}</span>
+              </button>
+
+              {/* Earbud Profile Quick Switch */}
+              <button
+                onClick={() => {
+                  const currentProf = officeSettings.earbudProfile || 'right-hand';
+                  setEarbudProfile(currentProf === 'right-hand' ? 'left-hand' : 'right-hand');
+                }}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-mono border transition flex items-center gap-1 cursor-pointer ${
+                  isDarkMode
+                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                    : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-2xs'
+                }`}
+                title={`Cảm ứng tai nghe: ${
+                  officeSettings.earbudProfile === 'left-hand'
+                    ? 'Đang ưu tiên TAI TRÁI (Trái 2x: Tiếp tục, Phải 2x: Nghe lại). Click để đổi sang TAI PHẢI'
+                    : 'Đang ưu tiên TAI PHẢI (Phải 2x: Tiếp tục, Trái 2x: Nghe lại). Click để đổi sang TAI TRÁI'
+                }`}
+              >
+                <span>{officeSettings.earbudProfile === 'left-hand' ? '🎧 Trái' : '🎧 Phải'}</span>
               </button>
 
               {/* Toggle Theme */}
