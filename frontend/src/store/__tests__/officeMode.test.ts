@@ -236,8 +236,22 @@ describe('Office Mode (Stealth Ear Training)', () => {
     expect(state.isOfficePopUpOpen).toBe(true);
     expect(state.officeSettings.exerciseSlug).toBe('pitch-recall');
 
+    // Toggle pop-up: when open, toggle minimizes it (—) rather than destroying it
     store.toggleOfficePopUp();
     state = useAppStore.getState();
+    expect(state.isOfficePopUpOpen).toBe(true);
+    expect(state.isOfficePopUpMinimized).toBe(true);
+
+    // Toggle pop-up again: restores it
+    store.toggleOfficePopUp();
+    state = useAppStore.getState();
+    expect(state.isOfficePopUpOpen).toBe(true);
+    expect(state.isOfficePopUpMinimized).toBe(false);
+
+    // Explicit close closes it completely
+    store.closeOfficePopUp();
+    state = useAppStore.getState();
     expect(state.isOfficePopUpOpen).toBe(false);
+    expect(state.isOfficePopUpMinimized).toBe(false);
   });
 });

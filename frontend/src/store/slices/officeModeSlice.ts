@@ -78,6 +78,8 @@ export interface OfficeModeSliceState {
   officeModePaused: boolean;
   isInfoPanelOpen: boolean;
   isOfficePopUpOpen: boolean;
+  isOfficePopUpMinimized: boolean;
+  officePopUpSize: 'compact' | 'standard' | 'expanded';
   officeSettings: OfficeModeSettings;
   officeSession: OfficeSessionStats;
   currentOfficeQuestion: OfficeQuestion | null;
@@ -93,6 +95,10 @@ export interface OfficeModeSliceState {
   openOfficePopUp: () => void;
   closeOfficePopUp: () => void;
   toggleOfficePopUp: () => void;
+  minimizeOfficePopUp: () => void;
+  restoreOfficePopUp: () => void;
+  toggleOfficePopUpMinimize: () => void;
+  setOfficePopUpSize: (size: 'compact' | 'standard' | 'expanded') => void;
   updateOfficeSettings: (settings: Partial<OfficeModeSettings>) => void;
   setPitchRecallInputRule: (rule: PitchRecallInputRule) => void;
   setCurrentOfficeQuestion: (q: OfficeQuestion | null) => void;
@@ -157,6 +163,8 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
   officeModePaused: false,
   isInfoPanelOpen: false,
   isOfficePopUpOpen: false,
+  isOfficePopUpMinimized: false,
+  officePopUpSize: 'standard',
   officeSettings: loadSettings(),
   officeSession: createInitialSession(),
   currentOfficeQuestion: null,
@@ -170,6 +178,7 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
       officeModeActive: true,
       officeModePaused: false,
       isOfficePopUpOpen: true,
+      isOfficePopUpMinimized: false,
       officeSettings: {
         ...state.officeSettings,
         exerciseSlug: 'pitch-recall', // Đảm bảo luôn mở bài tập Nhớ Cao Độ
@@ -178,20 +187,56 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
   },
 
   closeOfficePopUp: () => {
-    set({ isOfficePopUpOpen: false });
+    set({ isOfficePopUpOpen: false, isOfficePopUpMinimized: false });
+  },
+
+  minimizeOfficePopUp: () => {
+    set({ isOfficePopUpMinimized: true });
+  },
+
+  restoreOfficePopUp: () => {
+    set({ isOfficePopUpMinimized: false, isOfficePopUpOpen: true });
+  },
+
+  toggleOfficePopUpMinimize: () => {
+    set((state: OfficeModeSliceState) => ({
+      isOfficePopUpMinimized: !state.isOfficePopUpMinimized,
+    }));
+  },
+
+  setOfficePopUpSize: (size: 'compact' | 'standard' | 'expanded') => {
+    set({
+      officePopUpSize: size,
+      isOfficePopUpMinimized: size === 'compact',
+    });
   },
 
   toggleOfficePopUp: () => {
     set((state: OfficeModeSliceState) => {
-      const nextOpen = !state.isOfficePopUpOpen;
+      // 1. Nếu chưa mở -> Mở chuẩn
+      if (!state.isOfficePopUpOpen) {
+        return {
+          isOfficePopUpOpen: true,
+          isOfficePopUpMinimized: false,
+          officeModeActive: true,
+          officeModePaused: false,
+          officeSettings: {
+            ...state.officeSettings,
+            exerciseSlug: 'pitch-recall',
+          },
+        };
+      }
+
+      // 2. Nếu đang mở và không thu nhỏ -> Thu nhỏ như dấu trừ (—) chứ không đóng hẳn
+      if (!state.isOfficePopUpMinimized) {
+        return {
+          isOfficePopUpMinimized: true,
+        };
+      }
+
+      // 3. Nếu đang thu nhỏ -> Bung to trở lại (Restore)
       return {
-        isOfficePopUpOpen: nextOpen,
-        officeModeActive: nextOpen ? true : state.officeModeActive,
-        officeModePaused: false,
-        officeSettings: {
-          ...state.officeSettings,
-          exerciseSlug: 'pitch-recall',
-        },
+        isOfficePopUpMinimized: false,
       };
     });
   },

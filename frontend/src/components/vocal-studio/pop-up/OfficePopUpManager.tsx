@@ -7,6 +7,8 @@ import { OfficePitchRecallPopUp } from './OfficePitchRecallPopUp';
 export const OfficePopUpManager: React.FC = () => {
   const {
     isOfficePopUpOpen,
+    isOfficePopUpMinimized,
+    officePopUpSize,
     closeOfficePopUp,
   } = useAppStore();
 
@@ -24,7 +26,7 @@ export const OfficePopUpManager: React.FC = () => {
   useEffect(() => {
     if (isOfficePopUpOpen && !prevOfficePopUpOpen.current) {
       if (isSupported && !isPipActive) {
-        openPiP({ width: 380, height: 380, title: 'Brain Pro • Nhớ Cao Độ (Alt+Q)' }).then((win) => {
+        openPiP({ width: 380, height: 390, title: 'Brain Pro • Nhớ Cao Độ (Alt+Q)' }).then((win) => {
           if (!win) {
             console.log('Document PiP window rejected or blocked, falling back to In-App Floating Player.');
           }
@@ -37,6 +39,23 @@ export const OfficePopUpManager: React.FC = () => {
     }
     prevOfficePopUpOpen.current = isOfficePopUpOpen;
   }, [isOfficePopUpOpen, isSupported, isPipActive, openPiP, closePiP]);
+
+  // Dynamically resize PiP window when minimized or resized
+  useEffect(() => {
+    if (pipWindow && !pipWindow.closed) {
+      try {
+        if (isOfficePopUpMinimized) {
+          pipWindow.resizeTo(360, 78);
+        } else if (officePopUpSize === 'expanded') {
+          pipWindow.resizeTo(440, 480);
+        } else {
+          pipWindow.resizeTo(380, 390);
+        }
+      } catch (err) {
+        // resizeTo can fail in sandboxed or untrusted contexts, ignore silently
+      }
+    }
+  }, [pipWindow, isOfficePopUpMinimized, officePopUpSize]);
 
   // When PiP window is closed externally (by user clicking native X button)
   useEffect(() => {
@@ -63,7 +82,13 @@ export const OfficePopUpManager: React.FC = () => {
   // Case B: In-App Floating Mini Dock Fallback (when PiP is unsupported or blocked)
   return (
     <div
-      className="fixed right-4 bottom-4 z-[9999] shadow-2xl rounded-2xl overflow-hidden border border-slate-700/80 animate-fade-in transition-all duration-200 w-[380px] h-[360px]"
+      className={`fixed right-4 bottom-4 z-[9999] shadow-2xl rounded-2xl overflow-hidden border border-slate-700/80 animate-fade-in transition-all duration-300 ${
+        isOfficePopUpMinimized
+          ? 'w-[360px] h-[78px]'
+          : officePopUpSize === 'expanded'
+          ? 'w-[440px] h-[480px]'
+          : 'w-[380px] h-[390px]'
+      }`}
       style={{
         boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.75), 0 0 25px 0 rgba(16, 185, 129, 0.2)',
       }}
