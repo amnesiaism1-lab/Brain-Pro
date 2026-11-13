@@ -28,6 +28,11 @@ export interface VocalStudioPreferences {
   snapToScale: boolean;
   transposeSemitones: number;
   octaveConvention: 'fl_studio' | 'international';
+  officeLayout: 'card' | 'ribbon';
+  officeTheme: 'spotify' | 'stealth-code';
+  officeInputMode: 'humming' | 'silent-keyboard' | 'whistle';
+  officeMaxDbThreshold: number;
+  officeAutoMuteOnBlur: boolean;
 }
 
 const STORAGE_KEY = 'be_vocal_studio_prefs';
@@ -48,6 +53,11 @@ function loadSavedPreferences(): VocalStudioPreferences {
     snapToScale: false,
     transposeSemitones: 0,
     octaveConvention: 'international',
+    officeLayout: 'card',
+    officeTheme: 'spotify',
+    officeInputMode: 'humming',
+    officeMaxDbThreshold: 45,
+    officeAutoMuteOnBlur: true,
   };
 
   if (typeof window === 'undefined') return defaults;
@@ -89,6 +99,8 @@ export interface VocalStudioState extends VocalStudioPreferences {
   // Modal & Navigation
   isOpen: boolean;
   activeTab: StudioTab;
+  isOfficePopUpOpen: boolean;
+  isBossKeyTriggered: boolean;
 
   // Analysis
   analysisResult: IVocalAnalysisResult | null;
@@ -121,6 +133,15 @@ export interface VocalStudioState extends VocalStudioPreferences {
   // Actions
   openStudio: (initialTab?: StudioTab) => void;
   closeStudio: () => void;
+  openOfficePopUp: (initialTab?: StudioTab) => void;
+  closeOfficePopUp: () => void;
+  setOfficeLayout: (layout: 'card' | 'ribbon') => void;
+  setOfficeTheme: (theme: 'spotify' | 'stealth-code') => void;
+  setOfficeInputMode: (mode: 'humming' | 'silent-keyboard' | 'whistle') => void;
+  setOfficeMaxDbThreshold: (val: number) => void;
+  setOfficeAutoMuteOnBlur: (val: boolean) => void;
+  triggerBossKey: () => void;
+  restoreFromBossKey: () => void;
   setActiveTab: (tab: StudioTab) => void;
   setToleranceCents: (val: TuningTolerance) => void;
   setTargetMode: (mode: TargetPitchMode) => void;
@@ -160,6 +181,8 @@ export const useVocalStudioStore = create<VocalStudioState>((set) => ({
 
   isOpen: false,
   activeTab: 'analysis',
+  isOfficePopUpOpen: false,
+  isBossKeyTriggered: false,
 
   analysisResult: null,
   isAnalyzing: false,
@@ -234,6 +257,8 @@ export const useVocalStudioStore = create<VocalStudioState>((set) => ({
   openStudio: (initialTab?: StudioTab) => {
     set({
       isOpen: true,
+      isOfficePopUpOpen: false, // Close pop-up if full studio is opened
+      isBossKeyTriggered: false,
       ...(initialTab ? { activeTab: initialTab } : {}),
     });
     if (typeof window !== 'undefined' && window.location.hash !== '#/vocal-studio') {
@@ -246,6 +271,61 @@ export const useVocalStudioStore = create<VocalStudioState>((set) => ({
     if (typeof window !== 'undefined' && window.location.hash === '#/vocal-studio') {
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
+  },
+
+  openOfficePopUp: (initialTab?: StudioTab) => {
+    set({
+      isOpen: false, // Hide full modal, show pop-up
+      isOfficePopUpOpen: true,
+      isBossKeyTriggered: false,
+      ...(initialTab ? { activeTab: initialTab } : {}),
+    });
+  },
+
+  closeOfficePopUp: () => {
+    set({ isOfficePopUpOpen: false });
+  },
+
+  setOfficeLayout: (officeLayout) => {
+    savePreferences({ officeLayout });
+    set({ officeLayout });
+  },
+
+  setOfficeTheme: (officeTheme) => {
+    savePreferences({ officeTheme });
+    set({ officeTheme });
+  },
+
+  setOfficeInputMode: (officeInputMode) => {
+    savePreferences({ officeInputMode });
+    set({ officeInputMode });
+  },
+
+  setOfficeMaxDbThreshold: (officeMaxDbThreshold) => {
+    savePreferences({ officeMaxDbThreshold });
+    set({ officeMaxDbThreshold });
+  },
+
+  setOfficeAutoMuteOnBlur: (officeAutoMuteOnBlur) => {
+    savePreferences({ officeAutoMuteOnBlur });
+    set({ officeAutoMuteOnBlur });
+  },
+
+  triggerBossKey: () => {
+    set({
+      isBossKeyTriggered: true,
+      isOfficePopUpOpen: false,
+      isOpen: false,
+      isPlaying: false,
+      isMutedMusic: true,
+    });
+  },
+
+  restoreFromBossKey: () => {
+    set({
+      isBossKeyTriggered: false,
+      isMutedMusic: false,
+    });
   },
 
   setActiveTab: (tab) => set({ activeTab: tab }),

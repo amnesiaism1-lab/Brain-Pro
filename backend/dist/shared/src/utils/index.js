@@ -100,19 +100,63 @@ function generateTwinWords(word, shouldMatch) {
     if (shouldMatch) {
         return { word1: word, word2: word, isMatch: true };
     }
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const isVietnamese = /[ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝĐàáâãèéêìíòóôõùúýđĂăÂâĐđÊêÔôƠơƯư]/i.test(word);
     const chars = word.split('');
-    const posToChange = Math.floor(Math.random() * chars.length);
+    const validIndices = [];
+    for (let i = 0; i < chars.length; i++) {
+        if (chars[i] !== ' ')
+            validIndices.push(i);
+    }
+    const posToChange = validIndices.length > 0
+        ? validIndices[Math.floor(Math.random() * validIndices.length)]
+        : Math.floor(Math.random() * chars.length);
     const originalChar = chars[posToChange];
-    let newChar = alphabet[Math.floor(Math.random() * alphabet.length)];
-    while (newChar === originalChar) {
-        newChar = alphabet[Math.floor(Math.random() * alphabet.length)];
+    let newChar = originalChar;
+    if (isVietnamese) {
+        const confusableMap = {
+            'S': ['X'], 'X': ['S'],
+            'D': ['GI', 'R'], 'R': ['D', 'GI'],
+            'CH': ['TR'], 'TR': ['CH'],
+            'N': ['L'], 'L': ['N'],
+            'C': ['K'], 'K': ['C'],
+            'Á': ['À', 'Ả', 'Ã', 'Ạ'],
+            'À': ['Á', 'Ả', 'Ã', 'Ạ'],
+            'Ả': ['Á', 'À', 'Ã', 'Ạ'],
+            'Ã': ['Ả', 'Á', 'À'],
+            'Ạ': ['Á', 'À', 'Ả'],
+            'É': ['È', 'Ẻ', 'Ẽ', 'Ẹ'],
+            'È': ['É', 'Ẻ', 'Ẽ', 'Ẹ'],
+            'Ê': ['E', 'Ế', 'Ề'],
+            'Í': ['Ì', 'Ỉ', 'Ĩ', 'Ị'],
+            'Ó': ['Ò', 'Ỏ', 'Õ', 'Ọ', 'Ô'],
+            'Ô': ['Ơ', 'O', 'Ố', 'Ồ'],
+            'Ơ': ['Ô', 'O', 'Ớ', 'Ờ'],
+            'Ú': ['Ù', 'Ủ', 'Ũ', 'Ụ', 'Ư'],
+            'Ư': ['Ú', 'Ù', 'Ứ', 'Ừ']
+        };
+        const upperOriginal = originalChar.toUpperCase();
+        if (confusableMap[upperOriginal] && confusableMap[upperOriginal].length > 0) {
+            const candidates = confusableMap[upperOriginal];
+            newChar = candidates[Math.floor(Math.random() * candidates.length)];
+        }
+        else {
+            const vnAlphabet = 'AĂÂBCDĐEÊGHIKLMNOÔƠPQRSTUƯVXY'.split('');
+            const filtered = vnAlphabet.filter(c => c !== upperOriginal);
+            newChar = filtered[Math.floor(Math.random() * filtered.length)] || 'A';
+        }
+    }
+    else {
+        const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const upperOriginal = originalChar.toUpperCase();
+        const candidates = alphabet.split('').filter(c => c !== upperOriginal);
+        newChar = candidates[Math.floor(Math.random() * candidates.length)] || 'X';
     }
     chars[posToChange] = newChar;
     return {
         word1: word,
         word2: chars.join(''),
-        isMatch: false
+        isMatch: false,
+        diffIndex: posToChange
     };
 }
 function generateWordSearchGrid(rows = 12, cols = 20, words = ['NÃO', 'HỌC', 'MẮT'], customAlphabet) {

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useVocalStudioStore } from '../../store/vocalStudioStore';
+import { OfficePopUpLauncher } from '../vocal-studio/pop-up/OfficePopUpLauncher';
 import { EXERCISES_METADATA, CognitiveCategoryCode, INFINITY_ROMAN_NUMERALS, getInfinityLabel, EXERCISE_SYNERGIES } from '@brain-exercises/shared';
 
 // Map slugs to representative custom graphic icons matching app screenshots
@@ -543,19 +544,8 @@ export const ExercisesListView: React.FC = () => {
                   }`}>
                     {stageName}
                   </span>
-                  {exercise.slug === 'vocal-pitch-match' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        playSound('click');
-                        openVocalStudio();
-                      }}
-                      className="text-[10px] font-black px-2 py-0.5 rounded-md bg-gradient-to-r from-violet-600 to-cyan-600 text-white flex items-center gap-1 shadow-sm hover:scale-105 transition-transform"
-                      title="Mở phòng thu âm Vocal Studio"
-                    >
-                      <Mic className="w-3 h-3" />
-                      <span>Vocal Studio</span>
-                    </button>
+                  {(exercise.slug === 'vocal-pitch-match' || exercise.slug === 'pitch-recall') && (
+                    <OfficePopUpLauncher size="sm" />
                   )}
                 </div>
               </div>

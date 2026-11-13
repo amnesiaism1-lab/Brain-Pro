@@ -21,6 +21,7 @@ import { useMidiInput } from '../../hooks/useMidiInput';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { Volume2, RotateCcw, Play, Music, Sparkles, GraduationCap, Zap, CheckCircle2, XCircle, ArrowRight, BookOpen, Anchor, TrendingUp, Headphones, Sliders } from 'lucide-react';
 import { Note } from 'tonal';
+import { OfficePopUpLauncher } from '../vocal-studio/pop-up/OfficePopUpLauncher';
 
 /**
  * Helper to explain semitone difference in musical intervals
@@ -1292,14 +1293,17 @@ export const PitchRecallGame: React.FC = () => {
                 ? '💡 Đảo ngược chuỗi âm thanh yêu cầu vùng não thùy trán (DLPFC) lưu trữ và thao tác đảo ngược trong trí nhớ làm việc.'
                 : '💡 Hãy chú ý cao độ tương đối giữa các nốt (nốt sau cao hơn hay trầm hơn nốt trước).'}
             </p>
-            <button
-              type="button"
-              onClick={() => navigateToTheory('notes')}
-              className="px-3.5 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Mở bài học: 1. Nốt Nhạc & Cao Độ</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <OfficePopUpLauncher size="sm" showFullStudioButton={false} />
+              <button
+                type="button"
+                onClick={() => navigateToTheory('notes')}
+                className="px-3.5 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Mở bài học: 1. Nốt Nhạc & Cao Độ</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

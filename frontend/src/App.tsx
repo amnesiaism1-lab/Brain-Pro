@@ -21,6 +21,7 @@ import { useOfflineSync } from './hooks/useOfflineSync';
 import { MusicTheoryView } from './components/learn/MusicTheoryView';
 import { WrongAnswerHistoryView } from './components/wrong-answers/WrongAnswerHistoryView';
 import { VocalStudio } from './components/vocal-studio/VocalStudio';
+import { OfficePopUpManager } from './components/vocal-studio/pop-up/OfficePopUpManager';
 import { useVocalStudioStore } from './store/vocalStudioStore';
 import { useNavigationSync } from './hooks/useNavigationSync';
 import { useReminderScheduler } from './hooks/useReminderScheduler';
@@ -128,6 +129,9 @@ export const App: React.FC = () => {
           isOpen={isVocalStudioOpen}
           onClose={closeVocalStudio}
         />
+
+        {/* Global Spotify-Style Office Pop-up Window (PiP / Floating) */}
+        <OfficePopUpManager />
 
         {/* Global Office Mode (Stealth Ear Training) */}
         <OfficeModePill />

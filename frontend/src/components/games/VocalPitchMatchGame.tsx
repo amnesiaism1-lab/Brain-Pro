@@ -21,6 +21,7 @@ import { CentsTunerGauge } from '../ui/CentsTunerGauge';
 import { VocalPitchRibbonCanvas } from '../ui/VocalPitchRibbonCanvas';
 import { VocalPreflightModal } from '../ui/VocalPreflightModal';
 import { VocalStudioModal } from '../vocal-studio/VocalStudioModal';
+import { OfficePopUpLauncher } from '../vocal-studio/pop-up/OfficePopUpLauncher';
 import { generateVocalTargets, TargetNoteItem } from './vocal/vocalTargetGenerators';
 import { ScaleProgressHud } from './vocal/ScaleProgressHud';
 import { 
@@ -688,13 +689,11 @@ export const VocalPitchMatchGame: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowStudioModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-violet-950/70 hover:bg-violet-900/80 text-violet-200 border border-violet-700/60 font-semibold transition"
-          >
-            <Music className="w-3.5 h-3.5 text-violet-400" />
-            <span>Studio MP3</span>
-          </button>
+          <OfficePopUpLauncher
+            size="sm"
+            onPopUpOpened={() => {}}
+            onStudioOpened={() => setShowStudioModal(true)}
+          />
 
           <button
             onClick={() => setShowPreflightModal(true)}

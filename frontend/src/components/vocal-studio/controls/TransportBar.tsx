@@ -9,7 +9,9 @@ import {
   VolumeX,
   Repeat,
   Award,
+  AppWindow,
 } from 'lucide-react';
+import { useVocalStudioStore } from '../../../store/vocalStudioStore';
 import { SpeedControl } from './SpeedControl';
 import { SingOptionsPopover } from './SingOptionsPopover';
 import { ScaleSelectorPopover } from './ScaleSelectorPopover';
@@ -113,6 +115,8 @@ export const TransportBar: React.FC<TransportBarProps> = ({
   isWindowLocked,
   onToggleWindowLock,
 }) => {
+  const openOfficePopUp = useVocalStudioStore((s) => s.openOfficePopUp);
+
   return (
     <div className="p-3.5 sm:p-4 rounded-3xl bg-slate-950/80 border border-slate-800 shadow-xl space-y-3">
       {/* 1. Scrubber Slider */}
@@ -279,6 +283,18 @@ export const TransportBar: React.FC<TransportBarProps> = ({
           >
             <Award className="w-3.5 h-3.5 text-amber-400" />
             <span className="hidden sm:inline">Báo Cáo</span>
+          </button>
+
+          {/* Spotify-style PiP Pop-up Button */}
+          <button
+            type="button"
+            onClick={() => openOfficePopUp()}
+            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-950 to-teal-950 border border-emerald-600/50 text-emerald-200 hover:text-white hover:border-emerald-400 text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+            title="Tách thành Cửa sổ Pop-up Văn phòng (Picture-in-Picture) luôn nổi trên màn hình"
+          >
+            <AppWindow className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Pop-up Văn Phòng</span>
+            <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-emerald-900 text-emerald-300">PiP</span>
           </button>
         </div>
       </div>

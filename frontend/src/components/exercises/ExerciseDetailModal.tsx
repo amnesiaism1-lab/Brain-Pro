@@ -18,6 +18,7 @@ import { infinityApiService, shuffleArray } from '../../services/infinityApiServ
 import { auditoryEngine } from '../../services/auditoryEngine';
 import { getTheoryModuleForSlug, THEORY_MODULE_MAP } from '../learn/theoryExerciseMap';
 import { CustomizePanel } from '../customize/CustomizePanel';
+import { OfficePopUpLauncher } from '../vocal-studio/pop-up/OfficePopUpLauncher';
 
 export const ExerciseDetailModal: React.FC = () => {
   const { 
@@ -388,13 +389,12 @@ export const ExerciseDetailModal: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => openVocalStudio()}
-                  className="px-5 py-3 rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 hover:from-violet-400 hover:to-cyan-400 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-cyan-500/25 active:scale-95 transition-all shrink-0"
-                >
-                  <Sparkles className="w-4 h-4 fill-slate-950" />
-                  <span>Mở Studio Luyện Hát</span>
-                </button>
+                <div className="flex flex-col sm:items-end gap-1.5 shrink-0">
+                  <OfficePopUpLauncher size="md" />
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    🎧 Luôn nổi (Always-on-top) • Lọc ồn • Boss Key
+                  </span>
+                </div>
               </div>
             </div>
           )}
