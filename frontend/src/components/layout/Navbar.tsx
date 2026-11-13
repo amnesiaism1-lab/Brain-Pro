@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Brain, BookOpen, History, Settings, User, Cloud, LogIn, LogOut, Mic2, Sparkles, Radio, Headphones } from 'lucide-react';
+import { Home, Brain, BookOpen, History, Settings, User, Cloud, LogIn, LogOut, Mic2, Sparkles, Radio, Headphones, AppWindow } from 'lucide-react';
 import { useAppStore, MainNavTab } from '../../store/useAppStore';
 import { useVocalStudioStore } from '../../store/vocalStudioStore';
 
@@ -21,6 +21,7 @@ export const Navbar: React.FC = () => {
   } = useAppStore();
 
   const openVocalStudio = useVocalStudioStore((s) => s.openStudio);
+  const openOfficePopUp = useVocalStudioStore((s) => s.openOfficePopUp);
 
   // Hide bottom nav while game is actively playing to maximize focus & screen area
   if (activeGameSlug) {
@@ -212,6 +213,31 @@ export const Navbar: React.FC = () => {
             <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black flex items-center gap-0.5">
               <Sparkles className="w-2.5 h-2.5 fill-slate-950" />
               LIVE
+            </span>
+          </button>
+
+          {/* Cửa Sổ Pop-up Văn Phòng (PiP Spotify Miniplayer) */}
+          <button
+            onClick={() => {
+              playSound('click');
+              openOfficePopUp();
+            }}
+            className="w-full mt-2 p-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-600/30 transition-all flex items-center justify-between group cursor-pointer active:scale-95 border border-emerald-400/30"
+            title="Mở Cửa sổ Pop-up Văn phòng (Always-on-top): Luyện cảm âm, ngân nga khẽ & phím thầm"
+          >
+            <div className="flex items-center gap-2">
+              <div className="p-1 rounded-lg bg-white/20 text-white">
+                <AppWindow className="w-3.5 h-3.5 text-emerald-100" />
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-black leading-tight text-white group-hover:text-amber-200 transition-colors">
+                  Pop-up Văn Phòng
+                </p>
+                <p className="text-[9px] text-emerald-100/90 font-mono">Spotify Mini PiP</p>
+              </div>
+            </div>
+            <span className="px-1.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 text-[9px] font-mono font-bold border border-emerald-400/40">
+              PiP
             </span>
           </button>
           <button

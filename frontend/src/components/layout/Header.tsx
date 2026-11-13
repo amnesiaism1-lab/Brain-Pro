@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ChevronLeft, HelpCircle, Flame, Sparkles, AlertTriangle, X, Pause, Play, Headphones } from 'lucide-react';
+import { ChevronLeft, HelpCircle, Flame, Sparkles, AlertTriangle, X, Pause, Play, Headphones, AppWindow } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { useVocalStudioStore } from '../../store/vocalStudioStore';
 import { EXERCISES_METADATA } from '@brain-exercises/shared';
 
 export const Header: React.FC = () => {
@@ -22,6 +23,8 @@ export const Header: React.FC = () => {
     officeModeActive,
     toggleInfoPanel
   } = useAppStore();
+
+  const openOfficePopUp = useVocalStudioStore((s) => s.openOfficePopUp);
 
   const [showExitConfirm, setShowExitConfirm] = useState(false);
 
@@ -172,6 +175,22 @@ export const Header: React.FC = () => {
                 {officeModeActive && (
                   <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-pulse" />
                 )}
+              </button>
+
+              {/* Quick PiP Pop-up Launcher in Header */}
+              <button
+                onClick={() => {
+                  playSound('click');
+                  openOfficePopUp();
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold transition-all border cursor-pointer bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border-emerald-400/40 shadow-sm active:scale-95"
+                title="Mở Cửa sổ Pop-up Văn phòng (Document PiP Always-on-top)"
+              >
+                <AppWindow className="w-3.5 h-3.5 text-emerald-100" />
+                <span className="hidden md:inline">Pop-up PiP</span>
+                <span className="px-1 py-0.2 rounded bg-emerald-950 text-emerald-300 text-[9px] font-mono font-bold">
+                  Mini
+                </span>
               </button>
 
               <div className="hidden xs:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-xs sm:text-sm font-bold shadow-inner">

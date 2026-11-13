@@ -20,7 +20,8 @@ import {
   ChevronRight,
   Mic2,
   Compass,
-  Radio
+  Radio,
+  AppWindow
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useVocalStudioStore } from '../../store/vocalStudioStore';
@@ -53,6 +54,7 @@ export const HomeView: React.FC = () => {
   } = useAppStore();
 
   const openVocalStudio = useVocalStudioStore((s) => s.openStudio);
+  const openOfficePopUp = useVocalStudioStore((s) => s.openOfficePopUp);
   const [activeSynergyIndex, setActiveSynergyIndex] = useState(0);
 
   const getCategoryCount = (code: CognitiveCategoryCode) => {
@@ -321,18 +323,36 @@ export const HomeView: React.FC = () => {
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-cyan-500/20">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                playSound('click');
-                openVocalStudio('youtube_beat');
-              }}
-              className="px-2.5 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-[11px] font-black flex items-center gap-1.5 transition active:scale-95"
-            >
-              <Radio className="w-3.5 h-3.5 text-rose-500" />
-              <span>Hát Beat YouTube</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  playSound('click');
+                  openVocalStudio('youtube_beat');
+                }}
+                className="px-2.5 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-[11px] font-black flex items-center gap-1.5 transition active:scale-95"
+              >
+                <Radio className="w-3.5 h-3.5 text-rose-500" />
+                <span>Hát Beat YouTube</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  playSound('click');
+                  openOfficePopUp();
+                }}
+                className="px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-md shadow-emerald-950/30 transition active:scale-95 border border-emerald-400/30"
+                title="Mở Cửa sổ Pop-up Văn phòng nhỏ gọn Always-on-top"
+              >
+                <AppWindow className="w-3.5 h-3.5 text-emerald-100" />
+                <span>Pop-up Văn Phòng</span>
+                <span className="px-1 py-0.2 rounded bg-emerald-950 text-emerald-300 text-[9px] font-mono font-bold">PiP</span>
+              </button>
+            </div>
+
             <button className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-black text-xs flex items-center gap-1.5 shadow-sm group-hover:translate-x-0.5 transition-all">
               <span>Mở Studio</span>
               <ArrowRight className="w-3.5 h-3.5" />
