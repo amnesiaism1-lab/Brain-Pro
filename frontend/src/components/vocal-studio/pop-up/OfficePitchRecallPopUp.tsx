@@ -28,6 +28,7 @@ import {
   Sliders,
   Delete,
   Music,
+  Volume2,
   Minus,
   Square,
   Copy,
@@ -179,16 +180,39 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
           toggleOfficePopUpMinimize();
           return;
         }
+        // Alt + R: Nghe lại chuỗi nốt
         if (keyLower === 'r') {
           e.preventDefault();
           e.stopPropagation();
           handleReplay();
           return;
         }
+        // Alt + N: Câu tiếp theo / Bỏ qua câu hiện tại / Kết thúc Freestyle
         if (keyLower === 'n') {
           e.preventDefault();
           e.stopPropagation();
           handleNextOrSkip();
+          return;
+        }
+        // Alt + C hoặc Alt + X: Xóa trắng toàn bộ đáp án đang gõ dở
+        if (keyLower === 'c' || keyLower === 'x') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleClearSequence();
+          return;
+        }
+        // Alt + 1..8: Nghe thử nốt hoặc nhập nốt
+        if (/^[1-8]$/.test(e.key)) {
+          e.preventDefault();
+          e.stopPropagation();
+          const mapped = mapKeyToNote(e.key, 'scale-degrees');
+          if (mapped) {
+            if (officeQuestionState === 'waiting') {
+              handleInputNote(mapped);
+            } else {
+              handleFreestylePlayNote(mapped);
+            }
+          }
           return;
         }
       }
@@ -198,6 +222,14 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
         e.preventDefault();
         e.stopPropagation();
         toggleOfficePopUpMinimize();
+        return;
+      }
+
+      // Delete: Xóa trắng toàn bộ đáp án (Reset trắng)
+      if (e.key === 'Delete') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleClearSequence();
         return;
       }
 
@@ -221,14 +253,19 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
         }
       }
 
-      // Note input keys (1-7 / Piano A-K / C-B depending on rule)
-      if (officeQuestionState === 'waiting') {
-        const mappedNote = mapKeyToNote(e.key, currentRule);
-        if (mappedNote) {
-          e.preventDefault();
-          e.stopPropagation();
+      // Note input or freestyle playback keys (1-7 / Piano A-K / C-B depending on rule)
+      // Khi đang làm bài (waiting): Nhập nốt vào ô đáp án
+      // Khi đã làm xong (freestyle, feedback, standby): Bấm nốt vẫn cho phép nghe âm thanh đối chiếu!
+      const mappedNote = mapKeyToNote(e.key, currentRule) || (/^[1-8]$/.test(e.key) ? mapKeyToNote(e.key, 'scale-degrees') : null);
+      if (mappedNote) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (officeQuestionState === 'waiting') {
           handleInputNote(mappedNote);
+        } else {
+          handleFreestylePlayNote(mappedNote);
         }
+        return;
       }
     };
 
@@ -243,6 +280,8 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
     handleReplay,
     handleNextOrSkip,
     handleBackspaceNote,
+    handleClearSequence,
+    handleFreestylePlayNote,
     handleInputNote,
     toggleOfficePopUpMinimize,
   ]);
@@ -291,29 +330,46 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
               </div>
 
               {/* Solfege sequence or hint */}
-              <div className="text-[10px] text-slate-300 font-mono font-bold truncate mt-0.5">
+              <div className="text-[10px] text-slate-300 font-mono font-bold truncate mt-0.5 flex items-center">
                 {userRecallSequence.length > 0 ? (
-                  <span className="text-emerald-300 bg-emerald-950/80 px-1 py-0.2 rounded border border-emerald-500/40">
-                    {sequenceToSolfege(userRecallSequence)}
+                  <span className="inline-flex items-center gap-1 text-emerald-300 bg-emerald-950/80 px-1 py-0.2 rounded border border-emerald-500/40">
+                    <span>{sequenceToSolfege(userRecallSequence)}</span>
+                    <button
+                      onClick={handleClearSequence}
+                      className="px-1 py-0.2 rounded bg-rose-950 hover:bg-rose-900 border border-rose-500/50 text-[9px] text-rose-300 font-bold cursor-pointer transition active:scale-90"
+                      title="Xóa trắng câu trả lời (Alt+C hoặc Delete)"
+                    >
+                      ✕
+                    </button>
                   </span>
                 ) : officeQuestionState === 'waiting' ? (
                   <span className="text-slate-400">Gõ phím 1-7 để điền nốt</span>
                 ) : (
-                  <span className="text-slate-400">Bấm Alt+N để luyện</span>
+                  <span className="text-slate-400">Bấm 1-7 nghe nốt • Alt+N luyện</span>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Center: Mini 1-7 Quick Piano Buttons when waiting */}
-          {officeQuestionState === 'waiting' && windowDimensions.width >= 350 && (
+          {/* Center: Mini 1-7 Quick Piano Buttons (Input when waiting, freestyle note play when finished/standby) */}
+          {windowDimensions.width >= 330 && (
             <div className="hidden sm:flex items-center gap-0.5">
               {keys.slice(0, 7).map((k) => (
                 <button
                   key={k.key}
-                  onClick={() => handleInputNote(k.note)}
-                  className="px-1.5 py-1 rounded bg-slate-800 hover:bg-emerald-600 text-slate-200 hover:text-white border border-slate-700 text-[10px] font-mono font-bold transition active:scale-90 cursor-pointer"
-                  title={`Gõ ${k.key} hoặc click: ${k.solfege}`}
+                  onClick={() => {
+                    if (officeQuestionState === 'waiting') {
+                      handleInputNote(k.note);
+                    } else {
+                      handleFreestylePlayNote(k.note);
+                    }
+                  }}
+                  className={`px-1.5 py-1 rounded border text-[10px] font-mono font-bold transition active:scale-90 cursor-pointer ${
+                    officeQuestionState === 'waiting'
+                      ? 'bg-slate-800 hover:bg-emerald-600 text-slate-200 hover:text-white border-slate-700'
+                      : 'bg-slate-800/80 hover:bg-amber-600 text-slate-300 hover:text-white border-slate-700/70'
+                  }`}
+                  title={`${officeQuestionState === 'waiting' ? 'Nhập nốt' : 'Nghe thử'}: Gõ ${k.key} hoặc click ${k.solfege}`}
                 >
                   {k.key}
                 </button>
@@ -540,10 +596,10 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
                 </div>
 
                 {/* Audio Controls row */}
-                <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center justify-center gap-1.5 flex-wrap">
                   <button
                     onClick={handleReplay}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm"
+                    className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm"
                     title="Nghe lại chuỗi nốt (Alt+R)"
                   >
                     <RotateCcw className="w-3.5 h-3.5 text-emerald-400" />
@@ -551,19 +607,30 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
                   </button>
 
                   {userRecallSequence.length > 0 && (
-                    <button
-                      onClick={handleBackspaceNote}
-                      className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-rose-400 border border-slate-700 text-xs font-bold flex items-center gap-1 transition active:scale-95 cursor-pointer"
-                      title="Xóa nốt vừa gõ (Backspace)"
-                    >
-                      <Delete className="w-3.5 h-3.5" />
-                      <span>Xóa</span>
-                    </button>
+                    <>
+                      <button
+                        onClick={handleBackspaceNote}
+                        className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 border border-slate-700 text-xs font-bold flex items-center gap-1 transition active:scale-95 cursor-pointer"
+                        title="Xóa lùi 1 nốt vừa gõ (Backspace)"
+                      >
+                        <Delete className="w-3.5 h-3.5" />
+                        <span>Xóa lùi</span>
+                      </button>
+
+                      <button
+                        onClick={handleClearSequence}
+                        className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-rose-200 border border-rose-700/60 text-xs font-bold flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-xs"
+                        title="Xóa trắng toàn bộ chuỗi đáp án (Alt+C hoặc Delete)"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
+                        <span>Xóa trắng (Alt+C)</span>
+                      </button>
+                    </>
                   )}
 
                   <button
                     onClick={handleNextOrSkip}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-sm shadow-indigo-600/30"
+                    className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-sm shadow-indigo-600/30"
                     title="Bỏ qua hoặc sang câu kế tiếp (Alt+N)"
                   >
                     <SkipForward className="w-3.5 h-3.5" />
@@ -610,36 +677,71 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
                   </div>
                 </div>
 
-                {/* Sequence comparison */}
+                {/* Sequence comparison with clickable audition */}
                 {lastOfficeAnswerResult.sequenceNotes && (
-                  <div className="flex items-center justify-center gap-1.5 py-1">
-                    {lastOfficeAnswerResult.sequenceNotes.map((targetNote, idx) => {
-                      const userNote = lastOfficeAnswerResult.userNotes?.[idx];
-                      const isMatch = userNote === targetNote;
-                      return (
-                        <div
-                          key={idx}
-                          className={`px-2 sm:px-2.5 py-1 rounded-lg border text-xs font-mono font-bold ${
-                            isMatch
-                              ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
-                              : 'bg-rose-950/80 border-rose-500 text-rose-300'
-                          }`}
-                        >
-                          <div>{noteToSolfege(targetNote)}</div>
-                          <div className="text-[8px] text-slate-400">
-                            {isMatch ? '✓ Đúng' : `✕ (${userNote ? noteToSolfege(userNote) : 'thiếu'})`}
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div className="space-y-1">
+                    <div className="text-[10px] text-slate-400 font-mono">Click từng nốt bên dưới để nghe âm chuẩn:</div>
+                    <div className="flex items-center justify-center gap-1.5 py-0.5 flex-wrap">
+                      {lastOfficeAnswerResult.sequenceNotes.map((targetNote, idx) => {
+                        const userNote = lastOfficeAnswerResult.userNotes?.[idx];
+                        const isMatch = userNote === targetNote;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleFreestylePlayNote(targetNote)}
+                            className={`px-2.5 py-1.5 rounded-xl border text-xs font-mono font-bold transition active:scale-95 cursor-pointer shadow-sm hover:ring-2 hover:ring-emerald-400/50 text-center ${
+                              isMatch
+                                ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
+                                : 'bg-rose-950/80 border-rose-500 text-rose-300'
+                            }`}
+                            title={`Click để nghe âm chuẩn nốt ${noteToSolfege(targetNote)}`}
+                          >
+                            <div className="flex items-center gap-1 justify-center">
+                              <span>{noteToSolfege(targetNote)}</span>
+                              <Volume2 className="w-3 h-3 opacity-70" />
+                            </div>
+                            <div className="text-[8px] text-slate-400 mt-0.5">
+                              {isMatch ? '✓ Đúng' : `✕ (${userNote ? noteToSolfege(userNote) : 'thiếu'})`}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
+
+                {/* Interactive Virtual Keyboard for Freestyle Note Comparison */}
+                <div className="space-y-1 pt-1 border-t border-slate-800/80">
+                  <div className="text-[10px] text-slate-400 flex items-center justify-between font-mono">
+                    <span>Gõ 1-7 hoặc click nghe thử nốt đối chiếu:</span>
+                    <span className="text-amber-400 font-bold flex items-center gap-1">
+                      <Music className="w-3 h-3" />
+                      <span>Freestyle</span>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {keys.slice(0, 7).map((k) => (
+                      <button
+                        key={k.key}
+                        type="button"
+                        onClick={() => handleFreestylePlayNote(k.note)}
+                        className="py-1.5 sm:py-2 rounded-xl bg-slate-800 hover:bg-amber-600 text-slate-100 hover:text-white border border-slate-700/80 font-mono text-xs font-bold flex flex-col items-center justify-center transition active:scale-95 cursor-pointer hover:shadow-md"
+                        title={`Gõ phím ${k.key} hoặc click để nghe nốt ${k.solfege}`}
+                      >
+                        <span className="text-xs sm:text-sm">{k.solfege}</span>
+                        <span className="text-[8px] sm:text-[9px] text-slate-400 font-normal">{k.key}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {/* Action buttons */}
                 <div className="flex items-center justify-center gap-2 pt-1">
                   <button
                     onClick={handleReplay}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm"
+                    title="Nghe lại chuỗi nốt (Alt+R)"
                   >
                     <RotateCcw className="w-3.5 h-3.5 text-emerald-400" />
                     <span>Nghe lại (Alt+R)</span>
@@ -647,6 +749,7 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
                   <button
                     onClick={handleNextOrSkip}
                     className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition active:scale-95 shadow-md shadow-indigo-600/30 cursor-pointer"
+                    title="Sang câu tiếp theo (Alt+N hoặc Enter)"
                   >
                     <span>Câu kế tiếp (Alt+N)</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -655,19 +758,19 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
               </div>
             ) : (
               /* TRẠNG THÁI C: CHỜ ĐẾM NGƯỢC (STANDBY) */
-              <div className="my-auto text-center space-y-2.5 py-2">
-                <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-950/50">
-                  <Music className="w-6 h-6" />
+              <div className="my-auto text-center space-y-2 py-1">
+                <div className="w-10 h-10 mx-auto rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-950/50">
+                  <Music className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-sm text-white">Chế độ Nhớ Cao Độ Văn Phòng</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Luyện thính giác định kỳ qua tai nghe không làm gián đoạn công việc
+                  <h4 className="font-bold text-xs sm:text-sm text-white">Chế độ Nhớ Cao Độ Văn Phòng</h4>
+                  <p className="text-[10px] sm:text-[11px] text-slate-400">
+                    Luyện thính giác định kỳ qua tai nghe không làm phiền đồng nghiệp
                   </p>
                 </div>
 
                 {/* Countdown Timer */}
-                <div className="font-mono text-xs text-slate-300 bg-slate-800/60 rounded-xl py-1.5 px-3 inline-flex items-center gap-2 border border-slate-700/60">
+                <div className="font-mono text-xs text-slate-300 bg-slate-800/60 rounded-xl py-1 px-3 inline-flex items-center gap-2 border border-slate-700/60">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span>Câu tiếp theo sau:</span>
                   <span className="text-emerald-400 font-bold text-xs">
@@ -675,14 +778,37 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
                   </span>
                 </div>
 
+                {/* Virtual Piano for downtime ear practice */}
+                <div className="space-y-1 max-w-xs mx-auto w-full pt-1">
+                  <div className="text-[10px] text-slate-400 flex items-center justify-between font-mono">
+                    <span>Luyện nghe tự do (Gõ 1-7 hoặc click):</span>
+                    <span className="text-emerald-400">Âm chuẩn</span>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {keys.slice(0, 7).map((k) => (
+                      <button
+                        key={k.key}
+                        type="button"
+                        onClick={() => handleFreestylePlayNote(k.note)}
+                        className="py-1 sm:py-1.5 rounded-xl bg-slate-800/90 hover:bg-emerald-600 text-slate-100 hover:text-white border border-slate-700/80 font-mono text-xs font-bold flex flex-col items-center justify-center transition active:scale-95 cursor-pointer shadow-xs"
+                        title={`Gõ phím ${k.key} hoặc click để nghe nốt ${k.solfege}`}
+                      >
+                        <span className="text-xs">{k.solfege}</span>
+                        <span className="text-[8px] text-slate-400 font-normal">{k.key}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Instant Next Question Button */}
-                <div>
+                <div className="pt-0.5">
                   <button
                     onClick={handleNextOrSkip}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-bold text-xs flex items-center gap-2 mx-auto shadow-md shadow-emerald-950/40 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                    className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-bold text-xs flex items-center gap-2 mx-auto shadow-md shadow-emerald-950/40 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                    title="Luyện tập ngay bây giờ (Alt+N hoặc Enter)"
                   >
                     <Play className="w-3.5 h-3.5 fill-white" />
-                    <span>Luyện tập ngay bây giờ</span>
+                    <span>Luyện tập ngay</span>
                   </button>
                 </div>
               </div>
@@ -695,10 +821,10 @@ export const OfficePitchRecallPopUp: React.FC<OfficePitchRecallPopUpProps> = ({
               isDarkMode ? 'border-slate-800/80 text-slate-400' : 'border-slate-200 text-slate-500'
             }`}
           >
-            <span>
-              Alt+Q: Thu nhỏ (—) • Esc: Thoát
+            <span className="truncate">
+              Alt+C: Xóa trắng • Alt+R: Nghe lại • Alt+Q: Thu nhỏ
             </span>
-            <span>
+            <span className="shrink-0 ml-2">
               Đã làm: {officeSession.totalAnswered} • Đúng: {officeSession.correctCount}
             </span>
           </div>

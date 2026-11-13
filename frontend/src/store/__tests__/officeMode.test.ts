@@ -277,4 +277,21 @@ describe('Office Mode (Stealth Ear Training)', () => {
     expect(state.officeSettings.earbudDoubleTapRightAction).toBe('next-question');
     expect(state.officeSettings.earbudDoubleTapLeftAction).toBe('replay-focus');
   });
+
+  it('resets userRecallSequence to empty on clearPitchRecallSequence (Alt+C)', () => {
+    const store = useAppStore.getState();
+    store.toggleOfficeMode(true);
+
+    const question = officeModeEngine.generatePitchRecallQuestion();
+    question.sequenceNotes = ['C4', 'E4', 'G4', 'B4'];
+    store.setCurrentOfficeQuestion(question);
+
+    store.inputPitchRecallNote('C4');
+    store.inputPitchRecallNote('E4');
+    expect(useAppStore.getState().userRecallSequence).toEqual(['C4', 'E4']);
+
+    // Clear sequence
+    store.clearPitchRecallSequence();
+    expect(useAppStore.getState().userRecallSequence).toEqual([]);
+  });
 });
