@@ -287,21 +287,37 @@ export const useOfficeMode = () => {
           album: 'Brain Exercises Pro'
         });
 
-        // 1 chạm nút tai nghe hoặc phím Play/Pause trên bàn phím: Nghe lại chuỗi nốt
+        // 1 chạm nút tai nghe (Play/Pause) tai phải: Nghe lại chuỗi nốt + bung cửa sổ nếu đang thu nhỏ
         navigator.mediaSession.setActionHandler('play', () => {
+          const store = useAppStore.getState();
+          if (store.isOfficePopUpMinimized) {
+            store.restoreOfficePopUp();
+          }
           handleReplay();
         });
         navigator.mediaSession.setActionHandler('pause', () => {
+          const store = useAppStore.getState();
+          if (store.isOfficePopUpMinimized) {
+            store.restoreOfficePopUp();
+          }
           handleReplay();
         });
 
-        // Phím Previous Track (bài trước): Nghe lại chuỗi nốt (Alt+R)
+        // 2 chạm tai trái (Previous Track): Nghe lại chuỗi nốt (Alt+R)
         navigator.mediaSession.setActionHandler('previoustrack', () => {
+          const store = useAppStore.getState();
+          if (store.isOfficePopUpMinimized) {
+            store.restoreOfficePopUp();
+          }
           handleReplay();
         });
 
-        // Phím Next Track (bài sau): Tiếp tục / Sang câu tiếp theo (Alt+N)
+        // 2 chạm tai phải (Next Track): Sang câu mới / Luyện tập ngay / Bỏ qua (Alt+N)
         navigator.mediaSession.setActionHandler('nexttrack', () => {
+          const store = useAppStore.getState();
+          if (store.isOfficePopUpMinimized) {
+            store.restoreOfficePopUp();
+          }
           handleNextOrSkip();
         });
 
