@@ -9,6 +9,8 @@ export const OfficePopUpManager: React.FC = () => {
     isOfficePopUpOpen,
     isOfficePopUpMinimized,
     officePopUpSize,
+    currentOfficeQuestion,
+    officeQuestionState,
     closeOfficePopUp,
   } = useAppStore();
 
@@ -45,7 +47,7 @@ export const OfficePopUpManager: React.FC = () => {
     if (pipWindow && !pipWindow.closed) {
       try {
         if (isOfficePopUpMinimized) {
-          pipWindow.resizeTo(360, 78);
+          pipWindow.resizeTo(360, 140);
         } else if (officePopUpSize === 'expanded') {
           pipWindow.resizeTo(440, 480);
         } else {
@@ -56,6 +58,17 @@ export const OfficePopUpManager: React.FC = () => {
       }
     }
   }, [pipWindow, isOfficePopUpMinimized, officePopUpSize]);
+
+  // Tự động focus cửa sổ PiP khi có câu hỏi mới để người dùng có thể gõ phím ngay
+  useEffect(() => {
+    if (pipWindow && !pipWindow.closed && currentOfficeQuestion && officeQuestionState === 'waiting') {
+      try {
+        pipWindow.focus();
+      } catch (err) {
+        // ignore
+      }
+    }
+  }, [pipWindow, currentOfficeQuestion, officeQuestionState]);
 
   // When PiP window is closed externally (by user clicking native X button)
   useEffect(() => {
@@ -84,7 +97,7 @@ export const OfficePopUpManager: React.FC = () => {
     <div
       className={`fixed right-4 bottom-4 z-[9999] shadow-2xl rounded-2xl overflow-hidden border border-slate-700/80 animate-fade-in transition-all duration-300 ${
         isOfficePopUpMinimized
-          ? 'w-[360px] h-[78px]'
+          ? 'w-[360px] h-[90px]'
           : officePopUpSize === 'expanded'
           ? 'w-[440px] h-[480px]'
           : 'w-[380px] h-[390px]'

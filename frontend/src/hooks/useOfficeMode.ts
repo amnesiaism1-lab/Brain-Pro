@@ -286,17 +286,39 @@ export const useOfficeMode = () => {
           artist: 'Brain Pro - Luyện Tai Ngầm',
           album: 'Brain Exercises Pro'
         });
+
+        // 1 chạm nút tai nghe hoặc phím Play/Pause trên bàn phím: Nghe lại chuỗi nốt
+        navigator.mediaSession.setActionHandler('play', () => {
+          handleReplay();
+        });
+        navigator.mediaSession.setActionHandler('pause', () => {
+          handleReplay();
+        });
+
+        // Phím Previous Track (bài trước): Nghe lại chuỗi nốt (Alt+R)
         navigator.mediaSession.setActionHandler('previoustrack', () => {
           handleReplay();
         });
+
+        // Phím Next Track (bài sau): Tiếp tục / Sang câu tiếp theo (Alt+N)
         navigator.mediaSession.setActionHandler('nexttrack', () => {
+          handleNextOrSkip();
+        });
+
+        // Phím Seek Backward (lùi): Xóa nốt vừa gõ (Backspace)
+        navigator.mediaSession.setActionHandler('seekbackward', () => {
+          handleBackspaceNote();
+        });
+
+        // Phím Seek Forward (tiến): Tiếp tục
+        navigator.mediaSession.setActionHandler('seekforward', () => {
           handleNextOrSkip();
         });
       } catch (e) {
         // ignore
       }
     }
-  }, [officeModeActive, officeSettings.exerciseSlug, handleReplay, handleNextOrSkip]);
+  }, [officeModeActive, officeSettings.exerciseSlug, handleReplay, handleNextOrSkip, handleBackspaceNote]);
 
   // 9. Đồng hồ đếm ngược (Drip Mode Timer)
   useEffect(() => {
