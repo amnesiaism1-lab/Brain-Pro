@@ -50,11 +50,11 @@ export const HomeView: React.FC = () => {
     setSelectedExercisesCategory,
     weeklyChallenges,
     attemptsHistory,
-    playSound 
+    playSound,
+    openOfficePopUp
   } = useAppStore();
 
   const openVocalStudio = useVocalStudioStore((s) => s.openStudio);
-  const openOfficePopUp = useVocalStudioStore((s) => s.openOfficePopUp);
   const [activeSynergyIndex, setActiveSynergyIndex] = useState(0);
 
   const getCategoryCount = (code: CognitiveCategoryCode) => {
@@ -344,12 +344,12 @@ export const HomeView: React.FC = () => {
                   playSound('click');
                   openOfficePopUp();
                 }}
-                className="px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-md shadow-emerald-950/30 transition active:scale-95 border border-emerald-400/30"
-                title="Mở Cửa sổ Pop-up Văn phòng nhỏ gọn Always-on-top"
+                className="px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-md shadow-emerald-950/30 transition active:scale-95 border border-emerald-400/30 cursor-pointer"
+                title="Mở Cửa sổ Pop-up Nhớ Cao Độ (Alt+Q): Always-on-top, luyện nghe & gõ phím"
               >
                 <AppWindow className="w-3.5 h-3.5 text-emerald-100" />
-                <span>Pop-up Văn Phòng</span>
-                <span className="px-1 py-0.2 rounded bg-emerald-950 text-emerald-300 text-[9px] font-mono font-bold">PiP</span>
+                <span>Nhớ Cao Độ</span>
+                <span className="px-1 py-0.2 rounded bg-emerald-950 text-emerald-300 text-[9px] font-mono font-bold">Alt+Q</span>
               </button>
             </div>
 

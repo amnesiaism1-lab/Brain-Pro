@@ -21,7 +21,6 @@ import {
   HelpCircle,
   AppWindow
 } from 'lucide-react';
-import { useVocalStudioStore } from '../../store/vocalStudioStore';
 
 export const OfficeModeInfoPanel: React.FC = () => {
   const {
@@ -34,10 +33,9 @@ export const OfficeModeInfoPanel: React.FC = () => {
     togglePauseOfficeMode,
     toggleInfoPanel,
     updateOfficeSettings,
-    resetOfficeSession
+    resetOfficeSession,
+    openOfficePopUp
   } = useAppStore();
-
-  const openOfficePopUp = useVocalStudioStore((s) => s.openOfficePopUp);
 
   const [activeSubTab, setActiveSubTab] = useState<'controls' | 'guide'>('controls');
 
@@ -471,7 +469,7 @@ export const OfficeModeInfoPanel: React.FC = () => {
                       className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-1.5 shadow transition active:scale-95 cursor-pointer"
                     >
                       <AppWindow className="w-3.5 h-3.5" />
-                      <span>Bật Cửa Sổ Pop-up PiP Luôn Nổi Ngay Bây Giờ</span>
+                      <span>Bật Cửa Sổ Pop-up Nhớ Cao Độ (Alt+Q) Luôn Nổi</span>
                     </button>
                   </div>
                 </div>

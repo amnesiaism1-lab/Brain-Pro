@@ -27,11 +27,14 @@ export const useGlobalHotkeys = ({
     officeModeActive,
     officeQuestionState,
     isInfoPanelOpen,
+    isOfficePopUpOpen,
     currentOfficeQuestion,
     officeSettings,
     toggleOfficeMode,
     togglePauseOfficeMode,
-    toggleInfoPanel
+    toggleInfoPanel,
+    toggleOfficePopUp,
+    closeOfficePopUp
   } = useAppStore();
 
   const propsRef = useRef({
@@ -46,11 +49,14 @@ export const useGlobalHotkeys = ({
     officeModeActive,
     officeQuestionState,
     isInfoPanelOpen,
+    isOfficePopUpOpen,
     currentOfficeQuestion,
     officeSettings,
     toggleOfficeMode,
     togglePauseOfficeMode,
-    toggleInfoPanel
+    toggleInfoPanel,
+    toggleOfficePopUp,
+    closeOfficePopUp
   });
 
   useEffect(() => {
@@ -66,11 +72,14 @@ export const useGlobalHotkeys = ({
       officeModeActive,
       officeQuestionState,
       isInfoPanelOpen,
+      isOfficePopUpOpen,
       currentOfficeQuestion,
       officeSettings,
       toggleOfficeMode,
       togglePauseOfficeMode,
-      toggleInfoPanel
+      toggleInfoPanel,
+      toggleOfficePopUp,
+      closeOfficePopUp
     };
   });
 
@@ -88,8 +97,13 @@ export const useGlobalHotkeys = ({
       const rule = propsRef.current.officeSettings.pitchRecallInputRule || 'scale-degrees';
       const isPitchRecall = currentQ?.exerciseSlug === 'pitch-recall';
 
-      // 1. Phím Escape: Đóng panel thông tin nếu đang mở, hoặc xóa toàn bộ nốt đang gõ để làm lại
+      // 1. Phím Escape: Đóng Pop-up nếu đang mở, đóng panel thông tin, hoặc xóa chuỗi nốt
       if (e.key === 'Escape') {
+        if (propsRef.current.isOfficePopUpOpen) {
+          e.preventDefault();
+          propsRef.current.closeOfficePopUp();
+          return;
+        }
         if (propsRef.current.isInfoPanelOpen) {
           e.preventDefault();
           propsRef.current.toggleInfoPanel(false);
@@ -151,11 +165,11 @@ export const useGlobalHotkeys = ({
 
       // 4. Các tổ hợp phím có Alt (Alt + Key)
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
-        // Alt + Q: Bật / Tắt Office Mode
+        // Alt + Q: Bật / Tắt Cửa Sổ Pop-up Nhớ Cao Độ (Pitch Recall Office Pop-up)
         if (keyLower === 'q') {
           e.preventDefault();
           e.stopPropagation();
-          propsRef.current.toggleOfficeMode();
+          propsRef.current.toggleOfficePopUp();
           return;
         }
 

@@ -17,11 +17,11 @@ export const Navbar: React.FC = () => {
     logout,
     wrongAnswers,
     officeModeActive,
-    toggleInfoPanel
+    toggleInfoPanel,
+    openOfficePopUp
   } = useAppStore();
 
   const openVocalStudio = useVocalStudioStore((s) => s.openStudio);
-  const openOfficePopUp = useVocalStudioStore((s) => s.openOfficePopUp);
 
   // Hide bottom nav while game is actively playing to maximize focus & screen area
   if (activeGameSlug) {
@@ -216,14 +216,14 @@ export const Navbar: React.FC = () => {
             </span>
           </button>
 
-          {/* Cửa Sổ Pop-up Văn Phòng (PiP Spotify Miniplayer) */}
+          {/* Cửa Sổ Pop-up Nhớ Cao Độ (PiP Miniplayer) */}
           <button
             onClick={() => {
               playSound('click');
               openOfficePopUp();
             }}
             className="w-full mt-2 p-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-600/30 transition-all flex items-center justify-between group cursor-pointer active:scale-95 border border-emerald-400/30"
-            title="Mở Cửa sổ Pop-up Văn phòng (Always-on-top): Luyện cảm âm, ngân nga khẽ & phím thầm"
+            title="Mở Pop-up Nhớ Cao Độ (Alt+Q): Luyện thính giác qua tai nghe & gõ phím thầm"
           >
             <div className="flex items-center gap-2">
               <div className="p-1 rounded-lg bg-white/20 text-white">
@@ -231,13 +231,13 @@ export const Navbar: React.FC = () => {
               </div>
               <div className="text-left">
                 <p className="text-xs font-black leading-tight text-white group-hover:text-amber-200 transition-colors">
-                  Pop-up Văn Phòng
+                  Pop-up Nhớ Cao Độ
                 </p>
-                <p className="text-[9px] text-emerald-100/90 font-mono">Spotify Mini PiP</p>
+                <p className="text-[9px] text-emerald-100/90 font-mono">Alt+Q • Mini PiP</p>
               </div>
             </div>
             <span className="px-1.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 text-[9px] font-mono font-bold border border-emerald-400/40">
-              PiP
+              Alt+Q
             </span>
           </button>
           <button

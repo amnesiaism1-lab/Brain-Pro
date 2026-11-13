@@ -77,6 +77,7 @@ export interface OfficeModeSliceState {
   officeModeActive: boolean;
   officeModePaused: boolean;
   isInfoPanelOpen: boolean;
+  isOfficePopUpOpen: boolean;
   officeSettings: OfficeModeSettings;
   officeSession: OfficeSessionStats;
   currentOfficeQuestion: OfficeQuestion | null;
@@ -89,6 +90,9 @@ export interface OfficeModeSliceState {
   toggleOfficeMode: (force?: boolean) => void;
   togglePauseOfficeMode: () => void;
   toggleInfoPanel: (open?: boolean) => void;
+  openOfficePopUp: () => void;
+  closeOfficePopUp: () => void;
+  toggleOfficePopUp: () => void;
   updateOfficeSettings: (settings: Partial<OfficeModeSettings>) => void;
   setPitchRecallInputRule: (rule: PitchRecallInputRule) => void;
   setCurrentOfficeQuestion: (q: OfficeQuestion | null) => void;
@@ -152,6 +156,7 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
   officeModeActive: false,
   officeModePaused: false,
   isInfoPanelOpen: false,
+  isOfficePopUpOpen: false,
   officeSettings: loadSettings(),
   officeSession: createInitialSession(),
   currentOfficeQuestion: null,
@@ -159,6 +164,37 @@ export const createOfficeModeSlice = (set: any, get: any): OfficeModeSliceState 
   lastOfficeAnswerResult: null,
   secondsUntilNext: 180,
   userRecallSequence: [],
+
+  openOfficePopUp: () => {
+    set((state: OfficeModeSliceState) => ({
+      officeModeActive: true,
+      officeModePaused: false,
+      isOfficePopUpOpen: true,
+      officeSettings: {
+        ...state.officeSettings,
+        exerciseSlug: 'pitch-recall', // Đảm bảo luôn mở bài tập Nhớ Cao Độ
+      },
+    }));
+  },
+
+  closeOfficePopUp: () => {
+    set({ isOfficePopUpOpen: false });
+  },
+
+  toggleOfficePopUp: () => {
+    set((state: OfficeModeSliceState) => {
+      const nextOpen = !state.isOfficePopUpOpen;
+      return {
+        isOfficePopUpOpen: nextOpen,
+        officeModeActive: nextOpen ? true : state.officeModeActive,
+        officeModePaused: false,
+        officeSettings: {
+          ...state.officeSettings,
+          exerciseSlug: 'pitch-recall',
+        },
+      };
+    });
+  },
 
   toggleOfficeMode: (force?: boolean) => {
     set((state: OfficeModeSliceState) => {

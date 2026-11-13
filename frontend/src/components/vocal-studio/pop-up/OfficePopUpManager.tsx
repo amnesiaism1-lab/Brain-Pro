@@ -1,16 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useVocalStudioStore } from '../../../store/vocalStudioStore';
+import { useAppStore } from '../../../store/useAppStore';
 import { useDocumentPictureInPicture } from '../../../hooks/useDocumentPictureInPicture';
-import { OfficeMiniPlayerPopUp } from './OfficeMiniPlayerPopUp';
+import { OfficePitchRecallPopUp } from './OfficePitchRecallPopUp';
 
 export const OfficePopUpManager: React.FC = () => {
   const {
     isOfficePopUpOpen,
     closeOfficePopUp,
-    openStudio,
-    officeLayout,
-  } = useVocalStudioStore();
+  } = useAppStore();
 
   const {
     isSupported,
@@ -26,9 +24,7 @@ export const OfficePopUpManager: React.FC = () => {
   useEffect(() => {
     if (isOfficePopUpOpen && !prevOfficePopUpOpen.current) {
       if (isSupported && !isPipActive) {
-        const width = officeLayout === 'ribbon' ? 420 : 380;
-        const height = officeLayout === 'ribbon' ? 110 : 350;
-        openPiP({ width, height }).then((win) => {
+        openPiP({ width: 380, height: 380, title: 'Brain Pro • Nhớ Cao Độ (Alt+Q)' }).then((win) => {
           if (!win) {
             console.log('Document PiP window rejected or blocked, falling back to In-App Floating Player.');
           }
@@ -40,7 +36,7 @@ export const OfficePopUpManager: React.FC = () => {
       }
     }
     prevOfficePopUpOpen.current = isOfficePopUpOpen;
-  }, [isOfficePopUpOpen, isSupported, isPipActive, officeLayout, openPiP, closePiP]);
+  }, [isOfficePopUpOpen, isSupported, isPipActive, openPiP, closePiP]);
 
   // When PiP window is closed externally (by user clicking native X button)
   useEffect(() => {
@@ -54,40 +50,28 @@ export const OfficePopUpManager: React.FC = () => {
   // Case A: Rendered into Document Picture-in-Picture window via React Portal
   if (pipWindow) {
     return createPortal(
-      <OfficeMiniPlayerPopUp
+      <OfficePitchRecallPopUp
         onClose={() => {
           closePiP();
           closeOfficePopUp();
-        }}
-        onMaximize={() => {
-          closePiP();
-          closeOfficePopUp();
-          openStudio();
         }}
       />,
       pipWindow.document.body
     );
   }
 
-  // Case B: In-App Floating Mini Dock Fallback (when PiP is unsupported or inside tab)
-  const isRibbon = officeLayout === 'ribbon';
-
+  // Case B: In-App Floating Mini Dock Fallback (when PiP is unsupported or blocked)
   return (
     <div
-      className={`fixed right-4 bottom-4 z-[9999] shadow-2xl rounded-2xl overflow-hidden border border-slate-700/80 animate-fade-in transition-all duration-200 ${
-        isRibbon ? 'w-[420px] h-[105px]' : 'w-[370px] h-[340px]'
-      }`}
+      className="fixed right-4 bottom-4 z-[9999] shadow-2xl rounded-2xl overflow-hidden border border-slate-700/80 animate-fade-in transition-all duration-200 w-[380px] h-[360px]"
       style={{
-        boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.75), 0 0 25px 0 rgba(16, 185, 129, 0.15)',
+        boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.75), 0 0 25px 0 rgba(16, 185, 129, 0.2)',
       }}
     >
-      <OfficeMiniPlayerPopUp
+      <OfficePitchRecallPopUp
         onClose={() => closeOfficePopUp()}
-        onMaximize={() => {
-          closeOfficePopUp();
-          openStudio();
-        }}
       />
     </div>
   );
 };
+
