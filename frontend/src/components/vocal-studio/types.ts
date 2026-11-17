@@ -88,6 +88,7 @@ export interface RunwayRenderState {
   targetMode?: TargetPitchMode;
   isWindowLocked?: boolean;
   noteBars?: IVocalNoteBar[];
+  phrases?: IVocalPhrase[];
   latencyOffsetMs?: number;
   scaleNotes?: string[];
   transposeSemitones?: number;

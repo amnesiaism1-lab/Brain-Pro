@@ -182,6 +182,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     renderStateRef.current.snapToScale = store.snapToScale;
     renderStateRef.current.selectedKeyName = activeKeyName;
     renderStateRef.current.octaveConvention = store.octaveConvention;
+    renderStateRef.current.phrases = store.analysisResult?.phrases;
   }, [
     store.smartOctaveFold,
     store.toleranceCents,
@@ -194,6 +195,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     store.transposeSemitones,
     store.snapToScale,
     store.octaveConvention,
+    store.analysisResult,
     activeScaleNotes,
     activeKeyName,
   ]);
@@ -223,9 +225,9 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
           }
         }
 
-        // Throttle React state update to ~4Hz for timeline display
+        // Update React timeline clock at ~11Hz (word HUD subscribes directly to renderStateRef at ~30Hz)
         const now = performance.now();
-        if (now - lastClockUiUpdate > 250) {
+        if (now - lastClockUiUpdate > 90) {
           lastClockUiUpdate = now;
           store.setCurrentTimeMs(renderStateRef.current.currentTimeMs);
         }

@@ -218,7 +218,7 @@ interface ICachedSongLyrics {
   }>;
 }
 
-const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v10_';
+const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v11_';
 const CLOUD_LRC_CACHE_PREFIX = 'brain_vocal_cloud_lrc_v9_';
 
 /**
@@ -2355,6 +2355,385 @@ function computeWordAcousticStats(
 }
 
 /**
+ * Acoustic-Phonetic Frame-Level Forced Aligner ("Dính từng chữ"):
+ * Extracts 15ms multi-feature spectral/energy/formant-flux envelopes directly from `rawMonoPcm`
+ * + `pitchTrack`, and solves an Elastic Phonology Viterbi DP assigning every word `w` (`0..W-1`)
+ * to its exact syllable onset and vowel nucleus within the vocal phrase.
+ */
+function forceAlignPhraseWordsAcoustically(params: {
+  phrase: IVocalPhrase;
+  phraseBars: IVocalNoteBar[];
+  allNoteBars: IVocalNoteBar[];
+  words: IVocalLyricWord[];
+  rawTokens: string[];
+  rawMonoPcm: Float32Array;
+  sampleRate: number;
+  pitchTrack: IReferencePitchPoint[];
+  wordTimestamps?: Array<{ timeMs: number; text: string }>;
+  splitNoteBarsToMatch?: boolean;
+}): void {
+  const {
+    phrase,
+    phraseBars,
+    allNoteBars,
+    words,
+    rawTokens,
+    rawMonoPcm,
+    sampleRate,
+    pitchTrack,
+    wordTimestamps,
+    splitNoteBarsToMatch = true,
+  } = params;
+
+  const W = rawTokens.length;
+  if (W < 2 || words.length !== W || phraseBars.length === 0 || !rawMonoPcm || rawMonoPcm.length < 512) {
+    return;
+  }
+
+  const baseStartMs = Math.max(0, phraseBars[0].startTimeMs - 45);
+  const baseEndMs = phraseBars[phraseBars.length - 1].endTimeMs + 45;
+  const totalSpanMs = baseEndMs - baseStartMs;
+  if (totalSpanMs < W * 55) return;
+
+  // Check if PCM actually contains real vocal energy inside this window
+  const sIdxStart = Math.max(0, Math.floor((baseStartMs / 1000) * sampleRate));
+  const sIdxEnd = Math.min(rawMonoPcm.length, Math.ceil((baseEndMs / 1000) * sampleRate));
+  if (sIdxEnd - sIdxStart < 512) return;
+  let peakAbs = 0;
+  for (let i = sIdxStart; i < sIdxEnd; i += 4) {
+    const a = Math.abs(rawMonoPcm[i]);
+    if (a > peakAbs) peakAbs = a;
+  }
+  if (peakAbs < 0.005) return;
+
+  // Frame grid: 15ms step (adaptive if long >6.75s phrase so T <= 450)
+  const stepMs = Math.max(15, Math.ceil(totalSpanMs / 450));
+  const T = Math.max(W * 3, Math.round(totalSpanMs / stepMs));
+  const winLen = Math.min(1024, Math.max(256, Math.round(sampleRate * 0.024)));
+
+  const energyDb = new Float64Array(T);
+  const hfRatioDb = new Float64Array(T);
+  const oralNasalDb = new Float64Array(T);
+  const bVec = Array.from({ length: T }, () => new Float64Array(4));
+  const frameMidis = new Float64Array(T);
+
+  const vocalBands = [360, 720, 1250, 2100];
+  let ptCursor = 0;
+  let maxDb = -120;
+  let minDb = 0;
+
+  for (let t = 0; t < T; t++) {
+    const tMs = baseStartMs + (t + 0.5) * stepMs;
+    const centerSample = Math.round((tMs / 1000) * sampleRate);
+    const startSample = Math.max(0, Math.min(rawMonoPcm.length - winLen, centerSample - Math.floor(winLen / 2)));
+
+    let sumBandE = 0;
+    for (let m = 0; m < 4; m++) {
+      const e = goertzelBandEnergy(rawMonoPcm, startSample, winLen, sampleRate, vocalBands[m]);
+      bVec[t][m] = e;
+      sumBandE += e;
+    }
+    const eps = 1e-12;
+    for (let m = 0; m < 4; m++) {
+      bVec[t][m] /= sumBandE + eps;
+    }
+
+    const eDb = 10 * Math.log10(sumBandE / 4 + eps);
+    energyDb[t] = eDb;
+    if (eDb > maxDb) maxDb = eDb;
+    if (eDb < minDb) minDb = eDb;
+
+    const hfE =
+      (goertzelBandEnergy(rawMonoPcm, startSample, winLen, sampleRate, 3000) +
+        goertzelBandEnergy(rawMonoPcm, startSample, winLen, sampleRate, 4400)) *
+      0.5;
+    const lowE = (bVec[t][0] * sumBandE + bVec[t][1] * sumBandE) * 0.5;
+    hfRatioDb[t] = 10 * Math.log10((hfE + eps) / (lowE + eps));
+
+    while (ptCursor + 1 < pitchTrack.length && pitchTrack[ptCursor + 1].timeMs <= tMs) {
+      ptCursor++;
+    }
+    const curPt = pitchTrack[ptCursor];
+    const frameF0 =
+      curPt && curPt.isVocal && curPt.freqHz > 140 && Math.abs(curPt.timeMs - tMs) <= 45
+        ? curPt.freqHz
+        : undefined;
+    frameMidis[t] =
+      curPt && curPt.isVocal && curPt.midi > 0 && Math.abs(curPt.timeMs - tMs) <= 45 ? curPt.midi : 0;
+    oralNasalDb[t] = computeOralToNasalRatioDbAtMs(rawMonoPcm, sampleRate, tMs, frameF0);
+  }
+
+  // Require real dynamic modulation (>= 4.5dB) so constant-envelope synthetic waves stay untouched
+  if (maxDb - minDb < 4.5) return;
+
+  const formantFlux = new Float64Array(T);
+  const rmsDip = new Float64Array(T);
+  const hfRise = new Float64Array(T);
+  const nasalDip = new Float64Array(T);
+  const pitchVel = new Float64Array(T);
+  const barOnsetBonus = new Float64Array(T);
+  const activity = new Float64Array(T);
+
+  for (let b = 0; b < phraseBars.length; b++) {
+    const barF = Math.round((phraseBars[b].startTimeMs - baseStartMs) / stepMs);
+    for (let d = -1; d <= 1; d++) {
+      if (barF + d >= 0 && barF + d < T) {
+        barOnsetBonus[barF + d] = Math.max(barOnsetBonus[barF + d], d === 0 ? 5.0 : 2.8);
+      }
+    }
+  }
+
+  for (let t = 0; t < T; t++) {
+    const tMs = baseStartMs + (t + 0.5) * stepMs;
+    const relDb = energyDb[t] - maxDb;
+    const inBar = phraseBars.some((b) => tMs >= b.startTimeMs - 15 && tMs <= b.endTimeMs + 15);
+    const act = relDb >= -18 ? 0.5 + 0.5 * Math.min(1, (relDb + 18) / 14) : inBar ? 0.32 : 0.05;
+    activity[t] = act;
+
+    if (t >= 1 && t < T - 1) {
+      let flux = 0;
+      for (let m = 0; m < 4; m++) {
+        flux += Math.abs(bVec[t + 1][m] - bVec[t - 1][m]);
+      }
+      formantFlux[t] = flux * 5.0;
+
+      const leftE = t >= 2 ? Math.max(energyDb[t - 1], energyDb[t - 2]) : energyDb[t - 1];
+      const rightE = t + 2 < T ? Math.max(energyDb[t + 1], energyDb[t + 2]) : energyDb[t + 1];
+      rmsDip[t] = Math.max(0, Math.min(leftE, rightE) - energyDb[t]);
+
+      const prevHf = t >= 2 ? Math.min(hfRatioDb[t - 1], hfRatioDb[t - 2]) : hfRatioDb[t - 1];
+      hfRise[t] = Math.max(0, hfRatioDb[t] - prevHf);
+
+      nasalDip[t] = Math.max(0, Math.min(oralNasalDb[t - 1], oralNasalDb[t + 1]) - oralNasalDb[t]);
+
+      if (frameMidis[t + 1] > 0 && frameMidis[t - 1] > 0) {
+        pitchVel[t] = Math.min(5.0, Math.abs(frameMidis[t + 1] - frameMidis[t - 1]) * 1.4);
+      }
+    }
+  }
+
+  const cumActivity = new Float64Array(T + 1);
+  for (let t = 0; t < T; t++) {
+    cumActivity[t + 1] = cumActivity[t] + activity[t];
+  }
+  const totalActiveFrames = cumActivity[T];
+  if (totalActiveFrames < W * 2.0) return;
+
+  const wordWeights = rawTokens.map((tk, idx) =>
+    computeWordIntrinsicDurationWeight(tk, idx === W - 1)
+  );
+  const totalWeight = wordWeights.reduce((s, w) => s + w, 0) || 1;
+  const wordPhonStates = rawTokens.map((tk) => decomposeVietnameseWordPhoneticStates(tk));
+  const wordOrtho = rawTokens.map((tk) => extractVietnameseWordVowel(tk));
+
+  const cumTargetActive = new Float64Array(W);
+  let accW = 0;
+  for (let w = 0; w < W; w++) {
+    accW += wordWeights[w];
+    cumTargetActive[w] = (accW / totalWeight) * totalActiveFrames;
+  }
+
+  const minFramesPerWord = Math.max(2, Math.min(4, Math.floor(T / (W * 1.4))));
+  const dp: Float64Array[] = Array.from({ length: W }, () => new Float64Array(T + 1).fill(Infinity));
+  const prevSplit: Int32Array[] = Array.from({ length: W }, () => new Int32Array(T + 1).fill(0));
+
+  const boundaryBonusAt = (wIdx: number, k: number): number => {
+    if (k <= 0 || k >= T) return 0;
+    const state = wordPhonStates[wIdx];
+    let bonus =
+      formantFlux[k] * 1.35 +
+      Math.min(10, rmsDip[k] * 0.9) +
+      pitchVel[k] +
+      barOnsetBonus[k];
+
+    if (state.onsetState === 'STOP_FRIC') {
+      bonus += Math.min(9.0, hfRise[k] * 0.85) + Math.min(5.0, rmsDip[k] * 0.6);
+    } else if (state.onsetState === 'NASAL_LIQUID') {
+      bonus += Math.min(8.0, nasalDip[k] * 0.95);
+    } else {
+      bonus += formantFlux[k] * 0.7;
+    }
+
+    const wordTs = wordTimestamps?.[wIdx]?.timeMs;
+    if (wordTs && Number.isFinite(wordTs)) {
+      const kMs = baseStartMs + k * stepMs;
+      const dist = Math.abs(kMs - wordTs);
+      if (dist <= 220) {
+        bonus += ((220 - dist) / 220) * 6.5;
+      }
+    }
+    return bonus;
+  };
+
+  const wordSegmentCost = (wIdx: number, startK: number, endK: number): number => {
+    const segActiveFrames = cumActivity[endK] - cumActivity[startK];
+    const segActiveMs = segActiveFrames * stepMs;
+    const baseExpectedFrames = (wordWeights[wIdx] / totalWeight) * totalActiveFrames;
+    const hasMelismaHold = (words[wIdx].melismaNotesCount || 1) >= 2 && (words[wIdx].durationMs || 0) > 250;
+    const expectedFrames = hasMelismaHold
+      ? baseExpectedFrames * 0.4 + ((words[wIdx].durationMs || 300) / stepMs) * 0.6
+      : baseExpectedFrames;
+    const expectedMs = expectedFrames * stepMs;
+
+    let cost = 0;
+    if (segActiveMs < 35) {
+      cost += 20;
+    }
+    const isChecked = wordOrtho[wIdx]?.isCheckedStop;
+    const isEndPhrase = wIdx === W - 1 || /[,.;!?]$/.test(rawTokens[wIdx]);
+    if (isChecked && segActiveMs > Math.max(290, expectedMs * 1.85)) {
+      cost += ((segActiveMs - Math.max(290, expectedMs * 1.85)) / 100) * 3.8;
+    } else if (!isEndPhrase && !hasMelismaHold && segActiveMs > expectedMs * 2.4 && expectedMs > 80) {
+      cost += ((segActiveMs - expectedMs * 2.4) / 140) * 1.5;
+    }
+
+    const relDiff = Math.abs(segActiveFrames - expectedFrames) / Math.max(2.5, expectedFrames);
+    cost += Math.min(5.5, relDiff * (isEndPhrase || hasMelismaHold ? 0.65 : 1.45));
+
+    const driftRatio =
+      Math.abs(cumActivity[endK] - cumTargetActive[wIdx]) / Math.max(4, totalActiveFrames * 0.14);
+    cost += Math.min(4.0, driftRatio * 0.85);
+
+    if (wIdx > 0) {
+      cost -= boundaryBonusAt(wIdx, startK);
+    }
+    return cost;
+  };
+
+  const maxFirstEnd = T - (W - 1) * minFramesPerWord;
+  for (let k = minFramesPerWord; k <= maxFirstEnd; k++) {
+    dp[0][k] = wordSegmentCost(0, 0, k);
+    prevSplit[0][k] = 0;
+  }
+
+  for (let w = 1; w < W; w++) {
+    const minEnd = (w + 1) * minFramesPerWord;
+    const maxEnd = w === W - 1 ? T : T - (W - 1 - w) * minFramesPerWord;
+    const startSearchEnd = w === W - 1 ? T : minEnd;
+
+    for (let k = startSearchEnd; k <= maxEnd; k++) {
+      const maxPrev = k - minFramesPerWord;
+      const minPrev = Math.max(w * minFramesPerWord, k - Math.max(24, Math.ceil((T / W) * 3.5)));
+      let bestCost = Infinity;
+      let bestPrev = minPrev;
+      for (let pk = minPrev; pk <= maxPrev; pk++) {
+        if (dp[w - 1][pk] === Infinity) continue;
+        const cand = dp[w - 1][pk] + wordSegmentCost(w, pk, k);
+        if (cand < bestCost) {
+          bestCost = cand;
+          bestPrev = pk;
+        }
+      }
+      dp[w][k] = bestCost;
+      prevSplit[w][k] = bestPrev;
+    }
+  }
+
+  if (dp[W - 1][T] === Infinity) return;
+
+  const boundsK = new Array<number>(W + 1);
+  boundsK[W] = T;
+  let curK = T;
+  for (let w = W - 1; w >= 0; w--) {
+    const startK = prevSplit[w][curK];
+    boundsK[w] = startK;
+    curK = startK;
+  }
+
+  for (let w = 0; w < W; w++) {
+    let fStart = boundsK[w];
+    let fEnd = boundsK[w + 1];
+
+    if (w === 0) {
+      while (fStart + minFramesPerWord < fEnd && activity[fStart] <= 0.12) fStart++;
+    }
+    if (w === W - 1) {
+      while (fEnd - minFramesPerWord > fStart && activity[fEnd - 1] <= 0.12) fEnd--;
+    }
+
+    const wStartMs = Math.round(baseStartMs + fStart * stepMs);
+    const wEndMs = Math.max(wStartMs + 50, Math.round(baseStartMs + fEnd * stepMs));
+    words[w].startMs = wStartMs;
+    words[w].endMs = wEndMs;
+    words[w].durationMs = Math.max(50, wEndMs - wStartMs);
+
+    const localStats = computeWordAcousticStats(
+      wStartMs,
+      wEndMs,
+      pitchTrack,
+      words[w].midi,
+      Boolean(wordOrtho[w]?.isCheckedStop),
+      words[w].melismaNotesCount || 1
+    );
+    words[w].midi = localStats.midi;
+    words[w].noteName = localStats.noteName;
+    words[w].solfege = localStats.solfege;
+    words[w].sustainCoreMs = localStats.sustainCoreMs;
+    words[w].sustainKind = localStats.sustainKind;
+    if (!words[w].melismaNotesCount || words[w].melismaNotesCount === 1) {
+      words[w].noteSequence = [localStats.noteName];
+      words[w].solfegeSequence = [localStats.solfege];
+    }
+  }
+
+  for (let w = 0; w < W; w++) {
+    words[w].stepSemitones = w > 0 ? words[w].midi - words[w - 1].midi : 0;
+  }
+
+  if (words.length > 0) {
+    phrase.startMs = words[0].startMs;
+    phrase.endMs = words[W - 1].endMs;
+    phrase.durationMs = Math.max(200, phrase.endMs - phrase.startMs);
+  }
+
+  if (splitNoteBarsToMatch) {
+    let didSplit = true;
+    let guard = 0;
+    while (didSplit && guard < 16) {
+      didSplit = false;
+      guard++;
+      const currentPhraseBars = getPhraseNoteBarsStrict(phrase, allNoteBars);
+      for (const bar of currentPhraseBars) {
+        if (bar.durationMs < 180) continue;
+        const insideStarts = words
+          .filter(
+            (w) =>
+              w.wordIndex > 0 &&
+              w.startMs >= bar.startTimeMs + 75 &&
+              w.startMs <= bar.endTimeMs - 75
+          )
+          .sort((a, b) => a.startMs - b.startMs);
+        if (insideStarts.length > 0) {
+          const allIdx = allNoteBars.findIndex((b) => b.id === bar.id);
+          if (allIdx >= 0) {
+            const tempList = [bar];
+            splitSingleBarAtMs(tempList, allNoteBars, 0, insideStarts[0].startMs, pitchTrack);
+            didSplit = true;
+            break;
+          }
+        }
+      }
+    }
+
+    const syncedBars = getPhraseNoteBarsStrict(phrase, allNoteBars);
+    for (const bar of syncedBars) {
+      const bMid = (bar.startTimeMs + bar.endTimeMs) / 2;
+      const matchingWord =
+        words.find((w) => bMid >= w.startMs - 20 && bMid <= w.endMs + 20) ||
+        words.reduce((best, w) => {
+          const curDist = Math.abs((w.startMs + w.endMs) / 2 - bMid);
+          const bestDist = Math.abs((best.startMs + best.endMs) / 2 - bMid);
+          return curDist < bestDist ? w : best;
+        }, words[0]);
+      if (matchingWord) {
+        bar.lyricSyllable = matchingWord.text;
+        bar.vowelHint = matchingWord.vowelHint;
+      }
+    }
+  }
+}
+
+/**
  * Align a lyric string (or deep vowel-trajectory tokens) onto the discrete NoteBars belonging to a Phrase.
  * Combines:
  * - Attack-scoop absorption & Syllable-dip NoteBar subdivision (distinguishing 2 same-pitch words from 1 sustained note)
@@ -2647,7 +3026,20 @@ export function alignWordsToPhraseNoteBars(
     rawTokens.forEach((_, i) => {
       const wordMidFrac = (accumWeight + wordWeights[i] * 0.5) / totalWordWeight;
       accumWeight += wordWeights[i];
-      const weightTargetMs = phraseBars[0].startTimeMs + wordMidFrac * totalBarsDuration;
+
+      // Piecewise active-time interpolation along phraseBars so inter-bar silence gaps never shift targets early!
+      let activeTargetRemaining = wordMidFrac * totalBarsDuration;
+      let weightTargetMs = phraseBars[phraseBars.length - 1].endTimeMs;
+      for (let b = 0; b < phraseBars.length; b++) {
+        if (activeTargetRemaining <= phraseBars[b].durationMs || b === phraseBars.length - 1) {
+          weightTargetMs =
+            phraseBars[b].startTimeMs +
+            Math.max(0, Math.min(phraseBars[b].durationMs, activeTargetRemaining));
+          break;
+        }
+        activeTargetRemaining -= phraseBars[b].durationMs;
+      }
+
       const tsAnchorMs = wordTimestamps?.[i]?.timeMs;
       const targetTimeMs =
         tsAnchorMs !== undefined &&
@@ -2792,6 +3184,29 @@ export function alignWordsToPhraseNoteBars(
           pitchCurveCents: ac.pitchCurveCents,
         });
       });
+    });
+  }
+
+  // Frame-Level Acoustic-Phonetic Forced Alignment ("Dính từng chữ") when real modulated vocal PCM is available
+  if (
+    !preserveCanvasBars &&
+    customTokens.length >= 2 &&
+    words.length === customTokens.length &&
+    phraseBars.length > 0 &&
+    rawMonoPcm &&
+    rawMonoPcm.length >= 512
+  ) {
+    forceAlignPhraseWordsAcoustically({
+      phrase,
+      phraseBars,
+      allNoteBars,
+      words,
+      rawTokens,
+      rawMonoPcm,
+      sampleRate,
+      pitchTrack,
+      wordTimestamps,
+      splitNoteBarsToMatch: true,
     });
   }
 

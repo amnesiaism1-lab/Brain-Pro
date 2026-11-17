@@ -1673,4 +1673,108 @@ describe('lyricAlignmentService', () => {
     expect(phrases[1].words?.[1].toneType).toBe('sac');
     expect(phrases[1].words?.[2].toneType).toBe('huyen');
   });
+
+  it('force-aligns asymmetric syllables tightly to real modulated PCM energy & formant shifts and splits flat bars', () => {
+    const sr = 16000;
+    const durSec = 1.9;
+    const pcm = new Float32Array(Math.round(sr * durSec));
+    // Construct realistic 3-word vocal contour in [0.05s..1.85s]:
+    // 0.05..0.32s: Checked word 1 ("Tất") -> brief vowel 720Hz then quiet dip 0.32..0.46s
+    // 0.46..1.38s: Long sustained word 2 ("yêu") -> strong sustained formant 1250Hz + 360Hz
+    // 1.38..1.48s: Dip/nasal transition
+    // 1.48..1.80s: Word 3 ("em") -> shifted formant 2100Hz
+    for (let i = 0; i < pcm.length; i++) {
+      const t = i / sr;
+      if (t >= 0.05 && t < 0.32) {
+        pcm[i] = 0.4 * Math.sin(2 * Math.PI * 720 * t) + 0.12 * Math.sin(2 * Math.PI * 3200 * t);
+      } else if (t >= 0.32 && t < 0.46) {
+        pcm[i] = 0.015 * Math.sin(2 * Math.PI * 260 * t);
+      } else if (t >= 0.46 && t < 1.38) {
+        pcm[i] = 0.55 * Math.sin(2 * Math.PI * 1250 * t) + 0.25 * Math.sin(2 * Math.PI * 360 * t);
+      } else if (t >= 1.38 && t < 1.48) {
+        pcm[i] = 0.02 * Math.sin(2 * Math.PI * 260 * t);
+      } else if (t >= 1.48 && t < 1.80) {
+        pcm[i] = 0.42 * Math.sin(2 * Math.PI * 2100 * t) + 0.2 * Math.sin(2 * Math.PI * 360 * t);
+      }
+    }
+
+    const singleMergedBar: IVocalNoteBar[] = [
+      {
+        id: 'flat-phrase-bar',
+        startTimeMs: 50,
+        endTimeMs: 1800,
+        durationMs: 1750,
+        midi: 64,
+        exactMidi: 64,
+        noteName: 'E4',
+        solfegeName: 'Mi 4',
+        avgCentsDiff: 0,
+        pointsCount: 100,
+      },
+    ];
+    const phrase: IVocalPhrase = {
+      id: 'p-fa',
+      phraseIndex: 1,
+      startMs: 50,
+      endMs: 1800,
+      durationMs: 1750,
+      contour: 'level',
+      contourLabel: '',
+      avgMidi: 64,
+      lowestMidi: 64,
+      highestMidi: 64,
+      lowestNote: 'E4',
+      highestNote: 'E4',
+      pitchJumpSemitones: 0,
+      notes: ['E4'],
+      difficulty: 'Dễ',
+      difficultyScore: 2,
+      pointsCount: 100,
+    };
+
+    alignWordsToPhraseNoteBars(phrase, singleMergedBar, 'Tất yêu em', pcm, sr, []);
+    expect(phrase.words).toHaveLength(3);
+    const w0 = phrase.words![0];
+    const w1 = phrase.words![1];
+    const w2 = phrase.words![2];
+    // Word 2 ("yêu") must capture the long sustained center [~460..1380ms], much longer than checked word 1 ("Tất")!
+    expect(w1.durationMs!).toBeGreaterThan(w0.durationMs! + 220);
+    expect(w1.startMs).toBeGreaterThanOrEqual(280);
+    expect(w1.startMs).toBeLessThanOrEqual(560);
+    expect(w2.startMs).toBeGreaterThanOrEqual(1200);
+    // Forced alignment also splits the merged bar into per-syllable blocks on singleMergedBar
+    expect(singleMergedBar.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('skips inter-bar silence gaps when computing active-time word mapping without PCM', () => {
+    // Bar 0: 1000..1300 (300ms), GAP 700ms, Bar 1: 2000..2900 (900ms) -> 3 rapid words
+    const bars: IVocalNoteBar[] = [
+      { id: 'gb-1', startTimeMs: 1000, endTimeMs: 1300, durationMs: 300, midi: 60, exactMidi: 60, noteName: 'C4', solfegeName: 'Do 4', avgCentsDiff: 0, pointsCount: 10 },
+      { id: 'gb-2', startTimeMs: 2000, endTimeMs: 2900, durationMs: 900, midi: 67, exactMidi: 67, noteName: 'G4', solfegeName: 'Sol 4', avgCentsDiff: 0, pointsCount: 30 },
+    ];
+    const phrase: IVocalPhrase = {
+      id: 'p-gb',
+      phraseIndex: 1,
+      startMs: 1000,
+      endMs: 2900,
+      durationMs: 1900,
+      contour: 'rising',
+      contourLabel: '',
+      avgMidi: 63.5,
+      lowestMidi: 60,
+      highestMidi: 67,
+      lowestNote: 'C4',
+      highestNote: 'G4',
+      pitchJumpSemitones: 7,
+      notes: ['C4', 'G4'],
+      difficulty: 'Dễ',
+      difficultyScore: 3,
+      pointsCount: 40,
+    };
+    alignWordsToPhraseNoteBars(phrase, bars, 'Một hai ba bốn năm sáu', null, 44100, [], undefined, true);
+    expect(phrase.words).toHaveLength(6);
+    // Word 3 ("bốn", middle of phrase) must map to Bar 1 (2000..2900) rather than drifting into silence gap or Bar 0!
+    expect(phrase.words![3].startMs).toBeGreaterThanOrEqual(2000);
+    expect(phrase.words![3].midi).toBe(67);
+  });
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   MapPin,
   Sparkles,
@@ -12,12 +12,14 @@ import {
 import { IVocalPhrase } from '../../../services/vocalFileAnalysisService';
 import { LyricDisplayMode, LyricSourceType, IVocalLyricWord } from '../../../services/lyricAlignmentService';
 import { auditoryEngine } from '../../../services/auditoryEngine';
-import { SingSessionStats } from '../types';
+import { RunwayRenderState, SingSessionStats } from '../types';
 import { formatTimeMs } from '../utils/vocalHelpers';
 
 interface KaraokeLyricHudProps {
   phrases: IVocalPhrase[];
   currentTimeMs: number;
+  renderStateRef?: React.MutableRefObject<RunwayRenderState>;
+  isPlaying?: boolean;
   activePhrase: IVocalPhrase | null;
   sessionStats: SingSessionStats;
   lyricSource?: LyricSourceType;
@@ -63,6 +65,8 @@ const SOURCE_LABELS: Record<LyricSourceType, { label: string; colorClass: string
 export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
   phrases,
   currentTimeMs,
+  renderStateRef,
+  isPlaying = false,
   activePhrase,
   sessionStats,
   lyricSource = 'acoustic_relative',
@@ -81,13 +85,42 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
   const [isZenMode, setIsZenMode] = useState(false);
   const [isEditingInline, setIsEditingInline] = useState(false);
   const [inlineDraft, setInlineDraft] = useState('');
+  const [liveHudTimeMs, setLiveHudTimeMs] = useState<number>(currentTimeMs);
+
+  // High-frequency ~30fps sync directly to renderStateRef while playing so rapid syllables
+  // highlight in lockstep with audio output (<33ms latency) without re-rendering parent store!
+  useEffect(() => {
+    if (!isPlaying || !renderStateRef) {
+      setLiveHudTimeMs(currentTimeMs);
+      return;
+    }
+    let rafId: number;
+    let lastTick = 0;
+    const tick = (now: number) => {
+      if (now - lastTick >= 28) {
+        lastTick = now;
+        const t = renderStateRef.current?.currentTimeMs;
+        if (typeof t === 'number') {
+          setLiveHudTimeMs(t);
+        }
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [isPlaying, renderStateRef, currentTimeMs]);
+
+  const effectiveHudTimeMs = isPlaying && renderStateRef ? liveHudTimeMs : currentTimeMs;
 
   const currentOrUpcomingPhrase = React.useMemo(() => {
-    if (activePhrase) return activePhrase;
+    const activeByClock =
+      phrases.find((p) => effectiveHudTimeMs >= p.startMs && effectiveHudTimeMs <= p.endMs) ||
+      activePhrase;
+    if (activeByClock) return activeByClock;
     if (phrases.length === 0) return null;
-    const upcoming = phrases.find((p) => p.startMs > currentTimeMs);
+    const upcoming = phrases.find((p) => p.startMs > effectiveHudTimeMs);
     return upcoming || phrases[phrases.length - 1];
-  }, [activePhrase, phrases, currentTimeMs]);
+  }, [activePhrase, phrases, effectiveHudTimeMs]);
 
   const nextPhrase = React.useMemo(() => {
     if (!currentOrUpcomingPhrase) return null;
@@ -106,9 +139,9 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
   if (!currentOrUpcomingPhrase) return null;
 
   const isWaitingForEntrance =
-    !activePhrase && currentOrUpcomingPhrase.startMs > currentTimeMs;
+    !activePhrase && currentOrUpcomingPhrase.startMs > effectiveHudTimeMs;
   const countdownSec = isWaitingForEntrance
-    ? Math.max(0, (currentOrUpcomingPhrase.startMs - currentTimeMs) / 1000).toFixed(1)
+    ? Math.max(0, (currentOrUpcomingPhrase.startMs - effectiveHudTimeMs) / 1000).toFixed(1)
     : null;
 
   const words = currentOrUpcomingPhrase.words || [];
@@ -422,8 +455,8 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
             {words.length > 0 ? (
               words.map((word) => {
                 const isWordActive =
-                  currentTimeMs >= word.startMs - 35 && currentTimeMs <= word.endMs + 35;
-                const isWordPast = currentTimeMs > word.endMs + 35;
+                  effectiveHudTimeMs >= word.startMs - 30 && effectiveHudTimeMs <= word.endMs + 30;
+                const isWordPast = effectiveHudTimeMs > word.endMs + 30;
                 const wordKey = `${currentOrUpcomingPhrase.phraseIndex}_${word.wordIndex}`;
                 const stat = sessionStats.wordScores?.[wordKey];
 
@@ -463,7 +496,7 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                       0,
                       Math.min(
                         100,
-                        ((currentTimeMs - word.startMs) / Math.max(80, word.endMs - word.startMs)) *
+                        ((effectiveHudTimeMs - word.startMs) / Math.max(60, word.endMs - word.startMs)) *
                           100
                       )
                     )

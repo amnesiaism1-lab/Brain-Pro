@@ -273,6 +273,8 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         <KaraokeLyricHud
           phrases={analysisResult.phrases}
           currentTimeMs={currentTimeMs}
+          renderStateRef={renderStateRef}
+          isPlaying={isPlaying}
           activePhrase={activePhrase}
           sessionStats={sessionStats}
           lyricSource={analysisResult.lyricSource}

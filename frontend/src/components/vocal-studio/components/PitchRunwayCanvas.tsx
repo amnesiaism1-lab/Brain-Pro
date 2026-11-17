@@ -794,25 +794,60 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
             }
           }
 
-          // Note text & synced lyric syllable badge on the block
+          // Note text & synced lyric syllable badge(s) positioned at exact forced-aligned word onsets
           if (barW >= 22) {
             const oct = Math.floor(barMidi / 12) - 1 + octOffset;
             const displayNoteName = `${barNoteName}${oct}`;
-            const labelText =
-              rawSyl && barW >= 46
-                ? `${rawSyl} · ${displayNoteName}`
-                : rawSyl && barW >= 26
-                ? rawSyl
-                : displayNoteName;
+            const overlappingPhrase = state.phrases?.find(
+              (ph) => ph.endMs >= bar.startTimeMs && ph.startMs <= bar.endTimeMs
+            );
+            const subWords = overlappingPhrase?.words?.filter(
+              (w) => {
+                const wMid = (w.startMs + w.endMs) / 2;
+                return wMid >= bar.startTimeMs - 15 && wMid <= bar.endTimeMs + 15;
+              }
+            );
 
             ctx.save();
             ctx.beginPath();
             ctx.rect(x1 + 2, topY, Math.max(0, barW - 4), barH);
             ctx.clip();
-            ctx.fillStyle = isActive ? '#ffffff' : 'rgba(254, 243, 199, 0.95)';
-            ctx.font = isActive ? 'bold 10.5px sans-serif' : 'bold 10px sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText(labelText, x1 + 5, barY + 3.5);
+
+            if (subWords && subWords.length >= 2 && barW >= 60) {
+              ctx.font = 'bold 10px sans-serif';
+              ctx.textAlign = 'left';
+              subWords.forEach((sw, swIdx) => {
+                const swX = Math.max(
+                  x1 + 4,
+                  playheadX + ((sw.startMs - effectiveTimeMs) / totalWindowMs) * width
+                );
+                if (swIdx > 0 && swX > x1 + 10 && swX < x1 + barW - 10) {
+                  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+                  ctx.setLineDash([2, 2]);
+                  ctx.lineWidth = 1;
+                  ctx.beginPath();
+                  ctx.moveTo(swX, topY + 3);
+                  ctx.lineTo(swX, topY + barH - 3);
+                  ctx.stroke();
+                  ctx.setLineDash([]);
+                }
+                const isSubActive =
+                  effectiveTimeMs >= sw.startMs - 25 && effectiveTimeMs <= sw.endMs + 25;
+                ctx.fillStyle = isSubActive ? '#38bdf8' : 'rgba(254, 243, 199, 0.95)';
+                ctx.fillText(sw.text, swX + 3, barY + 3.5);
+              });
+            } else {
+              const labelText =
+                rawSyl && barW >= 46
+                  ? `${rawSyl} · ${displayNoteName}`
+                  : rawSyl && barW >= 26
+                  ? rawSyl
+                  : displayNoteName;
+              ctx.fillStyle = isActive ? '#ffffff' : 'rgba(254, 243, 199, 0.95)';
+              ctx.font = isActive ? 'bold 10.5px sans-serif' : 'bold 10px sans-serif';
+              ctx.textAlign = 'left';
+              ctx.fillText(labelText, x1 + 5, barY + 3.5);
+            }
             ctx.restore();
           }
 
