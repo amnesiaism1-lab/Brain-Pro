@@ -410,7 +410,7 @@ class VocalFileAnalysisService {
     this.smoothPitchTrack(pitchTrack);
     const noteBars = this.segmentNoteBars(pitchTrack);
 
-    notify(96, 'Đang xác định âm giai và tối ưu lộ trình luyện tập...');
+    notify(92, 'Đang xác định âm giai và tối ưu lộ trình luyện tập...');
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     // 4. Robust Vocal Range & Statistics via 10th-90th percentile filtering
@@ -447,7 +447,7 @@ class VocalFileAnalysisService {
     const estimatedKey = keyAnalysis.estimatedKey;
     const topKeyCandidates = keyAnalysis.topCandidates;
 
-    notify(92, 'Đang phân đoạn câu hát và tối ưu lộ trình luyện tập...');
+    notify(93, 'Đang phân đoạn câu hát và tối ưu lộ trình luyện tập...');
 
     // 6. Phrase Segmentation (Tách từng câu hát)
     const phrases = this.segmentPhrases(pitchTrack);
@@ -462,7 +462,7 @@ class VocalFileAnalysisService {
       }
     }
 
-    notify(91, 'Giai đoạn 6/7: Quét phổ Formant F1-F2 (Goertzel Pre-emphasis) & Quỹ đạo nguyên âm...');
+    notify(94, 'Giai đoạn 6/7: Quét phổ Formant F1-F2 (Goertzel Pre-emphasis) & Quỹ đạo nguyên âm...');
     const lyricMeta = await populateAutomaticSongLyricsAndStructure({
       fileName,
       durationMs,

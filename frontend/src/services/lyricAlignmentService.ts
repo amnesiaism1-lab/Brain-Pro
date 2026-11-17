@@ -4310,14 +4310,66 @@ export function alignPlainTextToPhrases(
     return;
   }
 
+  // Case C: Audio still has more phrases than plain-text lines (P > L)
+  // Align cleanLines onto the best-fitting ordered subsequence of phrases via Syllable-to-Note Density DP
+  // and auto-generate missing lyrics for any unmapped earlier/middle/trailing phrases!
+  const L = cleanLines.length;
+  const P = phrases.length;
+  const lineWords = cleanLines.map((l) => Math.max(1, l.split(/\s+/).filter(Boolean).length));
+  const phraseBars = phrases.map((p) => Math.max(1, getPhraseNoteBarsStrict(p, noteBars).length));
+
+  const dp: number[][] = Array.from({ length: L }, () => new Array(P).fill(Infinity));
+  const prevP: number[][] = Array.from({ length: L }, () => new Array(P).fill(-1));
+  const subseqCost = (lIdx: number, pIdx: number) =>
+    Math.abs(lineWords[lIdx] - phraseBars[pIdx]) * 1.7 +
+    Math.abs((lIdx + 0.5) / L - (pIdx + 0.5) / P) * 8;
+
+  for (let p = 0; p <= P - L; p++) {
+    dp[0][p] = subseqCost(0, p);
+  }
+  for (let l = 1; l < L; l++) {
+    for (let p = l; p <= P - (L - l); p++) {
+      for (let pp = l - 1; pp < p; pp++) {
+        if (dp[l - 1][pp] === Infinity) continue;
+        const cand = dp[l - 1][pp] + subseqCost(l, p) + (p - pp - 1) * 1.4;
+        if (cand < dp[l][p]) {
+          dp[l][p] = cand;
+          prevP[l][p] = pp;
+        }
+      }
+    }
+  }
+
+  let bestEndP = L - 1;
+  let bestCost = Infinity;
+  for (let p = L - 1; p < P; p++) {
+    if (dp[L - 1][p] < bestCost) {
+      bestCost = dp[L - 1][p];
+      bestEndP = p;
+    }
+  }
+
+  const assignedP = new Array(L).fill(-1);
+  let curP = bestEndP;
+  for (let l = L - 1; l >= 0; l--) {
+    assignedP[l] = curP;
+    curP = prevP[l][curP];
+  }
+
+  const phraseToLine = new Map<number, number>();
+  assignedP.forEach((pIdx, lIdx) => {
+    if (pIdx >= 0) phraseToLine.set(pIdx, lIdx);
+  });
+
   phrases.forEach((p, idx) => {
-    if (idx < cleanLines.length) {
+    const lIdx = phraseToLine.get(idx);
+    if (lIdx !== undefined) {
       p.isInstrumentalOrVocalize = false;
       p.isMissingLyricGap = false;
       alignWordsToPhraseNoteBars(
         p,
         noteBars,
-        cleanLines[idx],
+        cleanLines[lIdx],
         rawMonoPcm,
         sampleRate,
         pitchTrack
@@ -4328,6 +4380,10 @@ export function alignPlainTextToPhrases(
       alignWordsToPhraseNoteBars(p, noteBars, undefined, rawMonoPcm, sampleRate, pitchTrack);
     }
   });
+
+  if (phrases.some((p) => p.isMissingLyricGap)) {
+    autoGenerateMissingLyrics(phrases, noteBars, rawMonoPcm, sampleRate, pitchTrack);
+  }
 }
 
 /**
