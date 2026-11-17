@@ -23,6 +23,7 @@ import {
   alignLrcLinesToPhrases,
   alignPlainTextToPhrases,
   alignWordsToPhraseNoteBars,
+  auditLyricAlignmentHealth,
   buildSmartLyricQueries,
   classifyPhraseSectionsAndContours,
   fetchAutoLyricsFromLrclib,
@@ -149,7 +150,8 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
         lrcLines,
         rawMonoPcm,
         analysisResult.sampleRate,
-        analysisResult.pitchTrack
+        analysisResult.pitchTrack,
+        analysisResult.durationMs
       );
     } else {
       alignPlainTextToPhrases(
@@ -179,7 +181,8 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
         lrcLines,
         rawMonoPcm,
         analysisResult.sampleRate,
-        analysisResult.pitchTrack
+        analysisResult.pitchTrack,
+        analysisResult.durationMs
       );
     } else {
       alignPlainTextToPhrases(
@@ -203,7 +206,7 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
     try {
       const found = await fetchAutoLyricsFromLrclib(cloudQuery.trim(), analysisResult.durationMs);
       if (!found || (!found.syncedLyrics && !found.plainLyrics)) {
-        setCloudMessage('Không tìm thấy lời bài hát khớp trên kho LRCLIB. Bạn có thể dán lời trực tiếp ở tab Dán Nhanh.');
+        setCloudMessage('Không tìm thấy lời bài hát khớp trên kho LRCLIB. Bạn có thể copy phụ đề/transcript từ YouTube hoặc dán lời ở tab Dán Nhanh.');
       } else {
         const clonedPhrases = analysisResult.phrases.map((p) => ({ ...p }));
         const clonedBars = analysisResult.noteBars.map((b) => ({ ...b }));
@@ -216,7 +219,8 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
             lrc,
             rawMonoPcm,
             analysisResult.sampleRate,
-            analysisResult.pitchTrack
+            analysisResult.pitchTrack,
+            analysisResult.durationMs
           );
         } else if (found.plainLyrics) {
           alignPlainTextToPhrases(
@@ -298,7 +302,9 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
         text,
         rawMonoPcm,
         analysisResult.sampleRate,
-        analysisResult.pitchTrack
+        analysisResult.pitchTrack,
+        undefined,
+        copy.autoGenSource === 'phonetic_synth'
       );
       return copy;
     });
@@ -311,12 +317,15 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
       analysisResult.vocalRange.highestMidi
     );
 
+    const alignmentAudit = auditLyricAlignmentHealth(updatedPhrases, clonedBars);
+
     const updatedResult: IVocalAnalysisResult = {
       ...analysisResult,
       noteBars: clonedBars,
       phrases: updatedPhrases,
       lyricSource: 'manual',
-      lyricStatus: 'complete',
+      lyricStatus: alignmentAudit.status === 'healthy' ? 'complete' : 'partial',
+      alignmentAudit,
     };
     saveLyricsToLocalCache(updatedResult);
     onApplyUpdatedResult(updatedResult);
@@ -420,13 +429,13 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
             </button>
           </div>
 
-          {/* Import .LRC / .TXT File Button */}
+          {/* Import .LRC / .SRT / .VTT / .TXT Subtitle File Button */}
           <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition">
             <Upload className="w-3.5 h-3.5" />
-            <span>Nhập file .LRC / .TXT</span>
+            <span>Nhập Sub (.LRC / .SRT / .VTT / .TXT)</span>
             <input
               type="file"
-              accept=".lrc,.txt"
+              accept=".lrc,.srt,.vtt,.txt,.json"
               className="hidden"
               onChange={(e) => {
                 if (e.target.files?.[0]) handleFileImport(e.target.files[0]);
@@ -599,10 +608,10 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
             <div className="p-5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-4">
               <div>
                 <h4 className="text-sm font-bold text-white">
-                  Tra cứu lời bài hát có sẵn mốc thời gian (.LRC)
+                  Tra cứu lời bài hát hoặc dán Link MV YouTube
                 </h4>
                 <p className="text-xs text-slate-400 mt-1">
-                  Nhập tên bài hát (và ca sĩ nếu có). Hệ thống sẽ tự động tải lời chuẩn kèm timestamp và khớp vào {activePhrases.length} câu hát của bạn.
+                  Nhập tên bài hát, ca sĩ, hoặc dán thẳng link YouTube MV (<code>youtube.com/watch?v=...</code>). Hệ thống tự động giải mã tên gốc, tải LRC chuẩn và căn chỉnh khớp nốt nhạc.
                 </p>
               </div>
 
@@ -614,7 +623,7 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleCloudLookup();
                   }}
-                  placeholder="VD: Nơi Này Có Anh Sơn Tùng..."
+                  placeholder="VD: Wxrdie Cần Gì Nói Iu hoặc dán https://www.youtube.com/watch?v=..."
                   className="flex-1 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-sky-400"
                 />
                 <button
@@ -639,7 +648,7 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="space-y-1">
                   <p className="text-xs text-slate-300">
-                    Dán toàn bộ lời bài hát (mỗi câu 1 dòng) hoặc nội dung file <code>[mm:ss.xx]</code> (.LRC) vào dưới đây:
+                    Dán thẳng <strong>Sub / Transcript từ YouTube</strong> (copy mục &quot;Hiện bản chép lời&quot; <code>0:14 ...</code>), nội dung <code>.LRC</code>, <code>.SRT / .VTT</code>, hoặc lời thường mỗi câu 1 dòng:
                   </p>
                   {bulkText.trim() && (
                     <div className="flex items-center gap-2 text-[11px] font-mono">
@@ -667,7 +676,7 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
                 rows={12}
                 value={bulkText}
                 onChange={(e) => setBulkText(e.target.value)}
-                placeholder={`[00:01.20] Câu hát thứ nhất...\n[00:05.50] Câu hát thứ hai...\nHoặc dán văn bản thường mỗi dòng 1 câu`}
+                placeholder={`[00:13.84] Hoodie lông gấu, baby girl em thật ngầu...\nHoặc copy Sub YouTube (0:14 Câu thứ nhất... / SRT / VTT / JSON3)\nHoặc dán lời thường mỗi dòng 1 câu`}
                 className="w-full p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs sm:text-sm text-slate-100 font-mono focus:outline-none focus:border-sky-500"
               />
             </div>

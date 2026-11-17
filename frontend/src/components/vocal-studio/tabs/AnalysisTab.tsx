@@ -19,10 +19,15 @@ import {
   Radio,
 } from 'lucide-react';
 import { IVocalAnalysisResult, IVocalPhrase } from '../../../services/vocalFileAnalysisService';
-import { searchAndTracePhrases } from '../../../services/lyricAlignmentService';
+import {
+  realignStripTimestampsFromCurrentLyrics,
+  searchAndTracePhrases,
+} from '../../../services/lyricAlignmentService';
+import { transcribeMissingGapsWithAI } from '../../../services/vocalTranscriptionService';
 import { DifficultyBadge } from '../components/DifficultyBadge';
 import { formatTimeMs } from '../utils/vocalHelpers';
 import { LeadingSilenceBanner } from '../components/LeadingSilenceBanner';
+import { AlignmentHealthBanner } from '../components/AlignmentHealthBanner';
 
 interface AnalysisTabProps {
   analysisResult: IVocalAnalysisResult | null;
@@ -35,6 +40,7 @@ interface AnalysisTabProps {
   onLoopPhrase: (phrase: IVocalPhrase) => void;
   onOpenLyricModal?: (initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search') => void;
   onOpenSongCandidateModal?: () => void;
+  onApplyUpdatedResult?: (updated: IVocalAnalysisResult) => void;
   onTrimLeadingSilence?: (trimMs: number) => void;
   onSkipIntro?: (targetMs: number) => void;
   onOpenYouTubeBeat?: () => void;
@@ -51,6 +57,7 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
   onLoopPhrase,
   onOpenLyricModal,
   onOpenSongCandidateModal,
+  onApplyUpdatedResult,
   onTrimLeadingSilence,
   onSkipIntro,
   onOpenYouTubeBeat,
@@ -382,6 +389,23 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
             </div>
           )}
 
+          {/* Alignment Health & Missing-Gap Auto-Recovery Banner */}
+          {onApplyUpdatedResult && (
+            <AlignmentHealthBanner
+              audit={analysisResult.alignmentAudit}
+              onAiFillMissingGaps={async () => {
+                const updated = await transcribeMissingGapsWithAI({ analysisResult });
+                onApplyUpdatedResult(updated);
+              }}
+              onStripTimestampsRealign={() => {
+                const updated = realignStripTimestampsFromCurrentLyrics(analysisResult);
+                onApplyUpdatedResult(updated);
+              }}
+              onOpenSongCandidateModal={onOpenSongCandidateModal}
+              onOpenLyricEditor={() => onOpenLyricModal?.('phrase_list')}
+            />
+          )}
+
           {/* 2.5. Auto-Extracted Lyric & Structural Section Map (Tra cứu & Truy vết nhanh) */}
           <div className="p-5 rounded-3xl bg-slate-950/75 border border-slate-800 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -394,7 +418,11 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
                     <span>Bản Đồ Lời Hát, Khẩu Hình &amp; Định Vị Đoạn Nhạc</span>
                     <span className="px-2 py-0.5 rounded-full bg-sky-500/15 border border-sky-500/30 text-[10px] text-sky-300 font-semibold">
                       {analysisResult.lyricSource === 'demo_builtin'
-                        ? 'Lời chuẩn 100%'
+                        ? analysisResult.alignmentAudit?.status === 'healthy' &&
+                          !analysisResult.alignmentAudit?.autoGenSynthCount &&
+                          !analysisResult.alignmentAudit?.recoveredDpCount
+                          ? 'Lời chuẩn 100%'
+                          : `Đồng bộ: ${analysisResult.matchedTrackTitle || 'Mẫu chuẩn'}`
                         : analysisResult.lyricSource === 'auto_lrclib'
                         ? `Tự động khớp: ${analysisResult.matchedTrackTitle || 'LRCLIB'}`
                         : analysisResult.lyricSource === 'embedded_tag'
@@ -405,7 +433,8 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
                     </span>
                   </h4>
                   <p className="text-[11px] text-slate-400">
-                    Mỗi câu hát đã có lời/âm tiết tương đối và nhãn đoạn (Mở đầu, Phiên khúc, Điệp khúc) để bạn tra cứu và nhảy tới tập ngay
+                    {analysisResult.alignmentAudit?.engineSummaryVi ||
+                      'Mỗi câu hát đã có lời/âm tiết tương đối và nhãn đoạn (Mở đầu, Phiên khúc, Điệp khúc) để bạn tra cứu và nhảy tới tập ngay'}
                   </p>
                 </div>
               </div>
@@ -443,6 +472,38 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Alignment Engine Diagnostics Bar */}
+            {analysisResult.alignmentAudit && (
+              <div className="px-3.5 py-2.5 rounded-2xl bg-slate-900/75 border border-slate-800 flex flex-wrap items-center gap-2 text-[11px]">
+                <span className="font-bold text-slate-300">Bộ Xử Lý Khớp Lời:</span>
+                {(analysisResult.alignmentAudit.matchedLrcCount ?? 0) > 0 && (
+                  <span className="px-2 py-0.5 rounded-lg bg-sky-500/15 border border-sky-500/30 text-sky-300 font-semibold">
+                    ✓ {analysisResult.alignmentAudit.matchedLrcCount} câu khớp LRC
+                  </span>
+                )}
+                {(analysisResult.alignmentAudit.recoveredDpCount ?? 0) > 0 && (
+                  <span className="px-2 py-0.5 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-semibold">
+                    ⚡ {analysisResult.alignmentAudit.recoveredDpCount} câu khôi phục bằng Quy hoạch động DP
+                  </span>
+                )}
+                {(analysisResult.alignmentAudit.autoGenCloneCount ?? 0) > 0 && (
+                  <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold">
+                    ✨ {analysisResult.alignmentAudit.autoGenCloneCount} đoạn tự gen (Điệp khúc lặp)
+                  </span>
+                )}
+                {(analysisResult.alignmentAudit.autoGenSynthCount ?? 0) > 0 && (
+                  <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 font-semibold">
+                    🎵 {analysisResult.alignmentAudit.autoGenSynthCount} đoạn tự tổng hợp Formant
+                  </span>
+                )}
+                {analysisResult.alignmentAudit.flaggedPhraseIndices.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 font-semibold">
+                    ⚠ {analysisResult.alignmentAudit.flaggedPhraseIndices.length} câu cần chú ý
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Vietnamese Tone Melodic Harmony Audit Panel */}
             {analysisResult.deepVerification && (
@@ -540,6 +601,34 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
                         {phrase.sectionLabel || 'Phiên khúc'}
                       </span>
                       <DifficultyBadge difficulty={phrase.difficulty} />
+                      {phrase.isAutoGeneratedMissing && (
+                        <span
+                          className={`px-1.5 py-0.5 rounded border text-[9px] font-bold ${
+                            phrase.autoGenSource === 'melodic_clone'
+                              ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300'
+                              : 'bg-amber-950/70 border-amber-500/40 text-amber-300'
+                          }`}
+                          title={phrase.alignmentIssueDetailVi}
+                        >
+                          {phrase.autoGenSource === 'melodic_clone' ? '✨ Tự gen lặp' : '🎵 Formant'}
+                        </span>
+                      )}
+                      {!phrase.isAutoGeneratedMissing && phrase.isRecoveredByDp && (
+                        <span
+                          className="px-1.5 py-0.5 rounded bg-indigo-950/70 border border-indigo-500/40 text-indigo-300 text-[9px] font-bold"
+                          title="Đã khôi phục mốc câu hát bằng Quy hoạch động cấu trúc DP"
+                        >
+                          ⚡ DP
+                        </span>
+                      )}
+                      {!phrase.isAutoGeneratedMissing && (phrase.isMissingLyricGap || phrase.alignmentIssue) && (
+                        <span
+                          className="px-1.5 py-0.5 rounded bg-rose-950/70 border border-rose-500/40 text-rose-300 text-[9px] font-bold"
+                          title={phrase.alignmentIssueDetailVi}
+                        >
+                          ⚠ Thiếu/Lệch
+                        </span>
+                      )}
                     </div>
                     <span className="text-[10px] font-mono text-slate-400 shrink-0">
                       {formatTimeMs(phrase.startMs)} – {formatTimeMs(phrase.endMs)}

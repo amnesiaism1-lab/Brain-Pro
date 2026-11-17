@@ -419,10 +419,10 @@ export const SongCandidateModal: React.FC<ISongCandidateModalProps> = ({
             <div className="space-y-3">
               <div>
                 <h4 className="text-sm font-bold text-white">
-                  Dán Lời Bài Hát Hoặc File .LRC Của Riêng Bạn
+                  Dán Lời Bài Hát, Sub YouTube (.SRT/.VTT) Hoặc File .LRC
                 </h4>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Nếu bạn có lời bài hát (mỗi câu 1 dòng) hoặc file có timestamp dạng <code>[00:15.50] Lời câu...</code>, hãy dán vào đây:
+                  Hỗ trợ copy thẳng <strong>Bản chép lời / Sub YouTube</strong> (<code>0:14 ...</code>), file phụ đề <code>.SRT / .VTT / JSON3</code>, <code>[00:15.50] .LRC</code> hoặc lời thường mỗi câu 1 dòng:
                 </p>
               </div>
 
@@ -430,7 +430,7 @@ export const SongCandidateModal: React.FC<ISongCandidateModalProps> = ({
                 rows={10}
                 value={customLrcText}
                 onChange={(e) => setCustomLrcText(e.target.value)}
-                placeholder="[00:15.50] Nếu có bao giờ, nhìn lại quãng thời gian qua&#10;[00:20.10] Em có tiếc nuối những điều đã diễn ra&#10;..."
+                placeholder="[00:13.84] Hoodie lông gấu, baby girl em thật ngầu&#10;Hoặc copy sub YouTube:&#10;0:14&#10;Hoodie lông gấu, baby girl em thật ngầu"
                 className="w-full p-4 rounded-2xl bg-slate-950 border border-slate-700/80 font-mono text-xs text-white focus:outline-none focus:border-sky-400 leading-relaxed custom-scrollbar"
               />
 

@@ -977,6 +977,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onLoopPhrase={handleLoopPhrase}
             onOpenLyricModal={handleOpenLyricModal}
             onOpenSongCandidateModal={() => setIsSongCandidateModalOpen(true)}
+            onApplyUpdatedResult={handleApplyUpdatedResult}
             onTrimLeadingSilence={handleTrimLeadingSilence}
             onOpenYouTubeBeat={() => store.setActiveTab('youtube_beat')}
             onSkipIntro={(ms) => {
