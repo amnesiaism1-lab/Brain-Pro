@@ -10,7 +10,7 @@
 import { PitchDetector } from 'pitchy';
 import { auditoryEngine } from './auditoryEngine';
 import { getNoteFrequency } from './musicTheoryService';
-import { NOTE_NAMES, SOLFEGE_NAMES, midiToNoteInfo } from '@brain-exercises/shared';
+import { NOTE_NAMES, SOLFEGE_NAMES } from '@brain-exercises/shared';
 import {
   populateAutomaticSongLyricsAndStructure,
   alignWordsToPhraseNoteBars,
@@ -23,7 +23,6 @@ import {
   type ISongLyricCandidate,
   type IAlignmentHealthReport,
 } from './lyricAlignmentService';
-import { rescueUnvoicedVocalPhrasesFromPcm } from './acousticPhoneticProfiler';
 
 export type {
   DuetSingerId,
@@ -477,24 +476,7 @@ class VocalFileAnalysisService {
       }
     }
 
-    // 6B. Rescue unvoiced / soft-rap / breathy phrases in silent MPM gaps so missing pitch clarity never skips a line
-    notify(93, 'Giai đoạn 6/7: Quét lại khoảng nghỉ để phục hồi câu hát khẽ / nhả chữ rap...');
-    rescueUnvoicedVocalPhrasesFromPcm({
-      rawMonoPcm,
-      filteredPcm,
-      filteredSidePcm: filteredSidePcm ?? undefined,
-      sampleRate,
-      durationMs,
-      noiseFloorRms: dynamicNoiseFloorRms,
-      pitchTrack,
-      noteBars,
-      phrases,
-      lowestMidi: Math.round(lowestPoint.midi),
-      highestMidi: Math.round(highestPoint.midi),
-      createMidiNoteInfo: (m) => this.midiToNoteInfo(m),
-    });
-
-    notify(94, 'Giai đoạn 6/7: Quét phổ Formant F1-F2 (Goertzel Pre-emphasis) & Quỹ đạo nguyên âm...');
+    notify(94, 'Giai đoạn 6/7: Tự động đối chiếu lời hát & phân tích cấu trúc câu...');
     const lyricMeta = await populateAutomaticSongLyricsAndStructure({
       fileName,
       durationMs,

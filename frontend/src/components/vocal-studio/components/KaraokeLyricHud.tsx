@@ -86,7 +86,7 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = React.memo(({
   onOpenSongCandidateModal,
   onQuickUpdatePhraseLyric,
 }) => {
-  const [displayMode, setDisplayMode] = useState<LyricDisplayMode>('bilingual');
+  const [displayMode, setDisplayMode] = useState<LyricDisplayMode>('lyrics');
   const [isZenMode, setIsZenMode] = useState(false);
   const [isEditingInline, setIsEditingInline] = useState(false);
   const [inlineDraft, setInlineDraft] = useState('');
@@ -365,6 +365,18 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = React.memo(({
             <div className="flex items-center bg-slate-900 p-0.5 rounded-xl border border-slate-800 text-[10px]">
               <button
                 type="button"
+                onClick={() => setDisplayMode('lyrics')}
+                className={`px-2 py-1 rounded-lg font-bold transition ${
+                  displayMode === 'lyrics'
+                    ? 'bg-sky-500 text-slate-950'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Chỉ hiển thị lời bài hát to, rõ ràng, cân đối theo câu"
+              >
+                Lời Hát
+              </button>
+              <button
+                type="button"
                 onClick={() => setDisplayMode('bilingual')}
                 className={`px-2 py-1 rounded-lg font-bold transition ${
                   displayMode === 'bilingual'
@@ -611,7 +623,9 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = React.memo(({
                     <span
                       className={`${
                         isZenMode
-                          ? 'text-base sm:text-xl'
+                          ? 'text-lg sm:text-xl'
+                          : displayMode === 'lyrics'
+                          ? 'text-base sm:text-lg'
                           : 'text-sm sm:text-base'
                       } tracking-tight leading-snug`}
                     >

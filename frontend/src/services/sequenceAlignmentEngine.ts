@@ -516,19 +516,25 @@ export function alignWindowSymmetricDP(params: {
     for (let ci = firstClusterIdx; ci <= lastClusterIdx; ci++) {
       precomputedSyllables += clusters[ci].acousticSyllableCount ?? clusters[ci].bars.length;
     }
+    const voicedBarDur = combinedBars.reduce((s, b) => s + b.durationMs, 0);
+    const isRapOrLegato = bCnt <= 2 && wCnt >= 6 && cDur >= wCnt * 145 && cDur <= wCnt * 580;
+    const durSyllableCap = isRapOrLegato
+      ? Math.min(wCnt, Math.max(bCnt, Math.round(Math.max(voicedBarDur, cDur * 0.78) / 200)))
+      : bCnt;
     const effectiveUnits =
       phonetic?.hasUsableAudio && phonetic.acousticSyllableCount
-        ? Math.max(bCnt, phonetic.acousticSyllableCount)
-        : Math.max(bCnt, precomputedSyllables);
+        ? Math.max(bCnt, phonetic.acousticSyllableCount, durSyllableCap)
+        : Math.max(bCnt, precomputedSyllables, durSyllableCap);
     const hasPhoneticOrAcousticCount =
       Boolean(phonetic?.hasUsableAudio) || precomputedSyllables > bCnt;
 
-    // 1. Word-to-Syllable / NoteBar density mismatch (soften unprofiled legato ONLY when pitch bars collapsed to <= 2 blobs)
+    // 1. Word-to-Syllable / NoteBar density mismatch (soften rap/legato phrases where 6+ words share 1-2 continuous bars)
+    const rawDensityGap = Math.abs(wCnt - effectiveUnits);
     let densityDiff: number;
-    if (hasPhoneticOrAcousticCount) {
-      densityDiff = Math.abs(wCnt - effectiveUnits) * 1.25;
-    } else if (bCnt <= 2 && wCnt >= 6 && cDur >= wCnt * 175 && cDur <= wCnt * 520) {
-      densityDiff = Math.abs(wCnt - bCnt) * 0.72;
+    if (hasPhoneticOrAcousticCount && !isRapOrLegato) {
+      densityDiff = rawDensityGap * 1.25;
+    } else if (isRapOrLegato) {
+      densityDiff = Math.min(3.8, rawDensityGap * 0.65);
     } else {
       densityDiff = Math.abs(wCnt - bCnt) * 1.45;
     }
@@ -843,12 +849,12 @@ function scoreSlotWindowQuality(
 
     const densityMismatch = Math.abs(wCnt - effectiveUnits);
     const cDur = Math.max(150, s.bars[bCnt - 1].endTimeMs - s.bars[0].startTimeMs);
-    const durCoversRapidWords =
-      bCnt <= 2 && wCnt >= 6 && cDur >= wCnt * 175 && cDur <= wCnt * 520;
+    const legatoDurValid = bCnt <= 2 && wCnt >= 6 && cDur >= wCnt * 145 && cDur <= wCnt * 580;
     const severeDensity =
-      !phonetic?.hasUsableAudio &&
-      !durCoversRapidWords &&
-      ((wCnt >= 4 && bCnt === 1) || (wCnt >= 3 && bCnt / wCnt < 0.35) || (bCnt >= 8 && bCnt / wCnt >= 3.2));
+      (!phonetic?.hasUsableAudio &&
+        !legatoDurValid &&
+        ((wCnt >= 4 && bCnt <= 1) || (wCnt >= 3 && bCnt / wCnt < 0.35))) ||
+      (bCnt >= 8 && bCnt / wCnt >= 3.2);
 
     let localScore = 3.5 + Math.min(4.0, effectiveUnits * 0.4) - densityMismatch * 0.45;
     if (severeDensity) localScore -= 2.8;
@@ -943,8 +949,6 @@ export function repairDamagedPhraseWindowsLocally(params: {
         : bCnt;
     const ratio = effectiveUnits / wCnt;
     const slotDurMs = Math.max(150, slot.bars[bCnt - 1].endTimeMs - slot.bars[0].startTimeMs);
-    const legatoCoversWords =
-      bCnt <= 2 && wCnt >= 6 && slotDurMs >= wCnt * 175 && slotDurMs <= wCnt * 520;
 
     const timingOk =
       typeof slot.shiftedTimeMs !== 'number' ||
@@ -952,6 +956,8 @@ export function repairDamagedPhraseWindowsLocally(params: {
     const timingTight =
       typeof slot.shiftedTimeMs !== 'number' ||
       Math.abs(slot.bars[0].startTimeMs - slot.shiftedTimeMs) <= 500;
+    const legatoCoversWords =
+      bCnt <= 2 && wCnt >= 6 && slotDurMs >= wCnt * 145 && slotDurMs <= wCnt * 580;
 
     let toneInverted = false;
     if (wCnt >= 5 && bCnt >= 3) {

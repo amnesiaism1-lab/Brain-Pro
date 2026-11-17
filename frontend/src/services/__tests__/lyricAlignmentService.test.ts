@@ -2378,3 +2378,117 @@ describe('lyricAlignmentService', () => {
     expect(subProfile.syllables.length).toBeGreaterThanOrEqual(3);
   });
 });
+
+describe('Phrase-Level Rap/Legato Retention & Initial Intro Filtering', () => {
+  it('preserves opening rap/legato lines on 1-2 sustained NoteBars and boundary-spanning bars instead of skipping to later chorus', () => {
+    const rapLrc: ILrcLine[] = [
+      { timeMs: 13810, text: 'Hoodie lông gấu, baby girl em thật ngầu' },
+      { timeMs: 16500, text: 'Trời hôm nay hơi rét nên má em hơi đậm màu' },
+      { timeMs: 19200, text: 'Hỏi where do we go, baby chỉ gật đầu' },
+      { timeMs: 21400, text: 'Baby chỉ lặng im bấm thang lên tầng lầu' },
+      { timeMs: 24100, text: 'Nhân dịp Noel nên em sẽ rên như thế hôm nay mới là lần đầu' },
+      { timeMs: 27400, text: 'Thỏ thẻ vào tai anh rằng hôm nay em muốn trang giấy thật nhàu' },
+      { timeMs: 30600, text: 'Ừ thì em cũng ngon trông em cũng cool' },
+      { timeMs: 33100, text: 'Eo cũng thon trông cũng đúng gu' },
+      { timeMs: 57470, text: 'Đồ này khá trôi, em cũng khá say' },
+      { timeMs: 59900, text: 'Em đòi khóa môi, em cho tôi khóa tay' },
+      { timeMs: 62500, text: 'Em bảo muốn tôi, vì nhạc tôi quá hay' },
+      { timeMs: 65100, text: 'Và vậy thì cần gì nói iu' },
+    ];
+
+    const bars: IVocalNoteBar[] = [
+      // Line 0 (13.81s): 2 monotone rap bars covering 1650ms
+      { id: 'r0-a', startTimeMs: 13920, endTimeMs: 14720, durationMs: 800, midi: 55, exactMidi: 55, noteName: 'G3', solfegeName: 'Sol 3', avgCentsDiff: 0, pointsCount: 25 },
+      { id: 'r0-b', startTimeMs: 14760, endTimeMs: 15580, durationMs: 820, midi: 57, exactMidi: 57, noteName: 'A3', solfegeName: 'La 3', avgCentsDiff: 0, pointsCount: 25 },
+      // Line 1 (16.50s): single 1650ms sustained rap bar
+      { id: 'r1-a', startTimeMs: 16550, endTimeMs: 18200, durationMs: 1650, midi: 57, exactMidi: 57, noteName: 'A3', solfegeName: 'La 3', avgCentsDiff: 0, pointsCount: 35 },
+      // Lines 2 & 3 (19.20s..23.30s): one continuous 3800ms monotone bar spanning across boundary at 21.40s
+      { id: 'r23-span', startTimeMs: 19300, endTimeMs: 23100, durationMs: 3800, midi: 57, exactMidi: 57, noteName: 'A3', solfegeName: 'La 3', avgCentsDiff: 0, pointsCount: 70 },
+      // Lines 4..7: 2 rap bars each
+      { id: 'r4-a', startTimeMs: 24180, endTimeMs: 25300, durationMs: 1120, midi: 55, exactMidi: 55, noteName: 'G3', solfegeName: 'Sol 3', avgCentsDiff: 0, pointsCount: 25 },
+      { id: 'r4-b', startTimeMs: 25350, endTimeMs: 26600, durationMs: 1250, midi: 57, exactMidi: 57, noteName: 'A3', solfegeName: 'La 3', avgCentsDiff: 0, pointsCount: 25 },
+      { id: 'r5-a', startTimeMs: 27480, endTimeMs: 28500, durationMs: 1020, midi: 57, exactMidi: 57, noteName: 'A3', solfegeName: 'La 3', avgCentsDiff: 0, pointsCount: 25 },
+      { id: 'r5-b', startTimeMs: 28550, endTimeMs: 29800, durationMs: 1250, midi: 55, exactMidi: 55, noteName: 'G3', solfegeName: 'Sol 3', avgCentsDiff: 0, pointsCount: 25 },
+      { id: 'r6-a', startTimeMs: 30650, endTimeMs: 32200, durationMs: 1550, midi: 57, exactMidi: 57, noteName: 'A3', solfegeName: 'La 3', avgCentsDiff: 0, pointsCount: 30 },
+      { id: 'r7-a', startTimeMs: 33150, endTimeMs: 34800, durationMs: 1650, midi: 57, exactMidi: 57, noteName: 'A3', solfegeName: 'La 3', avgCentsDiff: 0, pointsCount: 30 },
+    ];
+
+    // Add dense melodic bars (6 notes each) for the later chorus at 57.47s..67s
+    const chorusTimes = [57470, 59900, 62500, 65100];
+    chorusTimes.forEach((ct, ci) => {
+      for (let k = 0; k < 6; k++) {
+        bars.push({
+          id: `ch-${ci}-${k}`,
+          startTimeMs: ct + k * 320,
+          endTimeMs: ct + k * 320 + 280,
+          durationMs: 280,
+          midi: 60 + (k % 5),
+          exactMidi: 60 + (k % 5),
+          noteName: 'C4',
+          solfegeName: 'Đô 4',
+          avgCentsDiff: 0,
+          pointsCount: 10,
+        });
+      }
+    });
+
+    // Initial raw phrases (missing split between r2 and r3 intentionally, so Phase 1/2/3 runs)
+    const rawStarts = [13920, 16550, 19300, 24180, 27480, 30650, 33150, 57470, 59900, 62500, 65100];
+    const phrases: IVocalPhrase[] = rawStarts.map((s, idx) => ({
+      id: `rap-p-${idx}`,
+      phraseIndex: idx + 1,
+      startMs: s,
+      endMs: s + 1800,
+      durationMs: 1800,
+      notes: ['A3'],
+      lowestNote: 'G3',
+      highestNote: 'C4',
+      avgPitchHz: 220,
+      avgMidi: 57,
+      pitchJumpSemitones: 2,
+      difficulty: 'Dễ',
+      difficultyScore: 3,
+      pointsCount: 25,
+    }));
+
+    alignLrcLinesToPhrases(phrases, bars, rapLrc, null, 44100, [], 70000);
+
+    expect(phrases[0].lyricText).toBe('Hoodie lông gấu, baby girl em thật ngầu');
+    expect(phrases[0].startMs).toBeGreaterThanOrEqual(13500);
+    expect(phrases[0].startMs).toBeLessThanOrEqual(14500);
+    expect(phrases[1].lyricText).toBe('Trời hôm nay hơi rét nên má em hơi đậm màu');
+    expect(phrases.some((p) => p.lyricText === 'Hỏi where do we go, baby chỉ gật đầu')).toBe(true);
+    expect(phrases.some((p) => p.lyricText === 'Baby chỉ lặng im bấm thang lên tầng lầu')).toBe(true);
+    expect(phrases[0].lyricText).not.toBe('Đồ này khá trôi, em cũng khá say');
+
+    const audit = auditLyricAlignmentHealth(phrases, bars);
+    expect(audit.flaggedPhraseIndices.length).toBe(0);
+  });
+
+  it('strips leading metadata credits and section headers in alignPlainTextToPhrases so Câu 1 starts at real lyrics', () => {
+    const plainWithHeaders = `Bài hát: Cơn Mưa Tình Yêu
+Ca sĩ: Hà Anh Tuấn ft. Phương Linh
+Nhạc và lời: Mạnh Quân
+Verse 1:
+[Intro]
+Người yêu ơi cỏ mềm đã héo khô
+Mặt hồ lá xác xơ`;
+
+    const bars: IVocalNoteBar[] = [
+      { id: 'pt-h-1', startTimeMs: 34000, endTimeMs: 34500, durationMs: 500, midi: 60, exactMidi: 60, noteName: 'C4', solfegeName: 'Đô 4', avgCentsDiff: 0, pointsCount: 15 },
+      { id: 'pt-h-2', startTimeMs: 34600, endTimeMs: 35200, durationMs: 600, midi: 62, exactMidi: 62, noteName: 'D4', solfegeName: 'Rê 4', avgCentsDiff: 0, pointsCount: 15 },
+      { id: 'pt-h-3', startTimeMs: 35300, endTimeMs: 36000, durationMs: 700, midi: 64, exactMidi: 64, noteName: 'E4', solfegeName: 'Mi 4', avgCentsDiff: 0, pointsCount: 15 },
+      { id: 'pt-h-4', startTimeMs: 38000, endTimeMs: 38600, durationMs: 600, midi: 62, exactMidi: 62, noteName: 'D4', solfegeName: 'Rê 4', avgCentsDiff: 0, pointsCount: 15 },
+      { id: 'pt-h-5', startTimeMs: 38700, endTimeMs: 39400, durationMs: 700, midi: 60, exactMidi: 60, noteName: 'C4', solfegeName: 'Đô 4', avgCentsDiff: 0, pointsCount: 15 },
+    ];
+    const phrases: IVocalPhrase[] = [
+      { id: 'pt-p1', phraseIndex: 1, startMs: 34000, endMs: 36000, durationMs: 2000, notes: ['C4', 'D4', 'E4'], lowestNote: 'C4', highestNote: 'E4', avgPitchHz: 293, avgMidi: 62, pitchJumpSemitones: 4, difficulty: 'Dễ', difficultyScore: 3, pointsCount: 45 },
+      { id: 'pt-p2', phraseIndex: 2, startMs: 38000, endMs: 39400, durationMs: 1400, notes: ['D4', 'C4'], lowestNote: 'C4', highestNote: 'D4', avgPitchHz: 277, avgMidi: 61, pitchJumpSemitones: 2, difficulty: 'Dễ', difficultyScore: 3, pointsCount: 30 },
+    ];
+
+    alignPlainTextToPhrases(phrases, bars, plainWithHeaders);
+
+    expect(phrases[0].lyricText).toBe('Người yêu ơi cỏ mềm đã héo khô');
+    expect(phrases[1].lyricText).toBe('Mặt hồ lá xác xơ');
+  });
+});

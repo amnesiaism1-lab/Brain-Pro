@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import { RunwayRenderState } from '../types';
 import { NOTE_NAMES } from '@brain-exercises/shared';
 import { auditoryEngine } from '../../../services/auditoryEngine';
-import { findActiveWordIndexAtTime } from '../../../services/lyricAlignmentService';
 
 interface PitchRunwayCanvasProps {
   renderStateRef: React.MutableRefObject<RunwayRenderState>;
@@ -744,12 +743,6 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
       // 5. Reference Vocal Track: FL Studio NewTone-Style Note Blocks & Pitch Ribbon
       // A. Render Note Blocks strictly across `visibleBarIndices` (zero Gaussian `shadowBlur` bottlenecks)
       if (noteBars && visibleBarIndices.length > 0) {
-        const sortedPhrases = state.phrases;
-        let phraseCursor =
-          sortedPhrases && sortedPhrases.length > 0
-            ? Math.max(0, lowerBoundIndex(sortedPhrases, (ph) => ph.endMs, windowStartMs) - 1)
-            : 0;
-
         for (let vi = 0; vi < visibleBarIndices.length; vi++) {
           const i = visibleBarIndices[vi];
           const bar = noteBars[i];
@@ -844,105 +837,28 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
           ctx.fillStyle = isActive ? 'rgba(255, 255, 255, 0.45)' : 'rgba(253, 186, 116, 0.4)';
           ctx.fillRect(x1 + 2, topY + 1.5, Math.max(2, barW - 4), 2.5);
 
-          // If this bar is a melisma/glide continuation of the same word (`~`), draw a Legato Slur Bridge from previous bar
-          const rawSyl = bar.lyricSyllable ? bar.lyricSyllable.trim() : '';
-          if (i > 0 && rawSyl.startsWith('~')) {
-            const prevBar = noteBars[i - 1];
-            if (prevBar.startTimeMs <= bar.startTimeMs && bar.startTimeMs - prevBar.endTimeMs <= 160) {
-              const prevMidi = prevBar.midi + transposeSemitones;
-              const prevX2 =
-                playheadX + ((prevBar.endTimeMs - effectiveTimeMs) / totalWindowMs) * width;
-              const prevY = midiToY(prevMidi);
-              const midX = (prevX2 + x1) / 2;
-
-              ctx.save();
-              ctx.strokeStyle = isActive ? '#38bdf8' : 'rgba(192, 132, 252, 0.85)';
-              ctx.lineWidth = 2.4;
-              ctx.beginPath();
-              ctx.moveTo(prevX2 - 2, prevY);
-              ctx.bezierCurveTo(midX, prevY, midX, barY, x1 + 2, barY);
-              ctx.stroke();
-              ctx.restore();
-            }
-          }
-
-          // Note text & synced lyric syllable badge(s) positioned at exact forced-aligned word onsets
-          if (barW >= 22) {
+          // Render clean musical note name only (no hardcoded word-to-note text overlays)
+          if (barW >= 24) {
             const oct = Math.floor(barMidi / 12) - 1 + octOffset;
             const displayNoteName = `${barNoteName}${oct}`;
-            let overlappingPhrase = undefined;
-            if (sortedPhrases && sortedPhrases.length > 0) {
-              while (
-                phraseCursor + 1 < sortedPhrases.length &&
-                sortedPhrases[phraseCursor].endMs < bar.startTimeMs
-              ) {
-                phraseCursor++;
-              }
-              const cand = sortedPhrases[phraseCursor];
-              if (cand && cand.endMs >= bar.startTimeMs && cand.startMs <= bar.endTimeMs) {
-                overlappingPhrase = cand;
-              }
-            }
-            const subWords = overlappingPhrase?.words?.filter(
-              (w) => {
-                const wMid = (w.startMs + w.endMs) / 2;
-                return wMid >= bar.startTimeMs - 15 && wMid <= bar.endTimeMs + 15;
-              }
-            );
-
             ctx.save();
             ctx.beginPath();
             ctx.rect(x1 + 2, topY, Math.max(0, barW - 4), barH);
             ctx.clip();
-
-            if (subWords && subWords.length >= 2 && barW >= 60) {
-              ctx.font = 'bold 10px sans-serif';
-              ctx.textAlign = 'left';
-              const activeSubWordIdx = findActiveWordIndexAtTime(subWords, effectiveTimeMs);
-              subWords.forEach((sw, swIdx) => {
-                const swX = Math.max(
-                  x1 + 4,
-                  playheadX + ((sw.startMs - effectiveTimeMs) / totalWindowMs) * width
-                );
-                if (swIdx > 0 && swX > x1 + 10 && swX < x1 + barW - 10) {
-                  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-                  ctx.setLineDash([2, 2]);
-                  ctx.lineWidth = 1;
-                  ctx.beginPath();
-                  ctx.moveTo(swX, topY + 3);
-                  ctx.lineTo(swX, topY + barH - 3);
-                  ctx.stroke();
-                  ctx.setLineDash([]);
-                }
-                const isSubActive = sw.wordIndex === activeSubWordIdx;
-                ctx.fillStyle = isSubActive ? '#38bdf8' : 'rgba(254, 243, 199, 0.95)';
-                ctx.fillText(sw.text, swX + 3, barY + 3.5);
-              });
-            } else {
-              const labelText =
-                rawSyl && barW >= 46
-                  ? `${rawSyl} · ${displayNoteName}`
-                  : rawSyl && barW >= 26
-                  ? rawSyl
-                  : displayNoteName;
-              ctx.fillStyle = isActive ? '#ffffff' : 'rgba(254, 243, 199, 0.95)';
-              ctx.font = isActive ? 'bold 10.5px sans-serif' : 'bold 10px sans-serif';
-              ctx.textAlign = 'left';
-              ctx.fillText(labelText, x1 + 5, barY + 3.5);
-            }
+            ctx.font = isActive
+              ? 'bold 10px Inter, system-ui, sans-serif'
+              : '600 9px Inter, system-ui, sans-serif';
+            ctx.fillStyle = isActive ? '#ffffff' : 'rgba(254, 243, 199, 0.92)';
+            ctx.textAlign = 'left';
+            ctx.fillText(displayNoteName, x1 + 6, barY + 3.5);
             ctx.restore();
           }
 
-          // Interactive Word-Edge / Note-Boundary Grip Handle between consecutive bars (within 280ms)
+          // Interactive Note-Boundary Grip Handle: show only on hover/drag so idle runway stays clutter-free
           if (i < noteBars.length - 1) {
             const nextBar = noteBars[i + 1];
             const gapToNext = nextBar.startTimeMs - bar.endTimeMs;
             if (gapToNext <= 280 && nextBar.startTimeMs <= windowEndMs) {
-              const boundMs = (bar.endTimeMs + nextBar.startTimeMs) / 2;
-              const boundX =
-                playheadX + ((boundMs - effectiveTimeMs) / totalWindowMs) * width;
-              const nextBarY = midiToY(nextBar.midi + transposeSemitones);
-              const handleCenterY = (barY + nextBarY) / 2;
               const boundKey = `${bar.id}:${nextBar.id}`;
               const isHandleActive =
                 hoveredBoundaryKey === boundKey ||
@@ -950,36 +866,38 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
                   draggingBoundary.leftBarId === bar.id &&
                   draggingBoundary.rightBarId === nextBar.id);
 
-              ctx.save();
-              ctx.strokeStyle = isHandleActive
-                ? '#22d3ee'
-                : 'rgba(56, 189, 248, 0.45)';
-              ctx.lineWidth = isHandleActive ? 2.2 : 1.2;
-              ctx.setLineDash(isHandleActive ? [] : [2, 2]);
-              ctx.beginPath();
-              ctx.moveTo(boundX, Math.min(barY, nextBarY) - barH * 0.65);
-              ctx.lineTo(boundX, Math.max(barY, nextBarY) + barH * 0.65);
-              ctx.stroke();
-              ctx.setLineDash([]);
-
-              // Diamond handle grip
-              const r = isHandleActive ? 5 : 3.2;
-              ctx.fillStyle = isHandleActive ? '#22d3ee' : 'rgba(15, 23, 42, 0.9)';
-              ctx.strokeStyle = isHandleActive ? '#ffffff' : 'rgba(56, 189, 248, 0.85)';
-              ctx.lineWidth = 1.3;
-              ctx.beginPath();
-              ctx.moveTo(boundX, handleCenterY - r);
-              ctx.lineTo(boundX + r, handleCenterY);
-              ctx.lineTo(boundX, handleCenterY + r);
-              ctx.lineTo(boundX - r, handleCenterY);
-              ctx.closePath();
-              ctx.fill();
-              ctx.stroke();
-
               if (isHandleActive) {
+                const boundMs = (bar.endTimeMs + nextBar.startTimeMs) / 2;
+                const boundX =
+                  playheadX + ((boundMs - effectiveTimeMs) / totalWindowMs) * width;
+                const nextBarY = midiToY(nextBar.midi + transposeSemitones);
+                const handleCenterY = (barY + nextBarY) / 2;
+
+                ctx.save();
+                ctx.strokeStyle = '#22d3ee';
+                ctx.lineWidth = 2.2;
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                ctx.moveTo(boundX, Math.min(barY, nextBarY) - barH * 0.65);
+                ctx.lineTo(boundX, Math.max(barY, nextBarY) + barH * 0.65);
+                ctx.stroke();
+
+                const r = 5;
+                ctx.fillStyle = '#22d3ee';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.3;
+                ctx.beginPath();
+                ctx.moveTo(boundX, handleCenterY - r);
+                ctx.lineTo(boundX + r, handleCenterY);
+                ctx.lineTo(boundX, handleCenterY + r);
+                ctx.lineTo(boundX - r, handleCenterY);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
                 const tipText = draggingBoundary
-                  ? `Biên từ: ${(boundMs / 1000).toFixed(2)}s`
-                  : 'Kéo ↔ chỉnh biên từ · Đúp gộp nốt';
+                  ? `Biên nốt: ${(boundMs / 1000).toFixed(2)}s`
+                  : 'Kéo ↔ chỉnh biên nốt · Đúp gộp nốt';
                 ctx.font = 'bold 9.5px sans-serif';
                 const tw = ctx.measureText(tipText).width + 10;
                 const tx = Math.max(pianoKeyWidth + 4, Math.min(width - tw - 4, boundX - tw / 2));
@@ -992,8 +910,8 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
                 ctx.fillStyle = '#e0f2fe';
                 ctx.textAlign = 'left';
                 ctx.fillText(tipText, tx + 5, ty + 11.5);
+                ctx.restore();
               }
-              ctx.restore();
             }
           }
           ctx.restore();
