@@ -16,6 +16,23 @@
 import type { IVocalNoteBar, IVocalPhrase } from './vocalFileAnalysisService';
 import { computePhraseToneMelodicHarmony } from './vietnameseToneProsodyService';
 
+export interface IPhoneticEvaluationResult {
+  phoneticBonusCost: number;
+  acousticSyllableCount?: number;
+  hasUsableAudio: boolean;
+}
+
+export type PhoneticClusterSlice = {
+  bars: IVocalNoteBar[];
+  startMs: number;
+  endMs: number;
+};
+
+export type PhoneticEvaluationFn = (
+  tokens: string[],
+  clusterSlices: PhoneticClusterSlice[]
+) => IPhoneticEvaluationResult;
+
 export interface ISymmetricLyricInput {
   text: string;
   timeMs?: number;
@@ -30,6 +47,7 @@ export interface ISymmetricClusterInput {
   endMs: number;
   postGapMs: number;
   originalClusterIdx?: number;
+  acousticSyllableCount?: number;
 }
 
 export interface ISymmetricAlignmentOp {
@@ -134,22 +152,26 @@ export function clusterNoteBarsBySilence(
 }
 
 /**
- * Split oversized fused NoteBar clusters at internal pauses or pitch inflections when P < L
- * so symmetric DP can still inspect phrase boundaries cleanly.
+ * Split genuinely oversized fused NoteBar clusters at clear internal pauses or pronounced
+ * multi-phrase boundaries when `P < L`, without artificially slicing normal single phrases
+ * when `L > P` is actually caused by skipped lyric lines.
  */
 export function expandClustersTowardCount(
   clusters: IVocalNoteBar[][],
-  targetMinClusters: number
+  targetMinClusters: number,
+  expectedAvgWordsPerLine = 5
 ): IVocalNoteBar[][] {
   let working = [...clusters];
+  const minSecondaryBars = Math.max(7, Math.round(expectedAvgWordsPerLine * 1.55));
   while (working.length < targetMinClusters) {
     let bestClusterIdx = -1;
     let bestSplitIdx = -1;
-    let bestSplitScore = 80;
+    let bestSplitScore = 155;
 
     for (let ci = 0; ci < working.length; ci++) {
       const c = working[ci];
-      if (c.length < 4) continue;
+      const dur = c[c.length - 1].endTimeMs - c[0].startTimeMs;
+      if (c.length < 4 || dur < 1550) continue;
       for (let bi = 1; bi < c.length - 1; bi++) {
         const g = c[bi].startTimeMs - c[bi - 1].endTimeMs;
         if (g > bestSplitScore) {
@@ -165,10 +187,11 @@ export function expandClustersTowardCount(
       for (let ci = 0; ci < working.length; ci++) {
         const c = working[ci];
         const dur = c[c.length - 1].endTimeMs - c[0].startTimeMs;
-        if (c.length < 6 || dur < 2000) continue;
+        if (c.length < minSecondaryBars || dur < 2900) continue;
         for (let bi = 2; bi < c.length - 2; bi++) {
           const g = Math.max(0, c[bi].startTimeMs - c[bi - 1].endTimeMs);
           const pitchJump = Math.abs(c[bi].midi - c[bi - 1].midi);
+          if (g < 85 && pitchJump < 3) continue;
           const secScore = g * 0.25 + pitchJump * 2.5 + dur * 0.002;
           if (secScore > bestSecondaryScore) {
             bestSecondaryScore = secScore;
@@ -201,8 +224,9 @@ export function findSparseAnchorChainOffsets(params: {
   noteBars: IVocalNoteBar[];
   lrcLines: Array<{ timeMs: number; text: string }>;
   baseOffsetMs: number;
+  evaluatePhoneticMatch?: PhoneticEvaluationFn;
 }): number[] {
-  const { phrases, noteBars, lrcLines, baseOffsetMs } = params;
+  const { phrases, noteBars, lrcLines, baseOffsetMs, evaluatePhoneticMatch } = params;
   const L = lrcLines.length;
   const offsets = Array.from({ length: L }, () => baseOffsetMs);
   if (L < 3 || (phrases.length === 0 && noteBars.length === 0)) return offsets;
@@ -237,7 +261,8 @@ export function findSparseAnchorChainOffsets(params: {
 
   const lineCandidates: ICandidateAnchor[][] = lrcLines.map((line, i) => {
     const nominal = line.timeMs + baseOffsetMs;
-    const wordCount = Math.max(1, line.text.trim().split(/\s+/).filter(Boolean).length);
+    const tokens = line.text.trim().split(/\s+/).filter(Boolean);
+    const wordCount = Math.max(1, tokens.length);
     const nextLineGap = i + 1 < L ? Math.max(400, lrcLines[i + 1].timeMs - line.timeMs) : 4500;
     const windowDur = Math.min(nextLineGap, Math.max(1600, wordCount * 580));
 
@@ -252,16 +277,35 @@ export function findSparseAnchorChainOffsets(params: {
       const offsetMs = onset - line.timeMs;
       // Sanity check noteBars coverage starting around candidate onset
       const winBars = filterNoteBarsInTimeRange(onset - 50, onset + windowDur, noteBars, 30);
-      const densityRatio = winBars.length / Math.max(1, wordCount);
+      const phonetic =
+        evaluatePhoneticMatch && winBars.length > 0
+          ? evaluatePhoneticMatch(tokens, [
+              {
+                bars: winBars,
+                startMs: winBars[0].startTimeMs,
+                endMs: winBars[winBars.length - 1].endTimeMs,
+              },
+            ])
+          : null;
+      // Never promote a phonetically contradicting line into a tempo-shifting anchor!
+      if (phonetic?.hasUsableAudio && phonetic.phoneticBonusCost >= 1.4) {
+        continue;
+      }
+      const effectiveUnits =
+        phonetic?.hasUsableAudio && phonetic.acousticSyllableCount
+          ? Math.max(winBars.length, phonetic.acousticSyllableCount)
+          : winBars.length;
+      const densityRatio = effectiveUnits / Math.max(1, wordCount);
       const densityFit =
         winBars.length === 0
           ? -12
           : densityRatio >= 0.45 && densityRatio <= 2.3
-          ? 7.5 - Math.abs(winBars.length - wordCount) * 0.5
+          ? 7.5 - Math.abs(effectiveUnits - wordCount) * 0.5
           : 2.0;
 
+      const phoneticScore = phonetic?.hasUsableAudio ? -phonetic.phoneticBonusCost * 1.45 : 0;
       const proximityScore = (maxSearchRadius - dist) * 0.008;
-      const localScore = proximityScore + densityFit;
+      const localScore = proximityScore + densityFit + phoneticScore;
       if (localScore > 2.5) {
         cands.push({ onsetMs: onset, offsetMs, localScore });
       }
@@ -401,6 +445,7 @@ export function alignWindowSymmetricDP(params: {
   allowClusterSkip?: boolean;
   allowMerge2Lines?: boolean;
   allowMerge2Clusters?: boolean;
+  evaluatePhoneticMatch?: PhoneticEvaluationFn;
 }): ISymmetricAlignmentOp[] {
   const {
     lines,
@@ -412,6 +457,7 @@ export function alignWindowSymmetricDP(params: {
     allowClusterSkip = true,
     allowMerge2Lines = true,
     allowMerge2Clusters = true,
+    evaluatePhoneticMatch,
   } = params;
 
   const nL = lines.length;
@@ -456,8 +502,36 @@ export function alignWindowSymmetricDP(params: {
     const cEnd = combinedBars[bCnt - 1].endTimeMs;
     const cDur = Math.max(200, cEnd - cStart);
 
-    // 1. Word-to-NoteBar density mismatch (calibrated cleanly against skip thresholds)
-    const densityDiff = Math.abs(wCnt - bCnt) * 1.45;
+    // 0. Deep Acoustic-Phonetic Fingerprinting (F1/F2 vowel sequence + true acoustic syllable count)
+    const clusterSlices: PhoneticClusterSlice[] = [];
+    for (let ci = firstClusterIdx; ci <= lastClusterIdx; ci++) {
+      clusterSlices.push({
+        bars: clusters[ci].bars,
+        startMs: clusters[ci].startMs,
+        endMs: clusters[ci].endMs,
+      });
+    }
+    const phonetic = evaluatePhoneticMatch ? evaluatePhoneticMatch(tokens, clusterSlices) : null;
+    let precomputedSyllables = 0;
+    for (let ci = firstClusterIdx; ci <= lastClusterIdx; ci++) {
+      precomputedSyllables += clusters[ci].acousticSyllableCount ?? clusters[ci].bars.length;
+    }
+    const effectiveUnits =
+      phonetic?.hasUsableAudio && phonetic.acousticSyllableCount
+        ? Math.max(bCnt, phonetic.acousticSyllableCount)
+        : Math.max(bCnt, precomputedSyllables);
+    const hasPhoneticOrAcousticCount =
+      Boolean(phonetic?.hasUsableAudio) || precomputedSyllables > bCnt;
+
+    // 1. Word-to-Syllable / NoteBar density mismatch (soften unprofiled legato ONLY when pitch bars collapsed to <= 2 blobs)
+    let densityDiff: number;
+    if (hasPhoneticOrAcousticCount) {
+      densityDiff = Math.abs(wCnt - effectiveUnits) * 1.25;
+    } else if (bCnt <= 2 && wCnt >= 6 && cDur >= wCnt * 175 && cDur <= wCnt * 520) {
+      densityDiff = Math.abs(wCnt - bCnt) * 0.72;
+    } else {
+      densityDiff = Math.abs(wCnt - bCnt) * 1.45;
+    }
 
     // 2. Singing duration compatibility
     const expectedSungMs = Math.max(420, wCnt * 265);
@@ -469,15 +543,15 @@ export function alignWindowSymmetricDP(params: {
     const relC = ((firstClusterIdx + lastClusterIdx) / 2 + 0.5) / nC;
     const relPosCost = Math.abs(relL - relC) * (useTimestampPrior ? 2.8 : 5.2);
 
-    // 4. Local shifted-timestamp consistency (bounded so shifted LRC can still recover via density+tone!)
+    // 4. Local shifted-timestamp consistency (bounded so local +1.5..2.0s LRC drift still recovers via density+phonetics+tone!)
     let timeCost = 0;
     const refTime = lines[firstLineIdx].timeMs;
     if (useTimestampPrior && typeof refTime === 'number' && Number.isFinite(refTime)) {
       const dist = Math.abs(cStart - refTime);
       if (dist <= 550) {
-        timeCost = -1.6 * (1 - dist / 550);
+        timeCost = -1.75 * (1 - dist / 550);
       } else {
-        timeCost = Math.min(4.8, (dist - 550) / 420);
+        timeCost = Math.min(4.6, (dist - 550) / 420);
       }
     } else if (!useTimestampPrior && nL === nC && nL >= 2) {
       // Weak window progression fallback
@@ -506,7 +580,9 @@ export function alignWindowSymmetricDP(params: {
       }
     }
 
-    return densityDiff + durPenalty + relPosCost + timeCost + breathBonus + toneCost;
+    const phoneticCost = phonetic?.hasUsableAudio ? phonetic.phoneticBonusCost : 0;
+
+    return densityDiff + durPenalty + relPosCost + timeCost + breathBonus + toneCost + phoneticCost;
   };
 
   type TransitionTag =
@@ -533,7 +609,7 @@ export function alignWindowSymmetricDP(params: {
 
   const lineSkipCost = (lIdx: number): number => {
     const wCnt = lineWordsList[lIdx].length;
-    return 4.8 + Math.min(3.4, wCnt * 0.48);
+    return 4.6 + Math.min(3.1, wCnt * 0.44);
   };
 
   for (let l = 0; l <= nL; l++) {
@@ -570,15 +646,23 @@ export function alignWindowSymmetricDP(params: {
         }
       }
 
-      // 4. Merge 2 Lyric Lines into 1 Audio Cluster
+      // 4. Merge 2 Lyric Lines into 1 Audio Cluster (only when cluster has genuine multi-line capacity)
       if (allowMerge2Lines && l >= 2 && c >= 1 && dp[l - 2][c - 1] < Infinity) {
         const prevGap = lines[l - 2].postGapMs ?? 2000;
-        const totalWords = lineWordsList[l - 2].length + lineWordsList[l - 1].length;
-        if (prevGap <= 3400 && totalWords <= 18) {
+        const w1 = lineWordsList[l - 2].length;
+        const w2 = lineWordsList[l - 1].length;
+        const totalWords = w1 + w2;
+        const targetCluster = clusters[c - 1];
+        const clDur = targetCluster.endMs - targetCluster.startMs;
+        const clUnits = targetCluster.acousticSyllableCount ?? targetCluster.bars.length;
+        const hasCapacityFor2Lines =
+          totalWords <= 6 || clUnits >= Math.max(w1, w2) + 2 || clDur >= totalWords * 190;
+        if (prevGap <= 3400 && totalWords <= 18 && hasCapacityFor2Lines) {
+          const mergeCost = 2.15 + (clUnits < totalWords * 0.65 ? 2.4 : 0);
           const cand =
             dp[l - 2][c - 1] +
-            1.85 +
-            computeMatchCost([l - 2, l - 1], clusters[c - 1].bars, l - 2, l - 1, c - 1, c - 1);
+            mergeCost +
+            computeMatchCost([l - 2, l - 1], targetCluster.bars, l - 2, l - 1, c - 1, c - 1);
           if (cand < bestCost) {
             bestCost = cand;
             bestAct = 'MERGE_2_LINES';
@@ -724,7 +808,8 @@ export interface IPhraseSlotDraft {
  */
 function scoreSlotWindowQuality(
   slots: IPhraseSlotDraft[],
-  useTimeCheck: boolean
+  useTimeCheck: boolean,
+  evaluatePhoneticMatch?: PhoneticEvaluationFn
 ): number {
   let score = 0;
   for (const s of slots) {
@@ -733,31 +818,55 @@ function scoreSlotWindowQuality(
       score -= s.bars.length > 0 ? 0.5 : 3.0;
       continue;
     }
-    const wCnt = Math.max(1, (s.lyricText || '').trim().split(/\s+/).filter(Boolean).length);
+    const tokens = (s.lyricText || '').trim().split(/\s+/).filter(Boolean);
+    const wCnt = Math.max(1, tokens.length);
     const bCnt = s.bars.length;
     if (bCnt === 0) {
       score -= 4.5;
       continue;
     }
 
-    const densityMismatch = Math.abs(wCnt - bCnt);
-    const severeDensity =
-      (wCnt >= 4 && bCnt === 1) || (wCnt >= 3 && bCnt / wCnt < 0.35) || (bCnt >= 8 && bCnt / wCnt >= 3.2);
+    const phonetic = evaluatePhoneticMatch
+      ? evaluatePhoneticMatch(tokens, [
+          {
+            bars: s.bars,
+            startMs: s.bars[0].startTimeMs,
+            endMs: s.bars[s.bars.length - 1].endTimeMs,
+          },
+        ])
+      : null;
 
-    let localScore = 3.5 + Math.min(4.0, bCnt * 0.4) - densityMismatch * 0.45;
+    const effectiveUnits =
+      phonetic?.hasUsableAudio && phonetic.acousticSyllableCount
+        ? Math.max(bCnt, phonetic.acousticSyllableCount)
+        : bCnt;
+
+    const densityMismatch = Math.abs(wCnt - effectiveUnits);
+    const cDur = Math.max(150, s.bars[bCnt - 1].endTimeMs - s.bars[0].startTimeMs);
+    const durCoversRapidWords =
+      bCnt <= 2 && wCnt >= 6 && cDur >= wCnt * 175 && cDur <= wCnt * 520;
+    const severeDensity =
+      !phonetic?.hasUsableAudio &&
+      !durCoversRapidWords &&
+      ((wCnt >= 4 && bCnt === 1) || (wCnt >= 3 && bCnt / wCnt < 0.35) || (bCnt >= 8 && bCnt / wCnt >= 3.2));
+
+    let localScore = 3.5 + Math.min(4.0, effectiveUnits * 0.4) - densityMismatch * 0.45;
     if (severeDensity) localScore -= 2.8;
 
     if (useTimeCheck && typeof s.shiftedTimeMs === 'number') {
       const dt = Math.abs(s.bars[0].startTimeMs - s.shiftedTimeMs);
-      localScore += dt <= 700 ? 1.0 : -Math.min(2.5, (dt - 700) / 700);
+      localScore += dt <= 650 ? 1.1 : -Math.min(2.3, (dt - 650) / 720);
     }
 
     if (wCnt >= 4 && bCnt >= 3) {
-      const tokens = (s.lyricText || '').trim().split(/\s+/).filter(Boolean);
       const sampled = sampleClusterMidisForWords(s.bars, wCnt);
       const report = computePhraseToneMelodicHarmony(tokens, sampled);
       if (report.overallScorePercent < 38) localScore -= 1.2;
       else if (report.overallScorePercent >= 70) localScore += 0.8;
+    }
+
+    if (phonetic?.hasUsableAudio) {
+      localScore -= phonetic.phoneticBonusCost * 0.85;
     }
 
     score += localScore;
@@ -779,8 +888,9 @@ export function repairDamagedPhraseWindowsLocally(params: {
     wordTimestamps?: Array<{ timeMs: number; text: string }>;
   }>;
   cleanOriginalBars: IVocalNoteBar[];
+  evaluatePhoneticMatch?: PhoneticEvaluationFn;
 }): IPhraseSlotDraft[] {
-  const { initialSlots, shiftedLines, cleanOriginalBars } = params;
+  const { initialSlots, shiftedLines, cleanOriginalBars, evaluatePhoneticMatch } = params;
   if (initialSlots.length === 0 || shiftedLines.length === 0 || cleanOriginalBars.length === 0) {
     return initialSlots;
   }
@@ -817,14 +927,31 @@ export function repairDamagedPhraseWindowsLocally(params: {
     }
     const tokens = (slot.lyricText || '').trim().split(/\s+/).filter(Boolean);
     const wCnt = Math.max(1, tokens.length);
-    const ratio = bCnt / wCnt;
+    const phonetic = evaluatePhoneticMatch
+      ? evaluatePhoneticMatch(tokens, [
+          {
+            bars: slot.bars,
+            startMs: slot.bars[0].startTimeMs,
+            endMs: slot.bars[slot.bars.length - 1].endTimeMs,
+          },
+        ])
+      : null;
+
+    const effectiveUnits =
+      phonetic?.hasUsableAudio && phonetic.acousticSyllableCount
+        ? Math.max(bCnt, phonetic.acousticSyllableCount)
+        : bCnt;
+    const ratio = effectiveUnits / wCnt;
+    const slotDurMs = Math.max(150, slot.bars[bCnt - 1].endTimeMs - slot.bars[0].startTimeMs);
+    const legatoCoversWords =
+      bCnt <= 2 && wCnt >= 6 && slotDurMs >= wCnt * 175 && slotDurMs <= wCnt * 520;
 
     const timingOk =
       typeof slot.shiftedTimeMs !== 'number' ||
       Math.abs(slot.bars[0].startTimeMs - slot.shiftedTimeMs) <= 1150;
     const timingTight =
       typeof slot.shiftedTimeMs !== 'number' ||
-      Math.abs(slot.bars[0].startTimeMs - slot.shiftedTimeMs) <= 520;
+      Math.abs(slot.bars[0].startTimeMs - slot.shiftedTimeMs) <= 500;
 
     let toneInverted = false;
     if (wCnt >= 5 && bCnt >= 3) {
@@ -833,8 +960,21 @@ export function repairDamagedPhraseWindowsLocally(params: {
       if (report.overallScorePercent < 40) toneInverted = true;
     }
 
-    const densityHealthy = wCnt <= 2 ? bCnt >= 1 && bCnt <= 4 : ratio >= 0.48 && ratio <= 2.25;
-    const densityTight = wCnt <= 2 ? bCnt >= 1 && bCnt <= 3 : ratio >= 0.65 && ratio <= 1.75;
+    const phoneticContradicted = Boolean(
+      phonetic?.hasUsableAudio && phonetic.phoneticBonusCost >= 1.55
+    );
+    const phoneticSupported = Boolean(
+      phonetic?.hasUsableAudio && phonetic.phoneticBonusCost <= -0.15
+    );
+
+    const densityHealthy =
+      wCnt <= 2
+        ? effectiveUnits >= 1 && effectiveUnits <= 4
+        : (ratio >= 0.48 && ratio <= 2.25) ||
+          (phoneticSupported && ratio >= 0.35 && ratio <= 2.4) ||
+          (legatoCoversWords && !phoneticContradicted);
+    const densityTight =
+      wCnt <= 2 ? effectiveUnits >= 1 && effectiveUnits <= 3 : ratio >= 0.65 && ratio <= 1.75;
 
     // Preserve a lone valid active slot whose timing already matches when no missing gaps compete
     const isSoleMatchedSnippetSlot =
@@ -846,10 +986,13 @@ export function repairDamagedPhraseWindowsLocally(params: {
       return { isStrongAnchor: true, isMarginalAnchor: false };
     }
 
-    if (!densityHealthy || !timingOk || toneInverted) {
+    if (!densityHealthy || !timingOk || toneInverted || phoneticContradicted) {
       return { isStrongAnchor: false, isMarginalAnchor: false };
     }
-    return { isStrongAnchor: true, isMarginalAnchor: !densityTight || !timingTight };
+    return {
+      isStrongAnchor: true,
+      isMarginalAnchor: !densityTight || !timingTight,
+    };
   });
 
   // Identify contiguous damaged spans of slots [s .. e] within active audio bounds
@@ -930,9 +1073,15 @@ export function repairDamagedPhraseWindowsLocally(params: {
       rawClusters.length > windowLrcIndices.length
         ? rawClusters.filter((c) => c.length >= 2 || c[0].durationMs >= 190)
         : rawClusters;
+    const avgWordsInWindow =
+      windowLrcIndices.reduce(
+        (acc, li) => acc + Math.max(1, shiftedLines[li].text.trim().split(/\s+/).filter(Boolean).length),
+        0
+      ) / Math.max(1, windowLrcIndices.length);
     const localClusters = expandClustersTowardCount(
       filteredClusters.length > 0 ? filteredClusters : rawClusters,
-      windowLrcIndices.length
+      windowLrcIndices.length,
+      avgWordsInWindow
     );
 
     const winStartMs = windowBars[0].startTimeMs;
@@ -977,6 +1126,7 @@ export function repairDamagedPhraseWindowsLocally(params: {
       allowClusterSkip: true,
       allowMerge2Lines: true,
       allowMerge2Clusters: true,
+      evaluatePhoneticMatch,
     });
 
     const repairedSlots: IPhraseSlotDraft[] = [];
@@ -1012,14 +1162,15 @@ export function repairDamagedPhraseWindowsLocally(params: {
       });
     }
 
-    const origScore = scoreSlotWindowQuality(origSlice, useLocalTimePrior);
-    const repairedScore = scoreSlotWindowQuality(repairedSlots, useLocalTimePrior);
+    const origScore = scoreSlotWindowQuality(origSlice, useLocalTimePrior, evaluatePhoneticMatch);
+    const repairedScore = scoreSlotWindowQuality(repairedSlots, useLocalTimePrior, evaluatePhoneticMatch);
     const origMatchedCount = origSlice.filter((s) => !s.isMissingGap && s.bars.length > 0).length;
     const repMatchedCount = repairedSlots.filter((s) => !s.isMissingGap && s.bars.length > 0).length;
 
     const acceptRepair =
       repairedSlots.length > 0 &&
-      (repairedScore > origScore + 0.35 || repMatchedCount > origMatchedCount);
+      (repairedScore > origScore + 0.35 ||
+        (repMatchedCount > origMatchedCount && repairedScore >= origScore - 0.55));
 
     working.push(...(acceptRepair ? repairedSlots : origSlice));
     cursor = winEnd + 1;

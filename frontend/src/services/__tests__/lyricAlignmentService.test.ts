@@ -28,6 +28,11 @@ import {
   findActiveWordIndexAtTime,
   ILrcLine,
 } from '../lyricAlignmentService';
+import {
+  buildClusterPhoneticProfilesAsync,
+  profileAudioClusterPhonetics,
+  rescueUnvoicedVocalPhrasesFromPcm,
+} from '../acousticPhoneticProfiler';
 import { findSparseAnchorChainOffsets } from '../sequenceAlignmentEngine';
 import {
   vocalFileAnalysisService,
@@ -2051,5 +2056,316 @@ describe('lyricAlignmentService', () => {
     expect([0, 1]).toContain(activeAt1310);
     expect(findActiveWordIndexAtTime(mockWords, 1150)).toBe(0);
     expect(findActiveWordIndexAtTime(mockWords, 1450)).toBe(1);
+  });
+
+  it('prevents domino cascade when 1 identical-length LRC line is missed using acoustic F1/F2 phonetic fingerprinting', () => {
+    const sr = 16000;
+    const pcm = new Float32Array(sr * 14);
+    const vowelSpec: Record<'A' | 'I' | 'U' | 'E', [number, number]> = {
+      A: [760, 1480],
+      I: [340, 2320],
+      U: [340, 960],
+      E: [580, 2050],
+    };
+
+    const writeSyllableBurst = (startMs: number, durMs: number, vowel: 'A' | 'I' | 'U' | 'E', amp = 0.28) => {
+      const [f1, f2] = vowelSpec[vowel];
+      const s0 = Math.floor((startMs / 1000) * sr);
+      const len = Math.floor((durMs / 1000) * sr);
+      for (let i = 0; i < len && s0 + i < pcm.length; i++) {
+        const u = i / len;
+        const env = Math.sin(Math.PI * u);
+        const t = i / sr;
+        pcm[s0 + i] +=
+          amp *
+          env *
+          env *
+          (0.62 * Math.sin(2 * Math.PI * f1 * t) + 0.35 * Math.sin(2 * Math.PI * f2 * t));
+      }
+    };
+
+    // Audio has 5 phrases, ALL with 4 equal NoteBars & equal durations (~1.3s),
+    // singing vowels [A, E, U, I, A] at 1s, 3.5s, 6s, 8.5s, 11s:
+    const starts = [1000, 3500, 6000, 8500, 11000];
+    const sungVowels: Array<'A' | 'I' | 'U' | 'E'> = ['A', 'E', 'U', 'I', 'A'];
+    const bars: IVocalNoteBar[] = [];
+    const phrases: IVocalPhrase[] = [];
+
+    starts.forEach((s, pIdx) => {
+      for (let b = 0; b < 4; b++) {
+        const bs = s + b * 320;
+        writeSyllableBurst(bs, 240, sungVowels[pIdx]);
+        bars.push({
+          id: `ph-bar-${pIdx}-${b}`,
+          startTimeMs: bs,
+          endTimeMs: bs + 240,
+          durationMs: 240,
+          midi: 62,
+          exactMidi: 62,
+          noteName: 'D4',
+          solfegeName: 'Rê 4',
+          avgCentsDiff: 0,
+          pointsCount: 10,
+        });
+      }
+      phrases.push({
+        id: `ph-p-${pIdx}`,
+        phraseIndex: pIdx + 1,
+        startMs: s,
+        endMs: s + 1200,
+        durationMs: 1200,
+        notes: ['D4'],
+        lowestNote: 'D4',
+        highestNote: 'D4',
+        avgPitchHz: 293.66,
+        avgMidi: 62,
+        pitchJumpSemitones: 0,
+        difficulty: 'Dễ',
+        difficultyScore: 3,
+        pointsCount: 32,
+      });
+    });
+
+    // LRC has 6 lines ALL with 4 words! Line 2 ('A la ca ma') was missed/skipped by singer;
+    // Lines 3..5 correspond to audio phrases 2, 3, 4 (Line 3 timestamp is shifted +1.1s so clock overlaps)!
+    const cascadeLrcLines: ILrcLine[] = [
+      { timeMs: 1000, text: 'Anh ba xa la' }, // Phrase 0 (A)
+      { timeMs: 3500, text: 'Em bên lề đêm' }, // Phrase 1 (E)
+      { timeMs: 5800, text: 'A la ca ma' }, // MISSED LINE (vowel A, placed near Phrase 2 = U!)
+      { timeMs: 7100, text: 'Thu u bu du' }, // Phrase 2 (U) - shifted +1.1s
+      { timeMs: 9300, text: 'I đi chi vi' }, // Phrase 3 (I) - shifted +0.8s
+      { timeMs: 11000, text: 'Anh ca la ma' }, // Phrase 4 (A)
+    ];
+
+    alignLrcLinesToPhrases(phrases, bars, cascadeLrcLines, pcm, sr, [], 14000);
+    expect(phrases.length).toBe(5);
+    expect(phrases[0].lyricText).toBe('Anh ba xa la');
+    expect(phrases[1].lyricText).toBe('Em bên lề đêm');
+    expect(phrases[2].lyricText).toBe('Thu u bu du');
+    expect(phrases[3].lyricText).toBe('I đi chi vi');
+    expect(phrases[4].lyricText).toBe('Anh ca la ma');
+  });
+
+  it('skips 1 missed phrase in plain text (L > P) via phonetic Symmetric DP instead of cascading neighbors', () => {
+    const sr = 16000;
+    const pcm = new Float32Array(sr * 12);
+    const writeVowelBurst = (startMs: number, durMs: number, f1: number, f2: number) => {
+      const s0 = Math.floor((startMs / 1000) * sr);
+      const len = Math.floor((durMs / 1000) * sr);
+      for (let i = 0; i < len && s0 + i < pcm.length; i++) {
+        const env = Math.sin(Math.PI * (i / len));
+        const t = i / sr;
+        pcm[s0 + i] += 0.25 * env * env * (0.62 * Math.sin(2 * Math.PI * f1 * t) + 0.35 * Math.sin(2 * Math.PI * f2 * t));
+      }
+    };
+
+    // Audio phrases [A, I, U, E] at 1s, 3.5s, 6s, 8.5s (each 4 bars ~1200ms)
+    const starts = [1000, 3500, 6000, 8500];
+    const formants: Array<[number, number]> = [
+      [760, 1480], // A
+      [340, 2320], // I
+      [340, 960],  // U
+      [580, 2050], // E
+    ];
+    const bars: IVocalNoteBar[] = [];
+    const phrases: IVocalPhrase[] = starts.map((s, pIdx) => {
+      for (let b = 0; b < 4; b++) {
+        const bs = s + b * 300;
+        writeVowelBurst(bs, 220, formants[pIdx][0], formants[pIdx][1]);
+        bars.push({
+          id: `pt-skip-${pIdx}-${b}`,
+          startTimeMs: bs,
+          endTimeMs: bs + 220,
+          durationMs: 220,
+          midi: 60,
+          exactMidi: 60,
+          noteName: 'C4',
+          solfegeName: 'Đô 4',
+          avgCentsDiff: 0,
+          pointsCount: 10,
+        });
+      }
+      return {
+        id: `pt-skip-p-${pIdx}`,
+        phraseIndex: pIdx + 1,
+        startMs: s,
+        endMs: s + 1120,
+        durationMs: 1120,
+        notes: ['C4'],
+        lowestNote: 'C4',
+        highestNote: 'C4',
+        avgPitchHz: 261.6,
+        avgMidi: 60,
+        pitchJumpSemitones: 0,
+        difficulty: 'Dễ',
+        difficultyScore: 3,
+        pointsCount: 30,
+      };
+    });
+
+    // Plain lyrics has 5 lines where line 2 ('Xa ta ba la' = A) was missed between I and U
+    const plain = [
+      'Anh ca ba xa',
+      'Khi mi đi chi',
+      'Xa ta ba la',
+      'Thu u du bu',
+      'Đêm em lên thềm',
+    ].join('\n');
+
+    alignPlainTextToPhrases(phrases, bars, plain, pcm, sr, []);
+    expect(phrases.length).toBe(4);
+    expect(phrases[0].lyricText).toBe('Anh ca ba xa');
+    expect(phrases[1].lyricText).toBe('Khi mi đi chi');
+    expect(phrases[2].lyricText).toBe('Thu u du bu');
+    expect(phrases[3].lyricText).toBe('Đêm em lên thềm');
+  });
+
+  it('extracts true acoustic syllable count on single fused legato/rap NoteBar so dense lines stay anchored', () => {
+    const sr = 16000;
+    const pcm = new Float32Array(sr * 3);
+    // Synthesize 7 crisp modulated vocal syllable peaks inside 1 single fused NoteBar (400ms..2500ms)
+    for (let k = 0; k < 7; k++) {
+      const s0 = Math.floor(((400 + k * 280) / 1000) * sr);
+      const len = Math.floor(0.18 * sr);
+      for (let i = 0; i < len && s0 + i < pcm.length; i++) {
+        const env = Math.sin(Math.PI * (i / len));
+        const t = i / sr;
+        pcm[s0 + i] += 0.25 * env * env * (0.6 * Math.sin(2 * Math.PI * 720 * t) + 0.35 * Math.sin(2 * Math.PI * 1500 * t));
+      }
+    }
+
+    const fusedBar: IVocalNoteBar = {
+      id: 'fused-rap-bar',
+      startTimeMs: 400,
+      endTimeMs: 2450,
+      durationMs: 2050,
+      midi: 60,
+      exactMidi: 60,
+      noteName: 'C4',
+      solfegeName: 'Đô 4',
+      avgCentsDiff: 0,
+      pointsCount: 60,
+    };
+
+    const profile = profileAudioClusterPhonetics({
+      bars: [fusedBar],
+      startMs: 400,
+      endMs: 2450,
+      rawMonoPcm: pcm,
+      sampleRate: sr,
+    });
+
+    expect(profile.hasUsableAudio).toBe(true);
+    expect(profile.acousticSyllableCount).toBeGreaterThanOrEqual(6);
+  });
+
+  it('rescues unvoiced/soft-rap spoken phrases in inter-phrase gaps while ignoring 78Hz sub-bass rumble', () => {
+    const sr = 16000;
+    const durSec = 7;
+    const rawPcm = new Float32Array(sr * durSec);
+    const filteredPcm = new Float32Array(sr * durSec);
+
+    // Gap inside 1.5s..5.5s contains:
+    // A) 4-syllable spoken/rap burst at 2.1s..3.4s (mid vocal bands 480Hz + 920Hz + 1650Hz)
+    for (let k = 0; k < 4; k++) {
+      const s0 = Math.floor(((2100 + k * 300) / 1000) * sr);
+      const len = Math.floor(0.2 * sr);
+      for (let i = 0; i < len; i++) {
+        const env = Math.sin(Math.PI * (i / len));
+        const t = i / sr;
+        const val =
+          0.26 *
+          env *
+          env *
+          (0.45 * Math.sin(2 * Math.PI * 520 * t) +
+            0.35 * Math.sin(2 * Math.PI * 960 * t) +
+            0.2 * Math.sin(2 * Math.PI * 1650 * t));
+        rawPcm[s0 + i] += val;
+        filteredPcm[s0 + i] += val;
+      }
+    }
+
+    // B) Pure 78Hz sub-bass thump at 4.3s..4.95s (must NOT be rescued as a vocal phrase)
+    {
+      const s0 = Math.floor(4.3 * sr);
+      const len = Math.floor(0.65 * sr);
+      for (let i = 0; i < len; i++) {
+        const val = 0.22 * Math.sin(2 * Math.PI * 78 * (i / sr));
+        rawPcm[s0 + i] += val;
+        filteredPcm[s0 + i] += val * 0.4;
+      }
+    }
+
+    const noteBars: IVocalNoteBar[] = [
+      { id: 'orig-1', startTimeMs: 400, endTimeMs: 1300, durationMs: 900, midi: 60, exactMidi: 60, noteName: 'C4', solfegeName: 'Đô 4', avgCentsDiff: 0, pointsCount: 25 },
+      { id: 'orig-2', startTimeMs: 5600, endTimeMs: 6500, durationMs: 900, midi: 64, exactMidi: 64, noteName: 'E4', solfegeName: 'Mi 4', avgCentsDiff: 0, pointsCount: 25 },
+    ];
+    const phrases: IVocalPhrase[] = [
+      { id: 'p-a', phraseIndex: 1, startMs: 400, endMs: 1300, durationMs: 900, notes: ['C4'], lowestNote: 'C4', highestNote: 'C4', avgPitchHz: 261.6, avgMidi: 60, pitchJumpSemitones: 0, difficulty: 'Dễ', difficultyScore: 3, pointsCount: 25 },
+      { id: 'p-b', phraseIndex: 2, startMs: 5600, endMs: 6500, durationMs: 900, notes: ['E4'], lowestNote: 'E4', highestNote: 'E4', avgPitchHz: 329.6, avgMidi: 64, pitchJumpSemitones: 0, difficulty: 'Dễ', difficultyScore: 3, pointsCount: 25 },
+    ];
+
+    const rescued = rescueUnvoicedVocalPhrasesFromPcm({
+      rawMonoPcm: rawPcm,
+      filteredPcm,
+      sampleRate: sr,
+      durationMs: durSec * 1000,
+      noiseFloorRms: 0.005,
+      pitchTrack: [],
+      noteBars,
+      phrases,
+      lowestMidi: 60,
+      highestMidi: 64,
+      createMidiNoteInfo: () => ({ noteName: 'D4', solfegeName: 'Rê 4' }),
+    });
+
+    expect(rescued).toBe(1);
+    expect(phrases.length).toBe(3);
+    expect(phrases[1].startMs).toBeGreaterThanOrEqual(2000);
+    expect(phrases[1].endMs).toBeLessThanOrEqual(3550);
+    expect(noteBars.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('builds phonetic cluster profiles asynchronously with progress callbacks', async () => {
+    const sr = 16000;
+    const pcm = new Float32Array(sr * 12);
+    const clusters: Array<{ bars: IVocalNoteBar[]; startMs: number; endMs: number }> = [];
+    for (let i = 0; i < 10; i++) {
+      const startMs = i * 1000 + 100;
+      const s0 = Math.floor((startMs / 1000) * sr);
+      for (let j = 0; j < Math.floor(0.4 * sr); j++) {
+        pcm[s0 + j] = 0.2 * Math.sin(2 * Math.PI * 730 * (j / sr));
+      }
+      clusters.push({
+        startMs,
+        endMs: startMs + 400,
+        bars: [
+          {
+            id: `async-b-${i}`,
+            startTimeMs: startMs,
+            endTimeMs: startMs + 400,
+            durationMs: 400,
+            midi: 60,
+            exactMidi: 60,
+            noteName: 'C4',
+            solfegeName: 'Đô 4',
+            avgCentsDiff: 0,
+            pointsCount: 10,
+          },
+        ],
+      });
+    }
+
+    const progressUpdates: number[] = [];
+    const map = await buildClusterPhoneticProfilesAsync({
+      clusters,
+      rawMonoPcm: pcm,
+      sampleRate: sr,
+      onProgress: (pct) => progressUpdates.push(pct),
+    });
+
+    expect(map.size).toBe(10);
+    expect(progressUpdates.length).toBeGreaterThanOrEqual(2);
+    expect(progressUpdates[progressUpdates.length - 1]).toBe(97);
   });
 });

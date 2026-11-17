@@ -23,6 +23,7 @@ import {
   type ISongLyricCandidate,
   type IAlignmentHealthReport,
 } from './lyricAlignmentService';
+import { rescueUnvoicedVocalPhrasesFromPcm } from './acousticPhoneticProfiler';
 
 export type {
   DuetSingerId,
@@ -475,6 +476,23 @@ class VocalFileAnalysisService {
         }
       }
     }
+
+    // 6B. Rescue unvoiced / soft-rap / breathy phrases in silent MPM gaps so missing pitch clarity never skips a line
+    notify(93, 'Giai đoạn 6/7: Quét lại khoảng nghỉ để phục hồi câu hát khẽ / nhả chữ rap...');
+    rescueUnvoicedVocalPhrasesFromPcm({
+      rawMonoPcm,
+      filteredPcm,
+      filteredSidePcm: filteredSidePcm ?? undefined,
+      sampleRate,
+      durationMs,
+      noiseFloorRms: dynamicNoiseFloorRms,
+      pitchTrack,
+      noteBars,
+      phrases,
+      lowestMidi: Math.round(lowestPoint.midi),
+      highestMidi: Math.round(highestPoint.midi),
+      createMidiNoteInfo: (m) => this.midiToNoteInfo(m),
+    });
 
     notify(94, 'Giai đoạn 6/7: Quét phổ Formant F1-F2 (Goertzel Pre-emphasis) & Quỹ đạo nguyên âm...');
     const lyricMeta = await populateAutomaticSongLyricsAndStructure({
