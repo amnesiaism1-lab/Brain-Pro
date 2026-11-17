@@ -3366,10 +3366,291 @@ function estimatePiecewiseLineOffsets(
 }
 
 /**
+ * Structural Subsequence Alignment (Distrust-First LRC Recovery):
+ * When LRC timestamps are severely shifted (> ±1600ms, e.g. interlude cut/added or wrong LRC timing),
+ * aligns LRC lines directly onto actual sung NoteBar clusters using Syllable-to-Note Density DP.
+ */
+function structuralSubsequenceAlignLrcToPhrases(
+  noteBars: IVocalNoteBar[],
+  lrcLines: ILrcLine[],
+  rawMonoPcm?: Float32Array | null,
+  sampleRate = 44100,
+  pitchTrack: IReferencePitchPoint[] = []
+): IVocalPhrase[] {
+  if (noteBars.length === 0 || lrcLines.length === 0) return [];
+
+  // 1. Group noteBars into natural singing clusters separated by >= 380ms silence
+  const clusters: IVocalNoteBar[][] = [];
+  let cur: IVocalNoteBar[] = [noteBars[0]];
+  for (let i = 1; i < noteBars.length; i++) {
+    const gap = noteBars[i].startTimeMs - noteBars[i - 1].endTimeMs;
+    if (gap <= 380 && noteBars[i].endTimeMs - cur[0].startTimeMs <= 6200) {
+      cur.push(noteBars[i]);
+    } else {
+      clusters.push(cur);
+      cur = [noteBars[i]];
+    }
+  }
+  clusters.push(cur);
+
+  // Filter out tiny 1-bar micro-clicks < 180ms unless total clusters <= lrcLines.length
+  const audioClusters =
+    clusters.length > lrcLines.length
+      ? clusters.filter((c) => c.length >= 2 || c[0].durationMs >= 200)
+      : clusters;
+
+  const L = lrcLines.length;
+  const P = audioClusters.length;
+  if (P === 0) return [];
+
+  const lineWords = lrcLines.map((l) => Math.max(1, l.text.trim().split(/\s+/).filter(Boolean).length));
+
+  // If P >= L: match each LRC line l to an audio cluster p (allowing skipping orphan/missing clusters)
+  if (P >= L) {
+    const dp: number[][] = Array.from({ length: L }, () => new Array(P).fill(Infinity));
+    const prevP: number[][] = Array.from({ length: L }, () => new Array(P).fill(-1));
+
+    const matchCost = (lIdx: number, pIdx: number) => {
+      const wCnt = lineWords[lIdx];
+      const bCnt = audioClusters[pIdx].length;
+      const densityDiff = Math.abs(wCnt - bCnt) * 1.7;
+      const relProgressDiff = Math.abs((lIdx + 0.5) / L - (pIdx + 0.5) / P) * 10;
+      return densityDiff + relProgressDiff;
+    };
+
+    for (let p = 0; p <= P - L; p++) {
+      dp[0][p] = matchCost(0, p);
+    }
+
+    for (let l = 1; l < L; l++) {
+      for (let p = l; p <= P - (L - l); p++) {
+        for (let pp = l - 1; pp < p; pp++) {
+          if (dp[l - 1][pp] === Infinity) continue;
+          const skipPenalty = (p - pp - 1) * 1.5;
+          const cand = dp[l - 1][pp] + matchCost(l, p) + skipPenalty;
+          if (cand < dp[l][p]) {
+            dp[l][p] = cand;
+            prevP[l][p] = pp;
+          }
+        }
+      }
+    }
+
+    let bestEndP = L - 1;
+    let bestCost = Infinity;
+    for (let p = L - 1; p < P; p++) {
+      if (dp[L - 1][p] < bestCost) {
+        bestCost = dp[L - 1][p];
+        bestEndP = p;
+      }
+    }
+
+    const assignedP: number[] = new Array(L);
+    let curP = bestEndP;
+    for (let l = L - 1; l >= 0; l--) {
+      assignedP[l] = curP;
+      curP = prevP[l][curP];
+    }
+
+    const mappedSet = new Set(assignedP);
+    const out: IVocalPhrase[] = [];
+    for (let l = 0; l < L; l++) {
+      const cl = audioClusters[assignedP[l]];
+      out.push(
+        buildPhraseFromBarsAndLyric({
+          phraseIndex: l + 1,
+          bars: cl,
+          fallbackStartMs: cl[0].startTimeMs,
+          fallbackEndMs: cl[cl.length - 1].endTimeMs,
+          lyricText: lrcLines[l].text,
+          isInstrumentalOrVocalize: false,
+          allNoteBars: noteBars,
+          rawMonoPcm,
+          sampleRate,
+          pitchTrack,
+          wordTimestamps: lrcLines[l].wordTimestamps,
+        })
+      );
+    }
+
+    // Preserve unmapped clusters as missing-lyric gaps
+    audioClusters.forEach((cl, pIdx) => {
+      if (mappedSet.has(pIdx)) return;
+      const cStart = cl[0].startTimeMs;
+      const cEnd = cl[cl.length - 1].endTimeMs;
+      if (cl.length >= 2 || cEnd - cStart >= 900) {
+        const gapP = buildPhraseFromBarsAndLyric({
+          phraseIndex: 0,
+          bars: cl,
+          fallbackStartMs: cStart,
+          fallbackEndMs: cEnd,
+          lyricText: undefined,
+          isInstrumentalOrVocalize: false,
+          allNoteBars: noteBars,
+          rawMonoPcm,
+          sampleRate,
+          pitchTrack,
+        });
+        gapP.isMissingLyricGap = true;
+        gapP.alignmentIssue = 'missing_lyric';
+        out.push(gapP);
+      }
+    });
+
+    out.sort((a, b) => a.startMs - b.startMs);
+    out.forEach((p, idx) => {
+      p.id = `phrase-${idx + 1}`;
+      p.phraseIndex = idx + 1;
+    });
+    return out;
+  }
+
+  return [];
+}
+
+/**
+ * Compute normalized DTW distance between two melodic interval sequences (pitch deltas in semitones).
+ */
+function melodicIntervalDtwDistance(seqA: number[], seqB: number[]): number {
+  const n = seqA.length;
+  const m = seqB.length;
+  if (n === 0 || m === 0) return Infinity;
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(Infinity));
+  dp[0][0] = 0;
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      const cost = Math.abs(seqA[i - 1] - seqB[j - 1]);
+      dp[i][j] = cost + Math.min(dp[i - 1][j - 1], dp[i - 1][j] + 0.5, dp[i][j - 1] + 0.5);
+    }
+  }
+  return dp[n][m] / Math.max(n, m);
+}
+
+/**
+ * Auto-generate lyrics for `isMissingLyricGap` phrases:
+ * 1. Melodic Interval Self-Similarity Clone (detects repeated Chorus / Verse melodies even if transposed)
+ * 2. Acoustic Phonetic Syllable Synthesizer (synthesizes singable syllables 1-to-1 per NoteBar for unique bridges)
+ */
+function autoGenerateMissingLyrics(
+  phrases: IVocalPhrase[],
+  noteBars: IVocalNoteBar[],
+  rawMonoPcm?: Float32Array | null,
+  sampleRate = 44100,
+  pitchTrack: IReferencePitchPoint[] = []
+): void {
+  const getIntervals = (bars: IVocalNoteBar[]) => {
+    const ivs: number[] = [];
+    for (let i = 1; i < bars.length; i++) {
+      ivs.push(bars[i].midi - bars[i - 1].midi);
+    }
+    return ivs;
+  };
+
+  const sourceCandidates = phrases
+    .filter(
+      (p) =>
+        !p.isMissingLyricGap &&
+        !p.isInstrumentalOrVocalize &&
+        p.lyricText &&
+        !p.lyricText.startsWith('Nguyên âm:')
+    )
+    .map((p) => {
+      const bars = getPhraseNoteBarsStrict(p, noteBars);
+      return {
+        phrase: p,
+        bars,
+        intervals: getIntervals(bars),
+      };
+    })
+    .filter((s) => s.bars.length >= 3 && s.intervals.length >= 2);
+
+  const SYLLABLE_MAP: Record<CoreVowelFamily, [string, string]> = {
+    A: ['La', 'Na'],
+    E: ['Lê', 'Me'],
+    I: ['Li', 'Di'],
+    Ơ: ['Mơ', 'Lơ'],
+    Ô: ['Đô', 'Lô'],
+    U: ['Ru', 'Nu'],
+  };
+
+  for (const p of phrases) {
+    if (!p.isMissingLyricGap) continue;
+    const gapBars = getPhraseNoteBarsStrict(p, noteBars);
+    if (gapBars.length === 0) continue;
+
+    // 1. Try Melodic Interval Self-Similarity Clone (Chorus / Verse repetition)
+    if (gapBars.length >= 3 && sourceCandidates.length > 0) {
+      const gapIntervals = getIntervals(gapBars);
+      let bestSource: (typeof sourceCandidates)[number] | null = null;
+      let bestDist = Infinity;
+
+      for (const src of sourceCandidates) {
+        if (Math.abs(src.bars.length - gapBars.length) > 2) continue;
+        const dist = melodicIntervalDtwDistance(gapIntervals, src.intervals);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestSource = src;
+        }
+      }
+
+      if (bestSource && bestDist <= 0.95 && bestSource.phrase.lyricText) {
+        p.isMissingLyricGap = false;
+        p.isAutoGeneratedMissing = true;
+        p.autoGenSource = 'melodic_clone';
+        p.alignmentIssue = null;
+        p.alignmentIssueDetailVi = `Tự động khớp lời theo giai điệu lặp lại của Câu ${bestSource.phrase.phraseIndex}`;
+        alignWordsToPhraseNoteBars(
+          p,
+          noteBars,
+          bestSource.phrase.lyricText,
+          rawMonoPcm,
+          sampleRate,
+          pitchTrack
+        );
+        continue;
+      }
+    }
+
+    // 2. Fallback: Acoustic Phonetic Syllable Synthesis 1-to-1 per NoteBar
+    const synthTokens = gapBars.map((bar, bIdx) => {
+      const prevBar = bIdx > 0 ? gapBars[bIdx - 1] : null;
+      const deep = analyzeDeepNoteBarVowelAndTrajectory({
+        rawMonoPcm: rawMonoPcm || null,
+        sampleRate,
+        bar,
+        prevBar,
+        pitchTrack,
+      });
+      const pair = SYLLABLE_MAP[deep.vowelFamily] || ['La', 'Na'];
+      const hasNasal =
+        rawMonoPcm &&
+        computeOralToNasalRatioDbAtMs(rawMonoPcm, sampleRate, bar.startTimeMs + 25) < 2.0;
+      const baseSyl = hasNasal ? pair[1] : pair[0];
+      return bIdx === 0 ? baseSyl : baseSyl.toLowerCase();
+    });
+
+    const synthText = synthTokens.join(' ');
+    p.isAutoGeneratedMissing = true;
+    p.autoGenSource = 'phonetic_synth';
+    p.alignmentIssueDetailVi = `Âm tiết tổng hợp tự động theo Formant (${gapBars.length} nốt) — bạn có thể bấm AI Bóc Câu để đổi sang lời thật`;
+    alignWordsToPhraseNoteBars(
+      p,
+      noteBars,
+      synthText,
+      rawMonoPcm,
+      sampleRate,
+      pitchTrack,
+      undefined,
+      true
+    );
+  }
+}
+
+/**
  * Align parsed LRC lines onto IVocalPhrase[] using:
  * 1. Global Audio-to-LRC Time Offset Auto-Calibration + Piecewise Multi-Anchor Tempo Drift Correction
- * 2. Breath-Snapped LRC Boundary Partitioning (each LRC line becomes 1 clean phrase,
- *    never gluing two lyric lines together and never letting words bleed into adjacent phrases!)
+ * 2. Distrust-First Structural Subsequence Alignment when LRC timestamps miss >= 35% of phrases
+ * 3. Gap-Preserving Rebuild + Auto-Generation of missing lyrics (Melodic Clone / Phonetic Synthesis)
  */
 export function alignLrcLinesToPhrases(
   phrases: IVocalPhrase[],
@@ -3574,7 +3855,7 @@ export function alignLrcLinesToPhrases(
         }
         // Skip tiny instrumental micro-artifacts; preserve genuine singing gaps
         const isGenuineSinging =
-          (cluster.length >= 2 && cDur >= 750) || (cluster.length === 1 && cDur >= 900);
+          (cluster.length >= 2 && cDur >= 650) || (cluster.length === 1 && cDur >= 900);
         if (!isGenuineSinging) continue;
 
         const gapPhrase = buildPhraseFromBarsAndLyric({
@@ -3601,6 +3882,45 @@ export function alignLrcLinesToPhrases(
         p.phraseIndex = idx + 1;
       });
     }
+  }
+
+  // Distrust-First Check: if >= 35% of LRC lines landed on 0 NoteBars OR were dropped past maxAudioMs while audio still has uncovered singing phrases,
+  // automatically re-align via Structural Subsequence DTW against actual vocal NoteBar clusters!
+  if (lrcLines.length >= 3 && noteBars.length >= 3) {
+    const lrcLinesResult = rebuiltPhrases.filter((p) => !p.isMissingLyricGap);
+    const emptyLrcLines = lrcLinesResult.filter(
+      (p) => getPhraseNoteBarsStrict(p, noteBars).length === 0
+    ).length;
+    const missingGapsCount = rebuiltPhrases.filter((p) => p.isMissingLyricGap).length;
+    const droppedLinesCount = Math.max(0, lrcLines.length - lrcLinesResult.length);
+    const effectiveBadRatio = (emptyLrcLines + Math.min(droppedLinesCount, missingGapsCount)) / lrcLines.length;
+
+    if (effectiveBadRatio >= 0.35) {
+      const subseqPhrases = structuralSubsequenceAlignLrcToPhrases(
+        noteBars,
+        lrcLines,
+        rawMonoPcm,
+        sampleRate,
+        pitchTrack
+      );
+      if (subseqPhrases.length > 0) {
+        const subseqEmpty = subseqPhrases.filter(
+          (p) => !p.isMissingLyricGap && getPhraseNoteBarsStrict(p, noteBars).length === 0
+        ).length;
+        const subseqMatched = subseqPhrases.filter(
+          (p) => !p.isMissingLyricGap && getPhraseNoteBarsStrict(p, noteBars).length > 0
+        ).length;
+        const origMatched = lrcLinesResult.length - emptyLrcLines;
+        if (subseqMatched > origMatched || subseqEmpty < emptyLrcLines) {
+          rebuiltPhrases.splice(0, rebuiltPhrases.length, ...subseqPhrases);
+        }
+      }
+    }
+  }
+
+  // Auto-generate missing lyrics (Chorus Melodic Self-Similarity Clone or Phonetic Syllable Synthesis)
+  if (rebuiltPhrases.some((p) => p.isMissingLyricGap)) {
+    autoGenerateMissingLyrics(rebuiltPhrases, noteBars, rawMonoPcm, sampleRate, pitchTrack);
   }
 
   if (rebuiltPhrases.length > 0) {
