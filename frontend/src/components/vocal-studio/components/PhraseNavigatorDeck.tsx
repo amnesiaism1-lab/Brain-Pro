@@ -580,20 +580,21 @@ const PhraseNavigatorDeckInner: React.FC<PhraseNavigatorDeckProps> = ({
         </div>
       )}
 
-      {/* 4. SELECTED PHRASE INSPECTOR & WORD-BY-WORD DIAGNOSTIC BAR (Zone 3) */}
+      {/* 4. SELECTED PHRASE INSPECTOR — CLEAN, LARGE READABLE LYRIC VIEW */}
       {focusedPhrase && (
-        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-900/95 via-indigo-950/30 to-slate-900/95 border border-indigo-500/30 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
-          <div className="space-y-1.5 flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2 py-0.5 rounded-lg bg-indigo-500 text-slate-950 font-black text-xs">
-                Đang chọn: Câu {focusedPhrase.phraseIndex}
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900/95 via-indigo-950/25 to-slate-900/95 border border-indigo-500/30 flex flex-col gap-3.5">
+          {/* Top Bar: Clean Phrase Badge + Section + Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-800/70 pb-2.5">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <span className="px-2.5 py-1 rounded-lg bg-indigo-500 text-slate-950 font-black text-xs">
+                Câu {focusedPhrase.phraseIndex}
               </span>
-              <span className="px-2 py-0.5 rounded-lg bg-slate-800 text-sky-300 text-[11px] font-bold">
+              <span className="px-2.5 py-1 rounded-lg bg-slate-800/90 text-sky-300 text-xs font-bold">
                 {focusedPhrase.sectionLabel || 'Phiên khúc'}
               </span>
               {focusedPhrase.singerId && focusedPhrase.singerId !== 'solo' && (
                 <span
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
                     focusedPhrase.singerId === 'voice_a'
                       ? 'bg-cyan-950/80 border-cyan-500/40 text-cyan-300'
                       : focusedPhrase.singerId === 'voice_b'
@@ -608,222 +609,131 @@ const PhraseNavigatorDeckInner: React.FC<PhraseNavigatorDeckProps> = ({
                     : `👥 ${focusedPhrase.singerLabel || 'Song ca'}`}
                 </span>
               )}
-              <span className="text-[11px] font-mono text-slate-400">
-                {formatTimeMs(focusedPhrase.startMs)} – {formatTimeMs(focusedPhrase.endMs)} (
-                {focusedPhrase.lowestNote} → {focusedPhrase.highestNote})
+              <span className="text-xs font-mono text-slate-400">
+                {formatTimeMs(focusedPhrase.startMs)} – {formatTimeMs(focusedPhrase.endMs)}
               </span>
-              {focusedPhrase.contourLabel && (
-                <span className="text-[10px] text-amber-300 font-medium">
-                  • {focusedPhrase.contourLabel}
-                </span>
+            </div>
+
+            {/* Right Quick Practice Controls (Speed + Loop + Split/Merge) */}
+            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+              {onChangeSpeed && (
+                <div className="flex items-center bg-slate-950 p-0.5 rounded-xl border border-slate-800 text-[11px]">
+                  {[0.75, 0.85, 1.0].map((spd) => (
+                    <button
+                      key={spd}
+                      type="button"
+                      onClick={() => onChangeSpeed(spd)}
+                      className={`px-2 py-1 rounded-lg font-mono font-bold transition ${
+                        Math.abs(playbackSpeed - spd) < 0.02
+                          ? 'bg-sky-500 text-slate-950'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {spd}x
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => onLoopPhrase(focusedPhrase)}
+                className="px-3 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-black text-xs flex items-center gap-1 transition shadow-md cursor-pointer"
+              >
+                <Repeat className="w-3.5 h-3.5" />
+                <span>Luyện Lặp Câu {focusedPhrase.phraseIndex}</span>
+              </button>
+
+              {onSplitPhrase && focusedPhrase.durationMs >= 1200 && (
+                <button
+                  type="button"
+                  onClick={() => onSplitPhrase(focusedPhrase.phraseIndex, currentTimeMs)}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+                  title="Tách câu này làm 2 câu nhỏ để dễ luyện hơn"
+                >
+                  <Scissors className="w-3.5 h-3.5" />
+                  <span>Tách câu</span>
+                </button>
+              )}
+
+              {onMergeNextPhrase && focusedPhrase.phraseIndex < phrases.length && (
+                <button
+                  type="button"
+                  onClick={() => onMergeNextPhrase(focusedPhrase.phraseIndex)}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+                  title={`Gộp Câu ${focusedPhrase.phraseIndex} với Câu ${focusedPhrase.phraseIndex + 1}`}
+                >
+                  <Merge className="w-3.5 h-3.5" />
+                  <span>Gộp câu sau</span>
+                </button>
               )}
             </div>
-
-            {/* Legend for Vowel, Multi-Note Glide & Sustain */}
-            <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-400">
-              <span>Quỹ đạo nguyên âm & nốt từng từ:</span>
-              <span className="px-1.5 py-0.5 rounded bg-sky-950/60 border border-sky-500/30 text-sky-300">
-                ↗ Đi lên (+bán âm)
-              </span>
-              <span className="px-1.5 py-0.5 rounded bg-amber-950/60 border border-amber-500/30 text-amber-300">
-                ↘ Đi xuống (-bán âm)
-              </span>
-              <span className="px-1.5 py-0.5 rounded bg-purple-950/60 border border-purple-500/30 text-purple-300">
-                ⤴ Luyến nốt (Thấp→Cao) / 〰 Ngân rung
-              </span>
-              <span className="px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30 text-cyan-300">
-                ⏳ Ngân dài
-              </span>
-              <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
-                → Giữ ngang
-              </span>
-            </div>
-
-            {/* Word-by-word Vowel, Multi-Note Glide, Sustain Duration & Accuracy Chips */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              {(focusedPhrase.words || []).map((w) => {
-                const wKey = `${focusedPhrase.phraseIndex}_${w.wordIndex}`;
-                const wStat = sessionStats.wordScores?.[wKey];
-                const step = w.stepSemitones ?? 0;
-                const stepTag = step > 0 ? `+${step}` : step < 0 ? `${step}` : '0';
-                const arrow = w.trajectorySymbol || '→';
-                const vowelBadge =
-                  w.vowelPhoneme && !w.text.startsWith(w.vowelPhoneme)
-                    ? `/${w.vowelPhoneme}/ `
-                    : '';
-
-                const hasMultiNoteGlide =
-                  (w.noteSequence && w.noteSequence.length > 1) ||
-                  (w.endNoteName && w.endNoteName !== w.noteName);
-                const noteDisplay =
-                  w.noteSequence && w.noteSequence.length > 1
-                    ? w.noteSequence.join('→')
-                    : w.endNoteName && w.endNoteName !== w.noteName
-                    ? `${w.noteName}→${w.endNoteName}`
-                    : w.noteName;
-                const solfegeDisplay =
-                  w.solfegeSequence && w.solfegeSequence.length > 1
-                    ? w.solfegeSequence.join('→')
-                    : w.endSolfege && w.endSolfege !== w.solfege
-                    ? `${w.solfege}→${w.endSolfege}`
-                    : w.solfege;
-
-                const glideSt = w.glideSemitones ?? 0;
-                const directionTag =
-                  hasMultiNoteGlide && glideSt !== 0
-                    ? `${arrow}${glideSt > 0 ? `+${glideSt}` : glideSt}st`
-                    : `${arrow}${stepTag}`;
-
-                const durSecStr =
-                  w.isSustained && w.durationMs
-                    ? ` · ⏳${(w.durationMs / 1000).toFixed(1)}s`
-                    : '';
-
-                const isWordPlayingNow =
-                  currentTimeMs >= w.startMs - 30 && currentTimeMs <= w.endMs + 30;
-                const wordProgressPct = isWordPlayingNow
-                  ? Math.max(
-                      0,
-                      Math.min(
-                        100,
-                        ((currentTimeMs - w.startMs) / Math.max(80, w.endMs - w.startMs)) * 100
-                      )
-                    )
-                  : 0;
-
-                // Default color reflects melodic direction (Multi-note glide vs Up vs Down vs Sustained)
-                let chipColor = 'bg-slate-950/80 border-slate-800 text-slate-200';
-                if (
-                  hasMultiNoteGlide ||
-                  w.pitchTrajectory === 'arch' ||
-                  w.pitchTrajectory === 'vibrato' ||
-                  w.pitchTrajectory === 'dip'
-                ) {
-                  chipColor = 'bg-purple-950/45 border-purple-500/40 text-purple-200';
-                } else if (step >= 1 || w.pitchTrajectory === 'rising') {
-                  chipColor = 'bg-sky-950/45 border-sky-500/35 text-sky-200';
-                } else if (step <= -1 || w.pitchTrajectory === 'falling') {
-                  chipColor = 'bg-amber-950/40 border-amber-500/35 text-amber-200';
-                } else if (w.isSustained) {
-                  chipColor = 'bg-cyan-950/40 border-cyan-500/35 text-cyan-200';
-                }
-
-                let metaLabel = `${vowelBadge}${noteDisplay} (${directionTag})${durSecStr}`;
-
-                if (wStat && wStat.total > 30) {
-                  const cStr =
-                    wStat.avgCentsDiff > 0 ? `+${wStat.avgCentsDiff}c` : `${wStat.avgCentsDiff}c`;
-                  metaLabel = `${vowelBadge}${noteDisplay} (${directionTag})${durSecStr} · ${cStr}`;
-                  if (wStat.status === 'in_tune') {
-                    chipColor = 'bg-emerald-950/75 border-emerald-500/50 text-emerald-300';
-                  } else if (wStat.status === 'flat') {
-                    chipColor = 'bg-amber-950/75 border-amber-500/50 text-amber-300';
-                  } else {
-                    chipColor = 'bg-rose-950/75 border-rose-500/50 text-rose-300';
-                  }
-                }
-
-                if (isWordPlayingNow) {
-                  chipColor += ' ring-2 ring-sky-400 border-sky-300 shadow-md shadow-sky-500/20';
-                }
-
-                return (
-                  <button
-                    key={w.wordIndex}
-                    type="button"
-                    onClick={() => onSeekToPhrase(w.startMs)}
-                    className={`relative overflow-hidden px-2.5 py-1 rounded-xl border text-xs flex items-center gap-1.5 hover:border-sky-400 transition ${
-                      w.isSustained ? 'min-w-[140px] justify-between' : ''
-                    } ${chipColor}`}
-                    title={`Tua tới "${w.text}" (${solfegeDisplay}, ${
-                      w.durationMs ? `${Math.round(w.durationMs)}ms` : ''
-                    }) • Nguyên âm: /${w.vowelPhoneme || 'A'}/ (${w.vowelHint || ''})${
-                      w.formantsHz ? ` [F1:${w.formantsHz[0]}Hz, F2:${w.formantsHz[1]}Hz]` : ''
-                    } • ${w.trajectoryLabel || ''}${w.sustainLabel ? ` • ${w.sustainLabel}` : ''}`}
-                  >
-                    {isWordPlayingNow && (
-                      <span
-                        className="absolute inset-y-0 left-0 bg-sky-400/20 pointer-events-none transition-all duration-75"
-                        style={{ width: `${wordProgressPct}%` }}
-                      />
-                    )}
-                    <span className="relative z-10 font-black">
-                      {w.text.includes(arrow) ? w.text : `${w.text}${arrow}`}
-                    </span>
-                    <span className="relative z-10 text-[10px] font-mono opacity-90">
-                      [{metaLabel}]
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {focusedPhrase.focusTip && (
-              <p className="text-[11px] text-slate-400 italic">
-                💡 Mẹo luyện câu này: {focusedPhrase.focusTip}
-              </p>
-            )}
-
-            {focusedPhrase.toneHarmonyFeedback && (
-              <div className="text-[11px] font-mono text-amber-300/90 flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl">
-                <span>🎵 Thanh điệu & Cao độ:</span>
-                <span className="truncate">{focusedPhrase.toneHarmonyFeedback}</span>
-              </div>
-            )}
           </div>
 
-          {/* Right Quick Practice Controls (Speed + Loop + Split/Merge) */}
-          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-            {onChangeSpeed && (
-              <div className="flex items-center bg-slate-950 p-0.5 rounded-xl border border-slate-800 text-[11px]">
-                {[0.75, 0.85, 1.0].map((spd) => (
-                  <button
-                    key={spd}
-                    type="button"
-                    onClick={() => onChangeSpeed(spd)}
-                    className={`px-2 py-1 rounded-lg font-mono font-bold transition ${
-                      Math.abs(playbackSpeed - spd) < 0.02
-                        ? 'bg-sky-500 text-slate-950'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {spd}x
-                  </button>
-                ))}
+          {/* Large, Spacious, Balanced Lyric Line (click any word to seek) */}
+          <div className="px-2 py-1.5 rounded-xl bg-slate-950/55 border border-slate-800/70">
+            {focusedPhrase.words && focusedPhrase.words.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 leading-relaxed">
+                {focusedPhrase.words.map((w) => {
+                  const wKey = `${focusedPhrase.phraseIndex}_${w.wordIndex}`;
+                  const wStat = sessionStats.wordScores?.[wKey];
+                  const solfegeDisplay =
+                    w.solfegeSequence && w.solfegeSequence.length > 1
+                      ? w.solfegeSequence.join('→')
+                      : w.endSolfege && w.endSolfege !== w.solfege
+                      ? `${w.solfege}→${w.endSolfege}`
+                      : w.solfege;
+
+                  const isWordPlayingNow =
+                    currentTimeMs >= w.startMs - 30 && currentTimeMs <= w.endMs + 30;
+                  const wordProgressPct = isWordPlayingNow
+                    ? Math.max(
+                        0,
+                        Math.min(
+                          100,
+                          ((currentTimeMs - w.startMs) / Math.max(80, w.endMs - w.startMs)) * 100
+                        )
+                      )
+                    : 0;
+
+                  let wordClass =
+                    'text-slate-100 hover:bg-slate-800/80 border-transparent';
+                  if (isWordPlayingNow) {
+                    wordClass =
+                      'text-sky-200 bg-sky-500/20 border-sky-400/60 shadow-sm shadow-sky-500/20';
+                  } else if (wStat && wStat.total > 30) {
+                    if (wStat.status === 'in_tune') {
+                      wordClass = 'text-emerald-300 bg-emerald-950/40 border-emerald-500/35';
+                    } else if (wStat.status === 'flat') {
+                      wordClass = 'text-amber-300 bg-amber-950/40 border-amber-500/35';
+                    } else {
+                      wordClass = 'text-rose-300 bg-rose-950/40 border-rose-500/35';
+                    }
+                  }
+
+                  return (
+                    <button
+                      key={w.wordIndex}
+                      type="button"
+                      onClick={() => onSeekToPhrase(w.startMs)}
+                      className={`relative overflow-hidden px-2.5 py-1 rounded-xl border text-lg sm:text-xl font-bold tracking-normal transition-colors duration-100 cursor-pointer ${wordClass}`}
+                      title={`Nhảy tới "${w.text}" (${w.noteName || ''}${solfegeDisplay ? ` · ${solfegeDisplay}` : ''})`}
+                    >
+                      {isWordPlayingNow && (
+                        <span
+                          className="absolute bottom-0 left-0 h-0.5 bg-sky-400 rounded-full pointer-events-none"
+                          style={{ width: `${wordProgressPct}%` }}
+                        />
+                      )}
+                      <span className="relative z-10">{w.text}</span>
+                    </button>
+                  );
+                })}
               </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => onLoopPhrase(focusedPhrase)}
-              className="px-3 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-black text-xs flex items-center gap-1 transition shadow-md"
-            >
-              <Repeat className="w-3.5 h-3.5" />
-              <span>Luyện Lặp Câu {focusedPhrase.phraseIndex}</span>
-            </button>
-
-            {onSplitPhrase && focusedPhrase.durationMs >= 1200 && (
-              <button
-                type="button"
-                onClick={() => onSplitPhrase(focusedPhrase.phraseIndex, currentTimeMs)}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold flex items-center gap-1 transition"
-                title="Tách câu này làm 2 câu nhỏ để dễ luyện hơn"
-              >
-                <Scissors className="w-3 h-3" />
-                <span>Tách câu</span>
-              </button>
-            )}
-
-            {onMergeNextPhrase && focusedPhrase.phraseIndex < phrases.length && (
-              <button
-                type="button"
-                onClick={() => onMergeNextPhrase(focusedPhrase.phraseIndex)}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold flex items-center gap-1 transition"
-                title={`Gộp Câu ${focusedPhrase.phraseIndex} với Câu ${focusedPhrase.phraseIndex + 1}`}
-              >
-                <Merge className="w-3 h-3" />
-                <span>Gộp câu sau</span>
-              </button>
+            ) : (
+              <p className="px-2 py-1 text-lg sm:text-xl font-bold text-slate-100 leading-relaxed">
+                {focusedPhrase.lyricText || focusedPhrase.solfegeText}
+              </p>
             )}
           </div>
         </div>
@@ -1022,19 +932,21 @@ const PhraseNavigatorDeckInner: React.FC<PhraseNavigatorDeckProps> = ({
             </div>
           ) : (
             <div className="flex items-start justify-between gap-1.5">
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 space-y-0.5">
                 <div
-                  className="text-xs font-bold text-slate-100 truncate"
+                  className="text-sm font-bold text-slate-100 leading-snug line-clamp-2"
                   title={phrase.lyricText || phrase.solfegeText}
                 >
                   {phrase.lyricText || phrase.solfegeText}
                 </div>
-                <div
-                  className="text-[10px] font-mono text-sky-400/90 truncate"
-                  title={phrase.solfegeText}
-                >
-                  ♫ {phrase.solfegeText || phrase.notes.join(' · ')}
-                </div>
+                {phrase.lyricText && (
+                  <div
+                    className="text-[10px] font-mono text-slate-400 truncate"
+                    title={phrase.solfegeText}
+                  >
+                    ♫ {phrase.notes.slice(0, 6).join(' · ')}
+                  </div>
+                )}
               </div>
               {onUpdatePhraseLyric && (
                 <button
