@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { RunwayRenderState } from '../types';
-import { NOTE_NAMES, midiToNoteInfo } from '@brain-exercises/shared';
+import { NOTE_NAMES } from '@brain-exercises/shared';
 import { auditoryEngine } from '../../../services/auditoryEngine';
+import { findActiveWordIndexAtTime } from '../../../services/lyricAlignmentService';
 
 interface PitchRunwayCanvasProps {
   renderStateRef: React.MutableRefObject<RunwayRenderState>;
@@ -816,6 +817,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
             if (subWords && subWords.length >= 2 && barW >= 60) {
               ctx.font = 'bold 10px sans-serif';
               ctx.textAlign = 'left';
+              const activeSubWordIdx = findActiveWordIndexAtTime(subWords, effectiveTimeMs);
               subWords.forEach((sw, swIdx) => {
                 const swX = Math.max(
                   x1 + 4,
@@ -831,8 +833,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
                   ctx.stroke();
                   ctx.setLineDash([]);
                 }
-                const isSubActive =
-                  effectiveTimeMs >= sw.startMs - 25 && effectiveTimeMs <= sw.endMs + 25;
+                const isSubActive = sw.wordIndex === activeSubWordIdx;
                 ctx.fillStyle = isSubActive ? '#38bdf8' : 'rgba(254, 243, 199, 0.95)';
                 ctx.fillText(sw.text, swX + 3, barY + 3.5);
               });

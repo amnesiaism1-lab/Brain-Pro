@@ -25,8 +25,10 @@ import {
   searchSongLyricCandidates,
   realignLyricsToAnalysisResult,
   auditLyricAlignmentHealth,
+  findActiveWordIndexAtTime,
   ILrcLine,
 } from '../lyricAlignmentService';
+import { findSparseAnchorChainOffsets } from '../sequenceAlignmentEngine';
 import {
   vocalFileAnalysisService,
   IVocalPhrase,
@@ -1776,5 +1778,278 @@ describe('lyricAlignmentService', () => {
     // Word 3 ("bốn", middle of phrase) must map to Bar 1 (2000..2900) rather than drifting into silence gap or Bar 0!
     expect(phrase.words![3].startMs).toBeGreaterThanOrEqual(2000);
     expect(phrase.words![3].midi).toBe(67);
+  });
+
+  it('repairs localized <35% phrase cascade via Anchor-Constrained Local Window DP without moving outer anchors', () => {
+    // 10 audio phrases at 1s, 5s, 9s, 13s, 17s, 21s, 25s, 29s, 33s, 37s
+    // Phrases 0..3 and 7..9 match cleanly. Around 4..6 (17s..25s), LRC has an extra omitted line
+    // and shifted timestamps trying to push line 5 onto phrase 4 and leave phrase 6 orphaned!
+    const starts = [1000, 5000, 9000, 13000, 17000, 21000, 25000, 29000, 33000, 37000];
+    const barCounts = [4, 4, 4, 4, 5, 3, 4, 4, 4, 4];
+    const bars: IVocalNoteBar[] = [];
+    starts.forEach((s, pIdx) => {
+      for (let b = 0; b < barCounts[pIdx]; b++) {
+        bars.push({
+          id: `loc-${pIdx}-${b}`,
+          startTimeMs: s + b * 360,
+          endTimeMs: s + b * 360 + 300,
+          durationMs: 300,
+          midi: 60 + (b % 4),
+          exactMidi: 60 + (b % 4),
+          noteName: 'C4',
+          solfegeName: 'Do 4',
+          avgCentsDiff: 0,
+          pointsCount: 12,
+        });
+      }
+    });
+    const phrases: IVocalPhrase[] = starts.map((s, pIdx) => ({
+      id: `loc-p-${pIdx}`,
+      phraseIndex: pIdx + 1,
+      startMs: s,
+      endMs: s + barCounts[pIdx] * 360,
+      durationMs: barCounts[pIdx] * 360,
+      notes: ['C4', 'D4'],
+      lowestNote: 'C4',
+      highestNote: 'D#4',
+      avgPitchHz: 280,
+      avgMidi: 62,
+      pitchJumpSemitones: 3,
+      difficulty: 'Dễ',
+      difficultyScore: 3,
+      pointsCount: 40,
+    }));
+
+    // 11 LRC lines (<35% damaged region: lines 0..3 clean, line 4 omitted/bad at 16.5s,
+    // lines 5,6,7 correspond to 17s (5w), 21s (3w), 25s (4w) but shifted slightly in LRC, lines 8..10 clean at 29s..37s)
+    const lrcLines: ILrcLine[] = [
+      { timeMs: 1000, text: 'Câu số một chuẩn' },
+      { timeMs: 5000, text: 'Câu số hai chuẩn' },
+      { timeMs: 9000, text: 'Câu số ba chuẩn' },
+      { timeMs: 13000, text: 'Câu số bốn chuẩn' },
+      { timeMs: 16200, text: 'Câu thừa đã bỏ qua không hát' }, // Omitted extra line (7w)
+      { timeMs: 18900, text: 'Câu năm có năm âm' },              // Belongs to 17000ms (5 bars)
+      { timeMs: 22900, text: 'Câu sáu ba' },                    // Belongs to 21000ms (3 bars)
+      { timeMs: 26600, text: 'Câu bảy bốn từ' },                // Belongs to 25000ms (4 bars)
+      { timeMs: 29000, text: 'Câu số tám chuẩn' },
+      { timeMs: 33000, text: 'Câu số chín chuẩn' },
+      { timeMs: 37000, text: 'Câu số mười chuẩn' },
+    ];
+
+    alignLrcLinesToPhrases(phrases, bars, lrcLines, null, 44100, [], 40000);
+    expect(phrases.length).toBe(10);
+    expect(phrases[0].lyricText).toBe('Câu số một chuẩn');
+    expect(phrases[3].lyricText).toBe('Câu số bốn chuẩn');
+    expect(phrases[4].lyricText).toBe('Câu năm có năm âm');
+    expect(phrases[5].lyricText).toBe('Câu sáu ba');
+    expect(phrases[6].lyricText).toBe('Câu bảy bốn từ');
+    // Outer right anchors stay 100% immune
+    expect(phrases[7].lyricText).toBe('Câu số tám chuẩn');
+    expect(phrases[9].lyricText).toBe('Câu số mười chuẩn');
+  });
+
+  it('prevents sparse outlier onset from corrupting adjacent lines via Sparse Anchor-Chain + MAD rejection', () => {
+    const lrcLines = [
+      { timeMs: 1000, text: 'Một hai ba bốn' },
+      { timeMs: 5000, text: 'Năm sáu bảy tám' },
+      { timeMs: 9000, text: 'Chín mười một hai' },
+      { timeMs: 13000, text: 'Ba bốn năm sáu' },
+      { timeMs: 17000, text: 'Bảy tám chín mười' },
+    ];
+    // Onset 2 has an outlier drum spike at 10500ms (+1500ms spike), while surrounding lines smoothly stay at +200ms
+    const phrases: IVocalPhrase[] = [1200, 5200, 10500, 13200, 17200].map((s, i) => ({
+      id: `sp-p-${i}`,
+      phraseIndex: i + 1,
+      startMs: s,
+      endMs: s + 1300,
+      durationMs: 1300,
+      notes: ['C4'],
+      lowestNote: 'C4',
+      highestNote: 'C4',
+      avgPitchHz: 261,
+      avgMidi: 60,
+      pitchJumpSemitones: 0,
+      difficulty: 'Dễ',
+      difficultyScore: 2,
+      pointsCount: 20,
+    }));
+    const bars: IVocalNoteBar[] = [1200, 5200, 10500, 13200, 17200].flatMap((s, i) =>
+      [0, 1, 2, 3].map((k) => ({
+        id: `sp-b-${i}-${k}`,
+        startTimeMs: s + k * 310,
+        endTimeMs: s + k * 310 + 260,
+        durationMs: 260,
+        midi: 60,
+        exactMidi: 60,
+        noteName: 'C4',
+        solfegeName: 'Do 4',
+        avgCentsDiff: 0,
+        pointsCount: 10,
+      }))
+    );
+
+    const offsets = findSparseAnchorChainOffsets({
+      phrases,
+      noteBars: bars,
+      lrcLines,
+      baseOffsetMs: 200,
+    });
+    // Neighbors around the spike must stay strictly at +200ms (not pulled toward +1500ms!)
+    expect(Math.abs(offsets[1] - 200)).toBeLessThanOrEqual(50);
+    expect(Math.abs(offsets[3] - 200)).toBeLessThanOrEqual(50);
+    expect(Math.abs(offsets[2] - 200)).toBeLessThanOrEqual(150);
+  });
+
+  it('aligns plain text without cascading when audio starts with an extra missing vocal phrase (P > L)', () => {
+    const starts = [1000, 5000, 9000, 13000];
+    const counts = [2, 4, 4, 4]; // Phrase 0 (2 bars) is extra intro hum missing from pasted plain text
+    const bars: IVocalNoteBar[] = [];
+    starts.forEach((s, pi) => {
+      for (let k = 0; k < counts[pi]; k++) {
+        bars.push({
+          id: `ptc-${pi}-${k}`,
+          startTimeMs: s + k * 420,
+          endTimeMs: s + k * 420 + 360,
+          durationMs: 360,
+          midi: 60 + k,
+          exactMidi: 60 + k,
+          noteName: 'C4',
+          solfegeName: 'Do 4',
+          avgCentsDiff: 0,
+          pointsCount: 10,
+        });
+      }
+    });
+    const phrases: IVocalPhrase[] = starts.map((s, pi) => ({
+      id: `ptc-p-${pi}`,
+      phraseIndex: pi + 1,
+      startMs: s,
+      endMs: s + counts[pi] * 420,
+      durationMs: counts[pi] * 420,
+      notes: ['C4', 'D4'],
+      lowestNote: 'C4',
+      highestNote: 'D#4',
+      avgPitchHz: 277,
+      avgMidi: 62,
+      pitchJumpSemitones: 2,
+      difficulty: 'Dễ',
+      difficultyScore: 3,
+      pointsCount: 30,
+    }));
+
+    alignPlainTextToPhrases(
+      phrases,
+      bars,
+      'Dòng một bốn chữ\nDòng hai bốn chữ\nDòng ba bốn chữ',
+      null,
+      44100,
+      []
+    );
+    expect(phrases.length).toBe(4);
+    expect(phrases[0].isAutoGeneratedMissing).toBe(true);
+    expect(phrases[1].lyricText).toBe('Dòng một bốn chữ');
+    expect(phrases[2].lyricText).toBe('Dòng hai bốn chữ');
+    expect(phrases[3].lyricText).toBe('Dòng ba bốn chữ');
+  });
+
+  it('absorbs internal comma breath pause in SIL state and prevents word-level domino drift across clauses', () => {
+    const sr = 16000;
+    const durSec = 2.6;
+    const pcm = new Float32Array(Math.round(sr * durSec));
+    // Clause 1: "Tất anh," -> 0.10..0.38s ("Tất" 720Hz), 0.42..0.92s ("anh," 1250Hz)
+    // Breath Pause: 0.92..1.32s SILENCE
+    // Clause 2: "em đừng buồn" -> 1.32..1.58s (2100Hz), 1.62..1.88s (1250Hz), 1.92..2.50s (360+720Hz)
+    for (let i = 0; i < pcm.length; i++) {
+      const t = i / sr;
+      if (t >= 0.10 && t < 0.38) {
+        pcm[i] = 0.45 * Math.sin(2 * Math.PI * 720 * t);
+      } else if (t >= 0.42 && t < 0.92) {
+        pcm[i] = 0.52 * Math.sin(2 * Math.PI * 1250 * t) + 0.2 * Math.sin(2 * Math.PI * 360 * t);
+      } else if (t >= 1.32 && t < 1.58) {
+        pcm[i] = 0.46 * Math.sin(2 * Math.PI * 2100 * t);
+      } else if (t >= 1.62 && t < 1.88) {
+        pcm[i] = 0.48 * Math.sin(2 * Math.PI * 1250 * t);
+      } else if (t >= 1.92 && t < 2.50) {
+        pcm[i] = 0.55 * Math.sin(2 * Math.PI * 360 * t) + 0.3 * Math.sin(2 * Math.PI * 720 * t);
+      }
+    }
+
+    const bars: IVocalNoteBar[] = [
+      { id: 'c1', startTimeMs: 100, endTimeMs: 920, durationMs: 820, midi: 62, exactMidi: 62, noteName: 'D4', solfegeName: 'Re 4', avgCentsDiff: 0, pointsCount: 25 },
+      { id: 'c2', startTimeMs: 1320, endTimeMs: 2500, durationMs: 1180, midi: 65, exactMidi: 65, noteName: 'F4', solfegeName: 'Fa 4', avgCentsDiff: 0, pointsCount: 35 },
+    ];
+    const phrase: IVocalPhrase = {
+      id: 'p-clause',
+      phraseIndex: 1,
+      startMs: 100,
+      endMs: 2500,
+      durationMs: 2400,
+      notes: ['D4', 'F4'],
+      lowestNote: 'D4',
+      highestNote: 'F4',
+      avgPitchHz: 320,
+      avgMidi: 64,
+      pitchJumpSemitones: 3,
+      difficulty: 'Dễ',
+      difficultyScore: 3,
+      pointsCount: 60,
+    };
+
+    alignWordsToPhraseNoteBars(phrase, bars, 'Tất anh, em đừng buồn', pcm, sr, [], undefined, true);
+    expect(phrase.words).toHaveLength(5);
+    // "anh," stops tightly before the 400ms comma pause instead of swallowing the pause!
+    expect(phrase.words![1].endMs).toBeLessThanOrEqual(1050);
+    // "em" snaps cleanly after the pause onto ~1320ms!
+    expect(phrase.words![2].startMs).toBeGreaterThanOrEqual(1200);
+    expect(phrase.words![4].startMs).toBeGreaterThanOrEqual(1780);
+  });
+
+  it('skips isolated leading breath micro-bar in partitionBarsToWordsDP without shifting all phrase words', () => {
+    const bars: IVocalNoteBar[] = [
+      // Stray 60ms intake breath click separated by 180ms gap
+      { id: 'click-0', startTimeMs: 800, endTimeMs: 860, durationMs: 60, midi: 58, exactMidi: 58, noteName: 'A#3', solfegeName: 'La# 3', avgCentsDiff: 0, pointsCount: 2 },
+      { id: 'real-1', startTimeMs: 1040, endTimeMs: 1380, durationMs: 340, midi: 60, exactMidi: 60, noteName: 'C4', solfegeName: 'Do 4', avgCentsDiff: 0, pointsCount: 14 },
+      { id: 'real-2', startTimeMs: 1420, endTimeMs: 1760, durationMs: 340, midi: 64, exactMidi: 64, noteName: 'E4', solfegeName: 'Mi 4', avgCentsDiff: 0, pointsCount: 14 },
+      { id: 'real-3', startTimeMs: 1800, endTimeMs: 2250, durationMs: 450, midi: 67, exactMidi: 67, noteName: 'G4', solfegeName: 'Sol 4', avgCentsDiff: 0, pointsCount: 18 },
+    ];
+    const phrase: IVocalPhrase = {
+      id: 'p-click',
+      phraseIndex: 1,
+      startMs: 800,
+      endMs: 2250,
+      durationMs: 1450,
+      notes: ['A#3', 'C4', 'E4', 'G4'],
+      lowestNote: 'A#3',
+      highestNote: 'G4',
+      avgPitchHz: 310,
+      avgMidi: 63,
+      pitchJumpSemitones: 9,
+      difficulty: 'Trung bình',
+      difficultyScore: 5,
+      pointsCount: 48,
+    };
+
+    alignWordsToPhraseNoteBars(phrase, bars, 'Người yêu ơi', null, 44100, [], undefined, true);
+    expect(phrase.words).toHaveLength(3);
+    // Word 0 ("Người") skips the 60ms click and locks straight onto C4 (real-1)!
+    expect(phrase.words![0].midi).toBe(60);
+    expect(phrase.words![1].midi).toBe(64);
+    expect(phrase.words![2].midi).toBe(67);
+  });
+
+  it('strips YouTube [Âm nhạc]/[Music] captions and highlights strictly 1 exclusive word at boundaries', () => {
+    const ytSubs = `0:00\n[Âm nhạc]\n0:14\n[Music]\n0:15\nHoodie lông gấu\n0:18\n(Vỗ tay)\n0:19\nEm thật ngầu`;
+    const parsed = parseLrcContent(ytSubs);
+    expect(parsed.map((l) => l.text)).toEqual(['Hoodie lông gấu', 'Em thật ngầu']);
+
+    const mockWords = [
+      { wordIndex: 0, startMs: 1000, endMs: 1300 },
+      { wordIndex: 1, startMs: 1320, endMs: 1650 },
+    ];
+    // Right at seam 1310ms, strictly at most 1 exclusive word can be active (never both 0 and 1!)
+    const activeAt1310 = findActiveWordIndexAtTime(mockWords, 1310);
+    expect([0, 1]).toContain(activeAt1310);
+    expect(findActiveWordIndexAtTime(mockWords, 1150)).toBe(0);
+    expect(findActiveWordIndexAtTime(mockWords, 1450)).toBe(1);
   });
 });

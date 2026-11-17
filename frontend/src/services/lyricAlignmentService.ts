@@ -33,6 +33,19 @@ import {
   computeToneMelodicTransitionCost,
   computePhraseToneMelodicHarmony,
 } from './vietnameseToneProsodyService';
+import {
+  alignWindowSymmetricDP,
+  clusterNoteBarsBySilence,
+  expandClustersTowardCount,
+  filterNoteBarsInTimeRange,
+  findActiveWordIndexAtTime,
+  findSparseAnchorChainOffsets,
+  repairDamagedPhraseWindowsLocally,
+  type IPhraseSlotDraft,
+  type ISymmetricClusterInput,
+  type ISymmetricLyricInput,
+} from './sequenceAlignmentEngine';
+import { runAcousticWordForcedAlignment } from './acousticWordForcedAligner';
 
 export {
   type VietnameseToneType,
@@ -42,6 +55,7 @@ export {
   getVietnameseToneInfo,
   computeToneMelodicTransitionCost,
   computePhraseToneMelodicHarmony,
+  findActiveWordIndexAtTime,
 };
 
 export type VocalSectionType =
@@ -218,7 +232,7 @@ interface ICachedSongLyrics {
   }>;
 }
 
-const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v11_';
+const LYRIC_CACHE_PREFIX = 'brain_vocal_lyric_v12_';
 const CLOUD_LRC_CACHE_PREFIX = 'brain_vocal_cloud_lrc_v9_';
 
 /**
@@ -1261,10 +1275,7 @@ function getPhraseNoteBarsStrict(
   phrase: IVocalPhrase,
   allNoteBars: IVocalNoteBar[]
 ): IVocalNoteBar[] {
-  return allNoteBars.filter((b) => {
-    const mid = (b.startTimeMs + b.endTimeMs) / 2;
-    return mid >= phrase.startMs - 15 && mid <= phrase.endMs + 15;
-  });
+  return filterNoteBarsInTimeRange(phrase.startMs, phrase.endMs, allNoteBars, 15);
 }
 
 /**
@@ -2201,11 +2212,26 @@ function partitionBarsToWordsDP(
     return cost;
   };
 
-  // Base case w = 0
+  // Base case w = 0 (allow skipping an isolated stray leading micro-breath bar when B > W so it never cascades all words!)
+  const firstBar = phraseBars[0];
+  const canSkipLeadingNoiseBar =
+    B > W &&
+    firstBar.durationMs <= 85 &&
+    firstBar.pointsCount <= 3 &&
+    transitions[0]?.gapMs >= 100;
   const maxFirstEnd = B - W;
   for (let b = 0; b <= maxFirstEnd; b++) {
     dp[0][b] = spanCost(0, 0, b);
     prevSplit[0][b] = 0;
+  }
+  if (canSkipLeadingNoiseBar && maxFirstEnd >= 1) {
+    for (let b = 1; b <= maxFirstEnd; b++) {
+      const skipLeadCand = 2.0 + spanCost(0, 1, b);
+      if (skipLeadCand < dp[0][b]) {
+        dp[0][b] = skipLeadCand;
+        prevSplit[0][b] = 1;
+      }
+    }
   }
 
   // Transitions for w = 1 .. W - 1
@@ -2233,9 +2259,24 @@ function partitionBarsToWordsDP(
     }
   }
 
-  // Backtrack from (W - 1, B - 1)
-  const ranges: Array<{ startBarIdx: number; endBarIdx: number }> = new Array(W);
+  // Backtrack from (W - 1, B - 1), or (W - 1, B - 2) if final bar is an isolated micro-click/release artifact
+  const lastBar = phraseBars[B - 1];
+  const canSkipTrailingNoiseBar =
+    B > W &&
+    B >= 3 &&
+    lastBar.durationMs <= 85 &&
+    lastBar.pointsCount <= 3 &&
+    transitions[B - 2]?.gapMs >= 100;
+
   let currEnd = B - 1;
+  if (
+    canSkipTrailingNoiseBar &&
+    dp[W - 1][B - 2] + 2.0 < dp[W - 1][B - 1]
+  ) {
+    currEnd = B - 2;
+  }
+
+  const ranges: Array<{ startBarIdx: number; endBarIdx: number }> = new Array(W);
   for (let w = W - 1; w >= 0; w--) {
     const start = prevSplit[w][currEnd];
     ranges[w] = { startBarIdx: start, endBarIdx: currEnd };
@@ -2356,9 +2397,8 @@ function computeWordAcousticStats(
 
 /**
  * Acoustic-Phonetic Frame-Level Forced Aligner ("Dính từng chữ"):
- * Extracts 15ms multi-feature spectral/energy/formant-flux envelopes directly from `rawMonoPcm`
- * + `pitchTrack`, and solves an Elastic Phonology Viterbi DP assigning every word `w` (`0..W-1`)
- * to its exact syllable onset and vowel nucleus within the vocal phrase.
+ * Delegates to the 2-State (`SIL` + `WORD`) Anchor-Pinned Syllable-Nucleus Viterbi aligner
+ * in `acousticWordForcedAligner.ts` so one off-sync or held word never cascades onto neighbors.
  */
 function forceAlignPhraseWordsAcoustically(params: {
   phrase: IVocalPhrase;
@@ -2372,365 +2412,20 @@ function forceAlignPhraseWordsAcoustically(params: {
   wordTimestamps?: Array<{ timeMs: number; text: string }>;
   splitNoteBarsToMatch?: boolean;
 }): void {
-  const {
-    phrase,
-    phraseBars,
-    allNoteBars,
-    words,
-    rawTokens,
-    rawMonoPcm,
-    sampleRate,
-    pitchTrack,
-    wordTimestamps,
-    splitNoteBarsToMatch = true,
-  } = params;
-
-  const W = rawTokens.length;
-  if (W < 2 || words.length !== W || phraseBars.length === 0 || !rawMonoPcm || rawMonoPcm.length < 512) {
-    return;
-  }
-
-  const baseStartMs = Math.max(0, phraseBars[0].startTimeMs - 45);
-  const baseEndMs = phraseBars[phraseBars.length - 1].endTimeMs + 45;
-  const totalSpanMs = baseEndMs - baseStartMs;
-  if (totalSpanMs < W * 55) return;
-
-  // Check if PCM actually contains real vocal energy inside this window
-  const sIdxStart = Math.max(0, Math.floor((baseStartMs / 1000) * sampleRate));
-  const sIdxEnd = Math.min(rawMonoPcm.length, Math.ceil((baseEndMs / 1000) * sampleRate));
-  if (sIdxEnd - sIdxStart < 512) return;
-  let peakAbs = 0;
-  for (let i = sIdxStart; i < sIdxEnd; i += 4) {
-    const a = Math.abs(rawMonoPcm[i]);
-    if (a > peakAbs) peakAbs = a;
-  }
-  if (peakAbs < 0.005) return;
-
-  // Frame grid: 15ms step (adaptive if long >6.75s phrase so T <= 450)
-  const stepMs = Math.max(15, Math.ceil(totalSpanMs / 450));
-  const T = Math.max(W * 3, Math.round(totalSpanMs / stepMs));
-  const winLen = Math.min(1024, Math.max(256, Math.round(sampleRate * 0.024)));
-
-  const energyDb = new Float64Array(T);
-  const hfRatioDb = new Float64Array(T);
-  const oralNasalDb = new Float64Array(T);
-  const bVec = Array.from({ length: T }, () => new Float64Array(4));
-  const frameMidis = new Float64Array(T);
-
-  const vocalBands = [360, 720, 1250, 2100];
-  let ptCursor = 0;
-  let maxDb = -120;
-  let minDb = 0;
-
-  for (let t = 0; t < T; t++) {
-    const tMs = baseStartMs + (t + 0.5) * stepMs;
-    const centerSample = Math.round((tMs / 1000) * sampleRate);
-    const startSample = Math.max(0, Math.min(rawMonoPcm.length - winLen, centerSample - Math.floor(winLen / 2)));
-
-    let sumBandE = 0;
-    for (let m = 0; m < 4; m++) {
-      const e = goertzelBandEnergy(rawMonoPcm, startSample, winLen, sampleRate, vocalBands[m]);
-      bVec[t][m] = e;
-      sumBandE += e;
-    }
-    const eps = 1e-12;
-    for (let m = 0; m < 4; m++) {
-      bVec[t][m] /= sumBandE + eps;
-    }
-
-    const eDb = 10 * Math.log10(sumBandE / 4 + eps);
-    energyDb[t] = eDb;
-    if (eDb > maxDb) maxDb = eDb;
-    if (eDb < minDb) minDb = eDb;
-
-    const hfE =
-      (goertzelBandEnergy(rawMonoPcm, startSample, winLen, sampleRate, 3000) +
-        goertzelBandEnergy(rawMonoPcm, startSample, winLen, sampleRate, 4400)) *
-      0.5;
-    const lowE = (bVec[t][0] * sumBandE + bVec[t][1] * sumBandE) * 0.5;
-    hfRatioDb[t] = 10 * Math.log10((hfE + eps) / (lowE + eps));
-
-    while (ptCursor + 1 < pitchTrack.length && pitchTrack[ptCursor + 1].timeMs <= tMs) {
-      ptCursor++;
-    }
-    const curPt = pitchTrack[ptCursor];
-    const frameF0 =
-      curPt && curPt.isVocal && curPt.freqHz > 140 && Math.abs(curPt.timeMs - tMs) <= 45
-        ? curPt.freqHz
-        : undefined;
-    frameMidis[t] =
-      curPt && curPt.isVocal && curPt.midi > 0 && Math.abs(curPt.timeMs - tMs) <= 45 ? curPt.midi : 0;
-    oralNasalDb[t] = computeOralToNasalRatioDbAtMs(rawMonoPcm, sampleRate, tMs, frameF0);
-  }
-
-  // Require real dynamic modulation (>= 4.5dB) so constant-envelope synthetic waves stay untouched
-  if (maxDb - minDb < 4.5) return;
-
-  const formantFlux = new Float64Array(T);
-  const rmsDip = new Float64Array(T);
-  const hfRise = new Float64Array(T);
-  const nasalDip = new Float64Array(T);
-  const pitchVel = new Float64Array(T);
-  const barOnsetBonus = new Float64Array(T);
-  const activity = new Float64Array(T);
-
-  for (let b = 0; b < phraseBars.length; b++) {
-    const barF = Math.round((phraseBars[b].startTimeMs - baseStartMs) / stepMs);
-    for (let d = -1; d <= 1; d++) {
-      if (barF + d >= 0 && barF + d < T) {
-        barOnsetBonus[barF + d] = Math.max(barOnsetBonus[barF + d], d === 0 ? 5.0 : 2.8);
-      }
-    }
-  }
-
-  for (let t = 0; t < T; t++) {
-    const tMs = baseStartMs + (t + 0.5) * stepMs;
-    const relDb = energyDb[t] - maxDb;
-    const inBar = phraseBars.some((b) => tMs >= b.startTimeMs - 15 && tMs <= b.endTimeMs + 15);
-    const act = relDb >= -18 ? 0.5 + 0.5 * Math.min(1, (relDb + 18) / 14) : inBar ? 0.32 : 0.05;
-    activity[t] = act;
-
-    if (t >= 1 && t < T - 1) {
-      let flux = 0;
-      for (let m = 0; m < 4; m++) {
-        flux += Math.abs(bVec[t + 1][m] - bVec[t - 1][m]);
-      }
-      formantFlux[t] = flux * 5.0;
-
-      const leftE = t >= 2 ? Math.max(energyDb[t - 1], energyDb[t - 2]) : energyDb[t - 1];
-      const rightE = t + 2 < T ? Math.max(energyDb[t + 1], energyDb[t + 2]) : energyDb[t + 1];
-      rmsDip[t] = Math.max(0, Math.min(leftE, rightE) - energyDb[t]);
-
-      const prevHf = t >= 2 ? Math.min(hfRatioDb[t - 1], hfRatioDb[t - 2]) : hfRatioDb[t - 1];
-      hfRise[t] = Math.max(0, hfRatioDb[t] - prevHf);
-
-      nasalDip[t] = Math.max(0, Math.min(oralNasalDb[t - 1], oralNasalDb[t + 1]) - oralNasalDb[t]);
-
-      if (frameMidis[t + 1] > 0 && frameMidis[t - 1] > 0) {
-        pitchVel[t] = Math.min(5.0, Math.abs(frameMidis[t + 1] - frameMidis[t - 1]) * 1.4);
-      }
-    }
-  }
-
-  const cumActivity = new Float64Array(T + 1);
-  for (let t = 0; t < T; t++) {
-    cumActivity[t + 1] = cumActivity[t] + activity[t];
-  }
-  const totalActiveFrames = cumActivity[T];
-  if (totalActiveFrames < W * 2.0) return;
-
-  const wordWeights = rawTokens.map((tk, idx) =>
-    computeWordIntrinsicDurationWeight(tk, idx === W - 1)
-  );
-  const totalWeight = wordWeights.reduce((s, w) => s + w, 0) || 1;
-  const wordPhonStates = rawTokens.map((tk) => decomposeVietnameseWordPhoneticStates(tk));
-  const wordOrtho = rawTokens.map((tk) => extractVietnameseWordVowel(tk));
-
-  const cumTargetActive = new Float64Array(W);
-  let accW = 0;
-  for (let w = 0; w < W; w++) {
-    accW += wordWeights[w];
-    cumTargetActive[w] = (accW / totalWeight) * totalActiveFrames;
-  }
-
-  const minFramesPerWord = Math.max(2, Math.min(4, Math.floor(T / (W * 1.4))));
-  const dp: Float64Array[] = Array.from({ length: W }, () => new Float64Array(T + 1).fill(Infinity));
-  const prevSplit: Int32Array[] = Array.from({ length: W }, () => new Int32Array(T + 1).fill(0));
-
-  const boundaryBonusAt = (wIdx: number, k: number): number => {
-    if (k <= 0 || k >= T) return 0;
-    const state = wordPhonStates[wIdx];
-    let bonus =
-      formantFlux[k] * 1.35 +
-      Math.min(10, rmsDip[k] * 0.9) +
-      pitchVel[k] +
-      barOnsetBonus[k];
-
-    if (state.onsetState === 'STOP_FRIC') {
-      bonus += Math.min(9.0, hfRise[k] * 0.85) + Math.min(5.0, rmsDip[k] * 0.6);
-    } else if (state.onsetState === 'NASAL_LIQUID') {
-      bonus += Math.min(8.0, nasalDip[k] * 0.95);
-    } else {
-      bonus += formantFlux[k] * 0.7;
-    }
-
-    const wordTs = wordTimestamps?.[wIdx]?.timeMs;
-    if (wordTs && Number.isFinite(wordTs)) {
-      const kMs = baseStartMs + k * stepMs;
-      const dist = Math.abs(kMs - wordTs);
-      if (dist <= 220) {
-        bonus += ((220 - dist) / 220) * 6.5;
-      }
-    }
-    return bonus;
-  };
-
-  const wordSegmentCost = (wIdx: number, startK: number, endK: number): number => {
-    const segActiveFrames = cumActivity[endK] - cumActivity[startK];
-    const segActiveMs = segActiveFrames * stepMs;
-    const baseExpectedFrames = (wordWeights[wIdx] / totalWeight) * totalActiveFrames;
-    const hasMelismaHold = (words[wIdx].melismaNotesCount || 1) >= 2 && (words[wIdx].durationMs || 0) > 250;
-    const expectedFrames = hasMelismaHold
-      ? baseExpectedFrames * 0.4 + ((words[wIdx].durationMs || 300) / stepMs) * 0.6
-      : baseExpectedFrames;
-    const expectedMs = expectedFrames * stepMs;
-
-    let cost = 0;
-    if (segActiveMs < 35) {
-      cost += 20;
-    }
-    const isChecked = wordOrtho[wIdx]?.isCheckedStop;
-    const isEndPhrase = wIdx === W - 1 || /[,.;!?]$/.test(rawTokens[wIdx]);
-    if (isChecked && segActiveMs > Math.max(290, expectedMs * 1.85)) {
-      cost += ((segActiveMs - Math.max(290, expectedMs * 1.85)) / 100) * 3.8;
-    } else if (!isEndPhrase && !hasMelismaHold && segActiveMs > expectedMs * 2.4 && expectedMs > 80) {
-      cost += ((segActiveMs - expectedMs * 2.4) / 140) * 1.5;
-    }
-
-    const relDiff = Math.abs(segActiveFrames - expectedFrames) / Math.max(2.5, expectedFrames);
-    cost += Math.min(5.5, relDiff * (isEndPhrase || hasMelismaHold ? 0.65 : 1.45));
-
-    const driftRatio =
-      Math.abs(cumActivity[endK] - cumTargetActive[wIdx]) / Math.max(4, totalActiveFrames * 0.14);
-    cost += Math.min(4.0, driftRatio * 0.85);
-
-    if (wIdx > 0) {
-      cost -= boundaryBonusAt(wIdx, startK);
-    }
-    return cost;
-  };
-
-  const maxFirstEnd = T - (W - 1) * minFramesPerWord;
-  for (let k = minFramesPerWord; k <= maxFirstEnd; k++) {
-    dp[0][k] = wordSegmentCost(0, 0, k);
-    prevSplit[0][k] = 0;
-  }
-
-  for (let w = 1; w < W; w++) {
-    const minEnd = (w + 1) * minFramesPerWord;
-    const maxEnd = w === W - 1 ? T : T - (W - 1 - w) * minFramesPerWord;
-    const startSearchEnd = w === W - 1 ? T : minEnd;
-
-    for (let k = startSearchEnd; k <= maxEnd; k++) {
-      const maxPrev = k - minFramesPerWord;
-      const minPrev = Math.max(w * minFramesPerWord, k - Math.max(24, Math.ceil((T / W) * 3.5)));
-      let bestCost = Infinity;
-      let bestPrev = minPrev;
-      for (let pk = minPrev; pk <= maxPrev; pk++) {
-        if (dp[w - 1][pk] === Infinity) continue;
-        const cand = dp[w - 1][pk] + wordSegmentCost(w, pk, k);
-        if (cand < bestCost) {
-          bestCost = cand;
-          bestPrev = pk;
-        }
-      }
-      dp[w][k] = bestCost;
-      prevSplit[w][k] = bestPrev;
-    }
-  }
-
-  if (dp[W - 1][T] === Infinity) return;
-
-  const boundsK = new Array<number>(W + 1);
-  boundsK[W] = T;
-  let curK = T;
-  for (let w = W - 1; w >= 0; w--) {
-    const startK = prevSplit[w][curK];
-    boundsK[w] = startK;
-    curK = startK;
-  }
-
-  for (let w = 0; w < W; w++) {
-    let fStart = boundsK[w];
-    let fEnd = boundsK[w + 1];
-
-    if (w === 0) {
-      while (fStart + minFramesPerWord < fEnd && activity[fStart] <= 0.12) fStart++;
-    }
-    if (w === W - 1) {
-      while (fEnd - minFramesPerWord > fStart && activity[fEnd - 1] <= 0.12) fEnd--;
-    }
-
-    const wStartMs = Math.round(baseStartMs + fStart * stepMs);
-    const wEndMs = Math.max(wStartMs + 50, Math.round(baseStartMs + fEnd * stepMs));
-    words[w].startMs = wStartMs;
-    words[w].endMs = wEndMs;
-    words[w].durationMs = Math.max(50, wEndMs - wStartMs);
-
-    const localStats = computeWordAcousticStats(
-      wStartMs,
-      wEndMs,
-      pitchTrack,
-      words[w].midi,
-      Boolean(wordOrtho[w]?.isCheckedStop),
-      words[w].melismaNotesCount || 1
-    );
-    words[w].midi = localStats.midi;
-    words[w].noteName = localStats.noteName;
-    words[w].solfege = localStats.solfege;
-    words[w].sustainCoreMs = localStats.sustainCoreMs;
-    words[w].sustainKind = localStats.sustainKind;
-    if (!words[w].melismaNotesCount || words[w].melismaNotesCount === 1) {
-      words[w].noteSequence = [localStats.noteName];
-      words[w].solfegeSequence = [localStats.solfege];
-    }
-  }
-
-  for (let w = 0; w < W; w++) {
-    words[w].stepSemitones = w > 0 ? words[w].midi - words[w - 1].midi : 0;
-  }
-
-  if (words.length > 0) {
-    phrase.startMs = words[0].startMs;
-    phrase.endMs = words[W - 1].endMs;
-    phrase.durationMs = Math.max(200, phrase.endMs - phrase.startMs);
-  }
-
-  if (splitNoteBarsToMatch) {
-    let didSplit = true;
-    let guard = 0;
-    while (didSplit && guard < 16) {
-      didSplit = false;
-      guard++;
-      const currentPhraseBars = getPhraseNoteBarsStrict(phrase, allNoteBars);
-      for (const bar of currentPhraseBars) {
-        if (bar.durationMs < 180) continue;
-        const insideStarts = words
-          .filter(
-            (w) =>
-              w.wordIndex > 0 &&
-              w.startMs >= bar.startTimeMs + 75 &&
-              w.startMs <= bar.endTimeMs - 75
-          )
-          .sort((a, b) => a.startMs - b.startMs);
-        if (insideStarts.length > 0) {
-          const allIdx = allNoteBars.findIndex((b) => b.id === bar.id);
-          if (allIdx >= 0) {
-            const tempList = [bar];
-            splitSingleBarAtMs(tempList, allNoteBars, 0, insideStarts[0].startMs, pitchTrack);
-            didSplit = true;
-            break;
-          }
-        }
-      }
-    }
-
-    const syncedBars = getPhraseNoteBarsStrict(phrase, allNoteBars);
-    for (const bar of syncedBars) {
-      const bMid = (bar.startTimeMs + bar.endTimeMs) / 2;
-      const matchingWord =
-        words.find((w) => bMid >= w.startMs - 20 && bMid <= w.endMs + 20) ||
-        words.reduce((best, w) => {
-          const curDist = Math.abs((w.startMs + w.endMs) / 2 - bMid);
-          const bestDist = Math.abs((best.startMs + best.endMs) / 2 - bMid);
-          return curDist < bestDist ? w : best;
-        }, words[0]);
-      if (matchingWord) {
-        bar.lyricSyllable = matchingWord.text;
-        bar.vowelHint = matchingWord.vowelHint;
-      }
-    }
-  }
+  runAcousticWordForcedAlignment({
+    ...params,
+    deps: {
+      goertzelBandEnergy,
+      computeOralToNasalRatioDbAtMs,
+      computeWordIntrinsicDurationWeight,
+      decomposeVietnameseWordPhoneticStates,
+      extractVietnameseWordVowel,
+      extractVietnameseToneContour,
+      computeWordAcousticStats,
+      getPhraseNoteBarsStrict,
+      splitSingleBarAtMs,
+    },
+  });
 }
 
 /**
@@ -2753,13 +2448,18 @@ export function alignWordsToPhraseNoteBars(
   const cleanCustomText =
     lyricText && !lyricText.startsWith('Nguyên âm:') ? lyricText.trim() : '';
 
-  const customTokens =
+  const tokenPairs =
     cleanCustomText.length > 0
       ? cleanCustomText
           .split(/\s+/)
-          .map((t) => t.replace(/^[()[\]{}“"‘'«]+|[()[\]{}“"‘'».,;:!?]+$/g, '').trim())
-          .filter(Boolean)
+          .map((raw) => ({
+            raw,
+            clean: raw.replace(/^[()[\]{}“"‘'«]+|[()[\]{}“"‘'».,;:!?]+$/g, '').trim(),
+          }))
+          .filter((p) => p.clean.length > 0)
       : [];
+  const customTokens = tokenPairs.map((p) => p.clean);
+  const customPunctTokens = tokenPairs.map((p) => p.raw);
 
   let phraseBars = getPhraseNoteBarsStrict(phrase, allNoteBars);
 
@@ -2835,6 +2535,8 @@ export function alignWordsToPhraseNoteBars(
       : vowelTrajectoryTokens.length > 0
       ? vowelTrajectoryTokens
       : ['A→'];
+  const rawPunctTokens =
+    customPunctTokens.length > 0 ? customPunctTokens : rawTokens;
 
   const words: IVocalLyricWord[] = [];
 
@@ -2874,7 +2576,7 @@ export function alignWordsToPhraseNoteBars(
     const barRanges = partitionBarsToWordsDP(
       phraseBars,
       barAnalysisList,
-      rawTokens,
+      rawPunctTokens,
       pitchTrack,
       wordTimestamps,
       rawMonoPcm,
@@ -3014,8 +2716,8 @@ export function alignWordsToPhraseNoteBars(
     // Sub-bar Frame-Level Phonetic-Duration & Energy-Valley Viterbi Alignment
     // when multiple rapid words share a NoteBar ($W > B$)
     // Dynamically assign words based on NoteBar duration proportionality & word phonology weights
-    const wordWeights = rawTokens.map((tk, idx) =>
-      computeWordIntrinsicDurationWeight(tk, idx === rawTokens.length - 1)
+    const wordWeights = rawPunctTokens.map((tk, idx) =>
+      computeWordIntrinsicDurationWeight(tk, idx === rawPunctTokens.length - 1)
     );
     const totalWordWeight = wordWeights.reduce((s, w) => s + w, 0) || 1;
     const totalBarsDuration = phraseBars.reduce((s, b) => s + b.durationMs, 0) || 1000;
@@ -3087,7 +2789,10 @@ export function alignWordsToPhraseNoteBars(
       const bar = phraseBars[mappedBarIdx];
       const ac = barAnalysisList[mappedBarIdx];
       const weights = tokenIndices.map((tIdx) =>
-        computeWordIntrinsicDurationWeight(rawTokens[tIdx], tIdx === rawTokens.length - 1)
+        computeWordIntrinsicDurationWeight(
+          rawPunctTokens[tIdx],
+          tIdx === rawPunctTokens.length - 1
+        )
       );
       const totalWeight = weights.reduce((s, w) => s + w, 0) || 1;
       const barPts = pitchTrack.filter(
@@ -3189,7 +2894,6 @@ export function alignWordsToPhraseNoteBars(
 
   // Frame-Level Acoustic-Phonetic Forced Alignment ("Dính từng chữ") when real modulated vocal PCM is available
   if (
-    !preserveCanvasBars &&
     customTokens.length >= 2 &&
     words.length === customTokens.length &&
     phraseBars.length > 0 &&
@@ -3201,12 +2905,12 @@ export function alignWordsToPhraseNoteBars(
       phraseBars,
       allNoteBars,
       words,
-      rawTokens,
+      rawTokens: rawPunctTokens,
       rawMonoPcm,
       sampleRate,
       pitchTrack,
       wordTimestamps,
-      splitNoteBarsToMatch: true,
+      splitNoteBarsToMatch: !preserveCanvasBars,
     });
   }
 
@@ -3275,17 +2979,17 @@ function isIgnoredSubtitleMetadataLine(textContent: string): boolean {
     /^(?:bài hát|ca sĩ|sáng tác|nhạc sĩ|lời bài hát|lyric(?:ist)?(?:\s+by)?|synced\s+by|biểu diễn|tác giả|producer|arrangement|ti|ar|al|au|by|re|ve|length|composer|beat|mix|master|vocal)\s*[:\-]/i.test(
       textContent
     ) ||
-    /^\[(?:verse|chorus|pre-?chorus|bridge|intro|outro|điệp khúc|phiên khúc|rap|instrumental).*?\]$/i.test(
+    /^[\[(](?:verse|chorus|pre-?chorus|bridge|intro|outro|điệp khúc|phiên khúc|rap|instrumental|music|âm\s*nhạc|nhạc|vỗ\s*tay|cười|applause|laughter).*?[\])]$/i.test(
       textContent
     )
   ) {
     return true;
   }
   const normalized =
-    textContent.replace(/[~♪*.\s]+/g, '').length === 0
+    textContent.replace(/[~♪*.\[\]()\s]+/g, '').length === 0
       ? '~'
-      : textContent.replace(/[.…]+$/g, '').trim();
-  return /^(?:nhạc dạo|giang tấu|dạo nhạc|kết thúc|instrumental|music|intro|outro|interlude|\.{2,}|~+|♪+|\*+)$/i.test(
+      : textContent.replace(/^[\[(]|[\])]$/g, '').replace(/[.…]+$/g, '').trim();
+  return /^(?:nhạc dạo|giang tấu|dạo nhạc|kết thúc|âm\s*nhạc|nhạc|vỗ\s*tay|cười|instrumental|music|applause|laughter|intro|outro|interlude|\.{2,}|~+|♪+|\*+)$/i.test(
     normalized
   );
 }
@@ -3495,7 +3199,7 @@ export function estimateOptimalLrcOffsetMs(
   phrases: IVocalPhrase[],
   noteBars: IVocalNoteBar[],
   lrcLines: ILrcLine[],
-  audioDurationMs?: number
+  _audioDurationMs?: number
 ): number {
   if (phrases.length === 0 || lrcLines.length === 0) return 0;
 
@@ -3554,13 +3258,28 @@ export function estimateOptimalLrcOffsetMs(
     }
   }
 
-  // Consensus Pairwise Onset-Difference Histogram:
-  // Catches shifted LRCs when lrcLines[0] is missing or when prefix vocal phrases differ from LRC line 0
-  const maxCheckOnsets = Math.min(8, vocalOnsets.length);
-  const maxCheckLrc = Math.min(8, lrcLines.length);
+  // Multi-Region Consensus Pairwise Onset-Difference Histogram:
+  // Samples both opening onsets AND evenly-spaced onsets/lines across the entire song so neither
+  // early missing prefixes nor a single repeated later chorus can bias global offset calibration.
+  const pickSampleIndices = (len: number, maxTotal: number): number[] => {
+    const idxSet = new Set<number>();
+    const headCount = Math.min(8, len);
+    for (let i = 0; i < headCount; i++) idxSet.add(i);
+    if (len > headCount) {
+      const remainingBudget = Math.max(1, maxTotal - headCount);
+      for (let s = 0; s < remainingBudget; s++) {
+        const idx = headCount + Math.floor(((s + 0.5) / remainingBudget) * (len - headCount));
+        if (idx < len) idxSet.add(idx);
+      }
+    }
+    return [...idxSet].sort((a, b) => a - b);
+  };
+
+  const sampledOnsets = pickSampleIndices(vocalOnsets.length, 28);
+  const sampledLrc = pickSampleIndices(lrcLines.length, 28);
   const offsetBins = new Map<number, number>();
-  for (let vi = 0; vi < maxCheckOnsets; vi++) {
-    for (let li = 0; li < maxCheckLrc; li++) {
+  for (const vi of sampledOnsets) {
+    for (const li of sampledLrc) {
       const diff = vocalOnsets[vi] - lrcLines[li].timeMs;
       if (Math.abs(diff) > 45000) continue;
       const bin = Math.round(diff / 250) * 250;
@@ -3569,7 +3288,7 @@ export function estimateOptimalLrcOffsetMs(
   }
   const topConsensusBins = [...offsetBins.entries()]
     .sort((a, b) => b[1] - a[1] || Math.abs(a[0]) - Math.abs(b[0]))
-    .slice(0, 4)
+    .slice(0, 6)
     .map(([bin]) => bin);
   for (const bin of topConsensusBins) {
     candidateOffsets.add(bin);
@@ -3887,10 +3606,9 @@ function buildPhraseFromBarsAndLyric(params: {
 }
 
 /**
- * Piecewise Multi-Anchor Offset Estimator (Anti-Tempo-Drift Calibration):
- * After finding the global base offset, computes per-line local offsets by snapping
- * high-confidence LRC lines to nearby vocal phrase onsets within ±1600ms while
- * preserving strict monotonic progression, and linearly interpolating in-between lines.
+ * Sparse Anchor-Chain Piecewise Offset Estimator (Anti-Tempo-Drift & Anti-Domino Calibration):
+ * Uses a non-greedy 1D Anchor-Chain Viterbi + MAD outlier filter to select consistent high-confidence
+ * anchors across the song without allowing any single outlier onset to compound downstream.
  */
 function estimatePiecewiseLineOffsets(
   phrases: IVocalPhrase[],
@@ -3898,347 +3616,100 @@ function estimatePiecewiseLineOffsets(
   lrcLines: ILrcLine[],
   baseOffsetMs: number
 ): number[] {
-  const L = lrcLines.length;
-  const offsets = new Array(L).fill(baseOffsetMs);
-  if (L < 3 || (phrases.length === 0 && noteBars.length === 0)) return offsets;
-
-  const vocalOnsets: number[] = [];
-  phrases.forEach((p) => {
-    if (!p.isInstrumentalOrVocalize && p.durationMs >= 350) {
-      vocalOnsets.push(p.startMs);
-    }
+  return findSparseAnchorChainOffsets({
+    phrases,
+    noteBars,
+    lrcLines,
+    baseOffsetMs,
   });
-  for (let i = 1; i < noteBars.length; i++) {
-    if (noteBars[i].startTimeMs - noteBars[i - 1].endTimeMs >= 260) {
-      vocalOnsets.push(noteBars[i].startTimeMs);
-    }
-  }
-  if (vocalOnsets.length === 0) return offsets;
-  vocalOnsets.sort((a, b) => a - b);
-
-  // Build smoothed anchors with monotonic progression constraint
-  const anchors: Array<{ idx: number; offsetMs: number }> = [];
-  let lastMatchedTime = -Infinity;
-
-  for (let i = 0; i < L; i++) {
-    const nominal = lrcLines[i].timeMs + baseOffsetMs;
-    const prevAnchorOffset = anchors.length > 0 ? anchors[anchors.length - 1].offsetMs : baseOffsetMs;
-    const expected = lrcLines[i].timeMs + prevAnchorOffset;
-
-    let bestOnset: number | null = null;
-    let bestDist = Infinity;
-    for (const onset of vocalOnsets) {
-      if (onset <= lastMatchedTime + 220) continue;
-      const d = Math.abs(onset - expected);
-      // Allow progressive drift up to ±1600ms relative to expected running offset
-      if (d <= 1600 && d < bestDist) {
-        bestDist = d;
-        bestOnset = onset;
-      }
-    }
-
-    if (bestOnset !== null && bestDist <= 1250) {
-      const candidateOffset = bestOnset - lrcLines[i].timeMs;
-      // Guard against sudden erratic jumps > 900ms between adjacent lines
-      if (anchors.length === 0 || Math.abs(candidateOffset - prevAnchorOffset) <= 900) {
-        anchors.push({ idx: i, offsetMs: candidateOffset });
-        lastMatchedTime = bestOnset;
-      } else if (Math.abs(nominal - bestOnset) <= 850) {
-        anchors.push({ idx: i, offsetMs: bestOnset - lrcLines[i].timeMs });
-        lastMatchedTime = bestOnset;
-      }
-    }
-  }
-
-  if (anchors.length === 0) return offsets;
-
-  // Linearly interpolate per-line offsets across anchors
-  for (let i = 0; i < L; i++) {
-    if (i <= anchors[0].idx) {
-      offsets[i] = anchors[0].offsetMs;
-    } else if (i >= anchors[anchors.length - 1].idx) {
-      offsets[i] = anchors[anchors.length - 1].offsetMs;
-    } else {
-      for (let a = 0; a < anchors.length - 1; a++) {
-        const left = anchors[a];
-        const right = anchors[a + 1];
-        if (i >= left.idx && i <= right.idx) {
-          const t = right.idx === left.idx ? 0 : (i - left.idx) / (right.idx - left.idx);
-          offsets[i] = Math.round(left.offsetMs + t * (right.offsetMs - left.offsetMs));
-          break;
-        }
-      }
-    }
-  }
-
-  return offsets;
 }
 
 /**
- * Structural Subsequence Alignment (Distrust-First LRC Recovery):
- * When LRC timestamps are severely shifted (> ±1600ms, e.g. interlude cut/added or wrong LRC timing),
- * aligns LRC lines directly onto actual sung NoteBar clusters using Syllable-to-Note Density DP.
+ * Pure Symmetric Subsequence Slot Planner (never mutates `noteBars` during structural evaluation):
+ * Groups `bars` into natural singing clusters and aligns `lrcLines` bidirectionally using
+ * `alignWindowSymmetricDP` (allowing both skipped LRC lines, skipped missing-lyric clusters,
+ * and 2-to-1 splits/merges).
  */
-function structuralSubsequenceAlignLrcToPhrases(
-  noteBars: IVocalNoteBar[],
-  lrcLines: ILrcLine[],
-  rawMonoPcm?: Float32Array | null,
-  sampleRate = 44100,
-  pitchTrack: IReferencePitchPoint[] = []
-): IVocalPhrase[] {
-  if (noteBars.length === 0 || lrcLines.length === 0) return [];
+function planStructuralSubsequenceSlots(
+  cleanBars: IVocalNoteBar[],
+  lrcLines: ILrcLine[]
+): IPhraseSlotDraft[] {
+  if (cleanBars.length === 0 || lrcLines.length === 0) return [];
 
-  // 1. Group noteBars into natural singing clusters separated by >= 380ms silence
-  const clusters: IVocalNoteBar[][] = [];
-  let cur: IVocalNoteBar[] = [noteBars[0]];
-  for (let i = 1; i < noteBars.length; i++) {
-    const gap = noteBars[i].startTimeMs - noteBars[i - 1].endTimeMs;
-    if (gap <= 380 && noteBars[i].endTimeMs - cur[0].startTimeMs <= 6200) {
-      cur.push(noteBars[i]);
-    } else {
-      clusters.push(cur);
-      cur = [noteBars[i]];
-    }
-  }
-  clusters.push(cur);
-
-  // Filter out tiny 1-bar micro-clicks < 180ms unless total clusters <= lrcLines.length
-  let audioClusters =
-    clusters.length > lrcLines.length
-      ? clusters.filter((c) => c.length >= 2 || c[0].durationMs >= 200)
-      : clusters;
-
+  const rawClusters = clusterNoteBarsBySilence(cleanBars, 380, 6200);
   const L = lrcLines.length;
-  // If fewer audio clusters than LRC lines (e.g. merged rapid phrases), split longest clusters
-  // first at largest internal gaps (> 80ms), then at sharpest pitch/inflection boundaries if still P < L.
-  while (audioClusters.length < L) {
-    let bestClusterIdx = -1;
-    let bestSplitIdx = -1;
-    let bestSplitScore = 80; // min 80ms gap or high inflection split
-    for (let ci = 0; ci < audioClusters.length; ci++) {
-      const c = audioClusters[ci];
-      if (c.length < 4) continue;
-      for (let bi = 1; bi < c.length - 1; bi++) {
-        const g = c[bi].startTimeMs - c[bi - 1].endTimeMs;
-        if (g > bestSplitScore) {
-          bestSplitScore = g;
-          bestClusterIdx = ci;
-          bestSplitIdx = bi;
-        }
-      }
-    }
-    if (bestClusterIdx === -1) {
-      // Secondary pass: split long dense clusters (>= 6 bars, >= 2000ms) near midpoint at pitch/gap inflection
-      let bestSecondaryScore = 0;
-      for (let ci = 0; ci < audioClusters.length; ci++) {
-        const c = audioClusters[ci];
-        const dur = c[c.length - 1].endTimeMs - c[0].startTimeMs;
-        if (c.length < 6 || dur < 2000) continue;
-        for (let bi = 2; bi < c.length - 2; bi++) {
-          const g = Math.max(0, c[bi].startTimeMs - c[bi - 1].endTimeMs);
-          const pitchJump = Math.abs(c[bi].midi - c[bi - 1].midi);
-          const secScore = g * 0.25 + pitchJump * 2.5 + dur * 0.002;
-          if (secScore > bestSecondaryScore) {
-            bestSecondaryScore = secScore;
-            bestClusterIdx = ci;
-            bestSplitIdx = bi;
-          }
-        }
-      }
-    }
-    if (bestClusterIdx === -1 || bestSplitIdx === -1) break;
-    const target = audioClusters[bestClusterIdx];
-    audioClusters = [
-      ...audioClusters.slice(0, bestClusterIdx),
-      target.slice(0, bestSplitIdx),
-      target.slice(bestSplitIdx),
-      ...audioClusters.slice(bestClusterIdx + 1),
-    ];
-  }
 
-  const P = audioClusters.length;
-  if (P === 0) return [];
-
-  const lineWords = lrcLines.map((l) => Math.max(1, l.text.trim().split(/\s+/).filter(Boolean).length));
-  const lrcPostGaps = lrcLines.map((l, idx) =>
-    idx + 1 < L ? Math.max(0, lrcLines[idx + 1].timeMs - l.timeMs) : 2500
+  const filteredClusters =
+    rawClusters.length > L
+      ? rawClusters.filter((c) => c.length >= 2 || c[0].durationMs >= 200)
+      : rawClusters;
+  const clusters = expandClustersTowardCount(
+    filteredClusters.length > 0 ? filteredClusters : rawClusters,
+    L
   );
-  const clusterPostGaps = audioClusters.map((c, idx) =>
-    idx + 1 < P
-      ? Math.max(0, audioClusters[idx + 1][0].startTimeMs - c[c.length - 1].endTimeMs)
-      : 2000
-  );
-  const clusterDurations = audioClusters.map(
-    (c) => Math.max(200, c[c.length - 1].endTimeMs - c[0].startTimeMs)
-  );
+  if (clusters.length === 0) return [];
 
-  const computeStructuralMatchCost = (lIdx: number, pIdx: number) => {
-    const wCnt = lineWords[lIdx];
-    const bCnt = audioClusters[pIdx].length;
-    const densityDiff = Math.abs(wCnt - bCnt) * 1.6;
-    const expectedSungMs = Math.max(450, wCnt * 270);
-    const durRatioDiff =
-      Math.abs(clusterDurations[pIdx] - expectedSungMs) / Math.max(500, expectedSungMs);
-    const durPenalty = Math.min(4.0, durRatioDiff * 1.35);
-    const relProgressDiff = Math.abs((lIdx + 0.5) / L - (pIdx + 0.5) / P) * 6.5;
-    // Reward silence pause alignment: when a long breath gap follows both LRC line l and audio cluster p
-    const lrcHasBreath = lrcPostGaps[lIdx] >= 3600;
-    const audioHasBreath = clusterPostGaps[pIdx] >= 850;
-    const rhythmBonus = lrcHasBreath && audioHasBreath ? -1.4 : 0;
-    return densityDiff + durPenalty + relProgressDiff + rhythmBonus;
-  };
+  const symLines: ISymmetricLyricInput[] = lrcLines.map((l, idx) => ({
+    text: l.text,
+    timeMs: l.timeMs,
+    postGapMs: idx + 1 < L ? Math.max(0, lrcLines[idx + 1].timeMs - l.timeMs) : 2500,
+    wordTimestamps: l.wordTimestamps,
+    originalLineIdx: idx,
+  }));
 
-  // If P >= L: match each LRC line l to an audio cluster p (allowing skipping orphan/missing clusters)
-  if (P >= L) {
-    const dp: number[][] = Array.from({ length: L }, () => new Array(P).fill(Infinity));
-    const prevP: number[][] = Array.from({ length: L }, () => new Array(P).fill(-1));
+  const symClusters: ISymmetricClusterInput[] = clusters.map((bars, idx) => ({
+    bars,
+    startMs: bars[0].startTimeMs,
+    endMs: bars[bars.length - 1].endTimeMs,
+    postGapMs:
+      idx + 1 < clusters.length
+        ? Math.max(0, clusters[idx + 1][0].startTimeMs - bars[bars.length - 1].endTimeMs)
+        : 2000,
+    originalClusterIdx: idx,
+  }));
 
-    const matchCost = (lIdx: number, pIdx: number) => computeStructuralMatchCost(lIdx, pIdx);
-
-    for (let p = 0; p <= P - L; p++) {
-      dp[0][p] = matchCost(0, p);
-    }
-
-    for (let l = 1; l < L; l++) {
-      for (let p = l; p <= P - (L - l); p++) {
-        for (let pp = l - 1; pp < p; pp++) {
-          if (dp[l - 1][pp] === Infinity) continue;
-          const skipPenalty = (p - pp - 1) * 1.5;
-          const cand = dp[l - 1][pp] + matchCost(l, p) + skipPenalty;
-          if (cand < dp[l][p]) {
-            dp[l][p] = cand;
-            prevP[l][p] = pp;
-          }
-        }
-      }
-    }
-
-    let bestEndP = L - 1;
-    let bestCost = Infinity;
-    for (let p = L - 1; p < P; p++) {
-      if (dp[L - 1][p] < bestCost) {
-        bestCost = dp[L - 1][p];
-        bestEndP = p;
-      }
-    }
-
-    const assignedP: number[] = new Array(L);
-    let curP = bestEndP;
-    for (let l = L - 1; l >= 0; l--) {
-      assignedP[l] = curP;
-      curP = prevP[l][curP];
-    }
-
-    const mappedSet = new Set(assignedP);
-    const out: IVocalPhrase[] = [];
-    for (let l = 0; l < L; l++) {
-      const cl = audioClusters[assignedP[l]];
-      const dpPhrase = buildPhraseFromBarsAndLyric({
-        phraseIndex: l + 1,
-        bars: cl,
-        fallbackStartMs: cl[0].startTimeMs,
-        fallbackEndMs: cl[cl.length - 1].endTimeMs,
-        lyricText: lrcLines[l].text,
-        isInstrumentalOrVocalize: false,
-        allNoteBars: noteBars,
-        rawMonoPcm,
-        sampleRate,
-        pitchTrack,
-        wordTimestamps: lrcLines[l].wordTimestamps,
-      });
-      dpPhrase.isRecoveredByDp = true;
-      out.push(dpPhrase);
-    }
-
-    // Preserve unmapped clusters as missing-lyric gaps
-    audioClusters.forEach((cl, pIdx) => {
-      if (mappedSet.has(pIdx)) return;
-      const cStart = cl[0].startTimeMs;
-      const cEnd = cl[cl.length - 1].endTimeMs;
-      if (cl.length >= 2 || cEnd - cStart >= 900) {
-        const gapP = buildPhraseFromBarsAndLyric({
-          phraseIndex: 0,
-          bars: cl,
-          fallbackStartMs: cStart,
-          fallbackEndMs: cEnd,
-          lyricText: undefined,
-          isInstrumentalOrVocalize: false,
-          allNoteBars: noteBars,
-          rawMonoPcm,
-          sampleRate,
-          pitchTrack,
-        });
-        gapP.isMissingLyricGap = true;
-        gapP.alignmentIssue = 'missing_lyric';
-        out.push(gapP);
-      }
-    });
-
-    out.sort((a, b) => a.startMs - b.startMs);
-    out.forEach((p, idx) => {
-      p.id = `phrase-${idx + 1}`;
-      p.phraseIndex = idx + 1;
-    });
-    return out;
-  }
-
-  // Symmetric DP when P < L: match each audio cluster p to the best-fitting ordered LRC line l
-  const dp: number[][] = Array.from({ length: P }, () => new Array(L).fill(Infinity));
-  const prevL: number[][] = Array.from({ length: P }, () => new Array(L).fill(-1));
-
-  const matchCost = (pIdx: number, lIdx: number) => computeStructuralMatchCost(lIdx, pIdx);
-
-  for (let l = 0; l <= L - P; l++) {
-    dp[0][l] = matchCost(0, l);
-  }
-  for (let p = 1; p < P; p++) {
-    for (let l = p; l <= L - (P - p); l++) {
-      for (let pl = p - 1; pl < l; pl++) {
-        if (dp[p - 1][pl] === Infinity) continue;
-        const skipPenalty = (l - pl - 1) * 1.5;
-        const cand = dp[p - 1][pl] + matchCost(p, l) + skipPenalty;
-        if (cand < dp[p][l]) {
-          dp[p][l] = cand;
-          prevL[p][l] = pl;
-        }
-      }
-    }
-  }
-
-  let bestEndL = P - 1;
-  let bestCost = Infinity;
-  for (let l = P - 1; l < L; l++) {
-    if (dp[P - 1][l] < bestCost) {
-      bestCost = dp[P - 1][l];
-      bestEndL = l;
-    }
-  }
-
-  const assignedL: number[] = new Array(P);
-  let curL = bestEndL;
-  for (let p = P - 1; p >= 0; p--) {
-    assignedL[p] = curL;
-    curL = prevL[p][curL];
-  }
-
-  return audioClusters.map((cl, pIdx) => {
-    const lIdx = assignedL[pIdx];
-    const dpPhrase = buildPhraseFromBarsAndLyric({
-      phraseIndex: pIdx + 1,
-      bars: cl,
-      fallbackStartMs: cl[0].startTimeMs,
-      fallbackEndMs: cl[cl.length - 1].endTimeMs,
-      lyricText: lrcLines[lIdx].text,
-      isInstrumentalOrVocalize: false,
-      allNoteBars: noteBars,
-      rawMonoPcm,
-      sampleRate,
-      pitchTrack,
-      wordTimestamps: lrcLines[lIdx].wordTimestamps,
-    });
-    dpPhrase.isRecoveredByDp = true;
-    return dpPhrase;
+  const ops = alignWindowSymmetricDP({
+    lines: symLines,
+    clusters: symClusters,
+    windowStartMs: cleanBars[0].startTimeMs,
+    windowEndMs: cleanBars[cleanBars.length - 1].endTimeMs,
+    useTimestampPrior: false,
+    allowLineSkip: true,
+    allowClusterSkip: true,
+    allowMerge2Lines: true,
+    allowMerge2Clusters: true,
   });
+
+  const slots: IPhraseSlotDraft[] = [];
+  for (const op of ops) {
+    if (op.kind === 'skip_line') continue;
+    if (op.kind === 'skip_cluster') {
+      const cStart = op.bars[0].startTimeMs;
+      const cEnd = op.bars[op.bars.length - 1].endTimeMs;
+      const cDur = cEnd - cStart;
+      if (op.bars.length >= 2 || cDur >= 900) {
+        slots.push({
+          lrcIndices: [],
+          bars: op.bars,
+          isMissingGap: true,
+          isRecoveredByDp: false,
+        });
+      }
+      continue;
+    }
+
+    slots.push({
+      lrcIndices: op.lineIndices,
+      bars: op.bars,
+      lyricText: op.text,
+      shiftedTimeMs: op.timeMs,
+      wordTimestamps: op.wordTimestamps,
+      isMissingGap: false,
+      isRecoveredByDp: true,
+    });
+  }
+
+  return slots;
 }
 
 /**
@@ -4397,10 +3868,92 @@ function autoGenerateMissingLyrics(
 }
 
 /**
+ * Helper: Trim stray edge tail or post-sentence pickup bars from a candidate NoteBar cluster
+ * so phrase timing wraps strictly around the sung words.
+ */
+function trimSlotClusterBars(bars: IVocalNoteBar[], lyricText?: string): IVocalNoteBar[] {
+  if (bars.length < 2 || !lyricText) return bars;
+  let activeBars = bars;
+  const wordCount = lyricText.trim().split(/\s+/).filter(Boolean).length;
+
+  if (
+    activeBars.length > wordCount &&
+    activeBars[1].startTimeMs - activeBars[0].endTimeMs >= 500
+  ) {
+    activeBars = activeBars.slice(1);
+  }
+
+  const maxSungSpanMs = Math.max(2600, wordCount * 640 + 1600);
+  const phraseOriginMs = activeBars[0]?.startTimeMs ?? 0;
+  for (let i = 0; i < activeBars.length - 1; i++) {
+    const gap = activeBars[i + 1].startTimeMs - activeBars[i].endTimeMs;
+    const elapsedMs = activeBars[i + 1].startTimeMs - phraseOriginMs;
+    const enoughForAllWords = i + 1 >= wordCount && gap >= 450;
+    const enoughForMostWords =
+      i + 1 >= Math.max(2, Math.floor(wordCount * 0.65)) && gap >= 950;
+    const clearInterPhrasePause = i + 1 >= 2 && gap >= 1350;
+    const beyondReasonableSungWindow = elapsedMs > maxSungSpanMs && gap >= 260;
+
+    if (
+      enoughForAllWords ||
+      enoughForMostWords ||
+      clearInterPhrasePause ||
+      beyondReasonableSungWindow
+    ) {
+      activeBars = activeBars.slice(0, i + 1);
+      break;
+    }
+  }
+  return activeBars;
+}
+
+/**
+ * Evaluate overall slot plan quality against clean unsplit original NoteBars.
+ */
+function evaluateSlotPlanQuality(
+  slots: IPhraseSlotDraft[],
+  firstBarMs: number,
+  lastBarMs: number,
+  activeOnly: boolean
+) {
+  let empty = 0;
+  let misaligned = 0;
+  let matched = 0;
+  let coveredBars = 0;
+
+  for (const s of slots) {
+    if (s.isMissingGap) continue;
+    const bStart = s.bars[0]?.startTimeMs ?? s.shiftedTimeMs ?? 0;
+    const bEnd = s.bars[s.bars.length - 1]?.endTimeMs ?? bStart;
+    if (activeOnly && (bEnd < firstBarMs - 1500 || bStart > lastBarMs + 1500)) {
+      continue;
+    }
+    const wCnt = Math.max(1, (s.lyricText || '').trim().split(/\s+/).filter(Boolean).length);
+    const bCnt = s.bars.length;
+    if (bCnt === 0) {
+      empty++;
+    } else {
+      matched++;
+      coveredBars += bCnt;
+      const hasDensityMismatch =
+        (wCnt >= 4 && bCnt === 1) || (wCnt >= 3 && bCnt / wCnt < 0.35);
+      if (hasDensityMismatch) {
+        misaligned++;
+      }
+    }
+  }
+
+  const score = matched * 3 - misaligned * 2 - empty * 3 + coveredBars * 0.5;
+  return { empty, misaligned, matched, coveredBars, score };
+}
+
+/**
  * Align parsed LRC lines onto IVocalPhrase[] using:
- * 1. Global Audio-to-LRC Time Offset Auto-Calibration + Piecewise Multi-Anchor Tempo Drift Correction
- * 2. Distrust-First Structural Subsequence Alignment when LRC timestamps miss >= 35% of phrases
- * 3. Gap-Preserving Rebuild + Auto-Generation of missing lyrics (Melodic Clone / Phonetic Synthesis)
+ * 1. Global Audio-to-LRC Time Offset Auto-Calibration + Sparse Anchor-Chain Tempo Drift Correction
+ * 2. Pure unsplit-bar evaluation -> Anchor-Constrained Local Island Repair (`repairDamagedPhraseWindowsLocally`)
+ *    so any single localized cascade shift is repaired without moving verified neighbor lines
+ * 3. Bidirectional Symmetric Subsequence Recovery (`planStructuralSubsequenceSlots`) when >= 35% lines drift
+ * 4. Single-pass NoteBar Commit + Auto-Generation of missing lyrics (Melodic Clone / Phonetic Synthesis)
  */
 export function alignLrcLinesToPhrases(
   phrases: IVocalPhrase[],
@@ -4413,15 +3966,18 @@ export function alignLrcLinesToPhrases(
 ): void {
   if (phrases.length === 0 || lrcLines.length === 0) return;
 
+  // Snapshot original unsplit NoteBars so temporary trial alignments never corrupt NoteBar density counts
+  const cleanOriginalBars = noteBars.map((b) => ({ ...b }));
+
   const optimalOffsetMs = estimateOptimalLrcOffsetMs(
     phrases,
-    noteBars,
+    cleanOriginalBars,
     lrcLines,
     audioDurationMs
   );
   const lineOffsets = estimatePiecewiseLineOffsets(
     phrases,
-    noteBars,
+    cleanOriginalBars,
     lrcLines,
     optimalOffsetMs
   );
@@ -4439,7 +3995,6 @@ export function alignLrcLinesToPhrases(
   });
 
   // Compute breath-snapped boundary timestamps B[0..L] between consecutive LRC lines
-  // Snaps each LRC line transition to the clearest inter-note silence gap within ±650ms
   const L = shiftedLines.length;
   const boundaries: number[] = new Array(L + 1);
   boundaries[0] = Math.max(0, shiftedLines[0].timeMs - 300);
@@ -4458,18 +4013,26 @@ export function alignLrcLinesToPhrases(
     let bestBoundaryMs = nominalMs;
     let bestGapScore = -Infinity;
 
-    for (let k = 0; k < noteBars.length - 1; k++) {
-      const gapStart = noteBars[k].endTimeMs;
-      const gapEnd = noteBars[k + 1].startTimeMs;
-      const gapMid = Math.round((gapStart + gapEnd) / 2);
-      if (gapMid < minWindow || gapMid > maxWindow) continue;
-
+    for (let k = 0; k < cleanOriginalBars.length - 1; k++) {
+      const gapStart = cleanOriginalBars[k].endTimeMs;
+      const gapEnd = cleanOriginalBars[k + 1].startTimeMs;
       const gapDur = gapEnd - gapStart;
-      const distPenalty = Math.abs(gapMid - nominalMs) * 0.22;
-      const gapScore = gapDur - distPenalty;
-      if (gapScore > bestGapScore) {
-        bestGapScore = gapScore;
-        bestBoundaryMs = gapMid;
+      // Ignore tiny intra-word/syllable micro-gaps (< 140ms) so phrase boundaries never slice clusters in half!
+      if (gapDur < 140) continue;
+
+      const gapMid = Math.round((gapStart + gapEnd) / 2);
+      // Anchor right before the next phrase onset (`gapEnd - 25ms`) when a long breath precedes it
+      const onsetEdgeMs = Math.max(gapStart + 15, gapEnd - 25);
+      const candidates = gapDur >= 320 ? [onsetEdgeMs, gapMid] : [gapMid, onsetEdgeMs];
+
+      for (const candMs of candidates) {
+        if (candMs < minWindow || candMs > maxWindow) continue;
+        const distPenalty = Math.abs(candMs - nominalMs) * 0.25;
+        const gapScore = gapDur - distPenalty;
+        if (gapScore > bestGapScore) {
+          bestGapScore = gapScore;
+          bestBoundaryMs = candMs;
+        }
       }
     }
 
@@ -4477,38 +4040,46 @@ export function alignLrcLinesToPhrases(
   }
 
   const lastBarEnd =
-    noteBars.length > 0 ? noteBars[noteBars.length - 1].endTimeMs + 500 : shiftedLines[L - 1].timeMs + 5000;
+    cleanOriginalBars.length > 0
+      ? cleanOriginalBars[cleanOriginalBars.length - 1].endTimeMs + 500
+      : shiftedLines[L - 1].timeMs + 5000;
   boundaries[L] = Math.max(lastBarEnd, shiftedLines[L - 1].timeMs + 4000);
 
-  // If phrase count already matches LRC line count 1-to-1 (e.g. unit tests or pre-segmented tracks),
-  // check that most LRC lines actually land cleanly on NoteBars; if >=35% miss or are misaligned, fall through to rebuild + Distrust-First!
+  // Strict Healthy Fast-Path when phrase count === LRC lines AND zero defects exist
   if (phrases.length === L) {
     const fastPathLines = shiftedLines.map((sl, i) => {
       const bStart = boundaries[i];
-      const wordCount = Math.max(1, sl.text.trim().split(/\s+/).filter(Boolean).length);
+      const tokens = sl.text.trim().split(/\s+/).filter(Boolean);
+      const wordCount = Math.max(1, tokens.length);
       const maxSungWindowEnd = sl.timeMs + Math.max(3200, wordCount * 680 + 1800);
       const bEnd = Math.min(boundaries[i + 1], maxSungWindowEnd);
-      const lineBars = noteBars.filter((b) => {
+      const lineBars = cleanOriginalBars.filter((b) => {
         const mid = (b.startTimeMs + b.endTimeMs) / 2;
         return mid >= bStart && mid < bEnd;
       });
+      const ratio = lineBars.length / wordCount;
+      const isToneInv =
+        wordCount >= 5 &&
+        lineBars.length >= 3 &&
+        computePhraseToneMelodicHarmony(
+          tokens,
+          lineBars.slice(0, wordCount).map((b) => b.midi)
+        ).overallScorePercent < 42;
       const isBad =
-        noteBars.length > 0 &&
+        cleanOriginalBars.length > 0 &&
         (lineBars.length === 0 ||
           (wordCount >= 4 && lineBars.length === 1) ||
-          (wordCount >= 3 && lineBars.length / wordCount < 0.35));
+          (wordCount >= 3 && ratio < 0.35) ||
+          isToneInv);
       return { sl, lineBars, isBad };
     });
 
     const badCount = fastPathLines.filter((x) => x.isBad).length;
     const fastCoveredIds = new Set<string>();
     fastPathLines.forEach((x) => x.lineBars.forEach((b) => fastCoveredIds.add(b.id)));
-    const uncoveredCount = noteBars.filter((b) => !fastCoveredIds.has(b.id)).length;
+    const uncoveredCount = cleanOriginalBars.filter((b) => !fastCoveredIds.has(b.id)).length;
 
-    if (
-      noteBars.length === 0 ||
-      (badCount / Math.max(1, L) < 0.35 && uncoveredCount < Math.max(3, noteBars.length * 0.15))
-    ) {
+    if (cleanOriginalBars.length === 0 || (badCount === 0 && uncoveredCount === 0)) {
       phrases.forEach((p, i) => {
         const { sl, lineBars } = fastPathLines[i];
         if (lineBars.length > 0) {
@@ -4531,13 +4102,8 @@ export function alignLrcLinesToPhrases(
     }
   }
 
-  // Otherwise, rebuild the phrases array directly from the breath-snapped LRC windows
-  // so every sung lyric sentence is a clean 1-to-1 phrase with zero cross-phrase lyric bleeding!
-  // Note: We do NOT create fake phrases for instrumental intros before boundaries[0] so that
-  // Câu 1 always starts at the first real LRC line even on full-beat tracks!
-  const rebuiltPhrases: IVocalPhrase[] = [];
-  let nextIdx = 1;
-
+  // Build pure Phase 1 slots on cleanOriginalBars (without mutating live noteBars yet)
+  const initialSlots: IPhraseSlotDraft[] = [];
   const maxAudioMs = Math.max(
     audioDurationMs ? audioDurationMs + 4000 : 0,
     phrases.length > 0 ? phrases[phrases.length - 1].endMs + 8000 : boundaries[L]
@@ -4553,174 +4119,157 @@ export function alignLrcLinesToPhrases(
       shiftedLines[i].timeMs + Math.max(3200, wordCount * 680 + 1800);
     const bEnd = Math.min(boundaries[i + 1], maxSungWindowEnd);
 
-    const lineBars = noteBars.filter((b) => {
+    const rawLineBars = cleanOriginalBars.filter((b) => {
       const mid = (b.startTimeMs + b.endTimeMs) / 2;
       return mid >= bStart && mid < bEnd;
     });
 
-    // Skip LRC lines that fall completely past the end of the audio file (e.g. Part_1 cut)
-    if (lineBars.length === 0 && bStart > maxAudioMs) {
+    if (rawLineBars.length === 0 && bStart > maxAudioMs) {
       continue;
     }
 
-    rebuiltPhrases.push(
-      buildPhraseFromBarsAndLyric({
-        phraseIndex: nextIdx++,
-        bars: lineBars,
-        fallbackStartMs: shiftedLines[i].timeMs,
-        fallbackEndMs: Math.min(bEnd, shiftedLines[i].timeMs + 3800),
-        lyricText: shiftedLines[i].text,
-        isInstrumentalOrVocalize: false,
-        allNoteBars: noteBars,
-        rawMonoPcm,
-        sampleRate,
-        pitchTrack,
-        wordTimestamps: shiftedLines[i].wordTimestamps,
-      })
-    );
+    const trimmedBars = trimSlotClusterBars(rawLineBars, shiftedLines[i].text);
+    initialSlots.push({
+      lrcIndices: [i],
+      bars: trimmedBars,
+      lyricText: shiftedLines[i].text,
+      shiftedTimeMs: shiftedLines[i].timeMs,
+      wordTimestamps: shiftedLines[i].wordTimestamps,
+      isMissingGap: false,
+      isRecoveredByDp: false,
+    });
   }
 
-  // Gap-Preserving Hybrid Rebuild: preserve any substantial singing segments uncovered by LRC
-  // (e.g. LRC stops halfway, misses Verse 2, Rap, or Chorus) as `isMissingLyricGap` phrases!
-  if (rebuiltPhrases.length > 0 && noteBars.length > 0) {
+  // Gap-Preserving Hybrid Slot Detection: collect substantial singing segments uncovered by LRC
+  if (initialSlots.length > 0 && cleanOriginalBars.length > 0) {
     const coveredBarIds = new Set<string>();
-    for (const p of rebuiltPhrases) {
-      for (const b of noteBars) {
-        const mid = (b.startTimeMs + b.endTimeMs) / 2;
-        if (mid >= p.startMs - 80 && mid <= p.endMs + 80) {
-          coveredBarIds.add(b.id);
-        }
-      }
+    for (const s of initialSlots) {
+      s.bars.forEach((b) => coveredBarIds.add(b.id));
     }
-
-    const orphanBars = noteBars.filter((b) => !coveredBarIds.has(b.id));
+    const orphanBars = cleanOriginalBars.filter((b) => !coveredBarIds.has(b.id));
     if (orphanBars.length > 0) {
-      const firstLrcStart = rebuiltPhrases[0].startMs;
-      const orphanClusters: IVocalNoteBar[][] = [];
-      let curCluster: IVocalNoteBar[] = [orphanBars[0]];
-      for (let i = 1; i < orphanBars.length; i++) {
-        const gap = orphanBars[i].startTimeMs - orphanBars[i - 1].endTimeMs;
-        if (gap <= 450 && orphanBars[i].endTimeMs - curCluster[0].startTimeMs <= 5500) {
-          curCluster.push(orphanBars[i]);
-        } else {
-          orphanClusters.push(curCluster);
-          curCluster = [orphanBars[i]];
-        }
-      }
-      orphanClusters.push(curCluster);
-
+      const firstMatchedStart =
+        initialSlots.find((s) => s.bars.length > 0)?.bars[0]?.startTimeMs ??
+        initialSlots[0].shiftedTimeMs ??
+        0;
+      const orphanClusters = clusterNoteBarsBySilence(orphanBars, 450, 5500);
       for (const cluster of orphanClusters) {
         const cStart = cluster[0].startTimeMs;
         const cEnd = cluster[cluster.length - 1].endTimeMs;
         const cDur = cEnd - cStart;
-        const isBeforeFirstLrc = cEnd < firstLrcStart - 150;
-        // Before first LRC line is almost always instrumental intro; only preserve if >= 2 varied singing notes
+        const isBeforeFirstLrc = cEnd < firstMatchedStart - 150;
         if (isBeforeFirstLrc) {
           const distinctMidis = new Set(cluster.map((b) => b.midi));
           if (cluster.length < 2 || distinctMidis.size < 2) continue;
         }
-        // Skip tiny instrumental micro-artifacts; preserve genuine singing gaps
         const isGenuineSinging =
           (cluster.length >= 2 && cDur >= 650) || (cluster.length === 1 && cDur >= 900);
         if (!isGenuineSinging) continue;
 
-        const gapPhrase = buildPhraseFromBarsAndLyric({
-          phraseIndex: 0,
+        initialSlots.push({
+          lrcIndices: [],
           bars: cluster,
-          fallbackStartMs: cStart,
-          fallbackEndMs: cEnd,
-          lyricText: undefined,
-          isInstrumentalOrVocalize: false,
-          allNoteBars: noteBars,
-          rawMonoPcm,
-          sampleRate,
-          pitchTrack,
+          isMissingGap: true,
+          isRecoveredByDp: false,
         });
-        gapPhrase.isMissingLyricGap = true;
-        gapPhrase.alignmentIssue = 'missing_lyric';
-        gapPhrase.alignmentIssueDetailVi = `Phát hiện đoạn hát (${cluster.length} nốt) chưa có lời LRC khớp tới`;
-        rebuiltPhrases.push(gapPhrase);
       }
 
-      rebuiltPhrases.sort((a, b) => a.startMs - b.startMs);
-      rebuiltPhrases.forEach((p, idx) => {
-        p.id = `phrase-${idx + 1}`;
-        p.phraseIndex = idx + 1;
+      initialSlots.sort((a, b) => {
+        const ta = a.bars[0]?.startTimeMs ?? a.shiftedTimeMs ?? 0;
+        const tb = b.bars[0]?.startTimeMs ?? b.shiftedTimeMs ?? 0;
+        return ta - tb;
       });
     }
   }
 
-  // Distrust-First Check: if >= 35% of active-span LRC lines landed on 0 NoteBars, are severely misaligned (density mismatch),
-  // or were dropped past maxAudioMs while audio still has uncovered singing phrases,
-  // automatically re-align via Structural Subsequence DTW against actual vocal NoteBar clusters!
-  if (lrcLines.length >= 3 && noteBars.length >= 3) {
-    const firstBarMs = noteBars[0].startTimeMs;
-    const lastBarMs = noteBars[noteBars.length - 1].endTimeMs;
-    const lrcLinesResult = rebuiltPhrases.filter((p) => !p.isMissingLyricGap);
-    const missingGapsCount = rebuiltPhrases.filter((p) => p.isMissingLyricGap).length;
-    const checkActiveOnly = missingGapsCount === 0;
-    const activeLrcPhrases = checkActiveOnly
-      ? lrcLinesResult.filter((p) => p.endMs >= firstBarMs - 1500 && p.startMs <= lastBarMs + 1500)
-      : lrcLinesResult;
+  // Phase 2: Anchor-Constrained Local Island Repair (runs even when badRatio < 35%!)
+  // Isolates localized cascade shifts / missing gaps between verified Anchor Islands and repairs them locally.
+  let chosenSlots = repairDamagedPhraseWindowsLocally({
+    initialSlots,
+    shiftedLines,
+    cleanOriginalBars,
+  });
 
-    const evaluatePhraseQuality = (list: IVocalPhrase[], activeOnly: boolean) => {
-      let empty = 0;
-      let misaligned = 0;
-      let matched = 0;
-      let coveredBars = 0;
-      for (let idx = 0; idx < list.length; idx++) {
-        const p = list[idx];
-        if (p.isMissingLyricGap) continue;
-        if (activeOnly && (p.endMs < firstBarMs - 1500 || p.startMs > lastBarMs + 1500)) {
-          continue;
-        }
-        const bars = getPhraseNoteBarsStrict(p, noteBars);
-        const wCnt = Math.max(1, (p.lyricText || '').trim().split(/\s+/).filter(Boolean).length);
-        if (bars.length === 0) {
-          empty++;
-        } else {
-          matched++;
-          coveredBars += bars.length;
-          const hasDensityMismatch =
-            (wCnt >= 4 && bars.length === 1) || (wCnt >= 3 && bars.length / wCnt < 0.35);
-          if (hasDensityMismatch) {
-            misaligned++;
-          }
-        }
-      }
-      const score = matched * 3 - misaligned * 2 - empty * 3 + coveredBars * 0.5;
-      return { empty, misaligned, matched, coveredBars, score };
-    };
+  // Phase 3: Global Distrust-First Structural Check when >= 35% of active lines remain shifted/missing
+  if (lrcLines.length >= 3 && cleanOriginalBars.length >= 3) {
+    const firstBarMs = cleanOriginalBars[0].startTimeMs;
+    const lastBarMs = cleanOriginalBars[cleanOriginalBars.length - 1].endTimeMs;
+    const lrcSlotsCount = chosenSlots.filter((s) => !s.isMissingGap).length;
+    const missingGapsCount = chosenSlots.filter((s) => s.isMissingGap).length;
+    const activeLrcSlots = chosenSlots.filter((s) => {
+      if (s.isMissingGap) return false;
+      const bStart = s.bars[0]?.startTimeMs ?? s.shiftedTimeMs ?? 0;
+      const bEnd = s.bars[s.bars.length - 1]?.endTimeMs ?? bStart;
+      return bEnd >= firstBarMs - 1500 && bStart <= lastBarMs + 1500;
+    });
 
-    const origEval = evaluatePhraseQuality(rebuiltPhrases, checkActiveOnly);
-    const droppedLinesCount = Math.max(0, lrcLines.length - lrcLinesResult.length);
-    const activeDenominator = Math.max(1, activeLrcPhrases.length + Math.min(droppedLinesCount, missingGapsCount));
+    const origEval = evaluateSlotPlanQuality(chosenSlots, firstBarMs, lastBarMs, true);
+    const droppedLinesCount = Math.max(0, lrcLines.length - lrcSlotsCount);
+    const relevantDropped = Math.min(droppedLinesCount, missingGapsCount);
+    const activeDenominator = Math.max(1, activeLrcSlots.length + relevantDropped);
     const effectiveBadRatio =
-      (origEval.empty + origEval.misaligned + Math.min(droppedLinesCount, missingGapsCount)) /
-      activeDenominator;
+      (origEval.empty + origEval.misaligned + relevantDropped) / activeDenominator;
 
-    if (effectiveBadRatio >= 0.35) {
-      const subseqPhrases = structuralSubsequenceAlignLrcToPhrases(
-        noteBars,
-        lrcLines,
-        rawMonoPcm,
-        sampleRate,
-        pitchTrack
-      );
-      if (subseqPhrases.length > 0) {
-        const subseqEval = evaluatePhraseQuality(subseqPhrases, false);
+    if (effectiveBadRatio >= 0.35 && activeLrcSlots.length + missingGapsCount >= 2) {
+      const globalSlots = planStructuralSubsequenceSlots(cleanOriginalBars, lrcLines);
+      if (globalSlots.length > 0) {
+        const subseqEval = evaluateSlotPlanQuality(globalSlots, firstBarMs, lastBarMs, false);
         const strictlyBetter =
           subseqEval.matched > origEval.matched ||
           (subseqEval.matched === origEval.matched &&
-            (subseqEval.misaligned < origEval.misaligned || subseqEval.coveredBars > origEval.coveredBars));
+            (subseqEval.misaligned < origEval.misaligned ||
+              subseqEval.coveredBars > origEval.coveredBars));
         if (strictlyBetter && subseqEval.score > origEval.score) {
-          rebuiltPhrases.splice(0, rebuiltPhrases.length, ...subseqPhrases);
+          chosenSlots = globalSlots;
         }
       }
     }
   }
 
-  // Auto-generate missing lyrics (Chorus Melodic Self-Similarity Clone or Phonetic Syllable Synthesis)
+  // Phase 4: Single-Pass Commit onto real NoteBars + Word Forced Alignment + Missing Auto-Gen
+  const rebuiltPhrases: IVocalPhrase[] = [];
+  chosenSlots.forEach((slot, idx) => {
+    // Map slot's original NoteBar IDs onto the live `noteBars` array
+    const liveBars =
+      slot.bars.length > 0
+        ? slot.bars
+            .map((ob) => noteBars.find((nb) => nb.id === ob.id))
+            .filter((b): b is IVocalNoteBar => Boolean(b))
+        : [];
+    const fallbackStart =
+      liveBars[0]?.startTimeMs ?? slot.shiftedTimeMs ?? 0;
+    const fallbackEnd =
+      liveBars[liveBars.length - 1]?.endTimeMs ??
+      Math.min(
+        fallbackStart + 3800,
+        (slot.shiftedTimeMs ?? fallbackStart) + 3800
+      );
+
+    const built = buildPhraseFromBarsAndLyric({
+      phraseIndex: idx + 1,
+      bars: liveBars,
+      fallbackStartMs: fallbackStart,
+      fallbackEndMs: fallbackEnd,
+      lyricText: slot.isMissingGap ? undefined : slot.lyricText,
+      isInstrumentalOrVocalize: false,
+      allNoteBars: noteBars,
+      rawMonoPcm,
+      sampleRate,
+      pitchTrack,
+      wordTimestamps: slot.wordTimestamps,
+    });
+
+    if (slot.isMissingGap) {
+      built.isMissingLyricGap = true;
+      built.alignmentIssue = 'missing_lyric';
+      built.alignmentIssueDetailVi = `Phát hiện đoạn hát (${liveBars.length} nốt) chưa có lời LRC khớp tới`;
+    } else if (slot.isRecoveredByDp) {
+      built.isRecoveredByDp = true;
+    }
+
+    rebuiltPhrases.push(built);
+  });
+
   if (rebuiltPhrases.some((p) => p.isMissingLyricGap)) {
     autoGenerateMissingLyrics(rebuiltPhrases, noteBars, rawMonoPcm, sampleRate, pitchTrack);
   }
@@ -4887,7 +4436,8 @@ export function auditLyricAlignmentHealth(
 }
 
 /**
- * Align plain multi-line text onto IVocalPhrase[] without gluing unrelated sentences together
+ * Align plain multi-line text onto IVocalPhrase[] using Anchor-Aware Bidirectional DP
+ * (eliminating greedy phrase-merge cascade shifts when an intro hum, adlib, or missing bridge exists).
  */
 export function alignPlainTextToPhrases(
   phrases: IVocalPhrase[],
@@ -4910,55 +4460,49 @@ export function alignPlainTextToPhrases(
 
   if (cleanLines.length === 0 || phrases.length === 0) return;
 
-  if (cleanLines.length === phrases.length) {
-    phrases.forEach((p, idx) => {
-      p.isInstrumentalOrVocalize = false;
-      p.isMissingLyricGap = false;
-      alignWordsToPhraseNoteBars(
-        p,
-        noteBars,
-        cleanLines[idx],
-        rawMonoPcm,
-        sampleRate,
-        pitchTrack
-      );
-    });
-    return;
-  }
+  const cleanOriginalBars = noteBars.map((b) => ({ ...b }));
+  const L = cleanLines.length;
+  const P = phrases.length;
 
-  // Case A: Audio has more phrases than lyric lines -> merge short-gap fragments toward cleanLines.length
-  while (phrases.length > cleanLines.length && phrases.length >= 2) {
-    let minGap = Infinity;
-    let mergeIdx = -1;
-    for (let i = 0; i < phrases.length - 1; i++) {
-      const gap = phrases[i + 1].startMs - phrases[i].endMs;
-      const combinedDur = phrases[i + 1].endMs - phrases[i].startMs;
-      if (gap < minGap && gap <= 550 && combinedDur <= 6800) {
-        minGap = gap;
-        mergeIdx = i;
-      }
-    }
-    if (mergeIdx < 0) break;
-    const first = phrases[mergeIdx];
-    const second = phrases[mergeIdx + 1];
-    first.endMs = second.endMs;
-    first.durationMs = second.endMs - first.startMs;
-    first.notes = Array.from(new Set([...first.notes, ...second.notes])).slice(0, 8);
-    first.pointsCount += second.pointsCount;
-    phrases.splice(mergeIdx + 1, 1);
+  // Case A: Equal count -> preserve fast 1-to-1 when densities align cleanly without structural shifts
+  if (L === P) {
+    let severeClashes = 0;
     phrases.forEach((p, idx) => {
-      p.id = `phrase-${idx + 1}`;
-      p.phraseIndex = idx + 1;
+      const pBars = getPhraseNoteBarsStrict(p, cleanOriginalBars);
+      const wCnt = Math.max(1, cleanLines[idx].split(/\s+/).filter(Boolean).length);
+      if (
+        cleanOriginalBars.length > 0 &&
+        (pBars.length === 0 ||
+          (wCnt >= 4 && pBars.length <= 1) ||
+          (wCnt >= 3 && pBars.length / wCnt < 0.35) ||
+          (pBars.length >= 6 && pBars.length / wCnt >= 2.8))
+      ) {
+        severeClashes++;
+      }
     });
+
+    if (severeClashes < 2) {
+      phrases.forEach((p, idx) => {
+        p.isInstrumentalOrVocalize = false;
+        p.isMissingLyricGap = false;
+        alignWordsToPhraseNoteBars(
+          p,
+          noteBars,
+          cleanLines[idx],
+          rawMonoPcm,
+          sampleRate,
+          pitchTrack
+        );
+      });
+      return;
+    }
   }
 
   // Case B: Lyric has more lines than audio phrases (L > P) -> Plain-Text Density DP
   // Distributes all L lyric lines across P phrases matching cumulative word-to-NoteBar density without truncating trailing lines!
-  if (cleanLines.length > phrases.length && phrases.length >= 1) {
-    const L = cleanLines.length;
-    const P = phrases.length;
+  if (L > P && P >= 1) {
     const lineWordCounts = cleanLines.map((l) => Math.max(1, l.split(/\s+/).filter(Boolean).length));
-    const phraseBarCounts = phrases.map((p) => Math.max(1, getPhraseNoteBarsStrict(p, noteBars).length));
+    const phraseBarCounts = phrases.map((p) => Math.max(1, getPhraseNoteBarsStrict(p, cleanOriginalBars).length));
 
     const dp: number[][] = Array.from({ length: P }, () => new Array(L).fill(Infinity));
     const prevSplit: number[][] = Array.from({ length: P }, () => new Array(L).fill(0));
@@ -5010,76 +4554,91 @@ export function alignPlainTextToPhrases(
     return;
   }
 
-  // Case C: Audio still has more phrases than plain-text lines (P > L)
-  // Align cleanLines onto the best-fitting ordered subsequence of phrases via Syllable-to-Note Density DP
-  // and auto-generate missing lyrics for any unmapped earlier/middle/trailing phrases!
-  const L = cleanLines.length;
-  const P = phrases.length;
-  const lineWords = cleanLines.map((l) => Math.max(1, l.split(/\s+/).filter(Boolean).length));
-  const phraseBars = phrases.map((p) => Math.max(1, getPhraseNoteBarsStrict(p, noteBars).length));
-
-  const dp: number[][] = Array.from({ length: L }, () => new Array(P).fill(Infinity));
-  const prevP: number[][] = Array.from({ length: L }, () => new Array(P).fill(-1));
-  const subseqCost = (lIdx: number, pIdx: number) =>
-    Math.abs(lineWords[lIdx] - phraseBars[pIdx]) * 1.7 +
-    Math.abs((lIdx + 0.5) / L - (pIdx + 0.5) / P) * 8;
-
-  for (let p = 0; p <= P - L; p++) {
-    dp[0][p] = subseqCost(0, p);
-  }
-  for (let l = 1; l < L; l++) {
-    for (let p = l; p <= P - (L - l); p++) {
-      for (let pp = l - 1; pp < p; pp++) {
-        if (dp[l - 1][pp] === Infinity) continue;
-        const cand = dp[l - 1][pp] + subseqCost(l, p) + (p - pp - 1) * 1.4;
-        if (cand < dp[l][p]) {
-          dp[l][p] = cand;
-          prevP[l][p] = pp;
-        }
-      }
-    }
-  }
-
-  let bestEndP = L - 1;
-  let bestCost = Infinity;
-  for (let p = L - 1; p < P; p++) {
-    if (dp[L - 1][p] < bestCost) {
-      bestCost = dp[L - 1][p];
-      bestEndP = p;
-    }
-  }
-
-  const assignedP = new Array(L).fill(-1);
-  let curP = bestEndP;
-  for (let l = L - 1; l >= 0; l--) {
-    assignedP[l] = curP;
-    curP = prevP[l][curP];
-  }
-
-  const phraseToLine = new Map<number, number>();
-  assignedP.forEach((pIdx, lIdx) => {
-    if (pIdx >= 0) phraseToLine.set(pIdx, lIdx);
+  // Case C (P >= L with anomalies or P > L): Bidirectional Symmetric Alignment DP
+  // Handles omitted text lines, extra adlib/chorus audio clusters (marked isMissingLyricGap -> Auto-Gen),
+  // AND genuine mid-sentence split phrases WITHOUT greedy cascading shifts!
+  const clusterInputs: ISymmetricClusterInput[] = phrases.map((p, idx) => {
+    const pBars = getPhraseNoteBarsStrict(p, cleanOriginalBars);
+    const fallbackBar: IVocalNoteBar[] =
+      pBars.length > 0
+        ? pBars
+        : [
+            {
+              id: `virt-bar-${idx}`,
+              startTimeMs: p.startMs,
+              endTimeMs: p.endMs,
+              durationMs: p.durationMs,
+              midi: Math.round(p.avgMidi || 60),
+              exactMidi: p.avgMidi || 60,
+              noteName: p.lowestNote || 'C4',
+              solfegeName: 'Đô 4',
+              avgCentsDiff: 0,
+              pointsCount: p.pointsCount || 10,
+            },
+          ];
+    return {
+      bars: fallbackBar,
+      startMs: p.startMs,
+      endMs: p.endMs,
+      postGapMs:
+        idx + 1 < P ? Math.max(0, phrases[idx + 1].startMs - p.endMs) : 2000,
+      originalClusterIdx: idx,
+    };
   });
 
-  phrases.forEach((p, idx) => {
-    const lIdx = phraseToLine.get(idx);
-    if (lIdx !== undefined) {
-      p.isInstrumentalOrVocalize = false;
-      p.isMissingLyricGap = false;
-      alignWordsToPhraseNoteBars(
-        p,
-        noteBars,
-        cleanLines[lIdx],
-        rawMonoPcm,
-        sampleRate,
-        pitchTrack
-      );
-    } else {
-      p.isMissingLyricGap = true;
-      p.alignmentIssue = 'missing_lyric';
-      alignWordsToPhraseNoteBars(p, noteBars, undefined, rawMonoPcm, sampleRate, pitchTrack);
-    }
+  const lineInputs: ISymmetricLyricInput[] = cleanLines.map((text, idx) => ({
+    text,
+    postGapMs: 2000,
+    originalLineIdx: idx,
+  }));
+
+  const ops = alignWindowSymmetricDP({
+    lines: lineInputs,
+    clusters: clusterInputs,
+    windowStartMs: phrases[0].startMs,
+    windowEndMs: phrases[P - 1].endMs,
+    useTimestampPrior: false,
+    allowLineSkip: true,
+    allowClusterSkip: true,
+    allowMerge2Lines: false,
+    allowMerge2Clusters: true,
   });
+
+  const rebuilt: IVocalPhrase[] = [];
+  let nextIdx = 1;
+  for (const op of ops) {
+    if (op.kind === 'skip_line') continue;
+    const firstOrigPhrase = phrases[op.clusterIndices[0]];
+    const lastOrigPhrase = phrases[op.clusterIndices[op.clusterIndices.length - 1]];
+    const liveBars = op.bars
+      .map((b) => noteBars.find((nb) => nb.id === b.id))
+      .filter((b): b is IVocalNoteBar => Boolean(b));
+
+    const phrase = buildPhraseFromBarsAndLyric({
+      phraseIndex: nextIdx++,
+      bars: liveBars,
+      fallbackStartMs: firstOrigPhrase.startMs,
+      fallbackEndMs: lastOrigPhrase.endMs,
+      lyricText: op.kind === 'skip_cluster' ? undefined : op.text,
+      isInstrumentalOrVocalize: false,
+      allNoteBars: noteBars,
+      rawMonoPcm,
+      sampleRate,
+      pitchTrack,
+    });
+
+    if (op.kind === 'skip_cluster') {
+      phrase.isMissingLyricGap = true;
+      phrase.alignmentIssue = 'missing_lyric';
+    } else if (op.kind === 'merge_2_clusters') {
+      phrase.isRecoveredByDp = true;
+    }
+    rebuilt.push(phrase);
+  }
+
+  if (rebuilt.length > 0) {
+    phrases.splice(0, phrases.length, ...rebuilt);
+  }
 
   if (phrases.some((p) => p.isMissingLyricGap)) {
     autoGenerateMissingLyrics(phrases, noteBars, rawMonoPcm, sampleRate, pitchTrack);

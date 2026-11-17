@@ -10,7 +10,12 @@ import {
   Clock,
 } from 'lucide-react';
 import { IVocalPhrase } from '../../../services/vocalFileAnalysisService';
-import { LyricDisplayMode, LyricSourceType, IVocalLyricWord } from '../../../services/lyricAlignmentService';
+import {
+  LyricDisplayMode,
+  LyricSourceType,
+  IVocalLyricWord,
+  findActiveWordIndexAtTime,
+} from '../../../services/lyricAlignmentService';
 import { auditoryEngine } from '../../../services/auditoryEngine';
 import { RunwayRenderState, SingSessionStats } from '../types';
 import { formatTimeMs } from '../utils/vocalHelpers';
@@ -452,11 +457,14 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
           </div>
         ) : (
           <div className="flex-1 flex flex-wrap items-center gap-x-2 gap-y-1.5 min-h-[46px]">
-            {words.length > 0 ? (
-              words.map((word) => {
-                const isWordActive =
-                  effectiveHudTimeMs >= word.startMs - 30 && effectiveHudTimeMs <= word.endMs + 30;
-                const isWordPast = effectiveHudTimeMs > word.endMs + 30;
+            {words.length > 0 ? (() => {
+              const activeWordIdx = findActiveWordIndexAtTime(words, effectiveHudTimeMs);
+              return words.map((word) => {
+                const isWordActive = word.wordIndex === activeWordIdx;
+                const isWordPast =
+                  activeWordIdx >= 0
+                    ? word.wordIndex < activeWordIdx
+                    : effectiveHudTimeMs > word.endMs + 22;
                 const wordKey = `${currentOrUpcomingPhrase.phraseIndex}_${word.wordIndex}`;
                 const stat = sessionStats.wordScores?.[wordKey];
 
@@ -596,8 +604,8 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                     </span>
                   </button>
                 );
-              })
-            ) : (
+              });
+            })() : (
               <span className="text-sm sm:text-base font-bold text-slate-200">
                 {currentOrUpcomingPhrase.lyricText || currentOrUpcomingPhrase.solfegeText}
               </span>
