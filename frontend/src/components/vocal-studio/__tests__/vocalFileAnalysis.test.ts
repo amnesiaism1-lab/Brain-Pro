@@ -922,4 +922,41 @@ describe('Vocal File Analysis & Range Extraction', () => {
       }
     }
   });
+
+  it('TC-42: Weights merged same-MIDI note bar exactMidi by pointsCount instead of unweighted mean', () => {
+    const points: any[] = [];
+    // Bar 1: 3 frames at 60.40 (midi 60)
+    for (let f = 0; f < 3; f++) {
+      points.push({
+        timeMs: f * 25,
+        freqHz: 268.0,
+        midi: 60.4,
+        noteName: 'C4',
+        solfegeName: 'Do 4',
+        clarity: 0.9,
+        volumeDb: -12,
+        isVocal: true,
+      });
+    }
+    // 50ms unvoiced micro-flicker gap -> triggers merge (gap <= 70ms)
+    // Bar 2: 17 frames at 60.00 (midi 60)
+    for (let f = 0; f < 17; f++) {
+      points.push({
+        timeMs: 100 + f * 25,
+        freqHz: 261.63,
+        midi: 60.0,
+        noteName: 'C4',
+        solfegeName: 'Do 4',
+        clarity: 0.9,
+        volumeDb: -12,
+        isVocal: true,
+      });
+    }
+
+    const noteBars = vocalFileAnalysisService.segmentNoteBars(points);
+    expect(noteBars).toHaveLength(1);
+    expect(noteBars[0].pointsCount).toBe(20);
+    // Weighted average (3*60.4 + 17*60.0)/20 = 60.06, NOT unweighted (60.4+60.0)/2 = 60.20!
+    expect(noteBars[0].exactMidi).toBeLessThan(60.12);
+  });
 });

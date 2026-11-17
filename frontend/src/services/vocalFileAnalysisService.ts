@@ -289,7 +289,9 @@ class VocalFileAnalysisService {
     const pitchTrack: IReferencePitchPoint[] = [];
     const frameBuffer = new Float32Array(bufferSize);
 
-    // Calculate dynamic ambient noise floor from filtered vocal channel
+    // Calculate adaptive percentile noise floor from filtered vocal channel
+    // (Prevents a single loud chorus/transient peak from muting softer verses)
+    const chunkRmsList: number[] = [];
     let maxRms = 0;
     for (let i = 0; i < totalSamples; i += 2048) {
       let sqSum = 0;
@@ -299,9 +301,17 @@ class VocalFileAnalysisService {
         sqSum += val * val;
       }
       const r = Math.sqrt(sqSum / chunkLen);
+      chunkRmsList.push(r);
       if (r > maxRms) maxRms = r;
     }
-    const dynamicNoiseFloorRms = Math.max(0.003, maxRms * 0.045);
+    chunkRmsList.sort((a, b) => a - b);
+    const p75Rms = chunkRmsList.length > 0 ? chunkRmsList[Math.floor(chunkRmsList.length * 0.75)] : maxRms;
+    const p20Rms = chunkRmsList.length > 0 ? chunkRmsList[Math.floor(chunkRmsList.length * 0.20)] : 0;
+    const dynamicNoiseFloorRms = Math.max(
+      0.003,
+      p20Rms * 1.4,
+      Math.min(maxRms * 0.028, p75Rms * 0.085)
+    );
 
     let sampleCursor = 0;
     const totalFrames = Math.floor((totalSamples - bufferSize) / hopSize);
@@ -339,16 +349,18 @@ class VocalFileAnalysisService {
       const sideRms = filteredSidePcm ? Math.sqrt(sideSumSquares / bufferSize) : 0;
       const db = rms > 0 ? 20 * Math.log10(rms) : -100;
 
-      // Center-channel dominance gate: lead vocals sit in the stereo center (Mid >= Side * 0.90),
-      // whereas stereo accompaniment instruments / beat intros have strong side energy
-      const isCenterVocalDominant = !filteredSidePcm || rms >= sideRms * 0.90;
+      // Center-channel dominance gate with harmonic clarity bypass for wide stereo choruses:
+      // Reject weak/diffuse stereo bleed (< 0.90 side ratio) unless center harmonic periodicity is very strong (clarity >= 0.72).
+      const isCenterDominant = !filteredSidePcm || rms >= sideRms * 0.90;
+      const canAllowStereoChorusCheck = !filteredSidePcm || rms >= sideRms * 0.62;
 
-      if (rms >= dynamicNoiseFloorRms && db >= -44 && isCenterVocalDominant) {
+      if (rms >= dynamicNoiseFloorRms && db >= -44 && canAllowStereoChorusCheck) {
         const [rawPitch, clarity] = detector.findPitch(frameBuffer, sampleRate);
 
         // Require higher harmonic clarity (0.58) in the bass-guitar/kick region (<130Hz)
-        // and >= 0.40 in the main vocal range to reject accompaniment beat bleed
-        const minRequiredClarity = rawPitch < 130 ? 0.58 : 0.40;
+        // and >= 0.40 in the main vocal range (or >= 0.72 if side channel is stronger)
+        const baseClarityReq = rawPitch < 130 ? 0.58 : 0.40;
+        const minRequiredClarity = isCenterDominant ? baseClarityReq : Math.max(baseClarityReq, 0.72);
 
         if (clarity >= minRequiredClarity && rawPitch >= 75 && rawPitch <= 1250) {
           const exactMidi = 12 * Math.log2(rawPitch / 440) + 69;
@@ -1572,11 +1584,24 @@ class VocalFileAnalysisService {
       const gapMs = current.startTimeMs - prev.endTimeMs;
 
       if (prev.midi === current.midi && gapMs <= 70) {
+        const totalPts = Math.max(1, prev.pointsCount + current.pointsCount);
+        prev.exactMidi =
+          Math.round(
+            ((prev.exactMidi * prev.pointsCount + current.exactMidi * current.pointsCount) / totalPts) *
+              100
+          ) / 100;
         prev.endTimeMs = current.endTimeMs;
         prev.durationMs = prev.endTimeMs - prev.startTimeMs;
-        prev.pointsCount += current.pointsCount;
-        prev.exactMidi = Math.round(((prev.exactMidi + current.exactMidi) / 2) * 100) / 100;
+        prev.pointsCount = totalPts;
         prev.avgCentsDiff = Math.round((prev.exactMidi - prev.midi) * 100);
+        if (prev.rmsEnvelope && current.rmsEnvelope) {
+          const combined = [...prev.rmsEnvelope, ...current.rmsEnvelope];
+          const targetLen = 16;
+          prev.rmsEnvelope = Array.from({ length: targetLen }, (_, s) => {
+            const idx = Math.floor((s / (targetLen - 1)) * (combined.length - 1));
+            return combined[idx];
+          });
+        }
       } else {
         mergedBars.push(current);
       }

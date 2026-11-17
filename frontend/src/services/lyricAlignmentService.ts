@@ -1873,10 +1873,37 @@ function subdivideSustainedBarsForWords(
   targetWordCount: number,
   pitchTrack: IReferencePitchPoint[],
   rawMonoPcm?: Float32Array | null,
-  sampleRate = 44100
+  sampleRate = 44100,
+  wordTimestamps?: Array<{ timeMs: number; text: string }>
 ): IVocalNoteBar[] {
   const workingBars = fuseMicroScoopAndTailBars(phraseBars, allNoteBars, targetWordCount);
   if (workingBars.length === 0 || targetWordCount <= 1) return workingBars;
+
+  // Phase 0: If Enhanced LRC wordTimestamps are available and B < W, split bars that explicitly contain >=2 word timestamps
+  if (wordTimestamps && wordTimestamps.length >= 2 && workingBars.length < targetWordCount) {
+    let didSplit = true;
+    while (didSplit && workingBars.length < targetWordCount) {
+      didSplit = false;
+      for (let i = 0; i < workingBars.length && workingBars.length < targetWordCount; i++) {
+        const bar = workingBars[i];
+        if (bar.durationMs < 160) continue;
+        const hits = wordTimestamps
+          .filter((wt) => wt.timeMs >= bar.startTimeMs - 60 && wt.timeMs <= bar.endTimeMs - 40)
+          .sort((a, b) => a.timeMs - b.timeMs);
+        if (hits.length >= 2) {
+          // Split between the 1st and remaining word timestamps inside this bar
+          const targetMid = Math.round((hits[0].timeMs + hits[1].timeMs) / 2);
+          const clampedSplit = Math.max(
+            bar.startTimeMs + 60,
+            Math.min(bar.endTimeMs - 60, hits[1].timeMs > bar.startTimeMs + 60 ? hits[1].timeMs - 15 : targetMid)
+          );
+          splitSingleBarAtMs(workingBars, allNoteBars, i, clampedSplit, pitchTrack);
+          didSplit = true;
+          break;
+        }
+      }
+    }
+  }
 
   // Phase A: Check if there are legato pitch glides (gap <= 25ms, pitch change 1..7 semitones)
   // that should be grouped onto a single word while another bar has a strong internal consonant dip
@@ -2366,7 +2393,8 @@ export function alignWordsToPhraseNoteBars(
       customTokens.length,
       pitchTrack,
       rawMonoPcm,
-      sampleRate
+      sampleRate,
+      wordTimestamps
     );
   }
 
@@ -2619,7 +2647,15 @@ export function alignWordsToPhraseNoteBars(
     rawTokens.forEach((_, i) => {
       const wordMidFrac = (accumWeight + wordWeights[i] * 0.5) / totalWordWeight;
       accumWeight += wordWeights[i];
-      const targetTimeMs = phraseBars[0].startTimeMs + wordMidFrac * totalBarsDuration;
+      const weightTargetMs = phraseBars[0].startTimeMs + wordMidFrac * totalBarsDuration;
+      const tsAnchorMs = wordTimestamps?.[i]?.timeMs;
+      const targetTimeMs =
+        tsAnchorMs !== undefined &&
+        Number.isFinite(tsAnchorMs) &&
+        tsAnchorMs >= phraseBars[0].startTimeMs - 400 &&
+        tsAnchorMs <= phraseBars[phraseBars.length - 1].endTimeMs + 400
+          ? tsAnchorMs
+          : weightTargetMs;
 
       let bestBarIdx = 0;
       let minDistance = Infinity;
@@ -2693,8 +2729,9 @@ export function alignWordsToPhraseNoteBars(
               continue;
             }
             const distPenalty = Math.abs(pt.timeMs - expectedBoundaryMs) * 0.04;
+            const onsetBoost = Math.min(7.0, (pt.onsetStrength || 0) * 1.15);
             const valleyScore =
-              -pt.volumeDb * 0.8 + (1 - pt.clarity) * 12 - distPenalty;
+              -pt.volumeDb * 0.8 + (1 - pt.clarity) * 12 + onsetBoost - distPenalty;
             if (valleyScore > bestValleyScore) {
               bestValleyScore = valleyScore;
               snappedMs = Math.round(pt.timeMs);
@@ -3047,11 +3084,18 @@ export function estimateOptimalLrcOffsetMs(
 ): number {
   if (phrases.length === 0 || lrcLines.length === 0) return 0;
 
-  // Collect phrase start times and post-pause noteBar onset times
-  const vocalOnsets: number[] = phrases.map((p) => p.startMs);
+  // Collect deduplicated phrase start times and post-pause noteBar onset times
+  const rawOnsets: number[] = phrases.map((p) => p.startMs);
   for (let i = 1; i < noteBars.length; i++) {
     if (noteBars[i].startTimeMs - noteBars[i - 1].endTimeMs >= 200) {
-      vocalOnsets.push(noteBars[i].startTimeMs);
+      rawOnsets.push(noteBars[i].startTimeMs);
+    }
+  }
+  rawOnsets.sort((a, b) => a - b);
+  const vocalOnsets: number[] = [];
+  for (const on of rawOnsets) {
+    if (vocalOnsets.length === 0 || on - vocalOnsets[vocalOnsets.length - 1] >= 120) {
+      vocalOnsets.push(on);
     }
   }
 
@@ -3095,6 +3139,30 @@ export function estimateOptimalLrcOffsetMs(
     }
   }
 
+  // Consensus Pairwise Onset-Difference Histogram:
+  // Catches shifted LRCs when lrcLines[0] is missing or when prefix vocal phrases differ from LRC line 0
+  const maxCheckOnsets = Math.min(8, vocalOnsets.length);
+  const maxCheckLrc = Math.min(8, lrcLines.length);
+  const offsetBins = new Map<number, number>();
+  for (let vi = 0; vi < maxCheckOnsets; vi++) {
+    for (let li = 0; li < maxCheckLrc; li++) {
+      const diff = vocalOnsets[vi] - lrcLines[li].timeMs;
+      if (Math.abs(diff) > 45000) continue;
+      const bin = Math.round(diff / 250) * 250;
+      offsetBins.set(bin, (offsetBins.get(bin) || 0) + 1);
+    }
+  }
+  const topConsensusBins = [...offsetBins.entries()]
+    .sort((a, b) => b[1] - a[1] || Math.abs(a[0]) - Math.abs(b[0]))
+    .slice(0, 4)
+    .map(([bin]) => bin);
+  for (const bin of topConsensusBins) {
+    candidateOffsets.add(bin);
+    for (let delta = -600; delta <= 600; delta += 150) {
+      candidateOffsets.add(bin + delta);
+    }
+  }
+
   let bestOffset = 0;
   let bestScore = -Infinity;
 
@@ -3104,6 +3172,11 @@ export function estimateOptimalLrcOffsetMs(
 
     for (let i = 0; i < lrcLines.length; i++) {
       const shiftedStart = lrcLines[i].timeMs + offset;
+      // Shifting LRC lines far before t = 0s (< -1200ms) indicates an invalid over-negative offset
+      if (shiftedStart < -1200) {
+        score -= 28;
+        continue;
+      }
       const shiftedEnd =
         i + 1 < lrcLines.length
           ? Math.min(lrcLines[i + 1].timeMs + offset, shiftedStart + 5500)
@@ -3301,9 +3374,10 @@ function buildPhraseFromBarsAndLyric(params: {
       const enoughForAllWords = i + 1 >= wordCount && gap >= 450;
       const enoughForMostWords =
         i + 1 >= Math.max(2, Math.floor(wordCount * 0.65)) && gap >= 950;
+      const clearInterPhrasePause = i + 1 >= 2 && gap >= 1350;
       const beyondReasonableSungWindow = elapsedMs > maxSungSpanMs && gap >= 260;
 
-      if (enoughForAllWords || enoughForMostWords || beyondReasonableSungWindow) {
+      if (enoughForAllWords || enoughForMostWords || clearInterPhrasePause || beyondReasonableSungWindow) {
         activeBars = activeBars.slice(0, i + 1);
         break;
       }
@@ -3520,20 +3594,40 @@ function structuralSubsequenceAlignLrcToPhrases(
       : clusters;
 
   const L = lrcLines.length;
-  // If fewer audio clusters than LRC lines (e.g. merged phrases), split longest clusters at largest internal gaps
+  // If fewer audio clusters than LRC lines (e.g. merged rapid phrases), split longest clusters
+  // first at largest internal gaps (> 80ms), then at sharpest pitch/inflection boundaries if still P < L.
   while (audioClusters.length < L) {
     let bestClusterIdx = -1;
     let bestSplitIdx = -1;
-    let bestGap = 80; // at least 80ms gap or long duration split
+    let bestSplitScore = 80; // min 80ms gap or high inflection split
     for (let ci = 0; ci < audioClusters.length; ci++) {
       const c = audioClusters[ci];
       if (c.length < 4) continue;
       for (let bi = 1; bi < c.length - 1; bi++) {
         const g = c[bi].startTimeMs - c[bi - 1].endTimeMs;
-        if (g > bestGap) {
-          bestGap = g;
+        if (g > bestSplitScore) {
+          bestSplitScore = g;
           bestClusterIdx = ci;
           bestSplitIdx = bi;
+        }
+      }
+    }
+    if (bestClusterIdx === -1) {
+      // Secondary pass: split long dense clusters (>= 6 bars, >= 2000ms) near midpoint at pitch/gap inflection
+      let bestSecondaryScore = 0;
+      for (let ci = 0; ci < audioClusters.length; ci++) {
+        const c = audioClusters[ci];
+        const dur = c[c.length - 1].endTimeMs - c[0].startTimeMs;
+        if (c.length < 6 || dur < 2000) continue;
+        for (let bi = 2; bi < c.length - 2; bi++) {
+          const g = Math.max(0, c[bi].startTimeMs - c[bi - 1].endTimeMs);
+          const pitchJump = Math.abs(c[bi].midi - c[bi - 1].midi);
+          const secScore = g * 0.25 + pitchJump * 2.5 + dur * 0.002;
+          if (secScore > bestSecondaryScore) {
+            bestSecondaryScore = secScore;
+            bestClusterIdx = ci;
+            bestSplitIdx = bi;
+          }
         }
       }
     }
@@ -3551,19 +3645,40 @@ function structuralSubsequenceAlignLrcToPhrases(
   if (P === 0) return [];
 
   const lineWords = lrcLines.map((l) => Math.max(1, l.text.trim().split(/\s+/).filter(Boolean).length));
+  const lrcPostGaps = lrcLines.map((l, idx) =>
+    idx + 1 < L ? Math.max(0, lrcLines[idx + 1].timeMs - l.timeMs) : 2500
+  );
+  const clusterPostGaps = audioClusters.map((c, idx) =>
+    idx + 1 < P
+      ? Math.max(0, audioClusters[idx + 1][0].startTimeMs - c[c.length - 1].endTimeMs)
+      : 2000
+  );
+  const clusterDurations = audioClusters.map(
+    (c) => Math.max(200, c[c.length - 1].endTimeMs - c[0].startTimeMs)
+  );
+
+  const computeStructuralMatchCost = (lIdx: number, pIdx: number) => {
+    const wCnt = lineWords[lIdx];
+    const bCnt = audioClusters[pIdx].length;
+    const densityDiff = Math.abs(wCnt - bCnt) * 1.6;
+    const expectedSungMs = Math.max(450, wCnt * 270);
+    const durRatioDiff =
+      Math.abs(clusterDurations[pIdx] - expectedSungMs) / Math.max(500, expectedSungMs);
+    const durPenalty = Math.min(4.0, durRatioDiff * 1.35);
+    const relProgressDiff = Math.abs((lIdx + 0.5) / L - (pIdx + 0.5) / P) * 6.5;
+    // Reward silence pause alignment: when a long breath gap follows both LRC line l and audio cluster p
+    const lrcHasBreath = lrcPostGaps[lIdx] >= 3600;
+    const audioHasBreath = clusterPostGaps[pIdx] >= 850;
+    const rhythmBonus = lrcHasBreath && audioHasBreath ? -1.4 : 0;
+    return densityDiff + durPenalty + relProgressDiff + rhythmBonus;
+  };
 
   // If P >= L: match each LRC line l to an audio cluster p (allowing skipping orphan/missing clusters)
   if (P >= L) {
     const dp: number[][] = Array.from({ length: L }, () => new Array(P).fill(Infinity));
     const prevP: number[][] = Array.from({ length: L }, () => new Array(P).fill(-1));
 
-    const matchCost = (lIdx: number, pIdx: number) => {
-      const wCnt = lineWords[lIdx];
-      const bCnt = audioClusters[pIdx].length;
-      const densityDiff = Math.abs(wCnt - bCnt) * 1.7;
-      const relProgressDiff = Math.abs((lIdx + 0.5) / L - (pIdx + 0.5) / P) * 10;
-      return densityDiff + relProgressDiff;
-    };
+    const matchCost = (lIdx: number, pIdx: number) => computeStructuralMatchCost(lIdx, pIdx);
 
     for (let p = 0; p <= P - L; p++) {
       dp[0][p] = matchCost(0, p);
@@ -3656,13 +3771,7 @@ function structuralSubsequenceAlignLrcToPhrases(
   const dp: number[][] = Array.from({ length: P }, () => new Array(L).fill(Infinity));
   const prevL: number[][] = Array.from({ length: P }, () => new Array(L).fill(-1));
 
-  const matchCost = (pIdx: number, lIdx: number) => {
-    const wCnt = lineWords[lIdx];
-    const bCnt = audioClusters[pIdx].length;
-    const densityDiff = Math.abs(wCnt - bCnt) * 1.7;
-    const relProgressDiff = Math.abs((pIdx + 0.5) / P - (lIdx + 0.5) / L) * 10;
-    return densityDiff + relProgressDiff;
-  };
+  const matchCost = (pIdx: number, lIdx: number) => computeStructuralMatchCost(lIdx, pIdx);
 
   for (let l = 0; l <= L - P; l++) {
     dp[0][l] = matchCost(0, l);
@@ -3773,19 +3882,21 @@ function autoGenerateMissingLyrics(
     })
     .filter((s) => s.bars.length >= 3 && s.intervals.length >= 2);
 
-  const SYLLABLE_MAP: Record<CoreVowelFamily, [string, string]> = {
-    A: ['La', 'Na'],
-    E: ['Lê', 'Me'],
-    I: ['Li', 'Di'],
-    Ơ: ['Mơ', 'Lơ'],
-    Ô: ['Đô', 'Lô'],
-    U: ['Ru', 'Nu'],
+  // [steadyOral, steadyNasal, risingOral, fallingOral] — tone-concordant Vietnamese syllables per vowel family
+  const SYLLABLE_MAP: Record<CoreVowelFamily, [string, string, string, string]> = {
+    A: ['La', 'Na', 'Lá', 'Là'],
+    E: ['Lê', 'Me', 'Lé', 'Lè'],
+    I: ['Li', 'Di', 'Lí', 'Lì'],
+    Ơ: ['Mơ', 'Lơ', 'Mớ', 'Mờ'],
+    Ô: ['Đô', 'Lô', 'Đố', 'Đồ'],
+    U: ['Ru', 'Nu', 'Rú', 'Rù'],
   };
 
   for (const p of phrases) {
     if (!p.isMissingLyricGap) continue;
     const gapBars = getPhraseNoteBarsStrict(p, noteBars);
     if (gapBars.length === 0) continue;
+    const gapDur = Math.max(200, gapBars[gapBars.length - 1].endTimeMs - gapBars[0].startTimeMs);
 
     // 1. Try Melodic Interval Self-Similarity Clone (Chorus / Verse repetition)
     if (gapBars.length >= 3 && sourceCandidates.length > 0) {
@@ -3794,7 +3905,16 @@ function autoGenerateMissingLyrics(
       let bestDist = Infinity;
 
       for (const src of sourceCandidates) {
-        if (Math.abs(src.bars.length - gapBars.length) > 2) continue;
+        const maxLen = Math.max(src.bars.length, gapBars.length);
+        const lenDiffAllowed = Math.max(2, Math.floor(maxLen * 0.35));
+        if (Math.abs(src.bars.length - gapBars.length) > lenDiffAllowed) continue;
+        const srcDur = Math.max(
+          200,
+          src.bars[src.bars.length - 1].endTimeMs - src.bars[0].startTimeMs
+        );
+        const durRelDiff = Math.abs(srcDur - gapDur) / Math.max(srcDur, gapDur);
+        if (durRelDiff > 0.55) continue;
+
         const dist = melodicIntervalDtwDistance(gapIntervals, src.intervals);
         if (dist < bestDist) {
           bestDist = dist;
@@ -3820,7 +3940,7 @@ function autoGenerateMissingLyrics(
       }
     }
 
-    // 2. Fallback: Acoustic Phonetic Syllable Synthesis 1-to-1 per NoteBar
+    // 2. Fallback: Acoustic Phonetic + Tone-Concordant Syllable Synthesis 1-to-1 per NoteBar
     const synthTokens = gapBars.map((bar, bIdx) => {
       const prevBar = bIdx > 0 ? gapBars[bIdx - 1] : null;
       const deep = analyzeDeepNoteBarVowelAndTrajectory({
@@ -3830,12 +3950,18 @@ function autoGenerateMissingLyrics(
         prevBar,
         pitchTrack,
       });
-      const pair = SYLLABLE_MAP[deep.vowelFamily] || ['La', 'Na'];
+      const quad = SYLLABLE_MAP[deep.vowelFamily] || ['La', 'Na', 'Lá', 'Là'];
       const hasNasal =
         rawMonoPcm &&
         computeOralToNasalRatioDbAtMs(rawMonoPcm, sampleRate, bar.startTimeMs + 25) < 2.0;
-      const baseSyl = hasNasal ? pair[1] : pair[0];
-      return bIdx === 0 ? baseSyl : baseSyl.toLowerCase();
+
+      let chosenSyl = hasNasal ? quad[1] : quad[0];
+      if (!hasNasal && prevBar) {
+        const step = bar.midi - prevBar.midi;
+        if (step >= 2) chosenSyl = quad[2]; // Rising pitch step -> Sắc tone
+        else if (step <= -2) chosenSyl = quad[3]; // Falling pitch drop -> Huyền tone
+      }
+      return bIdx === 0 ? chosenSyl : chosenSyl.toLowerCase();
     });
 
     const synthText = synthTokens.join(' ');
@@ -6199,6 +6325,10 @@ export function updateSinglePhraseLyric(
     const copy: IVocalPhrase = {
       ...p,
       isInstrumentalOrVocalize: isInstrumental,
+      isMissingLyricGap: false,
+      isAutoGeneratedMissing: false,
+      alignmentIssue: null,
+      alignmentIssueDetailVi: undefined,
     };
     alignWordsToPhraseNoteBars(
       copy,
@@ -6211,10 +6341,12 @@ export function updateSinglePhraseLyric(
     return copy;
   });
 
+  const alignmentAudit = auditLyricAlignmentHealth(updatedPhrases, result.noteBars);
   const updatedResult: IVocalAnalysisResult = {
     ...result,
     lyricSource: 'manual',
-    lyricStatus: 'complete',
+    lyricStatus: alignmentAudit.status === 'healthy' ? 'complete' : 'partial',
+    alignmentAudit,
     phrases: updatedPhrases,
   };
   saveLyricsToLocalCache(updatedResult);
@@ -6291,9 +6423,11 @@ export function mergeWithNextPhrase(
     result.vocalRange.highestMidi
   );
   classifyDuetSingerVoices(newPhrases, result.noteBars, result.pitchTrack, result.fileName);
+  const alignmentAudit = auditLyricAlignmentHealth(newPhrases, result.noteBars);
 
   const updatedResult: IVocalAnalysisResult = {
     ...result,
+    alignmentAudit,
     phrases: newPhrases,
   };
   saveLyricsToLocalCache(updatedResult);
@@ -6388,9 +6522,11 @@ export function splitPhraseAtPlayhead(
     result.vocalRange.highestMidi
   );
   classifyDuetSingerVoices(newPhrases, result.noteBars, result.pitchTrack, result.fileName);
+  const alignmentAudit = auditLyricAlignmentHealth(newPhrases, result.noteBars);
 
   const updatedResult: IVocalAnalysisResult = {
     ...result,
+    alignmentAudit,
     phrases: newPhrases,
   };
   saveLyricsToLocalCache(updatedResult);
