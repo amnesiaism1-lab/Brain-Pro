@@ -48,7 +48,10 @@ export const EvenOddGame: React.FC = () => {
   const [isInverted, setIsInverted] = useState(false);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(isCustom && sessionConfig.timeLimitSec && sessionConfig.timeLimitSec > 0 ? sessionConfig.timeLimitSec : (isSpeedStorm ? 20 : 35));
+  const initialTimeLimit = isCustom && sessionConfig.timeLimitSec && sessionConfig.timeLimitSec > 0
+    ? sessionConfig.timeLimitSec
+    : (isSpeedStorm ? 20 : 35);
+  const [timeLeft, setTimeLeft] = useState(initialTimeLimit);
   const [isFinished, setIsFinished] = useState(false);
   const [answersCount, setAnswersCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
@@ -391,7 +394,7 @@ export const EvenOddGame: React.FC = () => {
         <GameResultModal
           score={score}
           accuracyRate={accuracy}
-          timeSpentSec={isSpeedStorm ? 20 - timeLeft : 35 - timeLeft}
+          timeSpentSec={Math.max(1, initialTimeLimit - timeLeft)}
           playedLevel={effectiveLevel || 1}
           isCustom={isCustom}
           rawMetricsJson={getRawMetricsJson()}

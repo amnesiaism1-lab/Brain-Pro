@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { GameResultModal } from './GameResultModal';
 import { calculateGameScore } from '@brain-exercises/shared';
-import { Delete } from 'lucide-react';
+import { Delete, Volume2, CheckCircle2, XCircle } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { speakWord, cognitiveAudioEngine } from '../../services/infinityApiService';
 
@@ -80,10 +80,34 @@ export const DigitSpanGame: React.FC = () => {
   const [rsvpIndex, setRsvpIndex] = useState<number>(0);
   const [userInput, setUserInput] = useState('');
   const [round, setRound] = useState(1);
+  const [restartKey, setRestartKey] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [memorizeProgress, setMemorizeProgress] = useState(100);
+  const [roundFeedback, setRoundFeedback] = useState<{
+    isCorrect: boolean;
+    expected: string;
+    userTyped: string;
+  } | null>(null);
+  const [audioReplayUsed, setAudioReplayUsed] = useState(false);
   const maxRounds = isCustom && sessionConfig.rounds && sessionConfig.rounds > 0 ? sessionConfig.rounds : 3;
+
+  const isAlphanumericMode = isLetterMode || isWordMode || isMixedMode || isReverseAlphanumeric;
+
+  const playAudioForSequence = (seq: string) => {
+    if (isAudioSpan) {
+      const spacedDigits = seq.split('').join(' ... ');
+      speakWord(spacedDigits, 'en', 0.9);
+    } else if (isPitchSpan) {
+      seq.split('').forEach((char, idx) => {
+        setTimeout(() => {
+          const note = PITCH_NOTES[char];
+          if (note) cognitiveAudioEngine.playMusicalNote(note, 450);
+        }, 200 + (idx * 650));
+      });
+    }
+  };
 
   useEffect(() => {
     const seq = generateSequence(digitCount);
@@ -91,6 +115,9 @@ export const DigitSpanGame: React.FC = () => {
     setPhase('memorize');
     setUserInput('');
     setRsvpIndex(0);
+    setRoundFeedback(null);
+    setAudioReplayUsed(false);
+    setMemorizeProgress(100);
 
     // Audio span dictation
     if (isAudioSpan) {
@@ -109,31 +136,43 @@ export const DigitSpanGame: React.FC = () => {
         }, 400 + (idx * 650));
       });
     }
+  }, [round, restartKey, effectiveLevel, digitCount, isPitchSpan, isAudioSpan]);
+
+  // Memorize countdown timer that respects pause
+  useEffect(() => {
+    if (phase !== 'memorize' || isFinished || isGamePaused) return;
 
     const flashDuration = isRsvpMode 
-      ? (seq.length * 350) + 600
+      ? (digits.length * 350) + 600
       : isAudioSpan 
-      ? (seq.length * 1000) + 800
+      ? (digits.length * 1000) + 800
       : isPitchSpan
-      ? (seq.length * 650) + 1200
+      ? (digits.length * 650) + 1200
       : 1000 + (digitCount * (isInfinity ? 350 : 300));
 
-    const timer = setTimeout(() => {
-      setPhase('recall');
-      recallStartTimeRef.current = Date.now();
-    }, flashDuration);
+    const startTime = Date.now();
+    const tick = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.max(0, 100 - (elapsed / flashDuration) * 100);
+      setMemorizeProgress(pct);
+      if (elapsed >= flashDuration) {
+        clearInterval(tick);
+        setPhase('recall');
+        recallStartTimeRef.current = Date.now();
+      }
+    }, 50);
 
-    return () => clearTimeout(timer);
-  }, [round, effectiveLevel, digitCount, isPitchSpan]);
+    return () => clearInterval(tick);
+  }, [phase, isFinished, isGamePaused, digits, isRsvpMode, isAudioSpan, isPitchSpan, digitCount, isInfinity]);
 
   // RSVP animation tick
   useEffect(() => {
-    if (phase !== 'memorize' || !isRsvpMode) return;
+    if (phase !== 'memorize' || !isRsvpMode || isGamePaused) return;
     const interval = setInterval(() => {
       setRsvpIndex(i => (i + 1 < digits.length ? i + 1 : i));
     }, 320);
     return () => clearInterval(interval);
-  }, [phase, isRsvpMode, digits]);
+  }, [phase, isRsvpMode, isGamePaused, digits]);
 
   useEffect(() => {
     if (isFinished || isGamePaused) return;
@@ -142,7 +181,7 @@ export const DigitSpanGame: React.FC = () => {
   }, [isFinished, isGamePaused]);
 
   const handleInput = (char: string) => {
-    if (phase !== 'recall') return;
+    if (phase !== 'recall' || roundFeedback || isGamePaused) return;
     playSound('click');
     if (isPitchSpan && PITCH_NOTES[char]) {
       cognitiveAudioEngine.playMusicalNote(PITCH_NOTES[char], 280);
@@ -171,6 +210,8 @@ export const DigitSpanGame: React.FC = () => {
           correct: isCorrect
         });
 
+        setRoundFeedback({ isCorrect, expected, userTyped: nextInput });
+
         if (isCorrect) {
           playSound('correct');
           setCorrectCount(c => c + 1);
@@ -179,12 +220,13 @@ export const DigitSpanGame: React.FC = () => {
         }
 
         setTimeout(() => {
+          setRoundFeedback(null);
           if (round >= maxRounds) {
             setIsFinished(true);
           } else {
             setRound(r => r + 1);
           }
-        }, 500);
+        }, isCorrect ? 800 : 1400);
       }
     }
   };
@@ -194,15 +236,20 @@ export const DigitSpanGame: React.FC = () => {
   };
 
   const handleDelete = () => {
+    if (roundFeedback || isGamePaused) return;
     playSound('click');
     setUserInput(prev => prev.slice(0, -1));
   };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (phase !== 'recall' || isFinished) return;
-      if (isLetterMode || isMixedMode) {
-        if (e.key.length === 1 && e.key.match(/[a-zA-Z0-9]/)) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (phase !== 'recall' || isFinished || isGamePaused || roundFeedback) return;
+      if (isAlphanumericMode) {
+        if (isWordMode && e.key === ' ') {
+          e.preventDefault();
+          handleInput(' ');
+        } else if (e.key.length === 1 && e.key.match(/[a-zA-Z0-9]/)) {
           handleInput(e.key.toUpperCase());
         } else if (e.key === 'Backspace') {
           handleDelete();
@@ -217,7 +264,7 @@ export const DigitSpanGame: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [phase, isFinished, userInput, digits, isLetterMode, isMixedMode]);
+  }, [phase, isFinished, isGamePaused, roundFeedback, userInput, digits, isAlphanumericMode, isWordMode]);
 
   const accuracy = Math.round((correctCount / maxRounds) * 100);
   const score = calculateGameScore({
@@ -279,8 +326,37 @@ export const DigitSpanGame: React.FC = () => {
       </div>
 
       {/* Center Digit Display / Recall Box */}
-      <div className="h-56 sm:h-64 md:h-72 rounded-3xl bg-brand-600 dark:bg-brand-700 text-white flex flex-col items-center justify-center p-6 sm:p-8 shadow-2xl relative overflow-hidden border-2 border-brand-400">
-        {phase === 'memorize' ? (
+      <div className="min-h-[14rem] sm:min-h-[16rem] md:min-h-[18rem] rounded-3xl bg-brand-600 dark:bg-brand-700 text-white flex flex-col items-center justify-center p-6 sm:p-8 shadow-2xl relative overflow-hidden border-2 border-brand-400">
+        {phase === 'memorize' && (
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-black/20">
+            <div
+              className="h-full bg-amber-300 transition-all duration-75"
+              style={{ width: `${memorizeProgress}%` }}
+            />
+          </div>
+        )}
+
+        {roundFeedback ? (
+          <div className="space-y-3 text-center animate-fade-in">
+            {roundFeedback.isCorrect ? (
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-500/30 border border-emerald-300 text-emerald-100 font-black text-lg">
+                <CheckCircle2 className="w-6 h-6 text-emerald-300" />
+                <span>Chính xác tuyệt đối!</span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-2xl bg-rose-500/40 border border-rose-300 text-rose-100 font-black text-base">
+                  <XCircle className="w-5 h-5 text-rose-200" />
+                  <span>Chưa chính xác!</span>
+                </div>
+                <div className="text-sm font-mono bg-black/25 rounded-xl px-4 py-2 space-y-1">
+                  <div className="text-rose-200 line-through">Bạn nhập: {roundFeedback.userTyped}</div>
+                  <div className="text-emerald-300 font-bold">Đáp án đúng: {roundFeedback.expected}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : phase === 'memorize' ? (
           <div className="space-y-2 text-center animate-pulse">
             {isPitchSpan ? (
               <>
@@ -328,10 +404,25 @@ export const DigitSpanGame: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-3 text-center w-full">
-            <span className="text-xs sm:text-sm uppercase tracking-widest text-brand-200 font-bold">
-              {isReverseSpan ? `Nhập lại ${spanLabel} theo thứ tự đảo ngược` : `Nhập lại ${spanLabel}`}
-            </span>
-            <div className="text-3xl sm:text-5xl md:text-6xl font-mono font-black tracking-widest min-h-[56px] sm:min-h-[72px] bg-black/20 rounded-2xl sm:rounded-3xl flex items-center justify-center px-4">
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              <span className="text-xs sm:text-sm uppercase tracking-widest text-brand-200 font-bold">
+                {isReverseSpan ? `Nhập lại ${spanLabel} theo thứ tự đảo ngược` : `Nhập lại ${spanLabel}`} ({userInput.length}/{digits.length})
+              </span>
+              {(isAudioSpan || isPitchSpan) && !audioReplayUsed && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAudioReplayUsed(true);
+                    playAudioForSequence(digits);
+                  }}
+                  className="px-2.5 py-1 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold text-amber-200 inline-flex items-center gap-1 transition cursor-pointer"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  Nghe lại
+                </button>
+              )}
+            </div>
+            <div className="text-2xl sm:text-4xl md:text-5xl font-mono font-black tracking-widest min-h-[56px] sm:min-h-[72px] bg-black/20 rounded-2xl sm:rounded-3xl flex items-center justify-center px-4 flex-wrap">
               {userInput ? (
                 isPitchSpan ? (
                   <div className="flex gap-2">
@@ -378,25 +469,51 @@ export const DigitSpanGame: React.FC = () => {
               <Delete className="w-6 h-6" />
             </button>
           </div>
-        ) : isLetterMode ? (
-          <div className="flex flex-wrap gap-2 max-w-lg mx-auto justify-center">
-            {LETTERS.split('').map(char => (
+        ) : isAlphanumericMode ? (
+          <div className="space-y-2.5 max-w-lg mx-auto">
+            {(isMixedMode || isReverseAlphanumeric) && (
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                {['0','1','2','3','4','5','6','7','8','9'].map(num => (
+                  <button
+                    key={num}
+                    disabled={phase !== 'recall' || !!roundFeedback}
+                    onClick={() => handleInput(num)}
+                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-700 font-black text-base text-amber-800 dark:text-amber-200 shadow hover:bg-amber-100 active:scale-95 transition-all btn-press disabled:opacity-40 cursor-pointer"
+                  >
+                    {num}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-1.5 justify-center">
+              {LETTERS.split('').map(char => (
+                <button
+                  key={char}
+                  disabled={phase !== 'recall' || !!roundFeedback}
+                  onClick={() => handleInput(char)}
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-black text-base text-slate-800 dark:text-white shadow hover:bg-brand-50 active:scale-95 transition-all btn-press disabled:opacity-40 cursor-pointer"
+                >
+                  {char}
+                </button>
+              ))}
+              {isWordMode && (
+                <button
+                  disabled={phase !== 'recall' || !!roundFeedback}
+                  onClick={() => handleInput(' ')}
+                  className="px-4 h-10 sm:h-11 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-700 font-bold text-xs text-indigo-700 dark:text-indigo-300 shadow active:scale-95 transition-all btn-press disabled:opacity-40 cursor-pointer"
+                >
+                  Dấu cách (Space)
+                </button>
+              )}
               <button
-                key={char}
-                disabled={phase !== 'recall'}
-                onClick={() => handleInput(char)}
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-black text-base text-slate-800 dark:text-white shadow hover:bg-brand-50 active:scale-95 transition-all btn-press disabled:opacity-40"
+                disabled={phase !== 'recall' || userInput.length === 0 || !!roundFeedback}
+                onClick={handleDelete}
+                className="w-14 h-10 sm:w-16 sm:h-11 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center active:scale-95 transition-all btn-press disabled:opacity-40 cursor-pointer"
+                aria-label="Xóa ký tự"
               >
-                {char}
+                <Delete className="w-5 h-5" />
               </button>
-            ))}
-            <button
-              disabled={phase !== 'recall' || userInput.length === 0}
-              onClick={handleDelete}
-              className="w-14 h-10 sm:w-16 sm:h-11 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center active:scale-95 transition-all btn-press disabled:opacity-40"
-            >
-              <Delete className="w-5 h-5" />
-            </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-3 sm:gap-4 max-w-sm sm:max-w-md mx-auto">
@@ -440,6 +557,7 @@ export const DigitSpanGame: React.FC = () => {
           onRestart={() => {
             resetSession();
             setRound(1);
+            setRestartKey(k => k + 1);
             setCorrectCount(0);
             setElapsedSec(0);
             setIsFinished(false);

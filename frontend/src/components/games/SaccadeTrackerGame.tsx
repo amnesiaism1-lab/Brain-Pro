@@ -9,7 +9,7 @@ const TARGET_CANDIDATES = ['X', '★', '◆', '▲', '✦', 'Ω', '⚡', 'Z', '7
 const ALL_DISTRACTOR_SYMBOLS = ['A', 'B', 'C', 'D', 'E', 'G', 'H', 'K', 'M', 'P', 'R', 'S', 'T', 'O', 'V', 'N', 'Y'];
 
 export const SaccadeTrackerGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const effectiveLevel = getExerciseLevel('saccade-tracker') || currentLevel;
   const isInfinity = effectiveLevel >= 13;
@@ -122,14 +122,15 @@ export const SaccadeTrackerGame: React.FC = () => {
   }, [targetSymbol, distractors, isVowelTrigger, isParityTrigger, isColorGated, isAntiSaccade, isBinauralSaccade, isCrossModalConflict]);
 
   useEffect(() => {
+    if (isFinished || isGamePaused) return;
     jumpTarget();
     const interval = setInterval(jumpTarget, jumpIntervalMs);
     return () => clearInterval(interval);
-  }, [jumpTarget, jumpIntervalMs]);
+  }, [jumpTarget, jumpIntervalMs, isFinished, isGamePaused]);
 
   // Countdown timer
   useEffect(() => {
-    if (isFinished) return;
+    if (isFinished || isGamePaused) return;
     const timer = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) {
@@ -141,11 +142,11 @@ export const SaccadeTrackerGame: React.FC = () => {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [isFinished]);
+  }, [isFinished, isGamePaused]);
 
   // Handle user reaction (clicking arena or pressing button)
   const handleReaction = useCallback(() => {
-    if (isFinished) return;
+    if (isFinished || isGamePaused) return;
     const now = Date.now();
 
     if (isTarget) {
@@ -394,7 +395,7 @@ export const SaccadeTrackerGame: React.FC = () => {
         <GameResultModal
           score={score}
           accuracyRate={accuracyRate}
-          timeSpentSec={35}
+          timeSpentSec={Math.max(1, 35 - timeLeft)}
           playedLevel={effectiveLevel}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {

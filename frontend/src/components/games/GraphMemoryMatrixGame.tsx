@@ -38,6 +38,7 @@ export const GraphMemoryMatrixGame: React.FC = () => {
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
   const [score, setScore] = useState<number>(0);
   const [correctAnswersCount, setCorrectAnswersCount] = useState<number>(0);
+  const [elapsedSec, setElapsedSec] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<string>('Ghi nhớ toàn bộ mạng lưới liên kết trước khi chúng biến mất!');
 
   const relationEventsRef = useRef<IRelationEvent[]>([]);
@@ -54,6 +55,7 @@ export const GraphMemoryMatrixGame: React.FC = () => {
     setIsAnswered(false);
     setScore(0);
     setCorrectAnswersCount(0);
+    setElapsedSec(0);
     setStatusMessage('Ghi nhớ toàn bộ mạng lưới liên kết trước khi chúng biến mất!');
     relationEventsRef.current = [];
   }, [challenge]);
@@ -62,13 +64,20 @@ export const GraphMemoryMatrixGame: React.FC = () => {
     initLevel();
   }, [initLevel]);
 
+  // Real Elapsed Timer
+  useEffect(() => {
+    if (phase === 'FINISHED' || isGamePaused) return;
+    const t = setInterval(() => setElapsedSec(s => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [phase, isGamePaused]);
+
   // Memorization Timer
   useEffect(() => {
     if (phase !== 'MEMORIZING' || isGamePaused) return;
 
     const interval = setInterval(() => {
       setMemorizeCountdown(prev => {
-        if (prev <= 1) {
+        if (prev <= 0.5) {
           clearInterval(interval);
           setPhase('QUERYING');
           queryStartTimeRef.current = Date.now();
@@ -131,6 +140,26 @@ export const GraphMemoryMatrixGame: React.FC = () => {
     }
   };
 
+  // Keyboard shortcuts: 1-4 to select answer, Enter/Space to advance
+  useEffect(() => {
+    if (phase !== 'QUERYING' || isGamePaused) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (!isAnswered) {
+        const idx = parseInt(e.key, 10) - 1;
+        if (idx >= 0 && idx < currentQuery.options.length) {
+          e.preventDefault();
+          handleSelectOption(currentQuery.options[idx].id);
+        }
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleNext();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [phase, isGamePaused, isAnswered, currentQuery]);
+
   const rawMetricsJson: IRawMetricsJson = {
     schemaVersion: 'v1',
     relationEvents: relationEventsRef.current
@@ -180,76 +209,105 @@ export const GraphMemoryMatrixGame: React.FC = () => {
       </div>
 
       {/* Main Board Visualizer */}
-      <div className="relative w-full aspect-[4/3] max-w-[600px] rounded-2xl overflow-hidden border border-purple-500/30 shadow-[0_0_30px_rgba(168,85,247,0.15)] bg-slate-950 p-6 flex flex-col justify-between select-none">
-        {/* Graph Canvas Representation */}
-        <div className="relative w-full h-[240px]">
-          {/* SVG Edges */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none">
+      <div className="relative w-full max-w-[600px] rounded-2xl border border-purple-500/30 shadow-[0_0_30px_rgba(168,85,247,0.15)] bg-slate-950 p-4 sm:p-6 flex flex-col gap-4 select-none">
+        {/* Responsive SVG Graph Canvas */}
+        <div className="relative w-full">
+          <svg viewBox="0 0 600 260" className="w-full h-auto max-h-[260px]">
+            <defs>
+              <marker id="graph-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="#e879f9" />
+              </marker>
+            </defs>
+
+            {/* Edges */}
             {challenge.edges.map(edge => {
               const src = challenge.nodes.find(n => n.id === edge.sourceId);
               const tgt = challenge.nodes.find(n => n.id === edge.targetId);
               if (!src || !tgt) return null;
 
               const isVisible = phase === 'MEMORIZING';
+              const x1 = src.position.x + 21;
+              const y1 = src.position.y + 21;
+              const x2 = tgt.position.x + 21;
+              const y2 = tgt.position.y + 21;
+
               return (
                 <g key={edge.id} className="transition-opacity duration-700">
                   <line
-                    x1={src.position.x + 20}
-                    y1={src.position.y + 20}
-                    x2={tgt.position.x + 20}
-                    y2={tgt.position.y + 20}
-                    stroke={isVisible ? '#a855f7' : 'rgba(168, 85, 247, 0.05)'}
+                    x1={x1}
+                    y1={y1}
+                    x2={x2}
+                    y2={y2}
+                    stroke={isVisible ? '#a855f7' : 'rgba(168, 85, 247, 0.06)'}
                     strokeWidth={isVisible ? 3 : 1}
                     strokeDasharray={isVisible && edge.isDirected ? '6 3' : undefined}
                   />
                   {isVisible && edge.isDirected && (
                     <circle
-                      cx={(src.position.x + tgt.position.x) / 2 + 20}
-                      cy={(src.position.y + tgt.position.y) / 2 + 20}
-                      r={3.5}
+                      cx={(x1 + x2) / 2}
+                      cy={(y1 + y2) / 2}
+                      r={4}
                       fill="#e879f9"
                     />
                   )}
                 </g>
               );
             })}
-          </svg>
 
-          {/* Node Entities */}
-          {challenge.nodes.map(node => (
-            <div
-              key={node.id}
-              style={{
-                left: `${node.position.x}px`,
-                top: `${node.position.y}px`
-              }}
-              className="absolute w-[42px] h-[42px] rounded-full border-2 border-purple-400/80 bg-slate-900 flex items-center justify-center font-bold text-xs text-white shadow-[0_0_12px_rgba(168,85,247,0.4)]"
-            >
-              {node.label}
-            </div>
-          ))}
+            {/* Nodes */}
+            {challenge.nodes.map(node => {
+              const cx = node.position.x + 21;
+              const cy = node.position.y + 21;
+              return (
+                <g key={node.id}>
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={22}
+                    fill="#0f172a"
+                    stroke="#a855f7"
+                    strokeWidth={2.5}
+                  />
+                  <text
+                    x={cx}
+                    y={cy + 4}
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="12"
+                    fontWeight="bold"
+                  >
+                    {node.label}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
         </div>
 
         {/* Query & Interaction Area */}
         {phase === 'QUERYING' && (
           <div className="w-full bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3 backdrop-blur-md animate-in fade-in">
-            <div className="flex items-center gap-2 text-xs font-semibold text-purple-300">
-              <Brain className="w-4 h-4 text-purple-400" />
-              <span>Câu hỏi {currentQueryIndex + 1}/{challenge.queries.length}:</span>
+            <div className="flex items-center justify-between text-xs font-semibold text-purple-300">
+              <div className="flex items-center gap-2">
+                <Brain className="w-4 h-4 text-purple-400" />
+                <span>Câu hỏi {currentQueryIndex + 1}/{challenge.queries.length}:</span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">Phím 1-{currentQuery.options.length} để chọn</span>
             </div>
             <p className="text-sm font-bold text-slate-100">
               {currentQuery.questionVi}
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {currentQuery.options.map(opt => {
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {currentQuery.options.map((opt, idx) => {
                 const isSelected = selectedOptionId === opt.id;
                 const isCorrect = opt.id === currentQuery.correctOptionId;
 
-                let btnStyle = 'bg-slate-800/80 border-slate-700 text-slate-200 hover:border-purple-400/60';
+                let btnStyle = 'bg-slate-800/80 border-slate-700 text-slate-200 hover:border-purple-400/60 cursor-pointer';
                 if (isAnswered) {
                   if (isCorrect) btnStyle = 'bg-emerald-950/80 border-emerald-500 text-emerald-200';
                   else if (isSelected) btnStyle = 'bg-rose-950/80 border-rose-500 text-rose-200';
+                  else btnStyle = 'bg-slate-800/40 border-slate-800 text-slate-400';
                 }
 
                 return (
@@ -257,9 +315,14 @@ export const GraphMemoryMatrixGame: React.FC = () => {
                     key={opt.id}
                     disabled={isAnswered}
                     onClick={() => handleSelectOption(opt.id)}
-                    className={`w-full p-2.5 rounded-xl border text-xs font-medium text-left transition-all flex items-center justify-between ${btnStyle}`}
+                    className={`w-full min-h-[44px] p-3 rounded-xl border text-xs font-medium text-left transition-all flex items-center justify-between gap-2 ${btnStyle}`}
                   >
-                    <span>{opt.labelVi}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="px-1.5 py-0.5 rounded bg-slate-700/70 text-[10px] font-mono text-slate-300 hidden sm:inline">
+                        {idx + 1}
+                      </span>
+                      <span>{opt.labelVi}</span>
+                    </span>
                     {isAnswered && isCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
                     {isAnswered && isSelected && !isCorrect && <XCircle className="w-4 h-4 text-rose-400 shrink-0" />}
                   </button>
@@ -268,10 +331,11 @@ export const GraphMemoryMatrixGame: React.FC = () => {
             </div>
 
             {isAnswered && (
-              <div className="flex justify-end pt-1">
+              <div className="flex items-center justify-between pt-2 gap-3 border-t border-slate-800/80">
+                <span className="text-xs text-slate-300">{statusMessage}</span>
                 <button
                   onClick={handleNext}
-                  className="px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/30 transition-all"
+                  className="shrink-0 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/30 transition-all cursor-pointer"
                 >
                   <span>Tiếp tục</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -283,7 +347,7 @@ export const GraphMemoryMatrixGame: React.FC = () => {
 
         {/* Phase Memorizing Instructions */}
         {phase === 'MEMORIZING' && (
-          <div className="text-xs text-center text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900/80 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="text-xs text-center text-slate-300 bg-slate-900/80 px-3 py-2.5 rounded-xl border border-slate-800">
             Hãy chú ý các mũi tên liên kết và vị trí nút trước khi đường nối biến mất!
           </div>
         )}
@@ -294,7 +358,7 @@ export const GraphMemoryMatrixGame: React.FC = () => {
         <GameResultModal
           score={score}
           accuracyRate={accuracyRate}
-          timeSpentSec={Math.round(challenge.memorizeDurationSec + 10)}
+          timeSpentSec={elapsedSec}
           playedLevel={effectiveLevel}
           rawMetricsJson={rawMetricsJson}
           onRestart={initLevel}

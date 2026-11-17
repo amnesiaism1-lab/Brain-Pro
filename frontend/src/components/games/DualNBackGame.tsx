@@ -45,6 +45,13 @@ export const DualNBackGame: React.FC = () => {
   // User responses for current trial
   const [posPressed, setPosPressed] = useState(false);
   const [audioPressed, setAudioPressed] = useState(false);
+  const posPressedRef = useRef(false);
+  const audioPressedRef = useRef(false);
+  const [stepFeedback, setStepFeedback] = useState<{
+    pos?: 'hit' | 'miss' | 'false';
+    audio?: 'hit' | 'miss' | 'false';
+  } | null>(null);
+  const [stepProgress, setStepProgress] = useState(100);
 
   // Scoring telemetry
   const [posHits, setPosHits] = useState(0);
@@ -122,6 +129,10 @@ export const DualNBackGame: React.FC = () => {
     setActiveLetter(null);
     setPosPressed(false);
     setAudioPressed(false);
+    posPressedRef.current = false;
+    audioPressedRef.current = false;
+    setStepFeedback(null);
+    setStepProgress(100);
     setPosHits(0);
     setPosMisses(0);
     setPosFalseAlarms(0);
@@ -137,17 +148,19 @@ export const DualNBackGame: React.FC = () => {
 
   // Handle Position Match button click
   const handlePositionMatch = useCallback(() => {
-    if (!isPlaying || isFinished || posPressed) return;
+    if (!isPlaying || isFinished || isGamePaused || posPressedRef.current) return;
+    posPressedRef.current = true;
     setPosPressed(true);
     playSound('click');
-  }, [isPlaying, isFinished, posPressed, playSound]);
+  }, [isPlaying, isFinished, isGamePaused, playSound]);
 
   // Handle Audio Match button click
   const handleAudioMatch = useCallback(() => {
-    if (!isPlaying || isFinished || audioPressed) return;
+    if (!isPlaying || isFinished || isGamePaused || audioPressedRef.current) return;
+    audioPressedRef.current = true;
     setAudioPressed(true);
     playSound('click');
-  }, [isPlaying, isFinished, audioPressed, playSound]);
+  }, [isPlaying, isFinished, isGamePaused, playSound]);
 
   // Keyboard shortcut listener: 'A' or ArrowLeft for Position, 'L' or ArrowRight for Audio
   useEffect(() => {
@@ -191,19 +204,34 @@ export const DualNBackGame: React.FC = () => {
     const isAudioMatch = currentItem.letter === nBackItem.letter;
 
     // Evaluate Position
+    let posResult: 'hit' | 'miss' | 'false' | undefined;
     if (isPosMatch) {
-      if (pPressed) setPosHits(h => h + 1);
-      else setPosMisses(m => m + 1);
-    } else {
-      if (pPressed) setPosFalseAlarms(f => f + 1);
+      if (pPressed) { setPosHits(h => h + 1); posResult = 'hit'; }
+      else { setPosMisses(m => m + 1); posResult = 'miss'; }
+    } else if (pPressed) {
+      setPosFalseAlarms(f => f + 1);
+      posResult = 'false';
     }
 
     // Evaluate Audio
+    let audioResult: 'hit' | 'miss' | 'false' | undefined;
     if (isAudioMatch) {
-      if (aPressed) setAudioHits(h => h + 1);
-      else setAudioMisses(m => m + 1);
+      if (aPressed) { setAudioHits(h => h + 1); audioResult = 'hit'; }
+      else { setAudioMisses(m => m + 1); audioResult = 'miss'; }
+    } else if (aPressed) {
+      setAudioFalseAlarms(f => f + 1);
+      audioResult = 'false';
+    }
+
+    if (posResult || audioResult) {
+      setStepFeedback({ pos: posResult, audio: audioResult });
+      if (posResult === 'miss' || posResult === 'false' || audioResult === 'miss' || audioResult === 'false') {
+        playSound('wrong');
+      } else {
+        playSound('correct');
+      }
     } else {
-      if (aPressed) setAudioFalseAlarms(f => f + 1);
+      setStepFeedback(null);
     }
 
     emitTrialEvent({
@@ -228,7 +256,7 @@ export const DualNBackGame: React.FC = () => {
 
   // Step progression execution loop
   useEffect(() => {
-    if (!isPlaying || isFinished) return;
+    if (!isPlaying || isFinished || isGamePaused) return;
 
     if (trialIndex >= totalTrials) {
       setIsPlaying(false);
@@ -243,26 +271,37 @@ export const DualNBackGame: React.FC = () => {
     setActiveLetter(currentStep.letter);
     setPosPressed(false);
     setAudioPressed(false);
+    posPressedRef.current = false;
+    audioPressedRef.current = false;
+    setStepProgress(100);
 
     playLetterAudio(currentStep.letter);
 
-    // Turn off active visual stimulus after 600ms, keeping rest of window for reflection
+    // Smooth progress bar update
+    const stepStart = Date.now();
+    const progressInterval = setInterval(() => {
+      const elapsed = Date.now() - stepStart;
+      setStepProgress(Math.max(0, 100 - (elapsed / trialIntervalMs) * 100));
+    }, 50);
+
+    // Turn off active visual stimulus after 650ms, keeping rest of window for reflection
     const flashTimeout = setTimeout(() => {
       setActivePosition(null);
     }, 650);
 
-    // Schedule next trial
+    // Schedule next trial reading real-time refs (fixes stale closure bug)
     trialTimerRef.current = setTimeout(() => {
-      evaluateStep(trialIndex, posPressed, audioPressed);
+      evaluateStep(trialIndex, posPressedRef.current, audioPressedRef.current);
       setHistory(prev => [...prev, currentStep]);
       setTrialIndex(i => i + 1);
     }, trialIntervalMs);
 
     return () => {
+      clearInterval(progressInterval);
       clearTimeout(flashTimeout);
       if (trialTimerRef.current) clearTimeout(trialTimerRef.current);
     };
-  }, [trialIndex, isPlaying, isFinished, trialSequence, totalTrials, trialIntervalMs, playLetterAudio]);
+  }, [trialIndex, isPlaying, isFinished, isGamePaused, trialSequence, totalTrials, trialIntervalMs, playLetterAudio, evaluateStep, playSound]);
 
   // Calculate final accuracy rate
   const totalPossibleMatches = Math.max(1, (totalTrials - nBack) * 2);
@@ -316,17 +355,51 @@ export const DualNBackGame: React.FC = () => {
       </div>
 
       {/* Main 3x3 Dual N-Back Matrix Container */}
-      <div className="relative bg-gradient-to-b from-[#F9F6F0] to-[#EFE9DF] dark:from-slate-900 dark:to-slate-950 p-6 sm:p-8 rounded-3xl border-2 border-[#D5CBB9] dark:border-slate-800 shadow-xl flex flex-col items-center justify-center space-y-6">
-        
-        {/* Audio letter stream indicator */}
-        <div className="flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm animate-fade-in">
-          <Volume2 className={`w-4 h-4 ${activeLetter ? 'text-indigo-500 animate-bounce' : 'text-slate-400'}`} />
-          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-            Âm thanh chữ cái: 
-          </span>
-          <span className="text-base font-black font-mono px-2.5 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-            {activeLetter ? activeLetter : '--'}
-          </span>
+      <div className="relative bg-gradient-to-b from-[#F9F6F0] to-[#EFE9DF] dark:from-slate-900 dark:to-slate-950 p-6 sm:p-8 rounded-3xl border-2 border-[#D5CBB9] dark:border-slate-800 shadow-xl flex flex-col items-center justify-center space-y-5 overflow-hidden">
+        {/* Step Timer Bar */}
+        {isPlaying && (
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-200 dark:bg-slate-800">
+            <div
+              className="h-full bg-gradient-to-r from-cyan-500 to-indigo-500 transition-all duration-75"
+              style={{ width: `${stepProgress}%` }}
+            />
+          </div>
+        )}
+
+        {/* Audio letter stream & live feedback indicator */}
+        <div className="flex flex-wrap items-center justify-center gap-2.5">
+          <div className="flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm animate-fade-in">
+            <Volume2 className={`w-4 h-4 ${activeLetter ? 'text-indigo-500 animate-bounce' : 'text-slate-400'}`} />
+            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+              Âm thanh chữ cái: 
+            </span>
+            <span className="text-base font-black font-mono px-2.5 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+              {activeLetter ? activeLetter : '--'}
+            </span>
+          </div>
+
+          {stepFeedback && (
+            <div className="flex items-center gap-1.5 text-[11px] font-bold">
+              {stepFeedback.pos && (
+                <span className={`px-2.5 py-1 rounded-xl border ${
+                  stepFeedback.pos === 'hit'
+                    ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700'
+                    : 'bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-700'
+                }`}>
+                  Vị trí: {stepFeedback.pos === 'hit' ? '✓ Chuẩn' : stepFeedback.pos === 'miss' ? '✕ Bỏ lỡ' : '✕ Nhầm'}
+                </span>
+              )}
+              {stepFeedback.audio && (
+                <span className={`px-2.5 py-1 rounded-xl border ${
+                  stepFeedback.audio === 'hit'
+                    ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700'
+                    : 'bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-700'
+                }`}>
+                  Âm thanh: {stepFeedback.audio === 'hit' ? '✓ Chuẩn' : stepFeedback.audio === 'miss' ? '✕ Bỏ lỡ' : '✕ Nhầm'}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 3x3 Grid Matrix */}

@@ -34,7 +34,13 @@ export const DIRECTION_OPTIONS = [
 ];
 
 export const StroopClashGame: React.FC = () => {
-  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
   const { sessionConfig, isCustom } = useExerciseSessionConfig('stroop-clash');
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const ladderLevel = getExerciseLevel('stroop-clash') || storeLevel || 1;
@@ -217,9 +223,9 @@ export const StroopClashGame: React.FC = () => {
     nextTrial(0);
   }, [nextTrial]);
 
-  // Timeout monitor
+  // Timeout monitor (respects isGamePaused)
   useEffect(() => {
-    if (isFinished || !wordItem) return;
+    if (isFinished || !wordItem || isGamePaused || flashFeedback) return;
 
     const timer = setTimeout(() => {
       playSound('wrong');
@@ -250,16 +256,16 @@ export const StroopClashGame: React.FC = () => {
         correct: false
       });
 
-      setTimeout(() => {
+      feedbackTimerRef.current = setTimeout(() => {
         nextTrial(trialIndex + 1);
       }, 700);
     }, reactionWindowMs);
 
     return () => clearTimeout(timer);
-  }, [trialStartTime, isFinished, wordItem, reactionWindowMs, trialIndex, currentTargetType, combo, effectiveLevel]);
+  }, [trialStartTime, isFinished, isGamePaused, flashFeedback, wordItem, reactionWindowMs, trialIndex, currentTargetType, combo, effectiveLevel]);
 
   const handleSelectDirection = (dirId: string) => {
-    if (isFinished || !wordItem || flashFeedback) return;
+    if (isFinished || !wordItem || flashFeedback || isGamePaused) return;
     const reactionTime = Date.now() - trialStartTime;
     let isCorrect = false;
 
@@ -305,13 +311,13 @@ export const StroopClashGame: React.FC = () => {
       setFlashFeedback('WRONG');
     }
 
-    setTimeout(() => {
+    feedbackTimerRef.current = setTimeout(() => {
       nextTrial(trialIndex + 1);
     }, 450);
   };
 
   useEffect(() => {
-    if (isFinished || !wordItem || flashFeedback) return;
+    if (isFinished || !wordItem || flashFeedback || isGamePaused) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isDirectionalStroop) {
         if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'w') {
@@ -340,7 +346,7 @@ export const StroopClashGame: React.FC = () => {
   }, [isDirectionalStroop, isFinished, wordItem, flashFeedback, currentTargetType, trialIndex]);
 
   const handleSelectColor = (selectedColor: ColorDef) => {
-    if (isFinished || !wordItem || flashFeedback) return;
+    if (isFinished || !wordItem || flashFeedback || isGamePaused) return;
 
     const reactionTime = Date.now() - trialStartTime;
     let isCorrect = false;
@@ -395,7 +401,7 @@ export const StroopClashGame: React.FC = () => {
       setFlashFeedback('WRONG');
     }
 
-    setTimeout(() => {
+    feedbackTimerRef.current = setTimeout(() => {
       nextTrial(trialIndex + 1);
     }, 450);
   };

@@ -89,7 +89,8 @@ export const HanoiNavigationGame: React.FC = () => {
     navigateToTheory,
     personalAnchors,
     isPersonalAnchorsOpen,
-    setIsPersonalAnchorsOpen
+    setIsPersonalAnchorsOpen,
+    isGamePaused
   } = useAppStore();
 
   const currentLevel = getExerciseLevel('hanoi-navigation') || 1;
@@ -299,7 +300,7 @@ export const HanoiNavigationGame: React.FC = () => {
 
   // Game timer countdown
   useEffect(() => {
-    if (isGameOver) return;
+    if (isGameOver || isGamePaused) return;
 
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
@@ -315,7 +316,7 @@ export const HanoiNavigationGame: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isGameOver]);
+  }, [isGameOver, isGamePaused]);
 
   // Answer handler
   const handleSelectOption = (option: IActiveQuestion['options'][0]) => {

@@ -51,9 +51,22 @@ export const CausalCascadeGame: React.FC = () => {
 
   const relationEventsRef = useRef<IRelationEvent[]>([]);
   const cascadeStepRef = useRef<number>(0);
+  const simIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const userToggledIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    return () => {
+      if (simIntervalRef.current) clearInterval(simIntervalRef.current);
+    };
+  }, []);
 
   // Initialize level
   const initLevel = useCallback(() => {
+    if (simIntervalRef.current) {
+      clearInterval(simIntervalRef.current);
+      simIntervalRef.current = null;
+    }
+    userToggledIdsRef.current.clear();
     setNodes(JSON.parse(JSON.stringify(challenge.nodes)));
     setConnections(JSON.parse(JSON.stringify(challenge.connections)));
     setInterventionsLeft(challenge.allowedInterventions);
@@ -123,9 +136,11 @@ export const CausalCascadeGame: React.FC = () => {
 
   // Toggle Lever or Intervene on Node
   const handleToggleNode = (node: ICausalNode) => {
-    if (isSimulating || isGameOver || showPrediction) return;
+    if (isSimulating || isGameOver || showPrediction || isGamePaused) return;
     if (node.type !== 'LEVER' && node.type !== 'INVERTER') return;
-    if (interventionsLeft <= 0 && node.state === 'OFF') {
+
+    const alreadyToggledByUser = userToggledIdsRef.current.has(node.id);
+    if (!alreadyToggledByUser && interventionsLeft <= 0) {
       playSound('wrong');
       setStatusMessage('Đã hết số lần can thiệp cho phép!');
       return;
@@ -134,7 +149,13 @@ export const CausalCascadeGame: React.FC = () => {
     playSound('click');
     const newState = node.state === 'ON' ? 'OFF' : 'ON';
     setNodes(prev => prev.map(n => n.id === node.id ? { ...n, state: newState } : n));
-    setInterventionsLeft(c => (newState === 'ON' ? c - 1 : c + 1));
+    if (alreadyToggledByUser) {
+      userToggledIdsRef.current.delete(node.id);
+      setInterventionsLeft(c => c + 1);
+    } else {
+      userToggledIdsRef.current.add(node.id);
+      setInterventionsLeft(c => Math.max(0, c - 1));
+    }
     setStatusMessage(`Đã chuyển đổi trạng thái ${node.label} thành ${newState}.`);
 
     relationEventsRef.current.push({
@@ -160,7 +181,8 @@ export const CausalCascadeGame: React.FC = () => {
     setStatusMessage('Đang kích hoạt chuỗi phản ứng dây chuyền...');
 
     let currentStep = 0;
-    const simInterval = setInterval(() => {
+    if (simIntervalRef.current) clearInterval(simIntervalRef.current);
+    simIntervalRef.current = setInterval(() => {
       currentStep++;
       cascadeStepRef.current = currentStep;
 
@@ -169,7 +191,10 @@ export const CausalCascadeGame: React.FC = () => {
         auditoryEngine.playCausalDominoStep(currentStep, targetAchieved);
 
         if (targetAchieved) {
-          clearInterval(simInterval);
+          if (simIntervalRef.current) {
+            clearInterval(simIntervalRef.current);
+            simIntervalRef.current = null;
+          }
           setIsSimulating(false);
           setIsGameOver(true);
           setIsSuccess(true);
@@ -182,7 +207,10 @@ export const CausalCascadeGame: React.FC = () => {
       });
 
       if (currentStep >= 8) {
-        clearInterval(simInterval);
+        if (simIntervalRef.current) {
+          clearInterval(simIntervalRef.current);
+          simIntervalRef.current = null;
+        }
         setIsSimulating(false);
         setNodes(prevNodes => {
           const reached = prevNodes.some(n => n.type === 'TARGET' && n.state === 'ON');

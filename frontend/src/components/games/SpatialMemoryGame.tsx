@@ -6,7 +6,7 @@ import { Sparkles, Eye, CheckCircle2 } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 
 export const SpatialMemoryGame: React.FC = () => {
-  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const { sessionConfig, isCustom } = useExerciseSessionConfig('spatial-memory');
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const ladderLevel = getExerciseLevel('spatial-memory') || storeLevel || 1;
@@ -42,20 +42,50 @@ export const SpatialMemoryGame: React.FC = () => {
   const [sequence, setSequence] = useState<number[]>([]);
   const [trapBlockIndex, setTrapBlockIndex] = useState<number | null>(null);
   const [activeHighlightIndex, setActiveHighlightIndex] = useState<number | null>(null);
+  const [wrongBlockIndex, setWrongBlockIndex] = useState<number | null>(null);
+  const [correctHintIndex, setCorrectHintIndex] = useState<number | null>(null);
   const [isShowingSequence, setIsShowingSequence] = useState(false);
   const [userInputs, setUserInputs] = useState<number[]>([]);
   const [currentRound, setCurrentRound] = useState(1);
+  const [restartKey, setRestartKey] = useState(0);
+  const [elapsedSec, setElapsedSec] = useState(0);
   const maxRounds = isCustom && sessionConfig.rounds && sessionConfig.rounds > 0 ? sessionConfig.rounds : 5;
   const [score, setScore] = useState(0);
   const [mistakes, setMistakes] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [replaysLeft, setReplaysLeft] = useState(1);
 
+  const seqIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const seqTimeoutsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+
+  const clearSequenceTimers = useCallback(() => {
+    if (seqIntervalRef.current) {
+      clearInterval(seqIntervalRef.current);
+      seqIntervalRef.current = null;
+    }
+    seqTimeoutsRef.current.forEach(t => clearTimeout(t));
+    seqTimeoutsRef.current = [];
+  }, []);
+
+  useEffect(() => {
+    return () => clearSequenceTimers();
+  }, [clearSequenceTimers]);
+
+  // Real elapsed timer
+  useEffect(() => {
+    if (isFinished || isGamePaused) return;
+    const timer = setInterval(() => setElapsedSec(s => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [isFinished, isGamePaused]);
+
   const totalBlocks = gridSize * gridSize;
 
   // Generate a random non-consecutive block sequence
   const startNewSequence = useCallback((round: number) => {
+    clearSequenceTimers();
     setReplaysLeft(1);
+    setWrongBlockIndex(null);
+    setCorrectHintIndex(null);
     const seqLength = Math.min(targetSequenceLength, 2 + round);
     const newSeq: number[] = [];
     for (let i = 0; i < seqLength; i++) {
@@ -86,7 +116,7 @@ export const SpatialMemoryGame: React.FC = () => {
 
     // Playback sequence animation
     let step = 0;
-    const interval = setInterval(() => {
+    seqIntervalRef.current = setInterval(() => {
       if (step < newSeq.length) {
         const block = newSeq[step];
         setActiveHighlightIndex(block);
@@ -94,29 +124,35 @@ export const SpatialMemoryGame: React.FC = () => {
         step++;
 
         // Turn off highlight shortly after
-        setTimeout(() => {
+        const t = setTimeout(() => {
           setActiveHighlightIndex(null);
         }, highlightMs);
+        seqTimeoutsRef.current.push(t);
       } else {
-        clearInterval(interval);
+        if (seqIntervalRef.current) {
+          clearInterval(seqIntervalRef.current);
+          seqIntervalRef.current = null;
+        }
         setActiveHighlightIndex(null);
         setIsShowingSequence(false);
       }
     }, stepIntervalMs);
-  }, [totalBlocks, targetSequenceLength, playSound, isInfinity, isFastFlash, isTrapBlockMode]);
+  }, [clearSequenceTimers, totalBlocks, targetSequenceLength, playSound, isInfinity, isFastFlash, isTrapBlockMode]);
 
   useEffect(() => {
     startNewSequence(currentRound);
-  }, [startNewSequence, currentRound]);
+  }, [startNewSequence, currentRound, restartKey]);
 
   const handleBlockClick = (blockIndex: number) => {
-    if (isShowingSequence || isFinished) return;
+    if (isShowingSequence || isFinished || isGamePaused || wrongBlockIndex !== null) return;
 
     // Check if clicked the trap block in level 17
     if (isTrapBlockMode && blockIndex === trapBlockIndex) {
       playSound('wrong');
       setMistakes(m => m + 1);
-      setTimeout(() => startNewSequence(currentRound), 600);
+      setWrongBlockIndex(blockIndex);
+      const t = setTimeout(() => startNewSequence(currentRound), 800);
+      seqTimeoutsRef.current.push(t);
       return;
     }
 
@@ -146,13 +182,15 @@ export const SpatialMemoryGame: React.FC = () => {
     });
 
     if (!isCorrect) {
-      // Mistake!
+      // Mistake! Flash wrong block and show correct target block briefly
       playSound('wrong');
       setMistakes(m => m + 1);
-      setTimeout(() => {
-        // Retry current round
+      setWrongBlockIndex(blockIndex);
+      setCorrectHintIndex(expectedSequence[currentStep]);
+      const t = setTimeout(() => {
         startNewSequence(currentRound);
-      }, 600);
+      }, 900);
+      seqTimeoutsRef.current.push(t);
       return;
     }
 
@@ -165,14 +203,15 @@ export const SpatialMemoryGame: React.FC = () => {
       setScore(s => s + addedScore);
 
       if (currentRound >= maxRounds) {
-        // Complete game after 5 progressive rounds
-        setTimeout(() => {
+        const t = setTimeout(() => {
           setIsFinished(true);
         }, 400);
+        seqTimeoutsRef.current.push(t);
       } else {
-        setTimeout(() => {
+        const t = setTimeout(() => {
           setCurrentRound(r => r + 1);
         }, 700);
+        seqTimeoutsRef.current.push(t);
       }
     }
   };
@@ -258,7 +297,10 @@ export const SpatialMemoryGame: React.FC = () => {
           ) : (
             <>
               <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              <span>Đến lượt bạn: Hãy bấm lại theo đúng thứ tự! {isReverseOrder && '(ĐẢO NGƯỢC)'} {isRotatingBoard && '(BẢNG ĐÃ TỰ XOAY 90°)'}</span>
+              <span>
+                Đến lượt bạn ({userInputs.length}/{sequence.length} ô): Hãy bấm lại đúng thứ tự!{' '}
+                {isReverseOrder && '(ĐẢO NGƯỢC)'} {isRotatingBoard && '(BẢNG ĐÃ TỰ XOAY 90°)'}
+              </span>
             </>
           )}
         </div>
@@ -287,6 +329,8 @@ export const SpatialMemoryGame: React.FC = () => {
       >
         {Array.from({ length: totalBlocks }).map((_, idx) => {
           const isHighlighted = activeHighlightIndex === idx;
+          const isWrong = wrongBlockIndex === idx;
+          const isCorrectHint = correctHintIndex === idx;
           const isUserTapped = userInputs.includes(idx);
           const colorForBlock = isColorCorsi ? CORSI_COLORS[idx % CORSI_COLORS.length] : undefined;
           const isTrap = isTrapBlockMode && idx === trapBlockIndex;
@@ -295,12 +339,16 @@ export const SpatialMemoryGame: React.FC = () => {
             <button
               key={`block-${idx}`}
               onClick={() => handleBlockClick(idx)}
-              disabled={isShowingSequence}
+              disabled={isShowingSequence || isGamePaused}
               style={{
                 backgroundColor: isHighlighted && colorForBlock ? colorForBlock : undefined
               }}
-              className={`w-full h-full aspect-square rounded-2xl sm:rounded-3xl font-black text-xl transition-all duration-150 btn-press relative flex items-center justify-center ${
-                isHighlighted
+              className={`w-full h-full aspect-square rounded-2xl sm:rounded-3xl font-black text-xl transition-all duration-150 btn-press relative flex items-center justify-center cursor-pointer ${
+                isWrong
+                  ? 'bg-rose-500 border-4 border-rose-200 text-white shadow-lg scale-95 animate-pulse'
+                  : isCorrectHint
+                  ? 'bg-emerald-500 border-4 border-emerald-200 text-white shadow-lg scale-105 animate-bounce'
+                  : isHighlighted
                   ? colorForBlock 
                     ? 'border-4 border-white shadow-xl scale-105 z-10 text-white' 
                     : 'bg-amber-400 border-4 border-white shadow-xl shadow-amber-400/80 scale-105 z-10'
@@ -324,7 +372,7 @@ export const SpatialMemoryGame: React.FC = () => {
         <GameResultModal
           score={score}
           accuracyRate={accuracyRate}
-          timeSpentSec={45}
+          timeSpentSec={elapsedSec}
           playedLevel={effectiveLevel || 1}
           isCustom={isCustom}
           rawMetricsJson={getRawMetricsJson()}
@@ -332,7 +380,9 @@ export const SpatialMemoryGame: React.FC = () => {
             resetSession();
             setScore(0);
             setMistakes(0);
+            setElapsedSec(0);
             setCurrentRound(1);
+            setRestartKey(k => k + 1);
             setIsFinished(false);
           }}
           onClose={() => setActiveGameSlug(null)}

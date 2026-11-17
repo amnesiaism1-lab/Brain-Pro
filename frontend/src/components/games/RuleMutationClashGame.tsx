@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 export const RuleMutationClashGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const effectiveLevel = getExerciseLevel('rule-mutation-clash') || currentLevel || 1;
 
   const totalRounds = 8;
@@ -32,6 +32,7 @@ export const RuleMutationClashGame: React.FC = () => {
   const [currentRoundIndex, setCurrentRoundIndex] = useState<number>(0);
   const [score, setScore] = useState<number>(0);
   const [correctCount, setCorrectCount] = useState<number>(0);
+  const [elapsedSec, setElapsedSec] = useState<number>(0);
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
   const [mutationFlash, setMutationFlash] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('Theo sát quy tắc hiện tại và phản ứng thật nhanh!');
@@ -50,6 +51,7 @@ export const RuleMutationClashGame: React.FC = () => {
     setCurrentRoundIndex(0);
     setScore(0);
     setCorrectCount(0);
+    setElapsedSec(0);
     setIsGameOver(false);
     setMutationFlash(null);
     setStatusMessage('Theo sát quy tắc hiện tại và phản ứng thật nhanh!');
@@ -63,6 +65,13 @@ export const RuleMutationClashGame: React.FC = () => {
     initGame();
   }, [initGame]);
 
+  // Real Elapsed Timer
+  useEffect(() => {
+    if (isGameOver || isGamePaused) return;
+    const t = setInterval(() => setElapsedSec(s => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [isGameOver, isGamePaused]);
+
   // When round changes, check for mutation flash and play audio
   useEffect(() => {
     trialStartTimeRef.current = Date.now();
@@ -71,7 +80,8 @@ export const RuleMutationClashGame: React.FC = () => {
       auditoryEngine.playNote('F#3', 0.2, { volume: 0.4, waveform: 'sawtooth' });
       const timer = setTimeout(() => {
         setMutationFlash(null);
-      }, 1600);
+        trialStartTimeRef.current = Date.now(); // Reset reaction start time right after mutation alert clears
+      }, 1200);
       return () => clearTimeout(timer);
     } else if (currentTrial.stimulus.soundPitch) {
       auditoryEngine.playNote(currentTrial.stimulus.soundPitch, 0.25, { volume: 0.3 });
@@ -79,8 +89,8 @@ export const RuleMutationClashGame: React.FC = () => {
   }, [currentRoundIndex, currentTrial]);
 
   // Handle Action Button
-  const handleAction = (action: string) => {
-    if (isGameOver) return;
+  const handleAction = useCallback((action: string) => {
+    if (isGameOver || isGamePaused || mutationFlash) return;
     const responseMs = Date.now() - trialStartTimeRef.current;
     const isCorrect = action === currentTrial.correctAction;
 
@@ -121,7 +131,25 @@ export const RuleMutationClashGame: React.FC = () => {
       setIsGameOver(true);
       playSound('victory');
     }
-  };
+  }, [isGameOver, isGamePaused, mutationFlash, currentTrial, currentRoundIndex, trials.length, effectiveLevel, playSound]);
+
+  // Keyboard shortcuts: A / ArrowLeft = ATTACK, D / L / ArrowRight = DEFEND
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (isGameOver || isGamePaused || mutationFlash) return;
+      const k = e.key.toLowerCase();
+      if (k === 'a' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handleAction('ATTACK');
+      } else if (k === 'd' || k === 'l' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleAction('DEFEND');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleAction, isGameOver, isGamePaused, mutationFlash]);
 
   const avgPre = preMutationLatenciesRef.current.length > 0
     ? Math.round(preMutationLatenciesRef.current.reduce((a, b) => a + b, 0) / preMutationLatenciesRef.current.length)
@@ -230,18 +258,22 @@ export const RuleMutationClashGame: React.FC = () => {
         <div className="w-full grid grid-cols-2 gap-3 max-w-md">
           <button
             onClick={() => handleAction('ATTACK')}
-            className="py-3.5 rounded-xl border border-rose-500/40 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 active:scale-95 transition-all"
+            disabled={!!mutationFlash || isGamePaused}
+            className="min-h-[48px] py-3.5 rounded-xl border border-rose-500/40 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
           >
             <Swords className="w-4 h-4" />
-            <span>TẤN CÔNG (ATTACK)</span>
+            <span>TẤN CÔNG</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/25 hidden sm:inline">A / ←</span>
           </button>
 
           <button
             onClick={() => handleAction('DEFEND')}
-            className="py-3.5 rounded-xl border border-cyan-500/40 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/25 active:scale-95 transition-all"
+            disabled={!!mutationFlash || isGamePaused}
+            className="min-h-[48px] py-3.5 rounded-xl border border-cyan-500/40 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
           >
             <Shield className="w-4 h-4" />
-            <span>PHÒNG THỦ (DEFEND)</span>
+            <span>PHÒNG THỦ</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/25 hidden sm:inline">D / →</span>
           </button>
         </div>
       </div>
@@ -251,7 +283,7 @@ export const RuleMutationClashGame: React.FC = () => {
         <GameResultModal
           score={score}
           accuracyRate={accuracyRate}
-          timeSpentSec={25}
+          timeSpentSec={elapsedSec}
           playedLevel={effectiveLevel}
           rawMetricsJson={rawMetricsJson}
           onRestart={initGame}
