@@ -22,15 +22,18 @@ const wrong_answers_controller_1 = require("./modules/wrong-answers/wrong-answer
 const wrong_answers_service_1 = require("./modules/wrong-answers/wrong-answers.service");
 const vocal_studio_controller_1 = require("./modules/vocal-studio/vocal-studio.controller");
 const vocal_studio_service_1 = require("./modules/vocal-studio/vocal-studio.service");
+const jwt_config_1 = require("./common/jwt-config");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            jwt_1.JwtModule.register({
-                secret: process.env.JWT_SECRET || 'brain-exercises-pro-secret-2026',
-                signOptions: { expiresIn: '30d' }
+            jwt_1.JwtModule.registerAsync({
+                useFactory: () => ({
+                    secret: (0, jwt_config_1.getJwtSecret)(),
+                    signOptions: { expiresIn: '30d' }
+                })
             })
         ],
         controllers: [

@@ -32,7 +32,7 @@ git push -u origin main
 3. Chọn kho lưu trữ `brain-exercises-pro` từ danh sách GitHub repositories.
 
 ### Bước 3: Cấu hình Build & Output Settings trên Vercel
-Vercel sẽ tự động đọc file [vercel.json](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/vercel.json) ở thư mục gốc:
+Vercel sẽ tự động đọc file [vercel.json](./vercel.json) ở thư mục gốc:
 - **Framework Preset**: Other (hoặc Vite)
 - **Root Directory**: `./` (để trống hoặc đặt là `.`)
 - **Build Command**: `npm run build`
@@ -45,7 +45,7 @@ Thêm các biến môi trường sau trong mục **Settings > Environment Variab
 | Tên biến (Key) | Giá trị mẫu | Mô tả |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://user:password@ep-cool-fog-123.ap-southeast-1.aws.neon.tech/brain_db?sslmode=require` | Chuỗi kết nối PostgreSQL (Neon, Supabase hoặc Vercel Postgres). Nếu để trống, backend sẽ tự động kích hoạt chế độ In-Memory an toàn không bị sập. |
-| `JWT_SECRET` | `super-secret-brain-jwt-token-key-2026` | Khóa bí mật ký JWT Token |
+| `JWT_SECRET` | `<strong-random-64-char-hex-secret>` | Khóa bí mật ký JWT Token (tạo ngẫu nhiên bằng `openssl rand -hex 32`) |
 | `NODE_ENV` | `production` | Môi trường triển khai |
 
 ---

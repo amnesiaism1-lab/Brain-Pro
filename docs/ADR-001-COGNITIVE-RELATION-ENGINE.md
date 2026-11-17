@@ -36,7 +36,7 @@ Thay vì tạo ra hàng chục quan hệ phức tạp, chúng tôi chuẩn hóa 
 Mọi bài tập (19 slug) đều được ánh xạ rõ ràng tới một **Quan hệ chính (Primary Relation)**, các **Quan hệ phụ (Secondary Relations)** và quan hệ mở rộng theo từng cấp độ (1–12).
 
 ### 2.2. Chiến Lược Lưu Trữ Dữ Liệu: Supabase PostgreSQL + Resilient Fallback
-- Cơ sở dữ liệu chính thức là **Supabase PostgreSQL** (`aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres`, project `ogsemefehnlaedkwigyl`), đã được khởi tạo qua `init-supabase.js`.
+- Cơ sở dữ liệu chính thức là **Supabase PostgreSQL** (kết nối qua biến môi trường `DATABASE_URL` / pooler cấu hình riêng trong `.env` và Vercel), đã được khởi tạo qua `init-supabase.js`.
 - `DataStoreService` kết nối trực tiếp đến PostgreSQL khi biến môi trường `DATABASE_URL` tồn tại, đồng thời trang bị cơ chế tự động chuyển sang In-Memory Fallback nếu kết nối mạng tạm thời gián đoạn.
 - Khi người dùng ở chế độ offline, frontend kích hoạt bộ đệm `useOfflineSync` để lưu các attempt chưa gửi và tự động đồng bộ lại khi online.
 

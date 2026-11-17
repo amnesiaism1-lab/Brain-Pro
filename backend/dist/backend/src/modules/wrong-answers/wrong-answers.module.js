@@ -13,15 +13,18 @@ const wrong_answers_service_1 = require("./wrong-answers.service");
 const data_store_service_1 = require("../../database/data-store.service");
 const auth_service_1 = require("../auth/auth.service");
 const jwt_1 = require("@nestjs/jwt");
+const jwt_config_1 = require("../../common/jwt-config");
 let WrongAnswersModule = class WrongAnswersModule {
 };
 exports.WrongAnswersModule = WrongAnswersModule;
 exports.WrongAnswersModule = WrongAnswersModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            jwt_1.JwtModule.register({
-                secret: process.env.JWT_SECRET || 'brain-exercises-pro-secret-2026',
-                signOptions: { expiresIn: '30d' }
+            jwt_1.JwtModule.registerAsync({
+                useFactory: () => ({
+                    secret: (0, jwt_config_1.getJwtSecret)(),
+                    signOptions: { expiresIn: '30d' }
+                })
             })
         ],
         controllers: [wrong_answers_controller_1.WrongAnswersController],

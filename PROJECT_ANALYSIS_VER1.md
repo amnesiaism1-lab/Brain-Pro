@@ -130,9 +130,9 @@ Brain-Pro/
 ## 3. PHÂN TÍCH CHI TIẾT BACKEND (NESTJS 11 + SERVERLESS)
 
 ### 3.1. Cơ chế Bootstrap & Serverless Compatibility
-Tệp [`backend/src/main.ts`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/backend/src/main.ts) được thiết kế theo mô hình **kép** (Dual-mode):
+Tệp [`backend/src/main.ts`](./backend/src/main.ts) được thiết kế theo mô hình **kép** (Dual-mode):
 1. **Chế độ Standalone Server** (Local development / Docker): Khi chạy độc lập trên cổng `3001` (hoặc biến `PORT`), khởi động Express HTTP server, nạp Swagger UI tại `/api/docs`.
-2. **Chế độ Vercel Serverless Handler**: Xuất hàm `handler(req, res)` thông qua [`backend/api/index.js`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/backend/api/index.js). Hàm tự động định tuyến lại URL, chuẩn hóa body buffer và chuyển giao cho NestJS Express instance đã khởi tạo một lần (Singleton instance cache).
+2. **Chế độ Vercel Serverless Handler**: Xuất hàm `handler(req, res)` thông qua [`backend/api/index.js`](./backend/api/index.js). Hàm tự động định tuyến lại URL, chuẩn hóa body buffer và chuyển giao cho NestJS Express instance đã khởi tạo một lần (Singleton instance cache).
 
 ### 3.2. Middleware & Bảo Mật
 - **Helmet**: Bảo vệ header HTTP, tắt Content-Security-Policy cứng nhắc để tránh xung đột tải nhạc/audio và Google Identity Services script.
@@ -142,26 +142,26 @@ Tệp [`backend/src/main.ts`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20ex
 
 ### 3.3. Các Controller & Phân Hệ Chức Năng
 
-#### 1. `AuthController` ([`auth.controller.ts`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/backend/src/modules/auth/auth.controller.ts))
+#### 1. `AuthController` ([`auth.controller.ts`](./backend/src/modules/auth/auth.controller.ts))
 - **`POST /api/auth/google`**: Tiếp nhận Google ID Token (`credential`), xác thực chữ ký qua Google API. Nếu người dùng trước đó đang chơi ở chế độ Khách (Guest), hệ thống sẽ **hợp nhất telemetry** (XP, Level, Streak) của khách vào tài nguyên Supabase của user thật.
 - **`GET /api/auth/me`**: Trả về hồ sơ người dùng hiện tại dựa trên Bearer JWT Token.
 - **`POST /api/auth/sync`**: Đồng bộ điểm số, cấp độ, chuỗi ngày luyện tập từ client lên đám mây.
 - **`POST /api/auth/login`** & **`POST /api/auth/register`**: Endpoint fallback dạng email dành cho môi trường offline.
 
-#### 2. `ExercisesController` ([`exercises.controller.ts`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/backend/src/modules/exercises/exercises.controller.ts))
+#### 2. `ExercisesController` ([`exercises.controller.ts`](./backend/src/modules/exercises/exercises.controller.ts))
 - **`GET /api/exercises`**: Trả về danh sách metadata đầy đủ của 25 bài tập kèm danh mục, thời gian mặc định, căn cứ khoa học và cấu hình 12 cấp độ.
 - **`GET /api/exercises/:slug`**: Lấy chi tiết bài tập theo định danh slug.
 - **`GET /api/exercises/word-search/vocabulary`**: Tự động trích xuất tập từ vựng ngẫu nhiên tiếng Việt (3-8 ký tự) từ kho ngữ liệu đọc hiểu để làm đề bài cho game Tìm Từ.
 - **`GET /api/exercises/peripheral-vision/stimuli`**: Trích xuất các kích thích thị giác 2-6 ký tự cho bài tập tầm nhìn ngoại vi.
 
-#### 3. `AttemptsController` ([`attempts.controller.ts`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/backend/src/modules/attempts/attempts.controller.ts))
+#### 3. `AttemptsController` ([`attempts.controller.ts`](./backend/src/modules/attempts/attempts.controller.ts))
 - **`POST /api/attempts`**: Lưu trữ kết quả hoàn thành bài chơi.
   - Kiểm tra tính hợp lệ của `rawMetricsJson` (giới hạn tối đa 50 sự kiện `relationEvents` mỗi lượt để chống spam payload).
   - Tính toán XP nhận được, cấp độ mới.
   - Gọi thuật toán DDA tính toán cấp độ khuyến nghị tiếp theo (`recommendedNextLevel`).
   - Ghi nhận `relation_evidence` vào Supabase và cập nhật `user_relation_mastery`.
 
-#### 4. `WorkoutsController` ([`workouts.controller.ts`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/backend/src/modules/workouts/workouts.controller.ts))
+#### 4. `WorkoutsController` ([`workouts.controller.ts`](./backend/src/modules/workouts/workouts.controller.ts))
 - **`GET /api/workouts`**: Danh sách 4 quy trình luyện tập định sẵn:
   - `QUICK_5M`: Khởi động nhanh 5 phút (Schulte Table -> Word Chunking -> Stroop Clash).
   - `REGULAR_10M`: Tiêu chuẩn 10 phút (Saccade Tracker -> RSVP Reader -> Digit Span -> Peripheral Vision).
@@ -169,7 +169,7 @@ Tệp [`backend/src/main.ts`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20ex
   - `INTENSIVE_60M`: Chuyên sâu 60 phút chinh phục các tầng nhận thức cao.
 - **`GET /api/workouts/:code`**: Lấy chi tiết một quy trình.
 
-#### 5. `ReadingAssessmentController` ([`reading-assessment.controller.ts`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/backend/src/modules/reading-assessment/reading-assessment.controller.ts))
+#### 5. `ReadingAssessmentController` ([`reading-assessment.controller.ts`](./backend/src/modules/reading-assessment/reading-assessment.controller.ts))
 - **`GET /api/reading-assessments/texts`**: Lấy danh sách các bài đọc mẫu có sẵn trong hệ thống (kèm độ khó, số lượng từ vựng).
 - **`GET /api/reading-assessments/texts/:id`**: Chi tiết một bài đọc kèm bộ câu hỏi trắc nghiệm kiểm tra độ thấu hiểu.
 - **`POST /api/reading-assessments/submit`**: Chấm điểm bài đánh giá:
@@ -178,18 +178,18 @@ Tệp [`backend/src/main.ts`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20ex
   - Tính **Tốc độ đọc hiệu dụng (Effective WPM)** = $\text{RawWPM} \times (\text{ComprehensionRate} / 100)$.
   - Trả về lời nhận xét sư phạm và XP thưởng.
 
-#### 6. `AnalyticsController` ([`analytics.controller.ts`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/backend/src/modules/analytics/analytics.controller.ts))
+#### 6. `AnalyticsController` ([`analytics.controller.ts`](./backend/src/modules/analytics/analytics.controller.ts))
 - **`GET /api/analytics/stats`**: Thống kê tổng XP, cấp độ, streak, tổng số phút đã luyện tập, điểm Ngũ giác Nhận thức (Cognitive Radar).
 - **`GET /api/analytics/radar`**: 5 chỉ số năng lực: Đọc nhanh, Thị giác ngoại vi, Trí nhớ, Chú ý tập trung, Phản xạ.
 - **`GET /api/analytics/brain-graph`**: Cấu trúc đồ thị mạng lưới nhận thức 12 nút (nút, cạnh liên kết, điểm thông thạo từng quan hệ).
 - **`GET|POST /api/analytics/recommend-chain`**: Thuật toán tự động tìm ra quan hệ nhận thức đang là "nút thắt cổ chai" (bottleneck) có điểm accuracy thấp nhất và đề xuất chuỗi bài tập khắc phục tối ưu.
 
-#### 7. `RemindersController` ([`reminders.controller.ts`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/backend/src/modules/reminders/reminders.controller.ts))
+#### 7. `RemindersController` ([`reminders.controller.ts`](./backend/src/modules/reminders/reminders.controller.ts))
 - **`GET /api/reminders`**: Danh sách lịch nhắc nhở luyện tập của người dùng.
 - **`PUT /api/reminders`**: Cập nhật danh sách nhắc nhở (giờ thông báo, ngày trong tuần, trạng thái bật/tắt).
 
 ### 3.4. Lớp Dữ Liệu Lai (Hybrid Resilience DataStoreService)
-Dịch vụ [`DataStoreService`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/backend/src/database/data-store.service.ts) là "trái tim" dữ liệu của backend:
+Dịch vụ [`DataStoreService`](./backend/src/database/data-store.service.ts) là "trái tim" dữ liệu của backend:
 - Khi khởi động (`onModuleInit`), dịch vụ kiểm tra chuỗi kết nối `DATABASE_URL` tới Supabase PostgreSQL.
 - Nếu kết nối thành công: Mọi thao tác ghi kết quả attempt, telemetry evidence, upsert relation mastery sẽ được đẩy bất đồng bộ vào cơ sở dữ liệu Postgres.
 - Nếu không có mạng hoặc chưa cấu hình Supabase: Dịch vụ tự động chuyển đổi sang **In-Memory Store** với đầy đủ dữ liệu mẫu (Seeded demo user, 25 exercises, 4 workouts, reading texts). Đảm bảo hệ sinh thái không bao giờ bị sập (Zero-downtime tolerance).
@@ -284,7 +284,7 @@ erDiagram
 ## 6. PHÂN TÍCH CHI TIẾT FRONTEND (REACT 18 + VITE + ZUSTAND)
 
 ### 6.1. Quản Lý Trạng Thái Tập Trung (`useAppStore.ts`)
-Frontend được quản lý toàn diện bởi một Zustand Store duy nhất ([`useAppStore.ts`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/store/useAppStore.ts)) kết hợp cơ chế lưu trữ bền vững:
+Frontend được quản lý toàn diện bởi một Zustand Store duy nhất ([`useAppStore.ts`](./frontend/src/store/useAppStore.ts)) kết hợp cơ chế lưu trữ bền vững:
 - **Tự động lưu Offline (`localStorage`)**: Mọi tiến trình cấp độ (1-22), điểm số cao nhất, lịch sử bài tập, thiết lập âm thanh, dark mode, trạng thái nhắc nhở đều được lưu tức thời trên máy người dùng.
 - **Tiến trình kép (Dual-Progression Model)**:
   1. *Tiến trình bề mặt*: Cấp độ từng bài tập (Level 1 đến Level 22) lưu trong `exerciseMasteries`.
@@ -294,13 +294,13 @@ Frontend được quản lý toàn diện bởi một Zustand Store duy nhất (
 - **Đồng Bộ Đám Mây Tự Động (`useOfflineSync`)**: Khi có kết nối mạng và người dùng đã đăng nhập Google, hook sẽ tự động gửi dữ liệu tích lũy lên Supabase.
 
 ### 6.2. Cấu Trúc Các View Giao Diện
-1. **HomeView** ([`HomeView.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/home/HomeView.tsx)): Dashboard chính hiển thị Banner chào đón, Chuỗi ngày Streak, Nút chọn nhanh Lộ trình luyện tập (5p - 60p), Thẻ hiệp đồng nhận thức (Synergy Card), Thử thách tuần, và Lối tắt vào bài tập nổi bật.
-2. **ExercisesListView** ([`ExercisesListView.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/exercises/ExercisesListView.tsx)): Bộ sưu tập toàn bộ 25 bài tập, có bộ lọc theo 6 nhóm kỹ năng, thanh tìm kiếm, nhãn cấp độ hiện tại, và trạng thái Featured.
-3. **ExerciseDetailModal** ([`ExerciseDetailModal.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/exercises/ExerciseDetailModal.tsx)): Modal chi tiết bài tập trước khi bắt đầu, hiển thị Căn cứ khoa học, Hướng dẫn luật chơi, Bộ chọn cấp độ trực quan (Cấp 1 - 12 Chuẩn và Cấp 13 - 22 Cấp Vô Cực có nhãn La Mã $\infty$-I đến $\infty$-X), Bảng thông số kỹ thuật (Grid size, WPM, Time Limit).
-4. **ActiveGameContainer** ([`ActiveGameContainer.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/games/ActiveGameContainer.tsx)): Khung điều khiển khi đang chơi game, tích hợp thanh HUD Variant phát sáng cho các cấp độ cao, nút thoát khẩn cấp, banner gợi ý bài tập tiếp theo.
-5. **MusicTheoryView** ([`MusicTheoryView.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/learn/MusicTheoryView.tsx)): Trung tâm đào tạo nhạc lý tương tác với 7 module trực quan.
-6. **ProfileView** ([`ProfileView.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/profile/ProfileView.tsx)): Hồ sơ cá nhân tích hợp Biểu đồ Ngũ giác Nhận thức (Cognitive Radar), Bản đồ Não bộ tương tác 12 nút (Brain Map), và Lịch sử các lượt chơi gần nhất.
-7. **SettingsView** ([`SettingsView.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/settings/SettingsView.tsx)): Tùy chỉnh âm thanh, tự động điều chỉnh độ khó DDA, chế độ hiển thị Dark/Light/Sepia, và quản lý lịch thông báo nhắc nhở.
+1. **HomeView** ([`HomeView.tsx`](./frontend/src/components/home/HomeView.tsx)): Dashboard chính hiển thị Banner chào đón, Chuỗi ngày Streak, Nút chọn nhanh Lộ trình luyện tập (5p - 60p), Thẻ hiệp đồng nhận thức (Synergy Card), Thử thách tuần, và Lối tắt vào bài tập nổi bật.
+2. **ExercisesListView** ([`ExercisesListView.tsx`](./frontend/src/components/exercises/ExercisesListView.tsx)): Bộ sưu tập toàn bộ 25 bài tập, có bộ lọc theo 6 nhóm kỹ năng, thanh tìm kiếm, nhãn cấp độ hiện tại, và trạng thái Featured.
+3. **ExerciseDetailModal** ([`ExerciseDetailModal.tsx`](./frontend/src/components/exercises/ExerciseDetailModal.tsx)): Modal chi tiết bài tập trước khi bắt đầu, hiển thị Căn cứ khoa học, Hướng dẫn luật chơi, Bộ chọn cấp độ trực quan (Cấp 1 - 12 Chuẩn và Cấp 13 - 22 Cấp Vô Cực có nhãn La Mã $\infty$-I đến $\infty$-X), Bảng thông số kỹ thuật (Grid size, WPM, Time Limit).
+4. **ActiveGameContainer** ([`ActiveGameContainer.tsx`](./frontend/src/components/games/ActiveGameContainer.tsx)): Khung điều khiển khi đang chơi game, tích hợp thanh HUD Variant phát sáng cho các cấp độ cao, nút thoát khẩn cấp, banner gợi ý bài tập tiếp theo.
+5. **MusicTheoryView** ([`MusicTheoryView.tsx`](./frontend/src/components/learn/MusicTheoryView.tsx)): Trung tâm đào tạo nhạc lý tương tác với 7 module trực quan.
+6. **ProfileView** ([`ProfileView.tsx`](./frontend/src/components/profile/ProfileView.tsx)): Hồ sơ cá nhân tích hợp Biểu đồ Ngũ giác Nhận thức (Cognitive Radar), Bản đồ Não bộ tương tác 12 nút (Brain Map), và Lịch sử các lượt chơi gần nhất.
+7. **SettingsView** ([`SettingsView.tsx`](./frontend/src/components/settings/SettingsView.tsx)): Tùy chỉnh âm thanh, tự động điều chỉnh độ khó DDA, chế độ hiển thị Dark/Light/Sepia, và quản lý lịch thông báo nhắc nhở.
 
 ---
 
@@ -418,7 +418,7 @@ Hệ thống Infinity Tier đưa nhận thức người chơi vượt ra ngoài 
 - **$\infty$-X**: *Singularity Infinite Stream* (Dòng chảy nhận thức vô cực kết hợp đa giác quan).
 
 ### 8.2. Dịch vụ Tri Thức Ngoại Vi & Ngoại Tuyến Bền Vững (`infinityApiService.ts`)
-Tệp [`frontend/src/services/infinityApiService.ts`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/services/infinityApiService.ts) (87KB) tích hợp:
+Tệp [`frontend/src/services/infinityApiService.ts`](./frontend/src/services/infinityApiService.ts) (87KB) tích hợp:
 1. **Free Dictionary API**: Tra cứu định nghĩa học thuật, từ loại, phiên âm IPA theo thời gian thực.
 2. **Datamuse API**: Tìm kiếm từ liên quan ngữ nghĩa, vần điệu, từ đồng nghĩa.
 3. **Wikipedia REST API**: Trích xuất đoạn trích kiến thức bách khoa toàn thư thế giới.
@@ -442,17 +442,17 @@ Tệp [`frontend/src/services/infinityApiService.ts`](file:///c:/Users/Admin/One
   - Gõ phím mạnh (velocity cao): Attack đanh (2.5ms), mở rộng Lowpass lên đến 14.5kHz, âm thanh sáng và vang.
 - **3D Spatial Audio Engine**: Cấu hình tọa độ `AudioListener` và `PannerNode` theo mô hình chuẩn HRTF, cho phép âm thanh di chuyển tự do trong không gian ba chiều (trái/phải, trước/sau, trên/dưới).
 - **Trực quan hóa thời gian thực**:
-  - [`InteractiveOscilloscope.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/ui/InteractiveOscilloscope.tsx): Vẽ đồ thị dạng sóng âm theo thời gian thực qua AnalyserNode.
-  - [`FrequencySpectrum.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/ui/FrequencySpectrum.tsx): Biểu đồ phân tích phổ tần số 256 dải FFT.
-  - [`Metronome.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/ui/Metronome.tsx): Bộ đếm nhịp âm học hỗ trợ nhịp 2/4, 3/4, 4/4, 6/8 từ 40 đến 240 BPM.
-  - [`SpatialRadar.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/ui/SpatialRadar.tsx): Màn hình radar quét tọa độ âm thanh 360 độ.
+  - [`InteractiveOscilloscope.tsx`](./frontend/src/components/ui/InteractiveOscilloscope.tsx): Vẽ đồ thị dạng sóng âm theo thời gian thực qua AnalyserNode.
+  - [`FrequencySpectrum.tsx`](./frontend/src/components/ui/FrequencySpectrum.tsx): Biểu đồ phân tích phổ tần số 256 dải FFT.
+  - [`Metronome.tsx`](./frontend/src/components/ui/Metronome.tsx): Bộ đếm nhịp âm học hỗ trợ nhịp 2/4, 3/4, 4/4, 6/8 từ 40 đến 240 BPM.
+  - [`SpatialRadar.tsx`](./frontend/src/components/ui/SpatialRadar.tsx): Màn hình radar quét tọa độ âm thanh 360 độ.
 
 #### 2. Kết Nối Thiết Bị Phần Cứng Ngoài (`midiService.ts` & `useMidiInput.ts`)
 - Tích hợp chuẩn **Web MIDI API**: Tự động nhận diện khi người dùng cắm đàn Organ / Keyboard Piano qua cổng USB-MIDI.
 - Chuyển đổi mã phím MIDI (Note On / Note Off, Velocity 1-127) thành tín hiệu âm thanh và thao tác chơi trong game.
-- Đèn báo trạng thái kết nối [`MidiStatusIndicator.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/ui/MidiStatusIndicator.tsx).
+- Đèn báo trạng thái kết nối [`MidiStatusIndicator.tsx`](./frontend/src/components/ui/MidiStatusIndicator.tsx).
 
-#### 3. Trung Tâm Học Nhạc Lý Tương Tác ([`MusicTheoryView.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/learn/MusicTheoryView.tsx))
+#### 3. Trung Tâm Học Nhạc Lý Tương Tác ([`MusicTheoryView.tsx`](./frontend/src/components/learn/MusicTheoryView.tsx))
 Bao gồm 7 module đào tạo chuyên sâu:
 1. `NotesAndPitchModule`: Nhận diện nốt nhạc trên khuông nhạc và phím đàn.
 2. `IntervalsModule`: Tìm hiểu cấu tạo 12 quãng âm thanh.
@@ -496,7 +496,7 @@ Hệ thống định nghĩa **12 Quan Hệ Nhận Thức cốt lõi**:
 Mỗi lượt thử $i$ (đúng = 1.0, sai = 0.0), điểm Accuracy của quan hệ được cập nhật:
 $$\text{Accuracy}_{i} = \alpha \times \text{TrialValue} + (1 - \alpha) \times \text{Accuracy}_{i-1} \quad (\text{với } \alpha = 0.08)$$
 
-#### Bản Đồ Não Bộ Tương Tác ([`BrainMap.tsx`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/frontend/src/components/cognition/BrainMap.tsx)):
+#### Bản Đồ Não Bộ Tương Tác ([`BrainMap.tsx`](./frontend/src/components/cognition/BrainMap.tsx)):
 Hiển thị mạng lưới 12 nút nhận thức kết nối bằng các cạnh quan hệ (Edges). Mỗi nút hiển thị điểm Mastery (0-100%), Tier năng lực (Tier 1 đến Tier 4) và danh sách các bài tập đại diện giúp cải thiện nút đó.
 
 #### Thuật Toán Đề Xuất Chuỗi Nhận Thức (Cognitive Chain):
@@ -517,35 +517,35 @@ và kích hoạt chuỗi bài tập can thiệp đặc hiệu để bồi dưỡ
 
 Dự án sử dụng các biến môi trường để cấu hình toàn bộ hệ thống:
 
-### 10.1. File `.env` gốc (Root / Backend)
+### 10.1. File `.env` gốc (Root / Backend) — Tham khảo `.env.example` (không điền secret thật vào tài liệu)
 ```env
 # Kết nối PostgreSQL Supabase (Pooler Mode - Port 6543)
-DATABASE_URL=postgresql://postgres.ogsemefehnlaedkwigyl:5g*Q%3FhqT9N6BU7x@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres
-DB_HOST=aws-0-ap-northeast-1.pooler.supabase.com
+DATABASE_URL=postgresql://postgres.<YOUR_PROJECT_REF>:<YOUR_DB_PASSWORD>@<YOUR_POOLER_HOST>:6543/postgres
+DB_HOST=<YOUR_POOLER_HOST>
 DB_PORT=6543
-DB_USER=postgres.ogsemefehnlaedkwigyl
-DB_PASSWORD=5g*Q?hqT9N6BU7x
+DB_USER=postgres.<YOUR_PROJECT_REF>
+DB_PASSWORD=<YOUR_DB_PASSWORD>
 DB_NAME=postgres
 DB_SSL=true
 
-# Bảo mật JWT
-JWT_SECRET=brain-exercises-pro-secret-2026
+# Bảo mật JWT (sinh chuỗi ngẫu nhiên mạnh bằng openssl rand -hex 32)
+JWT_SECRET=<YOUR_STRONG_RANDOM_JWT_SECRET>
 
 # Cấu hình máy chủ
 PORT=3001
 NODE_ENV=development
 
 # Google OAuth Server-side
-GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-SUPABASE_URL=https://ogsemefehnlaedkwigyl.supabase.co
+GOOGLE_CLIENT_ID=<YOUR_GOOGLE_CLIENT_ID>.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=<YOUR_GOOGLE_CLIENT_SECRET>
+SUPABASE_URL=https://<YOUR_PROJECT_REF>.supabase.co
 ```
 
 ### 10.2. File `frontend/.env`
 ```env
 # Google OAuth Client-side (One-Tap & Popup)
-VITE_GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
-VITE_SUPABASE_URL=https://ogsemefehnlaedkwigyl.supabase.co
+VITE_GOOGLE_CLIENT_ID=<YOUR_GOOGLE_CLIENT_ID>.apps.googleusercontent.com
+VITE_SUPABASE_URL=https://<YOUR_PROJECT_REF>.supabase.co
 
 # API Tri Thức Ngoại Vi cho Cấp Vô Cực (Infinity Tiers)
 VITE_DICTIONARY_API_URL=https://api.dictionaryapi.dev/api/v2/entries/en
@@ -555,7 +555,7 @@ VITE_NASA_API_KEY=DEMO_KEY
 VITE_OPEN_TRIVIA_URL=https://opentdb.com/api.php
 ```
 
-### 10.3. Cấu hình Vercel ([`vercel.json`](file:///c:/Users/Admin/OneDrive/Desktop/Brain%20exercises/vercel.json))
+### 10.3. Cấu hình Vercel ([`vercel.json`](./vercel.json))
 Tệp cấu hình định tuyến đa dịch vụ trên Vercel:
 - Dịch vụ `frontend`: Thư mục gốc `frontend`, framework `vite`.
 - Dịch vụ `backend`: Thư mục gốc `backend`, framework `express`, entrypoint `api/index.js`.

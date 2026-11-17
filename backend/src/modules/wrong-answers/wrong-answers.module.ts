@@ -4,12 +4,15 @@ import { WrongAnswersService } from './wrong-answers.service';
 import { DataStoreService } from '../../database/data-store.service';
 import { AuthService } from '../auth/auth.service';
 import { JwtModule } from '@nestjs/jwt';
+import { getJwtSecret } from '../../common/jwt-config';
 
 @Module({
   imports: [
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'brain-exercises-pro-secret-2026',
-      signOptions: { expiresIn: '30d' }
+    JwtModule.registerAsync({
+      useFactory: () => ({
+        secret: getJwtSecret(),
+        signOptions: { expiresIn: '30d' }
+      })
     })
   ],
   controllers: [WrongAnswersController],

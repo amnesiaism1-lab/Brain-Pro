@@ -111,19 +111,14 @@ npm run build:shared
 ```
 
 ### 3. Cấu hình biến môi trường:
-Tạo file `.env` tại thư mục gốc với các thông số:
-```env
-DATABASE_URL=postgresql://postgres.ogsemefehnlaedkwigyl:5g*Q%3FhqT9N6BU7x@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres
-DB_HOST=aws-0-ap-northeast-1.pooler.supabase.com
-DB_PORT=6543
-DB_USER=postgres.ogsemefehnlaedkwigyl
-DB_PASSWORD=5g*Q?hqT9N6BU7x
-DB_NAME=postgres
-DB_SSL=true
-JWT_SECRET=brain-exercises-pro-secret-2026
-PORT=3001
-NODE_ENV=development
+Sao chép file mẫu `.env.example` thành `.env` tại thư mục gốc và điền thông tin kết nối thực tế của bạn (lưu ý **không** commit file `.env` lên Git):
+```bash
+cp .env.example .env
 ```
+Các biến cần thiết lập trong `.env`:
+- `DATABASE_URL` (hoặc `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`): chuỗi kết nối PostgreSQL / Supabase của bạn
+- `JWT_SECRET`: chuỗi khóa bí mật ngẫu nhiên (khuyến nghị `openssl rand -hex 32`)
+- `GEMINI_API_KEY` *(tùy chọn)*: key Gemini cho tính năng AI bóc lời âm thanh ở server
 
 ### 4. Khởi chạy dự án:
 ```bash
@@ -138,9 +133,8 @@ npm run start:frontend
 
 ## 🌐 Triển Khai Vercel
 
-Ứng dụng được cấu hình triển khai liên tục qua Vercel:
+Ứng dụng được cấu hình triển khai liên tục qua Vercel (thiết lập các biến môi trường bí mật tại **Vercel Dashboard > Project Settings > Environment Variables**):
 - **Production URL**: [https://brain-pro-psi.vercel.app/](https://brain-pro-psi.vercel.app/)
-- **Supabase Dashboard**: [https://supabase.com/dashboard/project/ogsemefehnlaedkwigyl](https://supabase.com/dashboard/project/ogsemefehnlaedkwigyl)
 
 ---
 

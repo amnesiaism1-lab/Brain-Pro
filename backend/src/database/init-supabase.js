@@ -1,13 +1,6 @@
-const { Client } = require('pg');
+const { createPgClient } = require('./create-pg-client');
 
-const client = new Client({
-  host: process.env.DB_HOST || 'aws-0-ap-northeast-1.pooler.supabase.com',
-  port: parseInt(process.env.DB_PORT || '6543', 10),
-  database: 'postgres',
-  user: 'postgres.ogsemefehnlaedkwigyl',
-  password: '5g*Q?hqT9N6BU7x',
-  ssl: { rejectUnauthorized: false }
-});
+const client = createPgClient();
 
 async function initSupabase() {
   console.log('Connecting to Supabase PostgreSQL...');

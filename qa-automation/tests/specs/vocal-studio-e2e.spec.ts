@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const ARTIFACT_DIR = 'C:/Users/Admin/.gemini/antigravity-ide/brain/168a50a0-f22d-44f7-8111-69405ae22f4a';
+const ARTIFACT_DIR = process.env.ARTIFACT_DIR || '../evidence';
 
 test.describe('Vocal Studio Fullscreen E2E Test Suite', () => {
   test('End-to-End: Fullscreen Studio, Demo Track Analysis, Pitch Runway, and Multi-Viewport Verification', async ({ page }) => {
