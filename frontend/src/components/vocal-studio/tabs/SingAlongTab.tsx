@@ -301,7 +301,7 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
 
         {/* Missing Mic or Initial Singing Guidance Banner (no strobe on normal pauses) */}
         {((micStatus === 'permission_denied') || (isPlaying && showInitialMicTip)) && (
-          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-2xl bg-slate-900/90 border border-cyan-500/50 text-cyan-200 text-xs shadow-2xl backdrop-blur-md flex items-center gap-2 animate-fade-in pointer-events-none">
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-2xl bg-slate-900/95 border border-cyan-500/50 text-cyan-200 text-xs shadow-2xl flex items-center gap-2 animate-fade-in pointer-events-none">
             <Mic2 className="w-4 h-4 text-cyan-400 animate-pulse shrink-0" />
             <span>
               {micStatus === 'permission_denied'
@@ -314,7 +314,7 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         {/* Score & Tuner HUD Overlay (Top Left) */}
         <div className="absolute top-3 left-4 flex flex-wrap items-center gap-2 z-10">
           <div
-            className="px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md flex items-center gap-2 text-xs"
+            className="px-3 py-1.5 rounded-xl bg-slate-900/95 border border-slate-700/80 flex items-center gap-2 text-xs"
             title={
               realtimeScorePct !== null
                 ? `Tỷ lệ cao độ đúng tông trong các đoạn hát: ${realtimeScorePct}% (Tổng frame chuẩn: ${sessionStats.inTuneFrames || 0}/${sessionStats.totalVocalFrames || 0})`
@@ -338,14 +338,14 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
           </div>
 
           {currentStreak > 3 && (
-            <div className="px-2.5 py-1.5 rounded-xl bg-emerald-950/90 border border-emerald-500/50 backdrop-blur-md flex items-center gap-1.5 text-xs text-emerald-300 font-bold animate-pulse">
+            <div className="px-2.5 py-1.5 rounded-xl bg-emerald-950/95 border border-emerald-500/50 flex items-center gap-1.5 text-xs text-emerald-300 font-bold animate-pulse">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
               <span>Chuỗi: {currentStreak}</span>
             </div>
           )}
 
           {isLoopingActive && (
-            <div className="px-2.5 py-1.5 rounded-xl bg-indigo-950/90 border border-indigo-500/50 backdrop-blur-md flex items-center gap-1.5 text-xs text-indigo-300 font-bold">
+            <div className="px-2.5 py-1.5 rounded-xl bg-indigo-950/95 border border-indigo-500/50 flex items-center gap-1.5 text-xs text-indigo-300 font-bold">
               <Repeat className="w-3 h-3 text-indigo-400" />
               <span>Đang lặp {selectedPhraseIndex ? `câu ${selectedPhraseIndex}` : 'A-B'}</span>
               <button
@@ -361,7 +361,7 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         </div>
 
         {/* Real-time Human Feedback & Tuner Needle (Bottom Left) */}
-        <div className="absolute bottom-3 left-4 flex items-center gap-3 px-3 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md z-10">
+        <div className="absolute bottom-3 left-4 flex items-center gap-3 px-3 py-1.5 rounded-2xl bg-slate-900/95 border border-slate-700/80 z-10">
           <div className="flex flex-col">
             <span className="text-[9px] font-mono text-slate-400 uppercase">Độ lệch cao độ</span>
             <span className={`text-xs font-bold ${pitchFeedback.badgeClass}`}>
@@ -393,12 +393,12 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         <div className="absolute bottom-3 right-4 flex items-center gap-2 z-10 flex-wrap justify-end">
           {/* Live Humming / Singing Note Badge */}
           <div
-            className={`px-3 py-1.5 rounded-2xl border backdrop-blur-md flex items-center gap-2 shadow-lg transition-all ${
+            className={`px-3 py-1.5 rounded-2xl border flex items-center gap-2 shadow-lg transition-colors duration-100 ${
               userReading?.isSinging
                 ? isInTuneNow
-                  ? 'bg-emerald-950/80 border-emerald-500/70 text-emerald-300 ring-1 ring-emerald-500/30'
-                  : 'bg-amber-950/80 border-amber-500/70 text-amber-300 ring-1 ring-amber-500/30'
-                : 'bg-slate-900/75 border-slate-700/60 text-slate-400'
+                  ? 'bg-emerald-950/90 border-emerald-500/70 text-emerald-300 ring-1 ring-emerald-500/30'
+                  : 'bg-amber-950/90 border-amber-500/70 text-amber-300 ring-1 ring-amber-500/30'
+                : 'bg-slate-900/90 border-slate-700/60 text-slate-400'
             }`}
           >
             <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -432,7 +432,7 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
           </div>
 
           {/* Target Reference Song Note Badge */}
-          <div className="px-3 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md flex items-center gap-2 shadow-lg">
+          <div className="px-3 py-1.5 rounded-2xl bg-slate-900/95 border border-slate-700/80 flex items-center gap-2 shadow-lg">
             <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
               Nốt Đang Phát:
             </span>

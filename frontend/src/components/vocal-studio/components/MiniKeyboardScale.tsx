@@ -10,7 +10,7 @@ interface MiniKeyboardScaleProps {
   currentOctave?: number;
 }
 
-export const MiniKeyboardScale: React.FC<MiniKeyboardScaleProps> = ({
+export const MiniKeyboardScale: React.FC<MiniKeyboardScaleProps> = React.memo(({
   scaleNotes = [],
   activeTargetNote,
   activeUserNote,
@@ -77,4 +77,4 @@ export const MiniKeyboardScale: React.FC<MiniKeyboardScaleProps> = ({
       </div>
     </div>
   );
-};
+});

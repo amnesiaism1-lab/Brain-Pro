@@ -77,6 +77,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
   const userPitchTrailRef = useRef<IUserPitchPoint[]>([]);
   const accumulatorRef = useRef<ISingSessionAccumulator>(createSessionAccumulator());
   const lastUiUpdateRef = useRef<number>(0);
+  const lastStatsUiUpdateRef = useRef<number>(0);
   const lastFrameTimeRef = useRef<number>(0);
   const lastSingingStateRef = useRef<boolean>(false);
 
@@ -200,18 +201,43 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     activeKeyName,
   ]);
 
-  // 60fps Playhead Clock & A-B Loop (Task 0.4)
+  // 60fps Smooth PLL Visual Playhead Clock & A-B Loop (eliminates quantized audio.currentTime stepping!)
   useEffect(() => {
     if (!isOpen || !store.isPlaying) return;
 
     let animId: number;
     let lastClockUiUpdate = 0;
+    let lastRawAudioMs = -1;
+    let audioAnchorMs = renderStateRef.current.currentTimeMs || 0;
+    let perfAnchorMs = performance.now();
 
-    const clockLoop = () => {
+    const clockLoop = (now: number) => {
       const audio = audioElementRef.current;
       if (audio && !audio.paused) {
-        const exactTimeMs = Math.round(audio.currentTime * 1000);
-        renderStateRef.current.currentTimeMs = exactTimeMs;
+        const rawAudioMs = audio.currentTime * 1000;
+        const rate = audio.playbackRate || 1;
+        const predictedMs = audioAnchorMs + (now - perfAnchorMs) * rate;
+
+        if (lastRawAudioMs < 0 || Math.abs(rawAudioMs - lastRawAudioMs) > 0.5) {
+          lastRawAudioMs = rawAudioMs;
+          const driftMs = rawAudioMs - predictedMs;
+          if (Math.abs(driftMs) > 65) {
+            // Hard snap on seeks or buffer stalls
+            audioAnchorMs = rawAudioMs;
+            perfAnchorMs = now;
+          } else {
+            // Gentle phase-locked blend so runway scroll stays monotonic & jitter-free at 60fps
+            audioAnchorMs = predictedMs + driftMs * 0.28;
+            perfAnchorMs = now;
+          }
+        }
+
+        const durLimitMs =
+          Number.isFinite(audio.duration) && audio.duration > 0
+            ? audio.duration * 1000
+            : Number.POSITIVE_INFINITY;
+        const smoothTimeMs = Math.min(durLimitMs, Math.max(0, audioAnchorMs + (now - perfAnchorMs) * rate));
+        renderStateRef.current.currentTimeMs = smoothTimeMs;
 
         // A-B loop check with <20ms accuracy
         if (
@@ -219,18 +245,24 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
           renderStateRef.current.loopEndMs !== null &&
           renderStateRef.current.loopStartMs !== null
         ) {
-          if (exactTimeMs >= renderStateRef.current.loopEndMs) {
-            audio.currentTime = renderStateRef.current.loopStartMs / 1000;
-            renderStateRef.current.currentTimeMs = renderStateRef.current.loopStartMs;
+          if (smoothTimeMs >= renderStateRef.current.loopEndMs) {
+            const loopStart = renderStateRef.current.loopStartMs;
+            audio.currentTime = loopStart / 1000;
+            audioAnchorMs = loopStart;
+            lastRawAudioMs = loopStart;
+            perfAnchorMs = now;
+            renderStateRef.current.currentTimeMs = loopStart;
           }
         }
 
-        // Update React timeline clock at ~11Hz (word HUD subscribes directly to renderStateRef at ~30Hz)
-        const now = performance.now();
-        if (now - lastClockUiUpdate > 90) {
+        // Sync React store clock at ~4Hz (canvas & lyric HUD read renderStateRef directly at 60fps)
+        if (now - lastClockUiUpdate > 240) {
           lastClockUiUpdate = now;
-          store.setCurrentTimeMs(renderStateRef.current.currentTimeMs);
+          store.setCurrentTimeMs(Math.round(renderStateRef.current.currentTimeMs));
         }
+      } else {
+        perfAnchorMs = now;
+        lastRawAudioMs = -1;
       }
       animId = requestAnimationFrame(clockLoop);
     };
@@ -378,11 +410,12 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
       renderStateRef.current.isInTuneNow = inTune;
       renderStateRef.current.userPitchTrail = userPitchTrailRef.current;
 
-      // Throttle React UI state updates to ~10Hz
+      // Throttle React HUD state updates cleanly (~7Hz HUD, ~2.2Hz heavy sessionStats)
+      // while renderStateRef updates at full worklet rate for zero-latency 60fps Canvas rendering
       const singingStateChanged = reading.isSinging !== lastSingingStateRef.current;
       lastSingingStateRef.current = reading.isSinging;
 
-      if (now - lastUiUpdateRef.current > 100 || singingStateChanged) {
+      if (now - lastUiUpdateRef.current > 140 || singingStateChanged) {
         lastUiUpdateRef.current = now;
         setUserReading(reading);
         setCurrentRefPoint(refPt);
@@ -393,41 +426,44 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
         const currentStreakCount = Math.round(accumulatorRef.current.currentStreakMs / 1000);
         store.setCurrentStreak(currentStreakCount);
 
-        const acc = accumulatorRef.current;
-        const phraseScoresMap: Record<number, { total: number; inTune: number }> = {};
-        Object.entries(acc.phraseScores).forEach(([k, v]) => {
-          phraseScoresMap[Number(k)] = { total: v.totalMs, inTune: v.inTuneMs };
-        });
+        if (now - lastStatsUiUpdateRef.current > 450 || singingStateChanged) {
+          lastStatsUiUpdateRef.current = now;
+          const acc = accumulatorRef.current;
+          const phraseScoresMap: Record<number, { total: number; inTune: number }> = {};
+          Object.entries(acc.phraseScores).forEach(([k, v]) => {
+            phraseScoresMap[Number(k)] = { total: v.totalMs, inTune: v.inTuneMs };
+          });
 
-        const wordScoresMap: Record<string, WordPitchScoreStat> = {};
-        const tol = renderStateRef.current.toleranceCents || 35;
-        Object.entries(acc.wordScores).forEach(([k, v]) => {
-          const avgCents = v.totalMs > 0 ? Math.round(v.weightedCentsSum / v.totalMs) : 0;
-          const inTuneRatio = v.totalMs > 0 ? v.inTuneMs / v.totalMs : 0;
-          const status: 'in_tune' | 'flat' | 'sharp' =
-            inTuneRatio >= 0.55 || Math.abs(avgCents) <= tol
-              ? 'in_tune'
-              : avgCents < 0
-              ? 'flat'
-              : 'sharp';
-          wordScoresMap[k] = {
-            total: v.totalMs,
-            inTune: v.inTuneMs,
-            avgCentsDiff: avgCents,
-            status,
+          const wordScoresMap: Record<string, WordPitchScoreStat> = {};
+          const tol = renderStateRef.current.toleranceCents || 35;
+          Object.entries(acc.wordScores).forEach(([k, v]) => {
+            const avgCents = v.totalMs > 0 ? Math.round(v.weightedCentsSum / v.totalMs) : 0;
+            const inTuneRatio = v.totalMs > 0 ? v.inTuneMs / v.totalMs : 0;
+            const status: 'in_tune' | 'flat' | 'sharp' =
+              inTuneRatio >= 0.55 || Math.abs(avgCents) <= tol
+                ? 'in_tune'
+                : avgCents < 0
+                ? 'flat'
+                : 'sharp';
+            wordScoresMap[k] = {
+              total: v.totalMs,
+              inTune: v.inTuneMs,
+              avgCentsDiff: avgCents,
+              status,
+            };
+          });
+
+          const newStats: SingSessionStats = {
+            totalVocalFrames: acc.totalVocalFrames,
+            inTuneFrames: acc.inTuneFrames,
+            flatFrames: acc.flatFrames,
+            sharpFrames: acc.sharpFrames,
+            highestStreak: Math.round(acc.highestStreakMs / 1000),
+            phraseScores: phraseScoresMap,
+            wordScores: wordScoresMap,
           };
-        });
-
-        const newStats: SingSessionStats = {
-          totalVocalFrames: acc.totalVocalFrames,
-          inTuneFrames: acc.inTuneFrames,
-          flatFrames: acc.flatFrames,
-          sharpFrames: acc.sharpFrames,
-          highestStreak: Math.round(acc.highestStreakMs / 1000),
-          phraseScores: phraseScoresMap,
-          wordScores: wordScoresMap,
-        };
-        store.setSessionStats(newStats);
+          store.setSessionStats(newStats);
+        }
       }
     },
     [store.analysisResult]

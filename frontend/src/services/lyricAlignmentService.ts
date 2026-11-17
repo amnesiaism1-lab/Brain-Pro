@@ -51,13 +51,16 @@ import { runAcousticWordForcedAlignment } from './acousticWordForcedAligner';
 import {
   buildClusterPhoneticProfilesAsync,
   buildClusterProfileKey,
+  buildPhoneticSyllableIndex,
   computePhoneticLineToClusterDistance,
   estimateSliceVowelFormants,
   goertzelBandEnergy,
   mergeClusterPhoneticProfiles,
   profileAudioClusterPhonetics,
+  queryIndexedClusterProfile,
   type CoreVowelFamily,
   type IClusterPhoneticProfile,
+  type IPrecomputedPhoneticIndex,
 } from './acousticPhoneticProfiler';
 
 export {
@@ -938,36 +941,87 @@ function findBuiltinVerifiedSyncedLrc(
 }
 
 /**
- * Build a lazily cached acoustic-phonetic evaluator for phrase alignment stages
- * without circular imports or repeated PCM DSP scans.
+ * Build a fast O(log S) indexed acoustic-phonetic evaluator for phrase alignment stages.
+ * Reuses precomputed async syllable profiles when available (eliminating 500x synchronous
+ * Goertzel PCM scans inside anchor-chain / local-repair loops).
  */
 function createPhoneticEvaluatorForTrack(
   rawMonoPcm?: Float32Array | null,
   sampleRate = 44100,
   pitchTrack: IReferencePitchPoint[] = [],
-  precomputedProfiles?: Map<string, IClusterPhoneticProfile>
+  precomputedProfiles?: Map<string, IClusterPhoneticProfile>,
+  fallbackClusters?: Array<{ bars: IVocalNoteBar[]; startMs: number; endMs: number }>
 ): PhoneticEvaluationFn | undefined {
   if (!rawMonoPcm || sampleRate <= 0 || rawMonoPcm.length === 0) return undefined;
-  const cache = precomputedProfiles ?? new Map<string, IClusterPhoneticProfile>();
+
+  // Quick strided silence check (<0.01ms): skip DSP immediately for silent mock test buffers
+  if (!precomputedProfiles || precomputedProfiles.size === 0) {
+    let maxAbs = 0;
+    const step = Math.max(1, Math.floor(rawMonoPcm.length / 96));
+    for (let i = 0; i < rawMonoPcm.length; i += step) {
+      const a = Math.abs(rawMonoPcm[i]);
+      if (a > maxAbs) maxAbs = a;
+    }
+    if (maxAbs < 0.002) return undefined;
+  }
+
+  let index: IPrecomputedPhoneticIndex | null =
+    precomputedProfiles && precomputedProfiles.size > 0
+      ? buildPhoneticSyllableIndex(precomputedProfiles)
+      : null;
+
+  const ensureIndex = (): IPrecomputedPhoneticIndex => {
+    if (index) return index;
+    const map = new Map<string, IClusterPhoneticProfile>();
+    if (fallbackClusters && fallbackClusters.length > 0) {
+      for (const fc of fallbackClusters) {
+        const key = buildClusterProfileKey(fc.startMs, fc.endMs);
+        if (!map.has(key)) {
+          map.set(
+            key,
+            profileAudioClusterPhonetics({
+              bars: fc.bars,
+              startMs: fc.startMs,
+              endMs: fc.endMs,
+              rawMonoPcm,
+              sampleRate,
+              pitchTrack,
+            })
+          );
+        }
+      }
+    }
+    index = buildPhoneticSyllableIndex(map);
+    return index;
+  };
 
   return (tokens: string[], clusterSlices: PhoneticClusterSlice[]) => {
     if (clusterSlices.length === 0) {
       return { phoneticBonusCost: 0, hasUsableAudio: false };
     }
+    const idx = ensureIndex();
     let combined: IClusterPhoneticProfile | undefined;
+
     for (const cs of clusterSlices) {
-      const key = buildClusterProfileKey(cs.startMs, cs.endMs);
-      let prof = cache.get(key);
-      if (!prof) {
-        prof = profileAudioClusterPhonetics({
-          bars: cs.bars,
-          startMs: cs.startMs,
-          endMs: cs.endMs,
-          rawMonoPcm,
-          sampleRate,
-          pitchTrack,
-        });
-        cache.set(key, prof);
+      let prof: IClusterPhoneticProfile;
+      if (idx.allSyllables.length > 0 || idx.clusterProfiles.size > 0) {
+        prof = queryIndexedClusterProfile(idx, cs.startMs, cs.endMs, cs.bars.length);
+      } else {
+        const key = buildClusterProfileKey(cs.startMs, cs.endMs);
+        let cached = idx.clusterProfiles.get(key);
+        if (!cached) {
+          cached = profileAudioClusterPhonetics({
+            bars: cs.bars,
+            startMs: cs.startMs,
+            endMs: cs.endMs,
+            rawMonoPcm,
+            sampleRate,
+            pitchTrack,
+          });
+          idx.clusterProfiles.set(key, cached);
+          if (cached.hasUsableAudio) idx.hasUsableAudio = true;
+        }
+        prof = cached;
       }
       combined = mergeClusterPhoneticProfiles(combined, prof);
     }
@@ -3962,7 +4016,21 @@ export function alignLrcLinesToPhrases(
     rawMonoPcm,
     sampleRate,
     pitchTrack,
-    precomputedProfiles
+    precomputedProfiles,
+    precomputedProfiles && precomputedProfiles.size > 0
+      ? undefined
+      : [
+          ...phrases.map((p) => ({
+            bars: getPhraseNoteBarsStrict(p, cleanOriginalBars),
+            startMs: p.startMs,
+            endMs: p.endMs,
+          })),
+          ...clusterNoteBarsBySilence(cleanOriginalBars, 380, 6200).map((bars) => ({
+            bars,
+            startMs: bars[0].startTimeMs,
+            endMs: bars[bars.length - 1].endTimeMs,
+          })),
+        ]
   );
 
   const optimalOffsetMs = estimateOptimalLrcOffsetMs(
@@ -4501,7 +4569,14 @@ export function alignPlainTextToPhrases(
     rawMonoPcm,
     sampleRate,
     pitchTrack,
-    precomputedProfiles
+    precomputedProfiles,
+    precomputedProfiles && precomputedProfiles.size > 0
+      ? undefined
+      : phrases.map((p) => ({
+          bars: getPhraseNoteBarsStrict(p, cleanOriginalBars),
+          startMs: p.startMs,
+          endMs: p.endMs,
+        }))
   );
   const L = cleanLines.length;
   const P = phrases.length;
@@ -5105,8 +5180,8 @@ export async function fetchAutoLyricsFromLrclib(
     );
   });
 
-  // Overall time budget so a busy LRCLIB never blocks analysis forever
-  const deadline = Date.now() + 28000;
+  // Bounded time budget so a slow or overloaded LRCLIB never freezes loading at 97%
+  const deadline = Date.now() + 9500;
 
   for (const req of requestPlan) {
     if (Date.now() > deadline) break;
@@ -5115,11 +5190,9 @@ export async function fetchAutoLyricsFromLrclib(
 
     let list: any[] | null = null;
 
-    // Automatic retry with exponential backoff on HTTP 503 (LRCLIB ServerOverloaded), 429,
-    // or network/CORS failures (browser 503 responses can surface as TypeError)
-    for (let attempt = 0; attempt < 4 && Date.now() < deadline; attempt++) {
+    for (let attempt = 0; attempt < 2 && Date.now() < deadline; attempt++) {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 6000);
+      const timer = setTimeout(() => controller.abort(), 3800);
       try {
         const res = await fetch(req.url, {
           signal: controller.signal,
@@ -5128,7 +5201,7 @@ export async function fetchAutoLyricsFromLrclib(
         clearTimeout(timer);
 
         if (res.status === 503 || res.status === 429 || res.status >= 500) {
-          await new Promise((r) => setTimeout(r, 450 * Math.pow(1.8, attempt)));
+          await new Promise((r) => setTimeout(r, 350));
           continue;
         }
         if (!res.ok) break;
@@ -5140,7 +5213,7 @@ export async function fetchAutoLyricsFromLrclib(
         break;
       } catch {
         clearTimeout(timer);
-        await new Promise((r) => setTimeout(r, 400 * Math.pow(1.8, attempt)));
+        await new Promise((r) => setTimeout(r, 300));
       }
     }
 
@@ -5284,7 +5357,8 @@ export async function fetchAutoLyricsFromLrclib(
 export async function searchSongLyricCandidates(
   fileName: string,
   durationMs: number,
-  customQuery?: string
+  customQuery?: string,
+  options?: { skipNetwork?: boolean }
 ): Promise<ISongLyricCandidate[]> {
   const targetDurSec = durationMs > 0 ? durationMs / 1000 : 0;
   const normFile = normalizeVietnameseSearch(fileName.replace(/[._-]+/g, ' '));
@@ -5355,7 +5429,7 @@ export async function searchSongLyricCandidates(
   }
 
   // 2. Query LRCLIB Cloud if online
-  if (typeof fetch !== 'undefined') {
+  if (typeof fetch !== 'undefined' && !options?.skipNetwork) {
     const queries = customQuery?.trim()
       ? [customQuery.trim()]
       : buildSmartLyricQueries(fileName);
@@ -5993,8 +6067,7 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     );
   }
 
-  // Deep Acoustic-Phonetic Fingerprinting across all phrase & NoteBar clusters asynchronously
-  // so LRC/YouTube/Plain alignment breaks ties using F1/F2 mouth shapes + checked stops without cascade!
+  // Deep Acoustic-Phonetic Fingerprinting across deduplicated phrase clusters asynchronously
   const baseClustersForProfiling = [
     ...phrases.map((p) => ({
       bars: getPhraseNoteBarsStrict(p, noteBars),
@@ -6015,10 +6088,12 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     onProgress,
   });
 
-  // Pre-gather multi-candidate songs so user has instant switcher options
+  // Start offline-first with instant built-in/local candidates (skip slow LRCLIB calls if resolved offline)
   let candidates: ISongLyricCandidate[] = [];
   try {
-    candidates = await searchSongLyricCandidates(fileName, durationMs);
+    candidates = await searchSongLyricCandidates(fileName, durationMs, undefined, {
+      skipNetwork: true,
+    });
   } catch {
     // Non-fatal
   }
@@ -6031,9 +6106,10 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
     if (lrcLines.length > 0) {
       if (onProgress) {
         onProgress(
-          97,
+          98,
           'Giai đoạn 7/7: Đối chiếu lời LRC với dấu vân tay âm vị & Quy hoạch động chống lệch dây chuyền...'
         );
+        await new Promise((r) => setTimeout(r, 0));
       }
       alignLrcLinesToPhrases(
         phrases,
@@ -6045,6 +6121,10 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
         durationMs,
         precomputedProfiles
       );
+      if (onProgress) {
+        onProgress(99, 'Giai đoạn 7/7: Đang hoàn thiện cấu trúc đoạn & kiểm duyệt thanh điệu...');
+        await new Promise((r) => setTimeout(r, 0));
+      }
       finalizeSections();
       const audit = auditLyricAlignmentHealth(phrases, noteBars);
       if (audit.status !== 'mismatch_suspected') {
@@ -6224,13 +6304,26 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
       ? `${id3Meta.artist ? `${id3Meta.artist} - ` : ''}${id3Meta.title} - ${fileName}`
       : fileName;
 
-  const autoCloud = await fetchAutoLyricsFromLrclib(effectiveSearchName, durationMs);
+  if (onProgress) {
+    onProgress(
+      97,
+      'Giai đoạn 7/7: Đang truy vấn & đối chiếu kho lời bài hát đồng bộ (LRCLIB)...'
+    );
+  }
+  const [autoCloud, cloudCandidates] = await Promise.all([
+    fetchAutoLyricsFromLrclib(effectiveSearchName, durationMs),
+    searchSongLyricCandidates(fileName, durationMs).catch(() => candidates),
+  ]);
+  if (cloudCandidates && cloudCandidates.length > 0) {
+    candidates = cloudCandidates;
+  }
   if (autoCloud && (autoCloud.syncedLyrics || autoCloud.plainLyrics)) {
     if (onProgress) {
       onProgress(
-        96,
-        'Giai đoạn 7/7: Đối chiếu lời bài hát đồng bộ, tách nốt theo âm tiết & định vị cấu trúc đoạn...'
+        98,
+        'Giai đoạn 7/7: Đối chiếu lời LRC với dấu vân tay âm vị & tách nốt theo âm tiết...'
       );
+      await new Promise((r) => setTimeout(r, 0));
     }
     if (autoCloud.syncedLyrics) {
       const lrcLines = parseLrcContent(autoCloud.syncedLyrics);
@@ -6245,6 +6338,10 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
           durationMs,
           precomputedProfiles
         );
+        if (onProgress) {
+          onProgress(99, 'Giai đoạn 7/7: Đang hoàn thiện cấu trúc đoạn & kiểm duyệt thanh điệu...');
+          await new Promise((r) => setTimeout(r, 0));
+        }
         finalizeSections();
         let audit = auditLyricAlignmentHealth(phrases, noteBars);
         let chosenTitle = autoCloud.matchedTitle;

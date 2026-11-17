@@ -30,7 +30,9 @@ import {
 } from '../lyricAlignmentService';
 import {
   buildClusterPhoneticProfilesAsync,
+  buildPhoneticSyllableIndex,
   profileAudioClusterPhonetics,
+  queryIndexedClusterProfile,
   rescueUnvoicedVocalPhrasesFromPcm,
 } from '../acousticPhoneticProfiler';
 import { findSparseAnchorChainOffsets } from '../sequenceAlignmentEngine';
@@ -2367,5 +2369,12 @@ describe('lyricAlignmentService', () => {
     expect(map.size).toBe(10);
     expect(progressUpdates.length).toBeGreaterThanOrEqual(2);
     expect(progressUpdates[progressUpdates.length - 1]).toBe(97);
+
+    // Indexed lookup resolves arbitrary sub-windows in O(log S) without PCM re-scan
+    const index = buildPhoneticSyllableIndex(map);
+    expect(index.hasUsableAudio).toBe(true);
+    const subProfile = queryIndexedClusterProfile(index, 2000, 5600, 4);
+    expect(subProfile.hasUsableAudio).toBe(true);
+    expect(subProfile.syllables.length).toBeGreaterThanOrEqual(3);
   });
 });

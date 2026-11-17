@@ -62,7 +62,7 @@ const SECTION_BADGE_STYLE: Record<VocalSectionType, string> = {
   outro: 'bg-teal-500/15 text-teal-300 border-teal-500/30',
 };
 
-export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
+const PhraseNavigatorDeckInner: React.FC<PhraseNavigatorDeckProps> = ({
   phrases,
   durationMs,
   currentTimeMs,
@@ -1103,3 +1103,18 @@ export const PhraseNavigatorDeck: React.FC<PhraseNavigatorDeckProps> = ({
     );
   }
 };
+
+export const PhraseNavigatorDeck = React.memo(PhraseNavigatorDeckInner, (prev, next) => {
+  return (
+    prev.phrases === next.phrases &&
+    prev.durationMs === next.durationMs &&
+    Math.floor(prev.currentTimeMs / 1000) === Math.floor(next.currentTimeMs / 1000) &&
+    prev.activePhraseIndex === next.activePhraseIndex &&
+    prev.selectedPhraseIndex === next.selectedPhraseIndex &&
+    prev.isLoopingActive === next.isLoopingActive &&
+    prev.sessionStats === next.sessionStats &&
+    prev.playbackSpeed === next.playbackSpeed &&
+    prev.canUndo === next.canUndo &&
+    prev.canRedo === next.canRedo
+  );
+});

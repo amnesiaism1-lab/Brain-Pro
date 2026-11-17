@@ -56,6 +56,12 @@ export interface IClusterPhoneticProfile {
   durationMs: number;
 }
 
+export interface IPrecomputedPhoneticIndex {
+  clusterProfiles: Map<string, IClusterPhoneticProfile>;
+  allSyllables: ISyllableAcousticVector[];
+  hasUsableAudio: boolean;
+}
+
 export interface IPhoneticLineClusterMatch {
   distance: number; // 0..1.2 (lower = closer match; 0.45 neutral)
   hasUsableAudio: boolean;
@@ -622,7 +628,7 @@ export function profileAudioClusterPhonetics(params: {
     };
   }
 
-  const hopMs = 16;
+  const hopMs = 20;
   const winMs = 24;
   const hopSamples = Math.max(128, Math.round((sampleRate * hopMs) / 1000));
   const winSamples = Math.max(256, Math.round((sampleRate * winMs) / 1000));
@@ -866,6 +872,107 @@ export function buildClusterPhoneticProfilesSync(params: {
 }
 
 /**
+ * Build a flat time-sorted syllable index across precomputed cluster profiles so arbitrary
+ * candidate windows in anchor-chain / local-repair DP resolve in O(log S) without re-scanning PCM.
+ */
+export function buildPhoneticSyllableIndex(
+  clusterProfiles: Map<string, IClusterPhoneticProfile>
+): IPrecomputedPhoneticIndex {
+  const allSyllables: ISyllableAcousticVector[] = [];
+  let hasUsableAudio = false;
+
+  for (const prof of clusterProfiles.values()) {
+    if (prof.hasUsableAudio) {
+      hasUsableAudio = true;
+      for (const s of prof.syllables) {
+        allSyllables.push(s);
+      }
+    }
+  }
+
+  allSyllables.sort((a, b) => a.peakMs - b.peakMs);
+
+  // Deduplicate syllables overlapping within 55ms from overlapping phrase vs bar clusters
+  const deduped: ISyllableAcousticVector[] = [];
+  for (const s of allSyllables) {
+    if (deduped.length === 0 || s.peakMs - deduped[deduped.length - 1].peakMs >= 55) {
+      deduped.push(s);
+    }
+  }
+
+  return {
+    clusterProfiles,
+    allSyllables: deduped,
+    hasUsableAudio,
+  };
+}
+
+/**
+ * Resolve any arbitrary `[startMs, endMs]` window against the precomputed syllable index
+ * in O(log S) via binary search with zero extra Goertzel DFT passes.
+ */
+export function queryIndexedClusterProfile(
+  index: IPrecomputedPhoneticIndex,
+  startMs: number,
+  endMs: number,
+  fallbackBarCount: number
+): IClusterPhoneticProfile {
+  const clusterKey = buildClusterProfileKey(startMs, endMs);
+  const exact = index.clusterProfiles.get(clusterKey);
+  if (exact) return exact;
+
+  if (!index.hasUsableAudio || index.allSyllables.length === 0) {
+    return {
+      clusterKey,
+      hasUsableAudio: false,
+      acousticSyllableCount: Math.max(1, fallbackBarCount),
+      syllables: [],
+      meanCheckedStopRatio: 0,
+      durationMs: Math.max(120, endMs - startMs),
+    };
+  }
+
+  const syls = index.allSyllables;
+  const loBound = startMs - 30;
+  const hiBound = endMs + 30;
+
+  let lo = 0;
+  let hi = syls.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (syls[mid].peakMs < loBound) lo = mid + 1;
+    else hi = mid;
+  }
+
+  const matched: ISyllableAcousticVector[] = [];
+  let stopSum = 0;
+  for (let i = lo; i < syls.length && syls[i].peakMs <= hiBound; i++) {
+    matched.push(syls[i]);
+    stopSum += syls[i].codaClippedStopScore;
+  }
+
+  if (matched.length === 0) {
+    return {
+      clusterKey,
+      hasUsableAudio: false,
+      acousticSyllableCount: Math.max(1, fallbackBarCount),
+      syllables: [],
+      meanCheckedStopRatio: 0,
+      durationMs: Math.max(120, endMs - startMs),
+    };
+  }
+
+  return {
+    clusterKey,
+    hasUsableAudio: true,
+    acousticSyllableCount: Math.max(matched.length, Math.min(fallbackBarCount, matched.length + 2)),
+    syllables: matched,
+    meanCheckedStopRatio: stopSum / matched.length,
+    durationMs: Math.max(120, endMs - startMs),
+  };
+}
+
+/**
  * Asynchronously profile all clusters in small batches with event-loop yields
  * and real UI progress reporting ("load file âm thanh lâu hơn 1 chút cũng đc" without UI freeze).
  */
@@ -882,38 +989,46 @@ export async function buildClusterPhoneticProfilesAsync(params: {
     return map;
   }
 
-  const batchSize = 8;
-  for (let i = 0; i < clusters.length; i += batchSize) {
-    const end = Math.min(clusters.length, i + batchSize);
+  // Deduplicate overlapping phrase & silence clusters up front so large tracks don't profile twice
+  const uniqueClusters: Array<{ bars: IVocalNoteBar[]; startMs: number; endMs: number; key: string }> = [];
+  const seenKeys = new Set<string>();
+  for (const c of clusters) {
+    const key = buildClusterProfileKey(c.startMs, c.endMs);
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniqueClusters.push({ ...c, key });
+    }
+  }
+
+  const batchSize = 6;
+  for (let i = 0; i < uniqueClusters.length; i += batchSize) {
+    const end = Math.min(uniqueClusters.length, i + batchSize);
     for (let k = i; k < end; k++) {
-      const c = clusters[k];
-      const key = buildClusterProfileKey(c.startMs, c.endMs);
-      if (!map.has(key)) {
-        map.set(
-          key,
-          profileAudioClusterPhonetics({
-            bars: c.bars,
-            startMs: c.startMs,
-            endMs: c.endMs,
-            rawMonoPcm,
-            sampleRate,
-            pitchTrack,
-          })
-        );
-      }
+      const c = uniqueClusters[k];
+      map.set(
+        c.key,
+        profileAudioClusterPhonetics({
+          bars: c.bars,
+          startMs: c.startMs,
+          endMs: c.endMs,
+          rawMonoPcm,
+          sampleRate,
+          pitchTrack,
+        })
+      );
     }
 
     if (onProgress) {
-      const ratio = end / clusters.length;
+      const ratio = end / uniqueClusters.length;
       const pct = Math.min(97, Math.round(94 + ratio * 3));
       onProgress(
         pct,
-        `Giai đoạn 6/7: Trích xuất dấu vân tay âm vị & vần tiết F1-F2 (${end}/${clusters.length} cụm)...`
+        `Giai đoạn 6/7: Trích xuất dấu vân tay âm vị & vần tiết F1-F2 (${end}/${uniqueClusters.length} cụm)...`
       );
     }
 
     // Yield control between batches so rendering & progress updates stay smooth
-    if (end < clusters.length) {
+    if (end < uniqueClusters.length) {
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
   }

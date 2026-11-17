@@ -74,7 +74,7 @@ function formatTime(ms: number): string {
   return `${m}:${s < 10 ? '0' : ''}${s}`;
 }
 
-export const TransportBar: React.FC<TransportBarProps> = ({
+export const TransportBar: React.FC<TransportBarProps> = React.memo(({
   isPlaying,
   onTogglePlay,
   currentTimeMs,
@@ -301,4 +301,4 @@ export const TransportBar: React.FC<TransportBarProps> = ({
       </div>
     </div>
   );
-};
+});

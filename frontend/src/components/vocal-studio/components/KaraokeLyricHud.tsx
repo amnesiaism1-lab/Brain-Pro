@@ -67,7 +67,7 @@ const SOURCE_LABELS: Record<LyricSourceType, { label: string; colorClass: string
   },
 };
 
-export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
+export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = React.memo(({
   phrases,
   currentTimeMs,
   renderStateRef,
@@ -91,21 +91,36 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
   const [isEditingInline, setIsEditingInline] = useState(false);
   const [inlineDraft, setInlineDraft] = useState('');
   const [liveHudTimeMs, setLiveHudTimeMs] = useState<number>(currentTimeMs);
+  const lastHudStateKeyRef = React.useRef<string>('');
 
-  // High-frequency ~30fps sync directly to renderStateRef while playing so rapid syllables
-  // highlight in lockstep with audio output (<33ms latency) without re-rendering parent store!
+  // Sync directly when paused or scrubbing without disturbing rAF loop
   useEffect(() => {
     if (!isPlaying || !renderStateRef) {
       setLiveHudTimeMs(currentTimeMs);
-      return;
     }
+  }, [isPlaying, renderStateRef, currentTimeMs]);
+
+  // Persistent 60fps observer synced to renderStateRef while playing:
+  // ONLY triggers a React render when active phrase, active word, or 0.1s entrance countdown actually changes!
+  useEffect(() => {
+    if (!isPlaying || !renderStateRef) return;
+    lastHudStateKeyRef.current = '';
     let rafId: number;
-    let lastTick = 0;
-    const tick = (now: number) => {
-      if (now - lastTick >= 28) {
-        lastTick = now;
-        const t = renderStateRef.current?.currentTimeMs;
-        if (typeof t === 'number') {
+    const tick = () => {
+      const t = renderStateRef.current?.currentTimeMs;
+      if (typeof t === 'number') {
+        const ph = phrases.find((p) => t >= p.startMs && t <= p.endMs) || null;
+        const targetPh =
+          ph || phrases.find((p) => p.startMs > t) || phrases[phrases.length - 1] || null;
+        const pIdx = targetPh?.phraseIndex ?? -1;
+        const wIdx = targetPh?.words ? findActiveWordIndexAtTime(targetPh.words, t) : -1;
+        const waitTenth =
+          !ph && targetPh && targetPh.startMs > t
+            ? Math.round(Math.max(0, (targetPh.startMs - t) / 100))
+            : -1;
+        const stateKey = `${pIdx}:${wIdx}:${waitTenth}`;
+        if (stateKey !== lastHudStateKeyRef.current) {
+          lastHudStateKeyRef.current = stateKey;
           setLiveHudTimeMs(t);
         }
       }
@@ -113,7 +128,7 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
     };
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [isPlaying, renderStateRef, currentTimeMs]);
+  }, [isPlaying, renderStateRef, phrases, activePhrase]);
 
   const effectiveHudTimeMs = isPlaying && renderStateRef ? liveHudTimeMs : currentTimeMs;
 
@@ -648,4 +663,4 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
       </div>
     </div>
   );
-};
+});

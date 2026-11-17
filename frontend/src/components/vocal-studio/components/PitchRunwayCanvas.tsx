@@ -15,6 +15,18 @@ interface PitchRunwayCanvasProps {
 
 const ACCIDENTAL_SEMITONES = new Set([1, 3, 6, 8, 10]);
 
+/** O(log N) binary search returning first index where `getKey(arr[i]) >= target`. */
+function lowerBoundIndex<T>(arr: T[], getKey: (item: T) => number, target: number): number {
+  let lo = 0;
+  let hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (getKey(arr[mid]) < target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 const playAuditionNote = (midi: number) => {
   const freq = 440 * Math.pow(2, (midi - 69) / 12);
   try {
@@ -27,7 +39,7 @@ const playAuditionNote = (midi: number) => {
   }
 };
 
-export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
+export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
   renderStateRef,
   className = '',
   onSeek,
@@ -424,23 +436,49 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mouseleave', handleMouseLeave);
 
-    const resizeCanvas = () => {
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      const width = canvas.clientWidth || 860;
-      const height = canvas.clientHeight || 280;
-      const dw = Math.floor(width * dpr);
-      const dh = Math.floor(height * dpr);
+    let cachedW = canvas.clientWidth || 860;
+    let cachedH = canvas.clientHeight || 280;
+    let cachedDpr = Math.min(2, window.devicePixelRatio || 1);
+
+    const applyCanvasSize = (w: number, h: number) => {
+      cachedW = Math.max(200, Math.round(w));
+      cachedH = Math.max(120, Math.round(h));
+      cachedDpr = Math.min(2, window.devicePixelRatio || 1);
+      const dw = Math.floor(cachedW * cachedDpr);
+      const dh = Math.floor(cachedH * cachedDpr);
       if (canvas.width !== dw || canvas.height !== dh) {
         canvas.width = dw;
         canvas.height = dh;
       }
-      return { width, height, dpr };
     };
+    applyCanvasSize(cachedW, cachedH);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const rect = entry.contentRect;
+          if (rect.width > 0 && rect.height > 0) {
+            applyCanvasSize(rect.width, rect.height);
+          }
+        }
+      });
+      resizeObserver.observe(canvas);
+    }
+
+    // Offscreen cache for static piano roll strips, keys, grid lines & note labels
+    const bgCanvas = document.createElement('canvas');
+    const bgCtx = bgCanvas.getContext('2d');
+    let lastBgCacheKey = '';
+    let cachedScaleNotesRef: string[] | undefined;
+    let cachedScaleSet = new Set<string>();
 
     const render = () => {
       if (!isMounted) return;
 
-      const { width, height, dpr } = resizeCanvas();
+      const width = cachedW;
+      const height = cachedH;
+      const dpr = cachedDpr;
       ctx.save();
       ctx.scale(dpr, dpr);
 
@@ -467,6 +505,12 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         transposeSemitones = 0,
       } = state;
 
+      if (scaleNotes !== cachedScaleNotesRef) {
+        cachedScaleNotesRef = scaleNotes;
+        cachedScaleSet = new Set(scaleNotes || []);
+      }
+      const scaleSet = cachedScaleSet;
+
       // Zero-latency acoustic alignment:
       const latencyOffsetMs = rawLatencyOffsetMs ?? 45;
       const effectiveTimeMs = Math.max(0, currentTimeMs - latencyOffsetMs);
@@ -479,23 +523,25 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       const windowEndMs = effectiveTimeMs + futureWindowMs;
 
       // Top ceiling: C7 (end of octave 6).
-      // In FL Studio: MIDI 84 (rendered as C7); in International: MIDI 96 (rendered as C7).
       const maxTopMidi = state.octaveConvention === 'fl_studio' ? 84 : 96;
       const minBottomMidi = 36; // C2
 
-      // 1. Dynamic Pitch Window (Auto-Follow like FL Studio NewTone)
-      const now = Date.now();
-      const isManualControl = now < userInteractedUntilRef.current || isWindowLocked;
-
-      // Scan notes in current viewport to dynamically keep notes centered and never lost
+      // Single O(log N) binary-searched pass collecting visible NoteBar indices + viewport pitch min/max
       let localMin = Infinity;
       let localMax = -Infinity;
       let notesInWindow = 0;
+      const visibleBarIndices: number[] = [];
 
       if (noteBars && noteBars.length > 0) {
-        for (let i = 0; i < noteBars.length; i++) {
+        const startBarIdx = Math.max(
+          0,
+          lowerBoundIndex(noteBars, (b) => b.startTimeMs, windowStartMs - 6500)
+        );
+        for (let i = startBarIdx; i < noteBars.length; i++) {
           const bar = noteBars[i];
-          if (bar.endTimeMs >= windowStartMs && bar.startTimeMs <= windowEndMs) {
+          if (bar.startTimeMs > windowEndMs) break;
+          if (bar.endTimeMs >= windowStartMs) {
+            visibleBarIndices.push(i);
             const m = Math.min(maxTopMidi, Math.max(minBottomMidi, bar.midi + transposeSemitones));
             if (m < localMin) localMin = m;
             if (m > localMax) localMax = m;
@@ -503,6 +549,8 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           }
         }
       }
+
+      const isManualControl = Date.now() < userInteractedUntilRef.current || isWindowLocked;
 
       let targetMin: number;
       let targetMax: number;
@@ -581,78 +629,92 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
 
       const midiToY = (m: number) => height - ((m - effectiveMin) / midiSpan) * height;
 
-      // Detect off-screen notes within visible runway
+      // Detect off-screen notes from already filtered visibleBarIndices (O(visible) instead of O(N))
       let highestOffscreenMidi = -Infinity;
       let lowestOffscreenMidi = Infinity;
 
-      if (noteBars && noteBars.length > 0) {
-        for (let i = 0; i < noteBars.length; i++) {
-          const bar = noteBars[i];
-          if (bar.endTimeMs >= windowStartMs && bar.startTimeMs <= windowEndMs) {
-            const m = bar.midi + transposeSemitones;
-            if (m > effectiveMin + midiSpan && m > highestOffscreenMidi) highestOffscreenMidi = m;
-            if (m < effectiveMin && m < lowestOffscreenMidi) lowestOffscreenMidi = m;
-          }
+      if (noteBars && visibleBarIndices.length > 0) {
+        for (let vi = 0; vi < visibleBarIndices.length; vi++) {
+          const m = noteBars[visibleBarIndices[vi]].midi + transposeSemitones;
+          if (m > effectiveMin + midiSpan && m > highestOffscreenMidi) highestOffscreenMidi = m;
+          if (m < effectiveMin && m < lowestOffscreenMidi) lowestOffscreenMidi = m;
         }
       }
 
-      // 2. Background & Piano Roll Semitone Stripes
-      ctx.fillStyle = '#050811';
-      ctx.fillRect(0, 0, width, height);
-
-      const scaleSet = new Set(scaleNotes || []);
+      // 2. Background & Piano Roll Semitone Stripes (offscreen-cached whenever pitch zoom/scale stays steady)
       const pianoKeyWidth = width > 1200 ? 46 : 36;
       const octOffset = state.octaveConvention === 'international' ? 0 : 1;
+      const scaleKey = scaleNotes ? scaleNotes.join(',') : '';
+      const bgCacheKey = `${width}:${height}:${dpr}:${Math.round(effectiveMin * 250)}:${Math.round(midiSpan * 250)}:${octOffset}:${scaleKey}`;
 
-      // Only iterate and draw notes strictly from minBottomMidi up to maxTopMidi (C7 / hết quãng 6)
-      const startMidi = Math.max(minBottomMidi, Math.floor(effectiveMin));
-      const endMidi = Math.min(maxTopMidi, Math.ceil(effectiveMin + midiSpan));
+      const drawPianoGridToTarget = (tCtx: CanvasRenderingContext2D) => {
+        tCtx.fillStyle = '#050811';
+        tCtx.fillRect(0, 0, width, height);
 
-      for (let m = startMidi; m <= endMidi; m++) {
-        const yTop = midiToY(m + 0.5);
-        const yBottom = midiToY(m - 0.5);
-        const stripH = Math.max(1, yBottom - yTop);
-        const semi = ((m % 12) + 12) % 12;
-        const noteName = NOTE_NAMES[semi];
-        const isBlackKey = ACCIDENTAL_SEMITONES.has(semi);
-        const isC = semi === 0;
-        const isInScale = scaleSet.size > 0 ? scaleSet.has(noteName) : !isBlackKey;
+        const startMidi = Math.max(minBottomMidi, Math.floor(effectiveMin));
+        const endMidi = Math.min(maxTopMidi, Math.ceil(effectiveMin + midiSpan));
 
-        // Runway stripe fill: subtle highlight for in-scale notes, darkened for out-of-scale
-        if (isInScale) {
-          ctx.fillStyle = isC ? 'rgba(56, 189, 248, 0.10)' : 'rgba(56, 189, 248, 0.04)';
-        } else {
-          ctx.fillStyle = isBlackKey ? 'rgba(0, 0, 0, 0.55)' : 'rgba(15, 23, 42, 0.30)';
+        for (let m = startMidi; m <= endMidi; m++) {
+          const yTop = midiToY(m + 0.5);
+          const yBottom = midiToY(m - 0.5);
+          const stripH = Math.max(1, yBottom - yTop);
+          const semi = ((m % 12) + 12) % 12;
+          const noteName = NOTE_NAMES[semi];
+          const isBlackKey = ACCIDENTAL_SEMITONES.has(semi);
+          const isC = semi === 0;
+          const isInScale = scaleSet.size > 0 ? scaleSet.has(noteName) : !isBlackKey;
+
+          if (isInScale) {
+            tCtx.fillStyle = isC ? 'rgba(56, 189, 248, 0.10)' : 'rgba(56, 189, 248, 0.04)';
+          } else {
+            tCtx.fillStyle = isBlackKey ? 'rgba(0, 0, 0, 0.55)' : 'rgba(15, 23, 42, 0.30)';
+          }
+          tCtx.fillRect(pianoKeyWidth, yTop, width - pianoKeyWidth, stripH);
+
+          tCtx.fillStyle = isBlackKey ? '#090d16' : '#1e293b';
+          tCtx.fillRect(0, yTop, pianoKeyWidth, stripH);
+          tCtx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+          tCtx.lineWidth = 1;
+          tCtx.strokeRect(0, yTop, pianoKeyWidth, stripH);
+
+          const lineY = midiToY(m);
+          tCtx.strokeStyle = isC
+            ? 'rgba(56, 189, 248, 0.45)'
+            : isInScale
+            ? 'rgba(255, 255, 255, 0.08)'
+            : 'rgba(255, 255, 255, 0.03)';
+          tCtx.lineWidth = isC ? 1.5 : 1;
+          tCtx.beginPath();
+          tCtx.moveTo(pianoKeyWidth, lineY);
+          tCtx.lineTo(width, lineY);
+          tCtx.stroke();
+
+          const oct = Math.floor(m / 12) - 1 + octOffset;
+          const noteStr = `${noteName}${oct}`;
+          tCtx.fillStyle = isC ? '#38bdf8' : isInScale ? '#f1f5f9' : 'rgba(100, 116, 139, 0.5)';
+          tCtx.font = isC ? 'bold 10.5px monospace' : isInScale ? 'bold 9px monospace' : '8.5px monospace';
+          tCtx.textAlign = 'left';
+          tCtx.fillText(noteStr, 4, lineY + 3.5);
         }
-        ctx.fillRect(pianoKeyWidth, yTop, width - pianoKeyWidth, stripH);
+      };
 
-        // Left piano roll key column (FL Studio NewTone style)
-        ctx.fillStyle = isBlackKey ? '#090d16' : '#1e293b';
-        ctx.fillRect(0, yTop, pianoKeyWidth, stripH);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
-        ctx.strokeRect(0, yTop, pianoKeyWidth, stripH);
-
-        // Grid line
-        const lineY = midiToY(m);
-        ctx.strokeStyle = isC
-          ? 'rgba(56, 189, 248, 0.45)'
-          : isInScale
-          ? 'rgba(255, 255, 255, 0.08)'
-          : 'rgba(255, 255, 255, 0.03)';
-        ctx.lineWidth = isC ? 1.5 : 1;
-        ctx.beginPath();
-        ctx.moveTo(pianoKeyWidth, lineY);
-        ctx.lineTo(width, lineY);
-        ctx.stroke();
-
-        // Note label on left piano key (C prominent, scale notes crisp)
-        // Displays octave according to active convention (FL Studio C5/G5 vs International C4/G4)
-        const oct = Math.floor(m / 12) - 1 + octOffset;
-        const noteStr = `${noteName}${oct}`;
-        ctx.fillStyle = isC ? '#38bdf8' : isInScale ? '#f1f5f9' : 'rgba(100, 116, 139, 0.5)';
-        ctx.font = isC ? 'bold 10.5px monospace' : isInScale ? 'bold 9px monospace' : '8.5px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText(noteStr, 4, lineY + 3.5);
+      if (bgCtx) {
+        if (lastBgCacheKey !== bgCacheKey) {
+          const bw = Math.floor(width * dpr);
+          const bh = Math.floor(height * dpr);
+          if (bgCanvas.width !== bw || bgCanvas.height !== bh) {
+            bgCanvas.width = bw;
+            bgCanvas.height = bh;
+          }
+          bgCtx.save();
+          bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          drawPianoGridToTarget(bgCtx);
+          bgCtx.restore();
+          lastBgCacheKey = bgCacheKey;
+        }
+        ctx.drawImage(bgCanvas, 0, 0, width, height);
+      } else {
+        drawPianoGridToTarget(ctx);
       }
 
       // 3. Tolerance Band around Active Target Note
@@ -680,11 +742,17 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       }
 
       // 5. Reference Vocal Track: FL Studio NewTone-Style Note Blocks & Pitch Ribbon
-      // A. Render Note Blocks (Solid rectangular semitone blocks on piano roll with internal audio waveform)
-      if (noteBars && noteBars.length > 0) {
-        for (let i = 0; i < noteBars.length; i++) {
+      // A. Render Note Blocks strictly across `visibleBarIndices` (zero Gaussian `shadowBlur` bottlenecks)
+      if (noteBars && visibleBarIndices.length > 0) {
+        const sortedPhrases = state.phrases;
+        let phraseCursor =
+          sortedPhrases && sortedPhrases.length > 0
+            ? Math.max(0, lowerBoundIndex(sortedPhrases, (ph) => ph.endMs, windowStartMs) - 1)
+            : 0;
+
+        for (let vi = 0; vi < visibleBarIndices.length; vi++) {
+          const i = visibleBarIndices[vi];
           const bar = noteBars[i];
-          if (bar.endTimeMs < windowStartMs || bar.startTimeMs > windowEndMs) continue;
 
           const barMidi = bar.midi + transposeSemitones;
           const x1 = playheadX + ((bar.startTimeMs - effectiveTimeMs) / totalWindowMs) * width;
@@ -701,30 +769,33 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
 
           ctx.save();
           if (isActive && isInTuneNow) {
-            // Hit effect: glowing neon emerald
-            ctx.shadowBlur = 18;
-            ctx.shadowColor = '#10b981';
-            ctx.fillStyle = 'rgba(16, 185, 129, 0.5)';
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.50)';
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.25)';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(x1, topY, barW, barH, 4);
+            else ctx.rect(x1, topY, barW, barH);
+            ctx.stroke();
             ctx.strokeStyle = '#34d399';
-            ctx.lineWidth = 2.5;
+            ctx.lineWidth = 2.4;
           } else if (isActive) {
-            // Active current note block: vibrant NewTone amber-gold illumination
-            ctx.shadowBlur = 16;
-            ctx.shadowColor = '#f59e0b';
             ctx.fillStyle = 'rgba(245, 158, 11, 0.45)';
+            ctx.strokeStyle = 'rgba(245, 158, 11, 0.25)';
+            ctx.lineWidth = 5.5;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(x1, topY, barW, barH, 4);
+            else ctx.rect(x1, topY, barW, barH);
+            ctx.stroke();
             ctx.strokeStyle = '#fde68a';
             ctx.lineWidth = 2.2;
           } else {
-            // Inactive NewTone note block: warm translucent amber glass
-            ctx.shadowBlur = 5;
-            ctx.shadowColor = 'rgba(249, 115, 22, 0.35)';
             ctx.fillStyle = isNoteInScale ? 'rgba(234, 88, 12, 0.22)' : 'rgba(180, 83, 9, 0.16)';
             ctx.strokeStyle = isNoteInScale ? 'rgba(251, 146, 60, 0.75)' : 'rgba(251, 146, 60, 0.45)';
             ctx.lineWidth = 1.4;
           }
 
           if (!isNoteInScale) {
-            ctx.setLineDash([4, 2]); // Dashed border for chromatic / out-of-scale notes
+            ctx.setLineDash([4, 2]);
           }
 
           ctx.beginPath();
@@ -799,9 +870,19 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           if (barW >= 22) {
             const oct = Math.floor(barMidi / 12) - 1 + octOffset;
             const displayNoteName = `${barNoteName}${oct}`;
-            const overlappingPhrase = state.phrases?.find(
-              (ph) => ph.endMs >= bar.startTimeMs && ph.startMs <= bar.endTimeMs
-            );
+            let overlappingPhrase = undefined;
+            if (sortedPhrases && sortedPhrases.length > 0) {
+              while (
+                phraseCursor + 1 < sortedPhrases.length &&
+                sortedPhrases[phraseCursor].endMs < bar.startTimeMs
+              ) {
+                phraseCursor++;
+              }
+              const cand = sortedPhrases[phraseCursor];
+              if (cand && cand.endMs >= bar.startTimeMs && cand.startMs <= bar.endTimeMs) {
+                overlappingPhrase = cand;
+              }
+            }
             const subWords = overlappingPhrase?.words?.filter(
               (w) => {
                 const wMid = (w.startMs + w.endMs) / 2;
@@ -919,57 +1000,99 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         }
       }
 
-      // B. Render Micro-Pitch Contour Ribbon (Amber / Gold continuous curve through note blocks)
+      // B. Render Micro-Pitch Contour Ribbon using O(log N) viewport slice & dual-pass halo (zero shadowBlur!)
       if (pitchTrack && pitchTrack.length > 0) {
-        ctx.save();
-        ctx.lineWidth = 2.8;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#f59e0b';
-        ctx.strokeStyle = '#fbbf24';
-
+        const startPtIdx = Math.max(
+          0,
+          lowerBoundIndex(pitchTrack, (pt) => pt.timeMs, windowStartMs) - 1
+        );
+        const path = typeof Path2D !== 'undefined' ? new Path2D() : null;
         let drawing = false;
         let lastDrawnMidi = 0;
         let lastDrawnTimeMs = 0;
-        ctx.beginPath();
-        for (let i = 0; i < pitchTrack.length; i++) {
-          const pt = pitchTrack[i];
-          if (pt.timeMs < windowStartMs || pt.timeMs > windowEndMs) continue;
-          const x = playheadX + ((pt.timeMs - effectiveTimeMs) / totalWindowMs) * width;
-          if (pt.isVocal && pt.midi > 0) {
-            const y = midiToY(pt.midi + transposeSemitones);
-            // Sudden plunge / leap guard: if pitch jumps by >= 12 semitones in <= 40ms, lift pen
-            const hasViolentPlunge = drawing && (pt.timeMs - lastDrawnTimeMs <= 40) && Math.abs(pt.midi - lastDrawnMidi) >= 12.0;
-            if (hasViolentPlunge) {
+
+        if (path) {
+          for (let i = startPtIdx; i < pitchTrack.length; i++) {
+            const pt = pitchTrack[i];
+            if (pt.timeMs > windowEndMs) break;
+            if (pt.timeMs < windowStartMs) continue;
+            const x = playheadX + ((pt.timeMs - effectiveTimeMs) / totalWindowMs) * width;
+            if (pt.isVocal && pt.midi > 0) {
+              const y = midiToY(pt.midi + transposeSemitones);
+              const hasViolentPlunge =
+                drawing && pt.timeMs - lastDrawnTimeMs <= 40 && Math.abs(pt.midi - lastDrawnMidi) >= 12.0;
+              if (hasViolentPlunge) drawing = false;
+              if (!drawing) {
+                path.moveTo(x, y);
+                drawing = true;
+              } else {
+                path.lineTo(x, y);
+              }
+              lastDrawnMidi = pt.midi;
+              lastDrawnTimeMs = pt.timeMs;
+            } else {
+              drawing = false;
+            }
+          }
+          ctx.save();
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.lineWidth = 6.5;
+          ctx.strokeStyle = 'rgba(245, 158, 11, 0.24)';
+          ctx.stroke(path);
+          ctx.lineWidth = 2.6;
+          ctx.strokeStyle = '#fbbf24';
+          ctx.stroke(path);
+          ctx.restore();
+        } else {
+          ctx.save();
+          ctx.lineWidth = 2.6;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.strokeStyle = '#fbbf24';
+          ctx.beginPath();
+          for (let i = startPtIdx; i < pitchTrack.length; i++) {
+            const pt = pitchTrack[i];
+            if (pt.timeMs > windowEndMs) break;
+            if (pt.timeMs < windowStartMs) continue;
+            const x = playheadX + ((pt.timeMs - effectiveTimeMs) / totalWindowMs) * width;
+            if (pt.isVocal && pt.midi > 0) {
+              const y = midiToY(pt.midi + transposeSemitones);
+              const hasViolentPlunge =
+                drawing && pt.timeMs - lastDrawnTimeMs <= 40 && Math.abs(pt.midi - lastDrawnMidi) >= 12.0;
+              if (hasViolentPlunge) {
+                ctx.stroke();
+                ctx.beginPath();
+                drawing = false;
+              }
+              if (!drawing) {
+                ctx.moveTo(x, y);
+                drawing = true;
+              } else {
+                ctx.lineTo(x, y);
+              }
+              lastDrawnMidi = pt.midi;
+              lastDrawnTimeMs = pt.timeMs;
+            } else if (drawing) {
               ctx.stroke();
               ctx.beginPath();
               drawing = false;
             }
-
-            if (!drawing) {
-              ctx.moveTo(x, y);
-              drawing = true;
-            } else {
-              ctx.lineTo(x, y);
-            }
-            lastDrawnMidi = pt.midi;
-            lastDrawnTimeMs = pt.timeMs;
-          } else if (drawing) {
-            ctx.stroke();
-            ctx.beginPath();
-            drawing = false;
           }
+          if (drawing) ctx.stroke();
+          ctx.restore();
         }
-        if (drawing) ctx.stroke();
-        ctx.restore();
       }
 
-      // 6. User Sung Pitch Trail with Distinct Shapes (▲ Sharp, ▼ Flat, ● In-Tune)
+      // 6. User Sung Pitch Trail (O(log N) binary sliced)
       if (userPitchTrail && userPitchTrail.length > 0) {
-        for (let i = 1; i < userPitchTrail.length; i++) {
+        const startTrailIdx = Math.max(
+          1,
+          lowerBoundIndex(userPitchTrail, (pt) => pt.timeMs, windowStartMs)
+        );
+        for (let i = startTrailIdx; i < userPitchTrail.length; i++) {
           const pt = userPitchTrail[i];
-          if (pt.timeMs < windowStartMs || pt.timeMs > windowEndMs) continue;
+          if (pt.timeMs > windowEndMs) break;
           const x = playheadX + ((pt.timeMs - effectiveTimeMs) / totalWindowMs) * width;
           const y = midiToY(pt.midi);
 
@@ -981,7 +1104,6 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
             ctx.arc(x, y, 3, 0, Math.PI * 2);
             ctx.fill();
           } else if (pt.centsDiff > 0) {
-            // Sharp: ▲ Triangle pointing up
             ctx.beginPath();
             ctx.moveTo(x, y - 4);
             ctx.lineTo(x - 3.5, y + 3);
@@ -989,7 +1111,6 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
             ctx.closePath();
             ctx.fill();
           } else {
-            // Flat: ▼ Triangle pointing down
             ctx.beginPath();
             ctx.moveTo(x, y + 4);
             ctx.lineTo(x - 3.5, y - 3);
@@ -1000,18 +1121,21 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
         }
       }
 
-      // 7. Target Hit-Box under Playhead
+      // 7. Target Hit-Box under Playhead (fast outer halo stroke, zero shadowBlur)
       if (currentRefPoint && currentRefPoint.isVocal && currentRefPoint.midi > 0) {
         const refMidi = currentRefPoint.midi + transposeSemitones;
         const targetY = midiToY(refMidi);
         ctx.save();
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = isInTuneNow ? '#10b981' : '#f59e0b';
         ctx.fillStyle = isInTuneNow ? 'rgba(16, 185, 129, 0.45)' : 'rgba(245, 158, 11, 0.4)';
+        ctx.strokeStyle = isInTuneNow ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(playheadX - 44, targetY - 13, 88, 26, 6);
+        else ctx.rect(playheadX - 44, targetY - 13, 88, 26);
+        ctx.stroke();
+
         ctx.strokeStyle = isInTuneNow ? '#34d399' : '#fde68a';
         ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.roundRect(playheadX - 44, targetY - 13, 88, 26, 6);
         ctx.fill();
         ctx.stroke();
 
@@ -1074,11 +1198,19 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           ctx.lineTo(playheadX + 6, height - 16);
           ctx.fill();
         } else {
-          // Primary Pulse Orb
+          // Primary Pulse Orb (concentric outer glow ring, zero Gaussian shadowBlur!)
           ctx.save();
           const orbColor = isInTuneNow ? '#10b981' : currentCentsDiff < 0 ? '#f59e0b' : '#ef4444';
-          ctx.shadowBlur = 18;
-          ctx.shadowColor = orbColor;
+          const haloColor = isInTuneNow
+            ? 'rgba(16, 185, 129, 0.25)'
+            : currentCentsDiff < 0
+            ? 'rgba(245, 158, 11, 0.25)'
+            : 'rgba(239, 68, 68, 0.25)';
+          ctx.fillStyle = haloColor;
+          ctx.beginPath();
+          ctx.arc(playheadX, userY, 16, 0, Math.PI * 2);
+          ctx.fill();
+
           ctx.fillStyle = orbColor;
           ctx.beginPath();
           ctx.arc(playheadX, userY, 10, 0, Math.PI * 2);
@@ -1095,7 +1227,6 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
           const userNoteName = `${NOTE_NAMES[userSemi]}${userOct}`;
           const centsLabel = currentCentsDiff > 0 ? `+${currentCentsDiff}c` : `${currentCentsDiff}c`;
 
-          ctx.shadowBlur = 4;
           ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
           ctx.strokeStyle = orbColor;
           ctx.lineWidth = 1.2;
@@ -1281,6 +1412,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
     return () => {
       isMounted = false;
       cancelAnimationFrame(animId);
+      resizeObserver?.disconnect();
       canvas.removeEventListener('wheel', handleWheel);
       canvas.removeEventListener('dblclick', handleDblClick);
       canvas.removeEventListener('mousedown', handleMouseDown);
@@ -1296,4 +1428,4 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = ({
       className={`w-full h-[320px] sm:h-[380px] md:h-[440px] lg:h-[480px] xl:h-[520px] block cursor-crosshair ${className}`}
     />
   );
-};
+});
