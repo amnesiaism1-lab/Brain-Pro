@@ -21,6 +21,7 @@ import {
   type VocalSectionType,
   type VowelMouthHint,
   type ISongLyricCandidate,
+  type IAlignmentHealthReport,
 } from './lyricAlignmentService';
 
 export type {
@@ -42,6 +43,8 @@ export interface IReferencePitchPoint {
   clarity: number;
   volumeDb: number;
   isVocal: boolean;
+  /** High-frequency consonant onset flux (dB jump) used to detect syllable boundaries on same-pitch notes */
+  onsetStrength?: number;
 }
 
 export interface IVocalNoteBar {
@@ -95,6 +98,12 @@ export interface IVocalPhrase {
   toneHarmonyScore?: number;
   /** Human-readable prosody feedback (e.g. "Hài hòa cao (92%) · Dấu sắc lên đỉnh, nặng hạ đáy") */
   toneHarmonyFeedback?: string;
+  /** True when this phrase contains genuine singing NoteBars uncovered by LRC (missing-lyric gap) */
+  isMissingLyricGap?: boolean;
+  /** Automated alignment health issue flag for surgical repair */
+  alignmentIssue?: 'missing_lyric' | 'empty_audio' | 'density_overflow' | 'density_underflow' | 'tone_inverted' | null;
+  /** Human-readable Vietnamese description of the alignment issue */
+  alignmentIssueDetailVi?: string;
 }
 
 export interface IVocalPracticeStep {
@@ -143,6 +152,8 @@ export interface IVocalAnalysisResult {
     flaggedPhrases: Array<{ phraseIndex: number; word: string; reason: string }>;
     analysisMode: 'fast' | 'deep_verification';
   };
+  /** Comprehensive LRC & Alignment health audit report */
+  alignmentAudit?: IAlignmentHealthReport;
 
   /** Duration of leading blank/silence before first true singing onset in ms */
   leadingSilenceMs?: number;
@@ -290,6 +301,7 @@ class VocalFileAnalysisService {
     const totalFrames = Math.floor((totalSamples - bufferSize) / hopSize);
     let frameCount = 0;
     const yieldInterval = Math.max(20, Math.floor(totalFrames / 45)); // ~45 smooth UI progress ticks
+    let prevHfDb = -100;
 
     while (sampleCursor + bufferSize <= totalSamples) {
       // Window center timestamping (+bufferSize/2) to align exact acoustic physical center with audio playback
@@ -298,10 +310,15 @@ class VocalFileAnalysisService {
       // Extract window from bandpassed signal and compare Mid (center vocal) vs Side (stereo accompaniment)
       let sumSquares = 0;
       let sideSumSquares = 0;
+      let hfSumSquares = 0;
       for (let j = 0; j < bufferSize; j++) {
         const val = filteredPcm[sampleCursor + j];
         frameBuffer[j] = val;
         sumSquares += val * val;
+        if (j > 0) {
+          const diffRaw = rawMonoPcm[sampleCursor + j] - rawMonoPcm[sampleCursor + j - 1];
+          hfSumSquares += diffRaw * diffRaw;
+        }
         if (filteredSidePcm) {
           const sVal = filteredSidePcm[sampleCursor + j];
           sideSumSquares += sVal * sVal;
@@ -309,6 +326,10 @@ class VocalFileAnalysisService {
       }
 
       const rms = Math.sqrt(sumSquares / bufferSize);
+      const hfRms = Math.sqrt(hfSumSquares / bufferSize);
+      const hfDb = hfRms > 0 ? 20 * Math.log10(hfRms) : -100;
+      const onsetStrength = prevHfDb > -99 ? Math.max(0, Math.round((hfDb - prevHfDb) * 10) / 10) : 0;
+      prevHfDb = hfDb;
       const sideRms = filteredSidePcm ? Math.sqrt(sideSumSquares / bufferSize) : 0;
       const db = rms > 0 ? 20 * Math.log10(rms) : -100;
 
@@ -336,6 +357,7 @@ class VocalFileAnalysisService {
             clarity: Math.round(clarity * 100) / 100,
             volumeDb: Math.round(db),
             isVocal: true,
+            onsetStrength,
           });
         } else {
           pitchTrack.push({
@@ -519,6 +541,7 @@ class VocalFileAnalysisService {
       lyricCandidates: lyricMeta.candidates,
       candidateConfidence: lyricMeta.candidateConfidence,
       candidateWarning: lyricMeta.candidateWarning,
+      alignmentAudit: lyricMeta.alignmentAudit,
       deepVerification: lyricMeta.deepVerification,
       leadingSilenceMs,
       firstVocalOnsetMs,

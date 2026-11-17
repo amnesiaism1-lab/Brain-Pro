@@ -24,6 +24,7 @@ import {
   nudgeLyricOffset,
   searchSongLyricCandidates,
   realignLyricsToAnalysisResult,
+  auditLyricAlignmentHealth,
   ILrcLine,
 } from '../lyricAlignmentService';
 import {
@@ -898,4 +899,408 @@ describe('lyricAlignmentService', () => {
     expect(realigned.deepVerification?.toneHarmonyScorePct).toBeGreaterThanOrEqual(0);
     expect(realigned.deepVerification?.analysisMode).toBe('deep_verification');
   }, 20000);
+
+  it('assigns distinct per-word MIDI from pitchTrack when W > B instead of duplicating parent bar MIDI', () => {
+    const phrase: IVocalPhrase = {
+      id: 'p-rapid',
+      phraseIndex: 1,
+      startMs: 1000,
+      endMs: 1900,
+      durationMs: 900,
+      notes: ['C4', 'D4', 'E4'],
+      lowestNote: 'C4',
+      highestNote: 'E4',
+      avgPitchHz: 293,
+      avgMidi: 62,
+      pitchJumpSemitones: 4,
+      difficulty: 'Dễ',
+      difficultyScore: 3,
+      pointsCount: 45,
+    };
+
+    // Single long NoteBar spanning 1000..1900ms with parent nominal midi 62 (D4)
+    const bars: IVocalNoteBar[] = [
+      {
+        id: 'bar-rapid',
+        startTimeMs: 1000,
+        endTimeMs: 1900,
+        durationMs: 900,
+        midi: 62,
+        exactMidi: 62,
+        noteName: 'D4',
+        solfegeName: 'Rê 4',
+        avgCentsDiff: 0,
+        pointsCount: 45,
+      },
+    ];
+
+    // PitchTrack smoothly stepping from C4 (60) -> D4 (62) -> E4 (64)
+    const pitchTrack = [];
+    for (let t = 1000; t <= 1900; t += 20) {
+      const midi = t < 1300 ? 60 : t < 1600 ? 62 : 64;
+      const noteName = midi === 60 ? 'C4' : midi === 62 ? 'D4' : 'E4';
+      const solfegeName = midi === 60 ? 'Đô 4' : midi === 62 ? 'Rê 4' : 'Mi 4';
+      pitchTrack.push({
+        timeMs: t,
+        freqHz: 440 * Math.pow(2, (midi - 69) / 12),
+        midi,
+        noteName,
+        solfegeName,
+        clarity: 0.92,
+        volumeDb: -12,
+        isVocal: true,
+      });
+    }
+
+    alignWordsToPhraseNoteBars(phrase, bars, 'em đi về', null, 44100, pitchTrack, undefined, true);
+    expect(phrase.words?.length).toBe(3);
+    expect(phrase.words?.[0].midi).toBe(60);
+    expect(phrase.words?.[1].midi).toBe(62);
+    expect(phrase.words?.[2].midi).toBe(64);
+  });
+
+  it('distinguishes steady vowel sustain core from clipped checked-stop with decaying tail', () => {
+    const phrase: IVocalPhrase = {
+      id: 'p-sustain',
+      phraseIndex: 1,
+      startMs: 1000,
+      endMs: 2800,
+      durationMs: 1800,
+      notes: ['C4', 'G4'],
+      lowestNote: 'C4',
+      highestNote: 'G4',
+      avgPitchHz: 330,
+      avgMidi: 64,
+      pitchJumpSemitones: 7,
+      difficulty: 'Dễ',
+      difficultyScore: 3,
+      pointsCount: 50,
+    };
+
+    const bars: IVocalNoteBar[] = [
+      {
+        id: 'nb-stop',
+        startTimeMs: 1000,
+        endTimeMs: 1800,
+        durationMs: 800,
+        midi: 60,
+        exactMidi: 60,
+        noteName: 'C4',
+        solfegeName: 'Đô 4',
+        avgCentsDiff: 0,
+        pointsCount: 20,
+      },
+      {
+        id: 'nb-open',
+        startTimeMs: 1850,
+        endTimeMs: 2800,
+        durationMs: 950,
+        midi: 67,
+        exactMidi: 67,
+        noteName: 'G4',
+        solfegeName: 'Sol 4',
+        avgCentsDiff: 0,
+        pointsCount: 30,
+      },
+    ];
+
+    const pitchTrack = [];
+    // First word "bước" (checked-stop): loud 200ms then quiet decaying reverb tail (-32dB)
+    for (let t = 1000; t <= 1800; t += 25) {
+      pitchTrack.push({
+        timeMs: t,
+        freqHz: 261.6,
+        midi: 60,
+        noteName: 'C4',
+        solfegeName: 'Đô 4',
+        clarity: 0.9,
+        volumeDb: t <= 1220 ? -10 : -32,
+        isVocal: true,
+      });
+    }
+    // Second word "ơi" (open vowel): steady loud sustain for 950ms
+    for (let t = 1850; t <= 2800; t += 25) {
+      pitchTrack.push({
+        timeMs: t,
+        freqHz: 392.0,
+        midi: 67,
+        noteName: 'G4',
+        solfegeName: 'Sol 4',
+        clarity: 0.95,
+        volumeDb: -10,
+        isVocal: true,
+      });
+    }
+
+    alignWordsToPhraseNoteBars(phrase, bars, 'bước ơi', null, 44100, pitchTrack, undefined, true);
+    expect(phrase.words?.length).toBe(2);
+    expect(phrase.words?.[0].isSustained).toBeFalsy();
+    expect(phrase.words?.[0].sustainKind).toBe('clipped');
+    expect(phrase.words?.[1].isSustained).toBe(true);
+    expect(phrase.words?.[1].sustainCoreMs).toBeGreaterThanOrEqual(750);
+  });
+
+  it('handles progressive tempo drift across song using piecewise DTW alignment', () => {
+    // 4 phrases drifting progressively later compared to LRC timestamps:
+    // LRC: 1000, 10000, 20000, 30000
+    // Actual audio: 1000 (+0), 10600 (+600ms), 21400 (+1400ms), 32200 (+2200ms)
+    const actualStarts = [1000, 10600, 21400, 32200];
+    const bars: IVocalNoteBar[] = actualStarts.map((s, i) => ({
+      id: `nb-dtw-${i}`,
+      startTimeMs: s,
+      endTimeMs: s + 1500,
+      durationMs: 1500,
+      midi: 60 + i * 2,
+      exactMidi: 60 + i * 2,
+      noteName: 'C4',
+      solfegeName: 'Đô 4',
+      avgCentsDiff: 0,
+      pointsCount: 20,
+    }));
+    const phrases: IVocalPhrase[] = actualStarts.map((s, i) => ({
+      id: `p-dtw-${i}`,
+      phraseIndex: i + 1,
+      startMs: s,
+      endMs: s + 1500,
+      durationMs: 1500,
+      notes: ['C4'],
+      lowestNote: 'C4',
+      highestNote: 'C4',
+      avgPitchHz: 261,
+      avgMidi: 60 + i * 2,
+      pitchJumpSemitones: 0,
+      difficulty: 'Dễ',
+      difficultyScore: 2,
+      pointsCount: 20,
+    }));
+
+    const lrcLines: ILrcLine[] = [
+      { timeMs: 1000, text: 'Câu một đầu bài' },
+      { timeMs: 10000, text: 'Câu hai giữa bài' },
+      { timeMs: 20000, text: 'Câu ba trôi nhịp' },
+      { timeMs: 30000, text: 'Câu bốn cuối bài' },
+    ];
+
+    alignLrcLinesToPhrases(phrases, bars, lrcLines, null, 44100, [], 35000);
+    expect(phrases.length).toBe(4);
+    expect(phrases[2].startMs).toBeGreaterThanOrEqual(21000);
+    expect(phrases[3].startMs).toBeGreaterThanOrEqual(31800);
+    expect(phrases[3].lyricText).toBe('Câu bốn cuối bài');
+  });
+
+  it('rebuilds phrases accurately with piecewise drift correction when phrase count differs from LRC lines', () => {
+    const actualStarts = [1000, 10700, 21500, 32300];
+    const bars: IVocalNoteBar[] = actualStarts.map((s, i) => ({
+      id: `nb-dtw-r-${i}`,
+      startTimeMs: s,
+      endTimeMs: s + 1400,
+      durationMs: 1400,
+      midi: 60 + i * 2,
+      exactMidi: 60 + i * 2,
+      noteName: 'C4',
+      solfegeName: 'Đô 4',
+      avgCentsDiff: 0,
+      pointsCount: 20,
+    }));
+    // Extra fragmented phrase so phrases.length (5) !== lrcLines.length (4)
+    const phrases: IVocalPhrase[] = [...actualStarts, 34000].map((s, i) => ({
+      id: `p-dtw-r-${i}`,
+      phraseIndex: i + 1,
+      startMs: s,
+      endMs: s + 1200,
+      durationMs: 1200,
+      notes: ['C4'],
+      lowestNote: 'C4',
+      highestNote: 'C4',
+      avgPitchHz: 261,
+      avgMidi: 60,
+      pitchJumpSemitones: 0,
+      difficulty: 'Dễ',
+      difficultyScore: 2,
+      pointsCount: 15,
+    }));
+
+    const lrcLines: ILrcLine[] = [
+      { timeMs: 1000, text: 'Câu một chuẩn' },
+      { timeMs: 10000, text: 'Câu hai trôi bảy trăm' },
+      { timeMs: 20000, text: 'Câu ba trôi một ngàn năm' },
+      { timeMs: 30000, text: 'Câu bốn trôi hai ngàn ba' },
+    ];
+
+    alignLrcLinesToPhrases(phrases, bars, lrcLines, null, 44100, [], 36000);
+    expect(phrases.length).toBe(4);
+    expect(phrases[2].startMs).toBe(21500);
+    expect(phrases[3].startMs).toBe(32300);
+    expect(phrases[3].lyricText).toBe('Câu bốn trôi hai ngàn ba');
+  });
+
+  it('sanitizes LRC metadata, instrumental markers, and applies [offset:] tag', () => {
+    const rawLrc = [
+      '[ti:Test Song]',
+      '[ar:Test Artist]',
+      '[offset:500]',
+      '[00:02.00]Nhạc dạo...',
+      '[00:04.00][Chorus]',
+      '[00:06.00]~~~ ♪♪♪ ~~~',
+      '[00:10.00]Câu hát thật đầu tiên',
+      '[00:15.00]Instrumental',
+      '[00:20.00]Câu hát thật thứ hai',
+    ].join('\n');
+
+    const lines = parseLrcContent(rawLrc);
+    expect(lines.length).toBe(2);
+    expect(lines[0].text).toBe('Câu hát thật đầu tiên');
+    expect(lines[0].timeMs).toBe(10500);
+    expect(lines[1].text).toBe('Câu hát thật thứ hai');
+    expect(lines[1].timeMs).toBe(20500);
+  });
+
+  it('preserves uncovered singing segments as missing-lyric gaps instead of deleting them when LRC is partial', () => {
+    // Audio has 4 singing segments at 1s, 6s, 15s, 25s
+    const starts = [1000, 6000, 15000, 25000];
+    const bars: IVocalNoteBar[] = [];
+    starts.forEach((s, idx) => {
+      bars.push(
+        {
+          id: `gap-nb-${idx}-1`,
+          startTimeMs: s,
+          endTimeMs: s + 700,
+          durationMs: 700,
+          midi: 60,
+          exactMidi: 60,
+          noteName: 'C4',
+          solfegeName: 'Đô 4',
+          avgCentsDiff: 0,
+          pointsCount: 15,
+        },
+        {
+          id: `gap-nb-${idx}-2`,
+          startTimeMs: s + 750,
+          endTimeMs: s + 1600,
+          durationMs: 850,
+          midi: 64,
+          exactMidi: 64,
+          noteName: 'E4',
+          solfegeName: 'Mi 4',
+          avgCentsDiff: 0,
+          pointsCount: 15,
+        }
+      );
+    });
+
+    const phrases: IVocalPhrase[] = starts.map((s, idx) => ({
+      id: `p-gap-${idx}`,
+      phraseIndex: idx + 1,
+      startMs: s,
+      endMs: s + 1600,
+      durationMs: 1600,
+      notes: ['C4', 'E4'],
+      lowestNote: 'C4',
+      highestNote: 'E4',
+      avgPitchHz: 293,
+      avgMidi: 62,
+      pitchJumpSemitones: 4,
+      difficulty: 'Dễ',
+      difficultyScore: 3,
+      pointsCount: 30,
+    }));
+
+    // LRC only covers the first 2 lines (1s and 6s), missing 15s and 25s!
+    const partialLrc: ILrcLine[] = [
+      { timeMs: 1000, text: 'Câu một đủ' },
+      { timeMs: 6000, text: 'Câu hai đủ' },
+    ];
+
+    alignLrcLinesToPhrases(phrases, bars, partialLrc, null, 44100, [], 28000);
+    // Should preserve all 4 phrases (2 with LRC + 2 missing-lyric gaps)
+    expect(phrases.length).toBe(4);
+    expect(phrases[0].lyricText).toBe('Câu một đủ');
+    expect(phrases[2].isMissingLyricGap).toBe(true);
+    expect(phrases[3].isMissingLyricGap).toBe(true);
+
+    const audit = auditLyricAlignmentHealth(phrases, bars);
+    expect(audit.status).toBe('partial_gaps');
+    expect(audit.missingGapRanges.length).toBe(2);
+  });
+
+  it('flags mismatch_suspected in auditLyricAlignmentHealth when LRC lines fall into empty audio', () => {
+    const bars: IVocalNoteBar[] = [
+      {
+        id: 'mm-1',
+        startTimeMs: 1000,
+        endTimeMs: 2500,
+        durationMs: 1500,
+        midi: 60,
+        exactMidi: 60,
+        noteName: 'C4',
+        solfegeName: 'Đô 4',
+        avgCentsDiff: 0,
+        pointsCount: 20,
+      },
+    ];
+    const phrases: IVocalPhrase[] = [
+      {
+        id: 'mm-p1',
+        phraseIndex: 1,
+        startMs: 30000,
+        endMs: 32000,
+        durationMs: 2000,
+        notes: ['C4'],
+        lowestNote: 'C4',
+        highestNote: 'C4',
+        avgPitchHz: 261,
+        avgMidi: 60,
+        pitchJumpSemitones: 0,
+        difficulty: 'Dễ',
+        difficultyScore: 2,
+        pointsCount: 0,
+        lyricText: 'Câu một bị sai giờ',
+      },
+      {
+        id: 'mm-p2',
+        phraseIndex: 2,
+        startMs: 40000,
+        endMs: 42000,
+        durationMs: 2000,
+        notes: ['C4'],
+        lowestNote: 'C4',
+        highestNote: 'C4',
+        avgPitchHz: 261,
+        avgMidi: 60,
+        pitchJumpSemitones: 0,
+        difficulty: 'Dễ',
+        difficultyScore: 2,
+        pointsCount: 0,
+        lyricText: 'Câu hai bị sai giờ',
+      },
+    ];
+
+    const audit = auditLyricAlignmentHealth(phrases, bars);
+    expect(audit.status).toBe('mismatch_suspected');
+    expect(audit.emptyAudioRatio).toBeGreaterThan(0.5);
+  });
+
+  it('aligns plain text without losing trailing lines via Density DP when line count exceeds phrase count', () => {
+    const bars: IVocalNoteBar[] = [
+      { id: 'pt-1', startTimeMs: 1000, endTimeMs: 1800, durationMs: 800, midi: 60, exactMidi: 60, noteName: 'C4', solfegeName: 'Đô 4', avgCentsDiff: 0, pointsCount: 15 },
+      { id: 'pt-2', startTimeMs: 1900, endTimeMs: 2800, durationMs: 900, midi: 62, exactMidi: 62, noteName: 'D4', solfegeName: 'Rê 4', avgCentsDiff: 0, pointsCount: 15 },
+      { id: 'pt-3', startTimeMs: 4000, endTimeMs: 5500, durationMs: 1500, midi: 64, exactMidi: 64, noteName: 'E4', solfegeName: 'Mi 4', avgCentsDiff: 0, pointsCount: 20 },
+      { id: 'pt-4', startTimeMs: 5600, endTimeMs: 7000, durationMs: 1400, midi: 67, exactMidi: 67, noteName: 'G4', solfegeName: 'Sol 4', avgCentsDiff: 0, pointsCount: 20 },
+    ];
+    const phrases: IVocalPhrase[] = [
+      { id: 'pt-p1', phraseIndex: 1, startMs: 1000, endMs: 2800, durationMs: 1800, notes: ['C4', 'D4'], lowestNote: 'C4', highestNote: 'D4', avgPitchHz: 277, avgMidi: 61, pitchJumpSemitones: 2, difficulty: 'Dễ', difficultyScore: 3, pointsCount: 30 },
+      { id: 'pt-p2', phraseIndex: 2, startMs: 4000, endMs: 7000, durationMs: 3000, notes: ['E4', 'G4'], lowestNote: 'E4', highestNote: 'G4', avgPitchHz: 350, avgMidi: 65, pitchJumpSemitones: 3, difficulty: 'Dễ', difficultyScore: 3, pointsCount: 40 },
+    ];
+
+    const plainText = [
+      'Dòng một ngắn',
+      'Dòng hai nối liền',
+      'Dòng ba cuối bài',
+    ].join('\n');
+
+    alignPlainTextToPhrases(phrases, bars, plainText, null, 44100, []);
+    const joinedAll = phrases.map((p) => p.lyricText).join(' ');
+    expect(joinedAll).toContain('Dòng một ngắn');
+    expect(joinedAll).toContain('Dòng ba cuối bài');
+  });
 });

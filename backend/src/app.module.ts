@@ -11,6 +11,8 @@ import { AuthController } from './modules/auth/auth.controller';
 import { AuthService } from './modules/auth/auth.service';
 import { WrongAnswersController } from './modules/wrong-answers/wrong-answers.controller';
 import { WrongAnswersService } from './modules/wrong-answers/wrong-answers.service';
+import { VocalStudioController } from './modules/vocal-studio/vocal-studio.controller';
+import { VocalStudioService } from './modules/vocal-studio/vocal-studio.service';
 
 @Module({
   imports: [
@@ -27,9 +29,10 @@ import { WrongAnswersService } from './modules/wrong-answers/wrong-answers.servi
     AnalyticsController,
     RemindersController,
     AuthController,
-    WrongAnswersController
+    WrongAnswersController,
+    VocalStudioController
   ],
-  providers: [DataStoreService, AuthService, WrongAnswersService],
-  exports: [DataStoreService, AuthService, WrongAnswersService]
+  providers: [DataStoreService, AuthService, WrongAnswersService, VocalStudioService],
+  exports: [DataStoreService, AuthService, WrongAnswersService, VocalStudioService]
 })
 export class AppModule {}

@@ -133,6 +133,10 @@ export interface IVocalLyricWord {
   isSustained?: boolean;
   /** Human-readable sustain tag (e.g. "Ngân 1.2s") */
   sustainLabel?: string;
+  /** Steady vowel sustain core duration in ms (excludes attack scoop and decaying reverb/accompaniment tail) */
+  sustainCoreMs?: number;
+  /** Classification of hold behavior for vocal coaching */
+  sustainKind?: 'steady_hold' | 'vibrato_hold' | 'melisma_glide' | 'clipped';
   /** Ending note name when a single word glides/slurs across multiple notes (e.g. "E4" in C4→E4) */
   endNoteName?: string;
   /** Ending solfege when a single word glides/slurs across multiple notes */
@@ -172,6 +176,17 @@ export interface IVocalLyricWord {
   toneNameVi?: string;
   /** Concordance status with previous word ('concordant' | 'inverted' | 'neutral') */
   toneMelodicConcordance?: 'concordant' | 'inverted' | 'neutral';
+}
+
+export interface IAlignmentHealthReport {
+  status: 'healthy' | 'partial_gaps' | 'mismatch_suspected' | 'no_lyrics';
+  healthScorePct: number;
+  coverageRatio: number;
+  emptyAudioRatio: number;
+  orphanVocalMs: number;
+  missingGapRanges: Array<{ startMs: number; endMs: number; barCount: number }>;
+  flaggedPhraseIndices: number[];
+  summaryVi: string;
 }
 
 export interface ILrcLine {
@@ -1686,8 +1701,11 @@ function findInternalSyllableDip(
     const isNasalConsonantDip =
       nasalDipDb >= 3.5 && leftPeakClarity >= 0.72 && rightPeakClarity >= 0.72;
 
+    const onsetBoost = Math.min(8.0, (barPts[k].onsetStrength || 0) * 1.15);
+
     const score =
       prominenceDb * 2.4 +
+      onsetBoost +
       (isBridgedConsonant ? 14.0 : 0) +
       (isNasalConsonantDip ? 10.5 + nasalDipDb * 1.4 : 0) +
       (isPitchStepInflection ? pitchStepDiff * 8.5 + localPitchSlope * 6.0 : 0) +
@@ -2208,6 +2226,115 @@ function partitionBarsToWordsDP(
 }
 
 /**
+ * Compute accurate local MIDI pitch, steady sustain core duration, and hold classification
+ * for an individual word window [wStart, wEnd] directly from pitchTrack.
+ */
+function computeWordAcousticStats(
+  wStart: number,
+  wEnd: number,
+  pitchTrack: IReferencePitchPoint[],
+  fallbackMidi: number,
+  isCheckedStop: boolean,
+  melismaNotesCount: number
+): {
+  midi: number;
+  exactMidi: number;
+  noteName: string;
+  solfege: string;
+  sustainCoreMs: number;
+  sustainKind?: 'steady_hold' | 'vibrato_hold' | 'melisma_glide' | 'clipped';
+} {
+  const pts = pitchTrack.filter(
+    (pt) => pt.isVocal && pt.midi > 0 && pt.clarity >= 0.4 && pt.timeMs >= wStart && pt.timeMs <= wEnd
+  );
+
+  let exactMidi = fallbackMidi;
+  let sustainCoreMs = 0;
+  let vibratoOscillations = 0;
+
+  if (pts.length > 0) {
+    // Trim 12% attack & 10% release if enough samples exist
+    const slice =
+      pts.length >= 6
+        ? pts.slice(Math.floor(pts.length * 0.12), Math.ceil(pts.length * 0.9))
+        : pts;
+
+    // Weighted median / average for robust word center pitch
+    const sorted = [...slice].sort((a, b) => a.midi - b.midi);
+    const medianMidi = sorted[Math.floor(sorted.length / 2)].midi;
+    let wSum = 0;
+    let mSum = 0;
+    let peakDb = -100;
+    for (const p of pts) {
+      if (p.volumeDb > peakDb) peakDb = p.volumeDb;
+    }
+    for (const p of slice) {
+      const weight = Math.max(0.1, p.clarity) * Math.pow(10, Math.max(-50, p.volumeDb) / 40);
+      wSum += weight;
+      mSum += p.midi * weight;
+    }
+    const wAvg = wSum > 0 ? mSum / wSum : medianMidi;
+    exactMidi = Math.abs(wAvg - medianMidi) <= 0.65 ? wAvg : medianMidi;
+
+    // Measure longest continuous steady core only when pitchTrack has sufficient frame density (>= 5 frames)
+    if (pts.length >= 5) {
+      let runStart = -1;
+      let maxCoreMs = 0;
+      let prevDelta = 0;
+      for (let k = 0; k < pts.length; k++) {
+        const p = pts[k];
+        const inBand =
+          p.volumeDb >= peakDb - 16 &&
+          (melismaNotesCount >= 2 || Math.abs(p.midi - exactMidi) <= 0.65);
+        if (inBand) {
+          if (runStart < 0) runStart = p.timeMs;
+          const curSpan = p.timeMs - runStart;
+          if (curSpan > maxCoreMs) maxCoreMs = curSpan;
+        } else {
+          runStart = -1;
+        }
+        if (k > 0) {
+          const d = p.midi - pts[k - 1].midi;
+          if (Math.abs(d) > 0.05) {
+            if (prevDelta * d < 0) vibratoOscillations++;
+            prevDelta = d;
+          }
+        }
+      }
+      sustainCoreMs = Math.round(maxCoreMs);
+    } else {
+      sustainCoreMs = Math.max(40, wEnd - wStart);
+    }
+  } else {
+    // No pitchTrack available (e.g. light mock tests): fallback to full word span
+    sustainCoreMs = Math.max(40, wEnd - wStart);
+  }
+
+  const nominalMidi = Math.round(exactMidi);
+  const info = midiToCompactSolfege(nominalMidi);
+
+  let sustainKind: 'steady_hold' | 'vibrato_hold' | 'melisma_glide' | 'clipped' | undefined;
+  if (melismaNotesCount >= 2) {
+    sustainKind = 'melisma_glide';
+  } else if (isCheckedStop && sustainCoreMs < 480) {
+    sustainKind = 'clipped';
+  } else if (sustainCoreMs >= 520) {
+    sustainKind = vibratoOscillations >= 4 ? 'vibrato_hold' : 'steady_hold';
+  } else if (wEnd - wStart <= 280) {
+    sustainKind = 'clipped';
+  }
+
+  return {
+    midi: nominalMidi,
+    exactMidi: Math.round(exactMidi * 100) / 100,
+    noteName: info.noteName,
+    solfege: info.solfege,
+    sustainCoreMs,
+    sustainKind,
+  };
+}
+
+/**
  * Align a lyric string (or deep vowel-trajectory tokens) onto the discrete NoteBars belonging to a Phrase.
  * Combines:
  * - Attack-scoop absorption & Syllable-dip NoteBar subdivision (distinguishing 2 same-pitch words from 1 sustained note)
@@ -2445,6 +2572,14 @@ export function alignWordsToPhraseNoteBars(
       }
 
       const wDur = Math.max(50, lastBar.endTimeMs - firstBar.startTimeMs);
+      const localStats = computeWordAcousticStats(
+        firstBar.startTimeMs,
+        lastBar.endTimeMs,
+        pitchTrack,
+        firstBar.midi,
+        Boolean(ortho?.isCheckedStop),
+        endBarIdx - startBarIdx + 1
+      );
 
       words.push({
         wordIndex: i,
@@ -2455,6 +2590,8 @@ export function alignWordsToPhraseNoteBars(
         startMs: firstBar.startTimeMs,
         endMs: lastBar.endTimeMs,
         durationMs: wDur,
+        sustainCoreMs: localStats.sustainCoreMs,
+        sustainKind: localStats.sustainKind,
         endNoteName,
         endSolfege,
         endMidi,
@@ -2590,18 +2727,28 @@ export function alignWordsToPhraseNoteBars(
 
         const wStart = boundaries[subIndex];
         const wEnd = Math.max(wStart + 30, boundaries[subIndex + 1]);
+        const localStats = computeWordAcousticStats(
+          wStart,
+          wEnd,
+          pitchTrack,
+          bar.midi,
+          Boolean(ortho?.isCheckedStop),
+          1
+        );
 
         words.push({
           wordIndex: i,
           text: tk,
-          solfege: ac.solfege,
-          noteName: ac.noteName,
-          midi: bar.midi,
+          solfege: localStats.solfege,
+          noteName: localStats.noteName,
+          midi: localStats.midi,
           startMs: wStart,
           endMs: wEnd,
           durationMs: Math.max(40, wEnd - wStart),
-          noteSequence: [ac.noteName],
-          solfegeSequence: [ac.solfege],
+          sustainCoreMs: localStats.sustainCoreMs,
+          sustainKind: localStats.sustainKind,
+          noteSequence: [localStats.noteName],
+          solfegeSequence: [localStats.solfege],
           melismaNotesCount: 1,
           glideSemitones: 0,
           vowelPhoneme: resolvedVowel,
@@ -2618,19 +2765,23 @@ export function alignWordsToPhraseNoteBars(
     });
   }
 
-  // Post-process word durations to mark sustained notes (`nốt ngân lâu hơn`)
+  // Post-process word durations using steady vowel sustain core (eliminating false sustain on checked-stops & decaying tails)
   if (words.length > 0) {
     const sortedWordDurs = words
-      .map((w) => w.durationMs || Math.max(50, w.endMs - w.startMs))
+      .map((w) => w.sustainCoreMs ?? w.durationMs ?? Math.max(50, w.endMs - w.startMs))
       .sort((a, b) => a - b);
     const medianWordDur = sortedWordDurs[Math.floor(sortedWordDurs.length / 2)] || 300;
 
     words.forEach((w) => {
       const dur = w.durationMs || Math.max(50, w.endMs - w.startMs);
       w.durationMs = dur;
-      if (dur >= 600 && (dur >= medianWordDur * 1.35 || dur >= 850)) {
+      const coreDur = w.sustainCoreMs ?? dur;
+      if (w.sustainKind === 'clipped') {
+        w.isSustained = false;
+        w.sustainLabel = undefined;
+      } else if (coreDur >= 560 && (coreDur >= medianWordDur * 1.35 || coreDur >= 800)) {
         w.isSustained = true;
-        w.sustainLabel = `Ngân ${(dur / 1000).toFixed(1)}s`;
+        w.sustainLabel = `Ngân ${(coreDur / 1000).toFixed(1)}s`;
       }
     });
 
@@ -2678,6 +2829,16 @@ export function parseLrcContent(lrcText: string): ILrcLine[] {
   const result: ILrcLine[] = [];
   const timeRegex = /\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
   const inlineWordRegex = /<(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?>\s*([^<]+)/g;
+  const offsetTagRegex = /\[offset\s*:\s*([+-]?\d+)\]/i;
+
+  let globalTagOffsetMs = 0;
+  for (const rawLine of lines) {
+    const offMatch = rawLine.match(offsetTagRegex);
+    if (offMatch) {
+      globalTagOffsetMs = parseInt(offMatch[1], 10) || 0;
+      break;
+    }
+  }
 
   for (const rawLine of lines) {
     const matches = [...rawLine.matchAll(timeRegex)];
@@ -2699,7 +2860,7 @@ export function parseLrcContent(lrcText: string): ILrcLine[] {
             : wFrac.length === 2
             ? parseInt(wFrac, 10) * 10
             : parseInt(wFrac.slice(0, 3), 10);
-        const wTimeMs = wMin * 60000 + wSec * 1000 + wMs;
+        const wTimeMs = Math.max(0, wMin * 60000 + wSec * 1000 + wMs + globalTagOffsetMs);
         const subWords = wm[4].trim().split(/\s+/).filter(Boolean);
         subWords.forEach((sw, idx) => {
           parsedWordTimestamps!.push({ timeMs: wTimeMs + idx * 140, text: sw });
@@ -2715,10 +2876,16 @@ export function parseLrcContent(lrcText: string): ILrcLine[] {
 
     if (!textContent) continue;
 
-    // Skip LRC credit/header lines often placed at 00:00..00:05 (e.g. "Bài hát:", "Ca sĩ:", "Nhạc sĩ:", "LRC by")
+    // Skip LRC credit/header lines, section tags, instrumental markers, or symbol-only placeholders
     if (
-      /^(?:bài hát|ca sĩ|sáng tác|nhạc sĩ|lời bài hát|lyric by|synced by|biểu diễn|tác giả)\s*[:\-]/i.test(
+      /^(?:bài hát|ca sĩ|sáng tác|nhạc sĩ|lời bài hát|lyric(?:ist)?(?:\s+by)?|synced\s+by|biểu diễn|tác giả|producer|arrangement|ti|ar|al|au|by|re|ve|length|composer|beat|mix|master|vocal)\s*[:\-]/i.test(
         textContent
+      ) ||
+      /^\[(?:verse|chorus|pre-?chorus|bridge|intro|outro|điệp khúc|phiên khúc|rap|instrumental).*?\]$/i.test(
+        textContent
+      ) ||
+      /^(?:nhạc dạo|giang tấu|dạo nhạc|kết thúc|instrumental|music|intro|outro|interlude|\.{2,}|~+|♪+|\*+)$/i.test(
+        textContent.replace(/[~♪*.\s]+/g, '').length === 0 ? '~' : textContent.replace(/[.…]+$/g, '').trim()
       )
     ) {
       continue;
@@ -2735,7 +2902,7 @@ export function parseLrcContent(lrcText: string): ILrcLine[] {
           ? parseInt(fracStr, 10) * 10
           : parseInt(fracStr.slice(0, 3), 10);
 
-      const timeMs = min * 60000 + sec * 1000 + ms;
+      const timeMs = Math.max(0, min * 60000 + sec * 1000 + ms + globalTagOffsetMs);
       result.push({
         timeMs,
         text: textContent,
@@ -3111,8 +3278,96 @@ function buildPhraseFromBarsAndLyric(params: {
 }
 
 /**
+ * Piecewise Multi-Anchor Offset Estimator (Anti-Tempo-Drift Calibration):
+ * After finding the global base offset, computes per-line local offsets by snapping
+ * high-confidence LRC lines to nearby vocal phrase onsets within ±1600ms while
+ * preserving strict monotonic progression, and linearly interpolating in-between lines.
+ */
+function estimatePiecewiseLineOffsets(
+  phrases: IVocalPhrase[],
+  noteBars: IVocalNoteBar[],
+  lrcLines: ILrcLine[],
+  baseOffsetMs: number
+): number[] {
+  const L = lrcLines.length;
+  const offsets = new Array(L).fill(baseOffsetMs);
+  if (L < 3 || (phrases.length === 0 && noteBars.length === 0)) return offsets;
+
+  const vocalOnsets: number[] = [];
+  phrases.forEach((p) => {
+    if (!p.isInstrumentalOrVocalize && p.durationMs >= 350) {
+      vocalOnsets.push(p.startMs);
+    }
+  });
+  for (let i = 1; i < noteBars.length; i++) {
+    if (noteBars[i].startTimeMs - noteBars[i - 1].endTimeMs >= 260) {
+      vocalOnsets.push(noteBars[i].startTimeMs);
+    }
+  }
+  if (vocalOnsets.length === 0) return offsets;
+  vocalOnsets.sort((a, b) => a - b);
+
+  // Build smoothed anchors with monotonic progression constraint
+  const anchors: Array<{ idx: number; offsetMs: number }> = [];
+  let lastMatchedTime = -Infinity;
+
+  for (let i = 0; i < L; i++) {
+    const nominal = lrcLines[i].timeMs + baseOffsetMs;
+    const prevAnchorOffset = anchors.length > 0 ? anchors[anchors.length - 1].offsetMs : baseOffsetMs;
+    const expected = lrcLines[i].timeMs + prevAnchorOffset;
+
+    let bestOnset: number | null = null;
+    let bestDist = Infinity;
+    for (const onset of vocalOnsets) {
+      if (onset <= lastMatchedTime + 220) continue;
+      const d = Math.abs(onset - expected);
+      // Allow progressive drift up to ±1600ms relative to expected running offset
+      if (d <= 1600 && d < bestDist) {
+        bestDist = d;
+        bestOnset = onset;
+      }
+    }
+
+    if (bestOnset !== null && bestDist <= 1250) {
+      const candidateOffset = bestOnset - lrcLines[i].timeMs;
+      // Guard against sudden erratic jumps > 900ms between adjacent lines
+      if (anchors.length === 0 || Math.abs(candidateOffset - prevAnchorOffset) <= 900) {
+        anchors.push({ idx: i, offsetMs: candidateOffset });
+        lastMatchedTime = bestOnset;
+      } else if (Math.abs(nominal - bestOnset) <= 850) {
+        anchors.push({ idx: i, offsetMs: bestOnset - lrcLines[i].timeMs });
+        lastMatchedTime = bestOnset;
+      }
+    }
+  }
+
+  if (anchors.length === 0) return offsets;
+
+  // Linearly interpolate per-line offsets across anchors
+  for (let i = 0; i < L; i++) {
+    if (i <= anchors[0].idx) {
+      offsets[i] = anchors[0].offsetMs;
+    } else if (i >= anchors[anchors.length - 1].idx) {
+      offsets[i] = anchors[anchors.length - 1].offsetMs;
+    } else {
+      for (let a = 0; a < anchors.length - 1; a++) {
+        const left = anchors[a];
+        const right = anchors[a + 1];
+        if (i >= left.idx && i <= right.idx) {
+          const t = right.idx === left.idx ? 0 : (i - left.idx) / (right.idx - left.idx);
+          offsets[i] = Math.round(left.offsetMs + t * (right.offsetMs - left.offsetMs));
+          break;
+        }
+      }
+    }
+  }
+
+  return offsets;
+}
+
+/**
  * Align parsed LRC lines onto IVocalPhrase[] using:
- * 1. Global Audio-to-LRC Time Offset Auto-Calibration
+ * 1. Global Audio-to-LRC Time Offset Auto-Calibration + Piecewise Multi-Anchor Tempo Drift Correction
  * 2. Breath-Snapped LRC Boundary Partitioning (each LRC line becomes 1 clean phrase,
  *    never gluing two lyric lines together and never letting words bleed into adjacent phrases!)
  */
@@ -3133,14 +3388,24 @@ export function alignLrcLinesToPhrases(
     lrcLines,
     audioDurationMs
   );
-  const shiftedLines = lrcLines.map((l) => ({
-    timeMs: Math.max(0, l.timeMs + optimalOffsetMs),
-    text: l.text,
-    wordTimestamps: l.wordTimestamps?.map((wt) => ({
-      timeMs: Math.max(0, wt.timeMs + optimalOffsetMs),
-      text: wt.text,
-    })),
-  }));
+  const lineOffsets = estimatePiecewiseLineOffsets(
+    phrases,
+    noteBars,
+    lrcLines,
+    optimalOffsetMs
+  );
+
+  const shiftedLines = lrcLines.map((l, idx) => {
+    const off = lineOffsets[idx] ?? optimalOffsetMs;
+    return {
+      timeMs: Math.max(0, l.timeMs + off),
+      text: l.text,
+      wordTimestamps: l.wordTimestamps?.map((wt) => ({
+        timeMs: Math.max(0, wt.timeMs + off),
+        text: wt.text,
+      })),
+    };
+  });
 
   // Compute breath-snapped boundary timestamps B[0..L] between consecutive LRC lines
   // Snaps each LRC line transition to the clearest inter-note silence gap within ±650ms
@@ -3268,9 +3533,198 @@ export function alignLrcLinesToPhrases(
     );
   }
 
+  // Gap-Preserving Hybrid Rebuild: preserve any substantial singing segments uncovered by LRC
+  // (e.g. LRC stops halfway, misses Verse 2, Rap, or Chorus) as `isMissingLyricGap` phrases!
+  if (rebuiltPhrases.length > 0 && noteBars.length > 0) {
+    const coveredBarIds = new Set<string>();
+    for (const p of rebuiltPhrases) {
+      for (const b of noteBars) {
+        const mid = (b.startTimeMs + b.endTimeMs) / 2;
+        if (mid >= p.startMs - 80 && mid <= p.endMs + 80) {
+          coveredBarIds.add(b.id);
+        }
+      }
+    }
+
+    const orphanBars = noteBars.filter((b) => !coveredBarIds.has(b.id));
+    if (orphanBars.length > 0) {
+      const firstLrcStart = rebuiltPhrases[0].startMs;
+      const orphanClusters: IVocalNoteBar[][] = [];
+      let curCluster: IVocalNoteBar[] = [orphanBars[0]];
+      for (let i = 1; i < orphanBars.length; i++) {
+        const gap = orphanBars[i].startTimeMs - orphanBars[i - 1].endTimeMs;
+        if (gap <= 450 && orphanBars[i].endTimeMs - curCluster[0].startTimeMs <= 5500) {
+          curCluster.push(orphanBars[i]);
+        } else {
+          orphanClusters.push(curCluster);
+          curCluster = [orphanBars[i]];
+        }
+      }
+      orphanClusters.push(curCluster);
+
+      for (const cluster of orphanClusters) {
+        const cStart = cluster[0].startTimeMs;
+        const cEnd = cluster[cluster.length - 1].endTimeMs;
+        const cDur = cEnd - cStart;
+        const isBeforeFirstLrc = cEnd < firstLrcStart - 150;
+        // Before first LRC line is almost always instrumental intro; only preserve if >= 3 varied singing notes
+        if (isBeforeFirstLrc) {
+          const distinctMidis = new Set(cluster.map((b) => b.midi));
+          if (cluster.length < 3 || distinctMidis.size < 2) continue;
+        }
+        // Skip tiny instrumental micro-artifacts; preserve genuine singing gaps
+        const isGenuineSinging =
+          (cluster.length >= 2 && cDur >= 750) || (cluster.length === 1 && cDur >= 900);
+        if (!isGenuineSinging) continue;
+
+        const gapPhrase = buildPhraseFromBarsAndLyric({
+          phraseIndex: 0,
+          bars: cluster,
+          fallbackStartMs: cStart,
+          fallbackEndMs: cEnd,
+          lyricText: undefined,
+          isInstrumentalOrVocalize: false,
+          allNoteBars: noteBars,
+          rawMonoPcm,
+          sampleRate,
+          pitchTrack,
+        });
+        gapPhrase.isMissingLyricGap = true;
+        gapPhrase.alignmentIssue = 'missing_lyric';
+        gapPhrase.alignmentIssueDetailVi = `Phát hiện đoạn hát (${cluster.length} nốt) chưa có lời LRC khớp tới`;
+        rebuiltPhrases.push(gapPhrase);
+      }
+
+      rebuiltPhrases.sort((a, b) => a.startMs - b.startMs);
+      rebuiltPhrases.forEach((p, idx) => {
+        p.id = `phrase-${idx + 1}`;
+        p.phraseIndex = idx + 1;
+      });
+    }
+  }
+
   if (rebuiltPhrases.length > 0) {
     phrases.splice(0, phrases.length, ...rebuiltPhrases);
   }
+}
+
+/**
+ * Audit the health of aligned lyrics against actual audio NoteBars & Vietnamese prosody.
+ * Flags per-phrase issues (`missing_lyric`, `empty_audio`, `density_overflow`, `density_underflow`, `tone_inverted`)
+ * and returns a global `IAlignmentHealthReport`.
+ */
+export function auditLyricAlignmentHealth(
+  phrases: IVocalPhrase[],
+  noteBars: IVocalNoteBar[]
+): IAlignmentHealthReport {
+  if (phrases.length === 0) {
+    return {
+      status: 'no_lyrics',
+      healthScorePct: 0,
+      coverageRatio: 0,
+      emptyAudioRatio: 0,
+      orphanVocalMs: 0,
+      missingGapRanges: [],
+      flaggedPhraseIndices: [],
+      summaryVi: 'Chưa có câu hát nào được phân tích.',
+    };
+  }
+
+  let hasAnyRealLyric = false;
+  let emptyAudioCount = 0;
+  let healthyCount = 0;
+  let orphanVocalMs = 0;
+  const missingGapRanges: Array<{ startMs: number; endMs: number; barCount: number }> = [];
+  const flaggedPhraseIndices: number[] = [];
+
+  for (const p of phrases) {
+    const pBars = getPhraseNoteBarsStrict(p, noteBars);
+    const wordCount = p.words?.length ?? (p.lyricText ? p.lyricText.trim().split(/\s+/).filter(Boolean).length : 0);
+    const isFallbackOnly =
+      !p.lyricText ||
+      p.lyricText.startsWith('Nguyên âm:') ||
+      p.lyricText.startsWith('🎵') ||
+      Boolean(p.isMissingLyricGap);
+
+    if (!isFallbackOnly) {
+      hasAnyRealLyric = true;
+    }
+
+    if (p.isMissingLyricGap) {
+      p.alignmentIssue = 'missing_lyric';
+      p.alignmentIssueDetailVi = `Đoạn hát (${pBars.length} nốt) chưa có lời LRC khớp tới`;
+      orphanVocalMs += p.durationMs;
+      missingGapRanges.push({ startMs: p.startMs, endMs: p.endMs, barCount: pBars.length });
+      flaggedPhraseIndices.push(p.phraseIndex);
+      continue;
+    }
+
+    if (!p.isInstrumentalOrVocalize && pBars.length === 0) {
+      emptyAudioCount++;
+      p.alignmentIssue = 'empty_audio';
+      p.alignmentIssueDetailVi = 'Câu LRC rơi vào khoảng lặng hoặc đoạn nhạc không có cao độ giọng hát';
+      flaggedPhraseIndices.push(p.phraseIndex);
+    } else if (!p.isInstrumentalOrVocalize && wordCount >= 6 && pBars.length > 0 && wordCount / pBars.length >= 2.4) {
+      p.alignmentIssue = 'density_overflow';
+      p.alignmentIssueDetailVi = `Quá nhiều chữ (${wordCount} chữ) dồn vào ít nốt (${pBars.length} nốt) — có thể lệch ranh giới câu`;
+      flaggedPhraseIndices.push(p.phraseIndex);
+    } else if (!p.isInstrumentalOrVocalize && pBars.length >= 8 && wordCount > 0 && pBars.length / wordCount >= 3.2) {
+      p.alignmentIssue = 'density_underflow';
+      p.alignmentIssueDetailVi = `Quá nhiều nốt (${pBars.length} nốt) cho ít chữ (${wordCount} chữ) — có thể ăn lấn sang câu sau`;
+      flaggedPhraseIndices.push(p.phraseIndex);
+    } else if (typeof p.toneHarmonyScore === 'number' && wordCount >= 5 && p.toneHarmonyScore < 42) {
+      p.alignmentIssue = 'tone_inverted';
+      p.alignmentIssueDetailVi = `Thanh điệu tiếng Việt nghịch giai điệu (${p.toneHarmonyScore}%) — nghi ngờ lệch nhịp`;
+      flaggedPhraseIndices.push(p.phraseIndex);
+    } else {
+      p.alignmentIssue = null;
+      p.alignmentIssueDetailVi = undefined;
+      if (!isFallbackOnly) healthyCount++;
+    }
+  }
+
+  if (!hasAnyRealLyric) {
+    return {
+      status: 'no_lyrics',
+      healthScorePct: 35,
+      coverageRatio: 0,
+      emptyAudioRatio: 0,
+      orphanVocalMs: phrases.reduce((s, p) => s + p.durationMs, 0),
+      missingGapRanges: [],
+      flaggedPhraseIndices,
+      summaryVi: 'Chưa có lời bài hát (đang dùng Nguyên âm Formant F1/F2 tự động).',
+    };
+  }
+
+  const totalNonGap = Math.max(1, phrases.length - missingGapRanges.length);
+  const emptyAudioRatio = Math.round((emptyAudioCount / totalNonGap) * 100) / 100;
+  const coverageRatio = Math.round((healthyCount / phrases.length) * 100) / 100;
+  const healthScorePct = Math.max(
+    0,
+    Math.min(100, Math.round((healthyCount / phrases.length) * 100 - emptyAudioRatio * 25))
+  );
+
+  let status: IAlignmentHealthReport['status'] = 'healthy';
+  let summaryVi = `Độ khớp LRC tốt (${healthScorePct}% · ${healthyCount}/${phrases.length} câu chuẩn).`;
+
+  if (emptyAudioRatio >= 0.5 || coverageRatio < 0.38) {
+    status = 'mismatch_suspected';
+    summaryVi = `Nghi ngờ LRC sai bài hoặc lệch bản phối (${Math.round(emptyAudioRatio * 100)}% câu LRC rơi vào khoảng lặng, độ phủ ${Math.round(coverageRatio * 100)}%).`;
+  } else if (missingGapRanges.length > 0 || coverageRatio < 0.82) {
+    status = 'partial_gaps';
+    summaryVi = `LRC khớp ${Math.round(coverageRatio * 100)}% bài, phát hiện ${missingGapRanges.length} đoạn hát chưa có lời.`;
+  }
+
+  return {
+    status,
+    healthScorePct,
+    coverageRatio,
+    emptyAudioRatio,
+    orphanVocalMs,
+    missingGapRanges,
+    flaggedPhraseIndices,
+    summaryVi,
+  };
 }
 
 /**
@@ -3285,12 +3739,14 @@ export function alignPlainTextToPhrases(
   pitchTrack: IReferencePitchPoint[] = []
 ): void {
   const cleanLines = plainText
+    .replace(/<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>/g, ' ')
+    .replace(/\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]/g, ' ')
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    .map((l) => l.replace(/\s+/g, ' ').trim())
     .filter(
       (l) =>
         l.length > 0 &&
-        !/^\[(verse|chorus|intro|outro|bridge|điệp khúc|phiên khúc)/i.test(l)
+        !/^\[(?:verse|chorus|pre-?chorus|bridge|intro|outro|điệp khúc|phiên khúc|rap|ti|ar|al|by|offset).*?\]$/i.test(l)
     );
 
   if (cleanLines.length === 0 || phrases.length === 0) return;
@@ -3298,6 +3754,7 @@ export function alignPlainTextToPhrases(
   if (cleanLines.length === phrases.length) {
     phrases.forEach((p, idx) => {
       p.isInstrumentalOrVocalize = false;
+      p.isMissingLyricGap = false;
       alignWordsToPhraseNoteBars(
         p,
         noteBars,
@@ -3310,15 +3767,14 @@ export function alignPlainTextToPhrases(
     return;
   }
 
-  // If plainText has fewer lines than acoustic phrases, check if some acoustic phrases
-  // were split by short (< 420ms) pauses and merge them down toward cleanLines.length
+  // Case A: Audio has more phrases than lyric lines -> merge short-gap fragments toward cleanLines.length
   while (phrases.length > cleanLines.length && phrases.length >= 2) {
     let minGap = Infinity;
     let mergeIdx = -1;
     for (let i = 0; i < phrases.length - 1; i++) {
       const gap = phrases[i + 1].startMs - phrases[i].endMs;
       const combinedDur = phrases[i + 1].endMs - phrases[i].startMs;
-      if (gap < minGap && gap <= 480 && combinedDur <= 6500) {
+      if (gap < minGap && gap <= 550 && combinedDur <= 6800) {
         minGap = gap;
         mergeIdx = i;
       }
@@ -3337,9 +3793,68 @@ export function alignPlainTextToPhrases(
     });
   }
 
+  // Case B: Lyric has more lines than audio phrases (L > P) -> Plain-Text Density DP
+  // Distributes all L lyric lines across P phrases matching cumulative word-to-NoteBar density without truncating trailing lines!
+  if (cleanLines.length > phrases.length && phrases.length >= 1) {
+    const L = cleanLines.length;
+    const P = phrases.length;
+    const lineWordCounts = cleanLines.map((l) => Math.max(1, l.split(/\s+/).filter(Boolean).length));
+    const phraseBarCounts = phrases.map((p) => Math.max(1, getPhraseNoteBarsStrict(p, noteBars).length));
+
+    const dp: number[][] = Array.from({ length: P }, () => new Array(L).fill(Infinity));
+    const prevSplit: number[][] = Array.from({ length: P }, () => new Array(L).fill(0));
+
+    const groupCost = (pIdx: number, lStart: number, lEnd: number) => {
+      let wordsSum = 0;
+      for (let k = lStart; k <= lEnd; k++) wordsSum += lineWordCounts[k];
+      const barCnt = phraseBarCounts[pIdx];
+      const densityDiff = Math.abs(wordsSum - barCnt);
+      const multiLinePenalty = (lEnd - lStart) * 2.2;
+      return densityDiff + multiLinePenalty;
+    };
+
+    for (let l = 0; l <= L - P; l++) {
+      dp[0][l] = groupCost(0, 0, l);
+      prevSplit[0][l] = 0;
+    }
+
+    for (let p = 1; p < P; p++) {
+      const minEnd = p;
+      const maxEnd = L - 1 - (P - 1 - p);
+      for (let l = minEnd; l <= maxEnd; l++) {
+        for (let prevL = p - 1; prevL < l; prevL++) {
+          if (dp[p - 1][prevL] === Infinity) continue;
+          const cand = dp[p - 1][prevL] + groupCost(p, prevL + 1, l);
+          if (cand < dp[p][l]) {
+            dp[p][l] = cand;
+            prevSplit[p][l] = prevL + 1;
+          }
+        }
+      }
+    }
+
+    const assignedRanges: Array<{ start: number; end: number }> = new Array(P);
+    let currEnd = L - 1;
+    for (let p = P - 1; p >= 0; p--) {
+      const start = prevSplit[p][currEnd];
+      assignedRanges[p] = { start, end: currEnd };
+      currEnd = start - 1;
+    }
+
+    phrases.forEach((p, pIdx) => {
+      const r = assignedRanges[pIdx];
+      const mergedText = cleanLines.slice(r.start, r.end + 1).join(' ');
+      p.isInstrumentalOrVocalize = false;
+      p.isMissingLyricGap = false;
+      alignWordsToPhraseNoteBars(p, noteBars, mergedText, rawMonoPcm, sampleRate, pitchTrack);
+    });
+    return;
+  }
+
   phrases.forEach((p, idx) => {
     if (idx < cleanLines.length) {
       p.isInstrumentalOrVocalize = false;
+      p.isMissingLyricGap = false;
       alignWordsToPhraseNoteBars(
         p,
         noteBars,
@@ -3349,7 +3864,8 @@ export function alignPlainTextToPhrases(
         pitchTrack
       );
     } else {
-      p.isInstrumentalOrVocalize = true;
+      p.isMissingLyricGap = true;
+      p.alignmentIssue = 'missing_lyric';
       alignWordsToPhraseNoteBars(p, noteBars, undefined, rawMonoPcm, sampleRate, pitchTrack);
     }
   });
@@ -4104,16 +4620,19 @@ export function realignLyricsToAnalysisResult(
     totalTransitions > 0 ? Math.round((totalConcordant / totalTransitions) * 100) : 95;
 
   const nextTitle = matchedTrackTitle || currentResult.matchedTrackTitle;
+  const alignmentAudit = auditLyricAlignmentHealth(clonedPhrases, clonedBars);
 
   const updatedResult: IVocalAnalysisResult = {
     ...currentResult,
     phrases: clonedPhrases,
     noteBars: clonedBars,
     lyricSource: isSyncedLrc ? 'auto_lrclib' : 'manual',
-    lyricStatus: 'complete',
+    lyricStatus: alignmentAudit.status === 'healthy' ? 'complete' : 'partial',
     matchedTrackTitle: nextTitle,
-    candidateConfidence: 'high',
-    candidateWarning: undefined,
+    candidateConfidence: alignmentAudit.status === 'mismatch_suspected' ? 'low' : 'high',
+    candidateWarning:
+      alignmentAudit.status === 'mismatch_suspected' ? alignmentAudit.summaryVi : undefined,
+    alignmentAudit,
     deepVerification: {
       toneHarmonyScorePct: prosodyConcordanceRatio,
       prosodyConcordanceRatio,
@@ -4123,8 +4642,31 @@ export function realignLyricsToAnalysisResult(
     },
   };
 
-  saveLyricsToLocalCache(updatedResult);
+  if (alignmentAudit.status !== 'mismatch_suspected') {
+    saveLyricsToLocalCache(updatedResult);
+  }
   return updatedResult;
+}
+
+/**
+ * Strip mismatched LRC timestamps from the current lyrics and re-align them
+ * strictly against actual vocal NoteBar density (`alignPlainTextToPhrases`).
+ */
+export function realignStripTimestampsFromCurrentLyrics(
+  currentResult: IVocalAnalysisResult
+): IVocalAnalysisResult {
+  const rawLines = currentResult.phrases
+    .filter((p) => !p.isMissingLyricGap && !p.isInstrumentalOrVocalize && p.lyricText && !p.lyricText.startsWith('Nguyên âm:'))
+    .map((p) => p.lyricText!.trim())
+    .filter(Boolean);
+
+  if (rawLines.length === 0) return currentResult;
+  return realignLyricsToAnalysisResult(
+    currentResult,
+    rawLines.join('\n'),
+    false,
+    currentResult.matchedTrackTitle
+  );
 }
 
 /**
@@ -4418,6 +4960,7 @@ export interface IPopulatedLyricResult {
   candidates?: ISongLyricCandidate[];
   candidateConfidence?: 'high' | 'medium' | 'low';
   candidateWarning?: string;
+  alignmentAudit?: IAlignmentHealthReport;
   deepVerification?: {
     toneHarmonyScorePct: number;
     prosodyConcordanceRatio: number;
@@ -4718,21 +5261,59 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
           durationMs
         );
         finalizeSections();
-        persistPhrasesToLocalCache({
-          fileName,
-          durationMs,
-          lyricSource: 'auto_lrclib',
-          matchedTrackTitle: autoCloud.matchedTitle,
-          phrases,
-        });
-        const conf = checkConfidence(autoCloud.matchedTitle);
+        let audit = auditLyricAlignmentHealth(phrases, noteBars);
+        let chosenTitle = autoCloud.matchedTitle;
+
+        // Auto-Fallback Guard: if primary LRCLIB result is suspected mismatched, test up to 2 backup synced candidates
+        if (audit.status === 'mismatch_suspected' && candidates.length > 1) {
+          const snapshotPhrases = phrases.map((p) => ({ ...p }));
+          const backupCandidates = candidates
+            .filter((c) => c.hasSyncedLyrics && c.syncedLyrics && `${c.trackName} – ${c.artistName}` !== chosenTitle)
+            .slice(0, 2);
+
+          for (const alt of backupCandidates) {
+            const altLines = parseLrcContent(alt.syncedLyrics!);
+            if (altLines.length === 0) continue;
+            const testPhrases = snapshotPhrases.map((p) => ({ ...p }));
+            alignLrcLinesToPhrases(
+              testPhrases,
+              noteBars,
+              altLines,
+              rawMonoPcm,
+              sampleRate,
+              pitchTrack,
+              durationMs
+            );
+            const altAudit = auditLyricAlignmentHealth(testPhrases, noteBars);
+            if (altAudit.coverageRatio > audit.coverageRatio + 0.12) {
+              phrases.splice(0, phrases.length, ...testPhrases);
+              finalizeSections();
+              audit = auditLyricAlignmentHealth(phrases, noteBars);
+              chosenTitle = `${alt.trackName} – ${alt.artistName}`;
+              break;
+            }
+          }
+        }
+
+        if (audit.status !== 'mismatch_suspected') {
+          persistPhrasesToLocalCache({
+            fileName,
+            durationMs,
+            lyricSource: 'auto_lrclib',
+            matchedTrackTitle: chosenTitle,
+            phrases,
+          });
+        }
+
+        const conf = checkConfidence(chosenTitle);
         return {
           lyricSource: 'auto_lrclib',
-          lyricStatus: 'complete',
-          matchedTrackTitle: autoCloud.matchedTitle,
+          lyricStatus: audit.status === 'healthy' ? 'complete' : 'partial',
+          matchedTrackTitle: chosenTitle,
           candidates,
-          candidateConfidence: conf.confidence,
-          candidateWarning: conf.warning,
+          candidateConfidence: audit.status === 'mismatch_suspected' ? 'low' : conf.confidence,
+          candidateWarning: audit.status === 'mismatch_suspected' ? audit.summaryVi : conf.warning,
+          alignmentAudit: audit,
           deepVerification: computeDeepProsody(),
         };
       }
@@ -4747,21 +5328,25 @@ export async function populateAutomaticSongLyricsAndStructure(params: {
         pitchTrack
       );
       finalizeSections();
-      persistPhrasesToLocalCache({
-        fileName,
-        durationMs,
-        lyricSource: 'auto_lrclib',
-        matchedTrackTitle: autoCloud.matchedTitle,
-        phrases,
-      });
+      const audit = auditLyricAlignmentHealth(phrases, noteBars);
+      if (audit.status !== 'mismatch_suspected') {
+        persistPhrasesToLocalCache({
+          fileName,
+          durationMs,
+          lyricSource: 'auto_lrclib',
+          matchedTrackTitle: autoCloud.matchedTitle,
+          phrases,
+        });
+      }
       const conf = checkConfidence(autoCloud.matchedTitle);
       return {
         lyricSource: 'auto_lrclib',
-        lyricStatus: 'complete',
+        lyricStatus: audit.status === 'healthy' ? 'complete' : 'partial',
         matchedTrackTitle: autoCloud.matchedTitle,
         candidates,
         candidateConfidence: conf.confidence,
         candidateWarning: conf.warning,
+        alignmentAudit: audit,
         deepVerification: computeDeepProsody(),
       };
     }

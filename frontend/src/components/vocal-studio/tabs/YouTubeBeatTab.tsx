@@ -24,7 +24,13 @@ import {
   FileText,
   Maximize2,
   Minimize2,
+  Activity,
+  Loader2,
 } from 'lucide-react';
+import {
+  vocalFileAnalysisService,
+  type IVocalAnalysisResult,
+} from '../../../services/vocalFileAnalysisService';
 import {
   extractYouTubeVideoId,
   extractYouTubeStartTime,
@@ -136,6 +142,8 @@ export const YouTubeBeatTab: React.FC = () => {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState(false);
   const [isLyricPrompterOpen, setIsLyricPrompterOpen] = useState(false);
+  const [isAnalyzingTake, setIsAnalyzingTake] = useState(false);
+  const [takeAnalysisResult, setTakeAnalysisResult] = useState<IVocalAnalysisResult | null>(null);
 
   // Initialize or fetch session for video ID
   const initSession = useCallback(async (vidId: string, title?: string) => {
@@ -890,6 +898,7 @@ export const YouTubeBeatTab: React.FC = () => {
         {/* In-tab Lyric Prompter Drawer (if toggled open) */}
         <LyricPrompterDrawer
           videoId={activeVideoId}
+          videoTitle={videoTitle}
           isOpen={isLyricPrompterOpen}
           onClose={() => setIsLyricPrompterOpen(false)}
           isPlaying={isPlayingMix || isRecording}
@@ -1318,6 +1327,66 @@ export const YouTubeBeatTab: React.FC = () => {
                     <span className="text-slate-300 font-medium">Reverb phòng nhẹ</span>
                   </label>
                 </div>
+              </div>
+
+              {/* Analyze Active Take Pitch & Sustain */}
+              <div className="p-3.5 rounded-xl bg-slate-950/60 border border-indigo-500/30 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    <Activity className="w-4 h-4 text-indigo-400" />
+                    <span className="font-bold text-slate-200">
+                      Kiểm tra Cao Độ &amp; Độ Ngân Take Đang Chọn
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isAnalyzingTake || !activeTake?.audioBlob}
+                    onClick={async () => {
+                      if (!activeTake?.audioBlob) return;
+                      setIsAnalyzingTake(true);
+                      try {
+                        const res = await vocalFileAnalysisService.analyzeVocalAudio(
+                          activeTake.audioBlob,
+                          `${videoTitle || 'youtube-take'}.webm`
+                        );
+                        setTakeAnalysisResult(res);
+                      } finally {
+                        setIsAnalyzingTake(false);
+                      }
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                  >
+                    {isAnalyzingTake ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    <span>{isAnalyzingTake ? 'Đang phân tích...' : 'Phân Tích Cao Độ Take Này'}</span>
+                  </button>
+                </div>
+
+                {takeAnalysisResult && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+                    <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Âm vực đã hát</span>
+                      <strong className="text-sky-300 font-mono">
+                        {takeAnalysisResult.vocalRange.lowestNote} → {takeAnalysisResult.vocalRange.highestNote}
+                      </strong>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Giọng / Tone ước tính</span>
+                      <strong className="text-emerald-300">{takeAnalysisResult.estimatedKey.key}</strong>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Độ rõ cao độ (Clarity)</span>
+                      <strong className="text-amber-300 font-mono">
+                        {Math.round(takeAnalysisResult.vocalMetrics.avgClarity * 100)}%
+                      </strong>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Số câu / Nốt ngân</span>
+                      <strong className="text-purple-300 font-mono">
+                        {takeAnalysisResult.phrases.length} câu · {takeAnalysisResult.noteBars.length} nốt
+                      </strong>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

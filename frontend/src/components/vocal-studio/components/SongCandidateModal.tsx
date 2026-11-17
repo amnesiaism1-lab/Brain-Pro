@@ -84,19 +84,21 @@ export const SongCandidateModal: React.FC<ISongCandidateModalProps> = ({
     }
   };
 
-  const handleSelectCandidate = (candidate: ISongLyricCandidate) => {
-    const lyricsToApply = candidate.syncedLyrics || candidate.plainLyrics;
-    if (!lyricsToApply) {
+  const handleSelectCandidate = (candidate: ISongLyricCandidate, stripTimestamps = false) => {
+    const rawLyrics = stripTimestamps
+      ? (candidate.plainLyrics || candidate.syncedLyrics || '')
+      : (candidate.syncedLyrics || candidate.plainLyrics);
+    if (!rawLyrics) {
       setStatusMessage('Bài hát này chưa có dữ liệu lời hát. Vui lòng chọn bài khác hoặc tự dán lời.');
       return;
     }
 
-    const isSynced = Boolean(candidate.syncedLyrics);
+    const isSynced = !stripTimestamps && Boolean(candidate.syncedLyrics);
     const trackTitle = `${candidate.trackName} – ${candidate.artistName}`;
 
     const updated = realignLyricsToAnalysisResult(
       analysisResult,
-      lyricsToApply,
+      rawLyrics,
       isSynced,
       trackTitle
     );
@@ -373,14 +375,26 @@ export const SongCandidateModal: React.FC<ISongCandidateModalProps> = ({
                             <span>Đang Áp Dụng</span>
                           </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleSelectCandidate(cand)}
-                            className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition cursor-pointer"
-                          >
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span>Áp Dụng Bài Này</span>
-                          </button>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {cand.hasSyncedLyrics && (
+                              <button
+                                type="button"
+                                onClick={() => handleSelectCandidate(cand, true)}
+                                className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 font-bold text-[11px] transition cursor-pointer"
+                                title="Chỉ lấy lời sạch (bỏ mốc giờ LRC gốc) để tự căng theo nhịp câu hát thực tế — dùng cho Cover/Remix"
+                              >
+                                Chỉ Lấy Lời
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleSelectCandidate(cand, false)}
+                              className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition cursor-pointer"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>Áp Dụng Bài Này</span>
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>

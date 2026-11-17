@@ -109,12 +109,12 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
   const [isInTuneNow, setIsInTuneNow] = useState<boolean>(false);
   const [isLyricModalOpen, setIsLyricModalOpen] = useState<boolean>(false);
   const [lyricModalInitialMode, setLyricModalInitialMode] = useState<
-    'phrase_list' | 'bulk_paste' | 'cloud_search'
+    'phrase_list' | 'bulk_paste' | 'cloud_search' | 'tap_sync' | 'ai_transcribe'
   >('phrase_list');
   const [isSongCandidateModalOpen, setIsSongCandidateModalOpen] = useState<boolean>(false);
 
   const handleOpenLyricModal = (
-    initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search'
+    initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search' | 'tap_sync' | 'ai_transcribe'
   ) => {
     setLyricModalInitialMode(initialMode || 'phrase_list');
     setIsLyricModalOpen(true);
@@ -1048,6 +1048,7 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             activePhrase={activePhrase}
             onOpenLyricModal={handleOpenLyricModal}
             onOpenSongCandidateModal={() => setIsSongCandidateModalOpen(true)}
+            onApplyUpdatedResult={handleApplyUpdatedResult}
             onUpdatePhraseLyric={handleUpdatePhraseLyric}
             onMergeNextPhrase={handleMergeNextPhrase}
             onSplitPhrase={handleSplitPhrase}

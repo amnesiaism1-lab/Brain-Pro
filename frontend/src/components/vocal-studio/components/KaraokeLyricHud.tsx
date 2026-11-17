@@ -10,7 +10,8 @@ import {
   Clock,
 } from 'lucide-react';
 import { IVocalPhrase } from '../../../services/vocalFileAnalysisService';
-import { LyricDisplayMode, LyricSourceType } from '../../../services/lyricAlignmentService';
+import { LyricDisplayMode, LyricSourceType, IVocalLyricWord } from '../../../services/lyricAlignmentService';
+import { auditoryEngine } from '../../../services/auditoryEngine';
 import { SingSessionStats } from '../types';
 import { formatTimeMs } from '../utils/vocalHelpers';
 
@@ -23,6 +24,8 @@ interface KaraokeLyricHudProps {
   matchedTrackTitle?: string;
   candidateWarning?: string;
   isLoopingActive: boolean;
+  audioBuffer?: AudioBuffer;
+  transposeSemitones?: number;
   onSeek: (timeMs: number) => void;
   onLoopPhrase: (phrase: IVocalPhrase) => void;
   onOpenLyricModal: (initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search') => void;
@@ -66,6 +69,8 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
   matchedTrackTitle,
   candidateWarning,
   isLoopingActive,
+  audioBuffer,
+  transposeSemitones = 0,
   onSeek,
   onLoopPhrase,
   onOpenLyricModal,
@@ -120,6 +125,46 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
       onQuickUpdatePhraseLyric(currentOrUpcomingPhrase.phraseIndex, inlineDraft.trim());
     }
     setIsEditingInline(false);
+  };
+
+  const handleAuditionWord = (word: IVocalLyricWord) => {
+    onSeek(word.startMs);
+
+    // 1. Play exact original audio slice for this word so singer can verify word-to-audio alignment
+    if (audioBuffer) {
+      try {
+        const ctx = auditoryEngine.initContext();
+        if (ctx) {
+          if (ctx.state === 'suspended') {
+            ctx.resume().catch(() => {});
+          }
+          const startSec = Math.max(0, (word.startMs - 25) / 1000);
+          const durSec = Math.max(0.12, (word.endMs - word.startMs + 70) / 1000);
+          const source = ctx.createBufferSource();
+          source.buffer = audioBuffer;
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(0.85, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + durSec + 0.04);
+          source.connect(gain);
+          gain.connect(ctx.destination);
+          source.start(0, startSec, durSec);
+        }
+      } catch {
+        // ignore audio preview errors
+      }
+    }
+
+    // 2. Play soft reference piano note at word's target MIDI
+    try {
+      const targetMidi = word.midi + transposeSemitones;
+      const freq = 440 * Math.pow(2, (targetMidi - 69) / 12);
+      auditoryEngine.startNote(freq, 0.35, { timbrePreset: 'acoustic-piano' });
+      setTimeout(() => {
+        auditoryEngine.stopNote(freq, 0.15);
+      }, Math.min(600, Math.max(220, word.durationMs || 300)));
+    } catch {
+      // ignore
+    }
   };
 
   return (
@@ -462,7 +507,7 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = ({
                   <button
                     key={word.wordIndex}
                     type="button"
-                    onClick={() => onSeek(word.startMs)}
+                    onClick={() => handleAuditionWord(word)}
                     className={`relative overflow-hidden group inline-flex flex-col items-center transition-colors duration-100 px-2 py-0.5 rounded-lg hover:bg-slate-800/60 font-bold cursor-pointer ${wordColorClass}`}
                     title={`"${word.text}" • Nốt: ${noteDisplay} (${solfegeDisplay}) • Nguyên âm: /${
                       word.vowelPhoneme || 'A'

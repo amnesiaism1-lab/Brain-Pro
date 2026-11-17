@@ -20,6 +20,8 @@ const auth_controller_1 = require("./modules/auth/auth.controller");
 const auth_service_1 = require("./modules/auth/auth.service");
 const wrong_answers_controller_1 = require("./modules/wrong-answers/wrong-answers.controller");
 const wrong_answers_service_1 = require("./modules/wrong-answers/wrong-answers.service");
+const vocal_studio_controller_1 = require("./modules/vocal-studio/vocal-studio.controller");
+const vocal_studio_service_1 = require("./modules/vocal-studio/vocal-studio.service");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -39,10 +41,11 @@ exports.AppModule = AppModule = __decorate([
             analytics_controller_1.AnalyticsController,
             reminders_controller_1.RemindersController,
             auth_controller_1.AuthController,
-            wrong_answers_controller_1.WrongAnswersController
+            wrong_answers_controller_1.WrongAnswersController,
+            vocal_studio_controller_1.VocalStudioController
         ],
-        providers: [data_store_service_1.DataStoreService, auth_service_1.AuthService, wrong_answers_service_1.WrongAnswersService],
-        exports: [data_store_service_1.DataStoreService, auth_service_1.AuthService, wrong_answers_service_1.WrongAnswersService]
+        providers: [data_store_service_1.DataStoreService, auth_service_1.AuthService, wrong_answers_service_1.WrongAnswersService, vocal_studio_service_1.VocalStudioService],
+        exports: [data_store_service_1.DataStoreService, auth_service_1.AuthService, wrong_answers_service_1.WrongAnswersService, vocal_studio_service_1.VocalStudioService]
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

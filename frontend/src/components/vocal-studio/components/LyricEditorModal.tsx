@@ -10,6 +10,8 @@ import {
   FileText,
   Wand2,
   Loader2,
+  Hand,
+  Cpu,
 } from 'lucide-react';
 import {
   IVocalAnalysisResult,
@@ -26,12 +28,19 @@ import {
   fetchAutoLyricsFromLrclib,
   saveLyricsToLocalCache,
 } from '../../../services/lyricAlignmentService';
+import {
+  getSavedGeminiApiKey,
+  saveGeminiApiKey,
+  transcribeAndAlignWithAI,
+  transcribeMissingGapsWithAI,
+} from '../../../services/vocalTranscriptionService';
+import { TapSyncPanel } from './TapSyncPanel';
 import { formatTimeMs } from '../utils/vocalHelpers';
 
 interface LyricEditorModalProps {
   isOpen: boolean;
   analysisResult: IVocalAnalysisResult;
-  initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search';
+  initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search' | 'tap_sync' | 'ai_transcribe';
   onClose: () => void;
   onApplyUpdatedResult: (updated: IVocalAnalysisResult) => void;
   onPreviewPhraseAudio?: (startMs: number) => void;
@@ -45,9 +54,15 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
   onApplyUpdatedResult,
   onPreviewPhraseAudio,
 }) => {
-  const [mode, setMode] = useState<'phrase_list' | 'bulk_paste' | 'cloud_search'>(
+  const [mode, setMode] = useState<'phrase_list' | 'bulk_paste' | 'cloud_search' | 'tap_sync' | 'ai_transcribe'>(
     initialMode || 'phrase_list'
   );
+  const [geminiApiKey, setGeminiApiKey] = useState<string>(() => getSavedGeminiApiKey());
+  const [aiLanguage, setAiLanguage] = useState<'vi' | 'en'>('vi');
+  const [isAiRunning, setIsAiRunning] = useState(false);
+  const [aiStatusText, setAiStatusText] = useState<string>('');
+  const [onlyFlaggedFilter, setOnlyFlaggedFilter] = useState(false);
+  const [patchingPhraseIdx, setPatchingPhraseIdx] = useState<number | null>(null);
   const [workingPhrases, setWorkingPhrases] = useState<IVocalPhrase[]>([]);
   const [workingBars, setWorkingBars] = useState<IVocalNoteBar[]>([]);
   const [phraseTexts, setPhraseTexts] = useState<Record<number, string>>({});
@@ -377,6 +392,32 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
               <Search className="w-3.5 h-3.5" />
               <span>Tra Lời Tự Động (LRCLIB)</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setMode('tap_sync')}
+              className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 ${
+                mode === 'tap_sync'
+                  ? 'bg-amber-400 text-slate-950'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Hand className="w-3.5 h-3.5" />
+              <span>Tap-to-Sync</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMode('ai_transcribe')}
+              className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 ${
+                mode === 'ai_transcribe'
+                  ? 'bg-purple-500 text-white'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Cpu className="w-3.5 h-3.5" />
+              <span>AI Tạo &amp; Khớp Lời</span>
+            </button>
           </div>
 
           {/* Import .LRC / .TXT File Button */}
@@ -419,6 +460,138 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
             <div className="p-3 rounded-2xl bg-sky-950/50 border border-sky-500/40 text-xs text-sky-200 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-sky-400 shrink-0" />
               <span>{cloudMessage}</span>
+            </div>
+          )}
+
+          {mode === 'tap_sync' && (
+            <TapSyncPanel
+              audioBuffer={analysisResult.audioBuffer}
+              initialLyricsText={bulkText}
+              onCompleteEnhancedLrc={(enhancedLrc) => {
+                const lrcLines = parseLrcContent(enhancedLrc);
+                const clonedPhrases = analysisResult.phrases.map((p) => ({ ...p }));
+                const clonedBars = analysisResult.noteBars.map((b) => ({ ...b }));
+                alignLrcLinesToPhrases(
+                  clonedPhrases,
+                  clonedBars,
+                  lrcLines,
+                  getRawMonoPcm(),
+                  analysisResult.sampleRate,
+                  analysisResult.pitchTrack,
+                  analysisResult.durationMs
+                );
+                syncStateFromAlignedPhrases(clonedPhrases, clonedBars);
+                setToastNotice({
+                  text: `Đã gõ nhịp khớp chuẩn từng chữ cho ${lrcLines.length} câu hát!`,
+                  type: 'success',
+                });
+                setMode('phrase_list');
+              }}
+            />
+          )}
+
+          {mode === 'ai_transcribe' && (
+            <div className="p-5 rounded-2xl bg-slate-950/70 border border-purple-500/30 space-y-4">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Cpu className="w-4 h-4 text-purple-400" />
+                    <span>AI Bóc Lời &amp; Khớp Timestamp Từng Chữ (Gemini Audio)</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Nghe trực tiếp giọng hát để tạo lời chuẩn chính tả (nếu chưa có LRC) hoặc căn chỉnh chuẩn từng mili-giây theo lời bạn dán sẵn.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs">
+                  {(['vi', 'en'] as const).map((lang) => (
+                    <button
+                      key={lang}
+                      type="button"
+                      onClick={() => setAiLanguage(lang)}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
+                        aiLanguage === lang
+                          ? 'bg-purple-500 text-white'
+                          : 'bg-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {lang === 'vi' ? 'Tiếng Việt' : 'English'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-400">
+                    Lời gợi ý (Tùy chọn - để trống nếu muốn AI tự nghe và viết lời):
+                  </label>
+                  <textarea
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                    rows={4}
+                    placeholder="Dán lời bài hát thô nếu bạn muốn AI ép khớp đúng từng chữ..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-400"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-400 block">
+                    Gemini API Key (Tùy chọn nếu server chưa cấu hình):
+                  </label>
+                  <input
+                    type="password"
+                    value={geminiApiKey}
+                    onChange={(e) => {
+                      setGeminiApiKey(e.target.value);
+                      saveGeminiApiKey(e.target.value);
+                    }}
+                    placeholder="AIza... (lưu an toàn tại trình duyệt của bạn)"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-400"
+                  />
+                  {aiStatusText && (
+                    <div className="text-xs text-purple-300 bg-purple-950/40 border border-purple-500/30 px-3 py-2 rounded-xl flex items-center gap-2">
+                      {isAiRunning && <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />}
+                      <span>{aiStatusText}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={isAiRunning}
+                onClick={async () => {
+                  setIsAiRunning(true);
+                  setToastNotice(null);
+                  try {
+                    const updated = await transcribeAndAlignWithAI({
+                      analysisResult,
+                      hintLyrics: bulkText.trim() || undefined,
+                      language: aiLanguage,
+                      apiKey: geminiApiKey,
+                      onProgress: (_, st) => setAiStatusText(st),
+                    });
+                    syncStateFromAlignedPhrases(updated.phrases, updated.noteBars);
+                    onApplyUpdatedResult(updated);
+                    setToastNotice({
+                      text: `AI đã tạo và khớp chuẩn từng chữ cho ${updated.phrases.length} câu hát!`,
+                      type: 'success',
+                    });
+                    setMode('phrase_list');
+                  } catch (err: any) {
+                    setToastNotice({
+                      text: err?.message || 'Không thể kết nối AI Transcription.',
+                      type: 'error',
+                    });
+                  } finally {
+                    setIsAiRunning(false);
+                  }
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs flex items-center gap-2 shadow-lg transition cursor-pointer disabled:opacity-50"
+              >
+                {isAiRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                <span>Bắt Đầu Tạo &amp; Khớp Lời Chuẩn Từng Chữ</span>
+              </button>
             </div>
           )}
 
@@ -502,7 +675,28 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
 
           {mode === 'phrase_list' && (
             <div className="space-y-2.5">
-              {activePhrases.map((phrase) => {
+              {activePhrases.some((p) => p.alignmentIssue || p.isMissingLyricGap) && (
+                <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/30 text-xs">
+                  <span className="text-amber-200 font-semibold">
+                    Phát hiện {activePhrases.filter((p) => p.alignmentIssue || p.isMissingLyricGap).length} câu thiếu lời hoặc nghi ngờ lệch nhịp.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setOnlyFlaggedFilter((v) => !v)}
+                    className={`px-3 py-1 rounded-lg font-bold text-[11px] transition cursor-pointer ${
+                      onlyFlaggedFilter
+                        ? 'bg-amber-400 text-slate-950'
+                        : 'bg-slate-800 text-amber-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    {onlyFlaggedFilter ? 'Hiện tất cả câu' : 'Chỉ xem câu thiếu / lỗi'}
+                  </button>
+                </div>
+              )}
+
+              {activePhrases
+                .filter((p) => !onlyFlaggedFilter || Boolean(p.alignmentIssue || p.isMissingLyricGap))
+                .map((phrase) => {
                 const isVocalize = Boolean(phraseVocalizeFlags[phrase.phraseIndex]);
                 const isDictating = dictatingPhraseIdx === phrase.phraseIndex;
 
@@ -577,6 +771,49 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
                           <Mic className="w-4 h-4" />
                         </button>
 
+                        {/* AI Patch Single Phrase Button */}
+                        <button
+                          type="button"
+                          disabled={patchingPhraseIdx === phrase.phraseIndex}
+                          onClick={async () => {
+                            setPatchingPhraseIdx(phrase.phraseIndex);
+                            setToastNotice(null);
+                            try {
+                              const updated = await transcribeMissingGapsWithAI({
+                                analysisResult: {
+                                  ...analysisResult,
+                                  phrases: activePhrases,
+                                  noteBars: workingBars.length > 0 ? workingBars : analysisResult.noteBars,
+                                },
+                                targetPhraseIndices: [phrase.phraseIndex],
+                                language: aiLanguage,
+                                apiKey: geminiApiKey,
+                              });
+                              syncStateFromAlignedPhrases(updated.phrases, updated.noteBars);
+                              setToastNotice({
+                                text: `Đã dùng AI bóc lời chuẩn cho Câu ${phrase.phraseIndex}!`,
+                                type: 'success',
+                              });
+                            } catch (err: any) {
+                              setToastNotice({
+                                text: err?.message || 'Lỗi bóc lời AI cho câu này.',
+                                type: 'error',
+                              });
+                            } finally {
+                              setPatchingPhraseIdx(null);
+                            }
+                          }}
+                          className="px-2.5 py-2 rounded-xl border border-purple-500/40 bg-purple-500/15 hover:bg-purple-500/30 text-purple-200 text-[11px] font-bold flex items-center gap-1 transition shrink-0 cursor-pointer disabled:opacity-40"
+                          title="Dùng AI nghe và bóc lời riêng cho câu này"
+                        >
+                          {patchingPhraseIdx === phrase.phraseIndex ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+                          )}
+                          <span className="hidden sm:inline">AI Bóc Câu</span>
+                        </button>
+
                         {/* Toggle Vocalize / Instrumental */}
                         <button
                           type="button"
@@ -596,6 +833,12 @@ export const LyricEditorModal: React.FC<LyricEditorModalProps> = ({
                           Ngân/Không lời
                         </button>
                       </div>
+
+                      {(phrase.alignmentIssue || phrase.isMissingLyricGap) && (
+                        <div className="text-[10px] text-amber-300 bg-amber-950/50 border border-amber-500/30 rounded-lg px-2 py-1">
+                          ⚠️ {phrase.alignmentIssueDetailVi || 'Đoạn hát này đang thiếu lời hoặc lệch nốt.'}
+                        </div>
+                      )}
 
                       {/* Live Word-to-Note Syllable Preview */}
                       {!isVocalize && (phraseTexts[phrase.phraseIndex] ?? phrase.lyricText) && (

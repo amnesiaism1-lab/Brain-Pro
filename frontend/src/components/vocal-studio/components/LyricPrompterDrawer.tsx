@@ -11,10 +11,17 @@ import {
   Sparkles,
   Clock,
   Gauge,
+  Search,
+  Loader2,
 } from 'lucide-react';
+import {
+  fetchAutoLyricsFromLrclib,
+  parseLrcContent,
+} from '../../../services/lyricAlignmentService';
 
 interface LyricPrompterDrawerProps {
   videoId: string;
+  videoTitle?: string;
   isOpen: boolean;
   onClose: () => void;
   isPlaying?: boolean;
@@ -27,10 +34,12 @@ interface IParsedLrcLine {
   raw: string;
   text: string;
   timeSec: number | null;
+  wordTimestamps?: Array<{ timeSec: number; text: string }>;
 }
 
 export const LyricPrompterDrawer: React.FC<LyricPrompterDrawerProps> = ({
   videoId,
+  videoTitle,
   isOpen,
   onClose,
   isPlaying = false,
@@ -43,6 +52,9 @@ export const LyricPrompterDrawer: React.FC<LyricPrompterDrawerProps> = ({
   const [fontSize, setFontSize] = useState<'sm' | 'md' | 'lg' | 'xl'>('lg');
   const [isAutoScroll, setIsAutoScroll] = useState(true);
   const [scrollSpeed, setScrollSpeed] = useState<number>(1.0); // 0.75, 1.0, 1.5, 2.0
+  const [lyricOffsetSec, setLyricOffsetSec] = useState<number>(0);
+  const [isSearchingLrc, setIsSearchingLrc] = useState(false);
+  const [searchStatus, setSearchStatus] = useState<string | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const activeLineRef = useRef<HTMLParagraphElement | null>(null);
@@ -74,28 +86,29 @@ export const LyricPrompterDrawer: React.FC<LyricPrompterDrawerProps> = ({
     }
   };
 
-  // Parse lines for optional LRC timestamp prefixes: [01:23.45] or [01:23]
+  // Parse lines for LRC & Enhanced Word-LRC (<mm:ss.xx>word)
   const parsedLines: IParsedLrcLine[] = useMemo(() => {
     if (!lyricsText) return [];
-    return lyricsText.split('\n').map((line) => {
-      const match = line.match(/^\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]\s*(.*)$/);
-      if (match) {
-        const min = parseInt(match[1], 10);
-        const sec = parseInt(match[2], 10);
-        const ms = match[3] ? parseFloat(`0.${match[3]}`) : 0;
-        return {
-          raw: line,
-          timeSec: min * 60 + sec + ms,
-          text: match[4] || '',
-        };
-      }
-      return {
-        raw: line,
-        timeSec: null,
-        text: line,
-      };
-    });
+    const lrcParsed = parseLrcContent(lyricsText);
+    if (lrcParsed.length > 0) {
+      return lrcParsed.map((l) => ({
+        raw: l.text,
+        timeSec: l.timeMs / 1000,
+        text: l.text,
+        wordTimestamps: l.wordTimestamps?.map((wt) => ({
+          timeSec: wt.timeMs / 1000,
+          text: wt.text,
+        })),
+      }));
+    }
+    return lyricsText.split('\n').map((line) => ({
+      raw: line,
+      timeSec: null,
+      text: line,
+    }));
   }, [lyricsText]);
+
+  const effectiveTimeSec = Math.max(0, currentTimeSec + lyricOffsetSec);
 
   const hasTimestamps = useMemo(() => {
     return parsedLines.some((p) => p.timeSec !== null);
@@ -103,16 +116,41 @@ export const LyricPrompterDrawer: React.FC<LyricPrompterDrawerProps> = ({
 
   // Find index of active line when lyrics contain timestamps
   const activeLineIndex = useMemo(() => {
-    if (!hasTimestamps || !isPlaying) return -1;
+    if (!hasTimestamps) return -1;
     let foundIdx = -1;
     for (let i = 0; i < parsedLines.length; i++) {
       const lineTime = parsedLines[i].timeSec;
-      if (lineTime !== null && lineTime <= currentTimeSec) {
+      if (lineTime !== null && lineTime <= effectiveTimeSec) {
         foundIdx = i;
       }
     }
     return foundIdx;
-  }, [hasTimestamps, isPlaying, parsedLines, currentTimeSec]);
+  }, [hasTimestamps, parsedLines, effectiveTimeSec]);
+
+  const handleAutoLookupLrclib = async () => {
+    const query = (videoTitle || '').replace(/\(.*?\)|\[.*?\]|karaoke|beat|instrumental|tone\s*nam|tone\s*nữ/gi, ' ').trim();
+    if (!query) {
+      setSearchStatus('Chưa có tên bài hát để tra cứu LRCLIB.');
+      return;
+    }
+    setIsSearchingLrc(true);
+    setSearchStatus(null);
+    try {
+      const res = await fetchAutoLyricsFromLrclib(query, durationSec > 0 ? durationSec * 1000 : 0);
+      const foundText = res?.syncedLyrics || res?.plainLyrics;
+      if (foundText) {
+        handleSaveLyrics(foundText);
+        setIsEditing(false);
+        setSearchStatus(`Đã tải lời "${res.matchedTitle}" từ LRCLIB!`);
+      } else {
+        setSearchStatus('Không tìm thấy lời khớp trên LRCLIB. Bạn có thể dán lời thủ công.');
+      }
+    } catch {
+      setSearchStatus('Lỗi kết nối LRCLIB.');
+    } finally {
+      setIsSearchingLrc(false);
+    }
+  };
 
   // Auto-scroll when active line changes (timestamped mode)
   useEffect(() => {
@@ -215,6 +253,43 @@ export const LyricPrompterDrawer: React.FC<LyricPrompterDrawerProps> = ({
             </button>
           </div>
 
+          {/* Nudge LRC timing if timestamped */}
+          {hasTimestamps && !isEditing && (
+            <div className="flex items-center bg-slate-950 rounded-lg p-0.5 border border-slate-800 text-[10px] font-mono">
+              <button
+                type="button"
+                onClick={() => setLyricOffsetSec((o) => Math.round((o - 0.2) * 10) / 10)}
+                className="px-1.5 py-0.5 rounded text-slate-300 hover:bg-slate-800 cursor-pointer"
+                title="Đẩy lời sớm hơn 0.2s"
+              >
+                -0.2s
+              </button>
+              <span className="px-1 text-sky-400 font-bold">
+                {lyricOffsetSec >= 0 ? `+${lyricOffsetSec.toFixed(1)}s` : `${lyricOffsetSec.toFixed(1)}s`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setLyricOffsetSec((o) => Math.round((o + 0.2) * 10) / 10)}
+                className="px-1.5 py-0.5 rounded text-slate-300 hover:bg-slate-800 cursor-pointer"
+                title="Đẩy lời trễ hơn 0.2s"
+              >
+                +0.2s
+              </button>
+            </div>
+          )}
+
+          {/* Auto-lookup LRCLIB */}
+          <button
+            type="button"
+            disabled={isSearchingLrc}
+            onClick={handleAutoLookupLrclib}
+            className="px-2 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+            title="Tự động tìm LRC đồng bộ theo tên bài YouTube"
+          >
+            {isSearchingLrc ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+            <span>Tìm LRC</span>
+          </button>
+
           {/* Auto-scroll toggle */}
           <button
             type="button"
@@ -250,6 +325,11 @@ export const LyricPrompterDrawer: React.FC<LyricPrompterDrawerProps> = ({
 
       {/* Body: Prompter Text or Textarea */}
       <div className="flex-1 overflow-y-auto mt-3 pr-1" ref={scrollContainerRef}>
+        {searchStatus && (
+          <div className="mb-2 px-3 py-1.5 rounded-xl bg-indigo-950/60 border border-indigo-500/30 text-[11px] text-indigo-200">
+            {searchStatus}
+          </div>
+        )}
         {isEditing ? (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-[11px] text-slate-400">
@@ -291,7 +371,33 @@ export const LyricPrompterDrawer: React.FC<LyricPrompterDrawerProps> = ({
                           : 'text-slate-300 hover:text-white'
                       }`}
                     >
-                      {line.text || <span className="opacity-0">.</span>}
+                      {isActive && line.wordTimestamps && line.wordTimestamps.length > 0 ? (
+                        <span className="inline-flex flex-wrap justify-center gap-x-1.5">
+                          {line.wordTimestamps.map((wt, wIdx) => {
+                            const nextWt = line.wordTimestamps?.[wIdx + 1];
+                            const isWordHit =
+                              effectiveTimeSec >= wt.timeSec &&
+                              (!nextWt || effectiveTimeSec < nextWt.timeSec);
+                            const isWordDone = nextWt && effectiveTimeSec >= nextWt.timeSec;
+                            return (
+                              <span
+                                key={wIdx}
+                                className={
+                                  isWordHit
+                                    ? 'text-sky-300 underline decoration-sky-400 underline-offset-4 scale-105 transition-transform'
+                                    : isWordDone
+                                    ? 'text-amber-300'
+                                    : 'text-slate-200/80'
+                                }
+                              >
+                                {wt.text}
+                              </span>
+                            );
+                          })}
+                        </span>
+                      ) : (
+                        line.text || <span className="opacity-0">.</span>
+                      )}
                     </p>
                   );
                 })}

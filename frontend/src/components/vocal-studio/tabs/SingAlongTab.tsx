@@ -22,6 +22,9 @@ import { PitchFeedbackDetail } from '../utils/vocalHelpers';
 import { midiToNoteInfo, NOTE_NAMES, SOLFEGE_NAMES } from '@brain-exercises/shared';
 import { ISelectedKeyOverride, useVocalStudioStore } from '../../../store/vocalStudioStore';
 import { LeadingSilenceBanner } from '../components/LeadingSilenceBanner';
+import { AlignmentHealthBanner } from '../components/AlignmentHealthBanner';
+import { realignStripTimestampsFromCurrentLyrics } from '../../../services/lyricAlignmentService';
+import { transcribeMissingGapsWithAI } from '../../../services/vocalTranscriptionService';
 
 interface SingAlongTabProps {
   analysisResult: IVocalAnalysisResult;
@@ -83,8 +86,9 @@ interface SingAlongTabProps {
   // Phrase Deck stats
   sessionStats: SingSessionStats;
   activePhrase: IVocalPhrase | null;
-  onOpenLyricModal?: (initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search') => void;
+  onOpenLyricModal?: (initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search' | 'tap_sync' | 'ai_transcribe') => void;
   onOpenSongCandidateModal?: () => void;
+  onApplyUpdatedResult?: (updated: IVocalAnalysisResult) => void;
   onUpdatePhraseLyric?: (phraseIndex: number, newText: string) => void;
   onMergeNextPhrase?: (phraseIndex: number) => void;
   onSplitPhrase?: (phraseIndex: number, splitTimeMs?: number) => void;
@@ -154,6 +158,7 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   activePhrase,
   onOpenLyricModal,
   onOpenSongCandidateModal,
+  onApplyUpdatedResult,
   onUpdatePhraseLyric,
   onMergeNextPhrase,
   onSplitPhrase,
@@ -248,6 +253,21 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
           />
         )}
 
+      {/* LRC Alignment Health / Missing Gaps / Mismatch Rescue Banner */}
+      <AlignmentHealthBanner
+        audit={analysisResult.alignmentAudit}
+        onAiFillMissingGaps={async () => {
+          const updated = await transcribeMissingGapsWithAI({ analysisResult });
+          onApplyUpdatedResult?.(updated);
+        }}
+        onStripTimestampsRealign={() => {
+          const updated = realignStripTimestampsFromCurrentLyrics(analysisResult);
+          onApplyUpdatedResult?.(updated);
+        }}
+        onOpenSongCandidateModal={onOpenSongCandidateModal}
+        onOpenLyricEditor={() => onOpenLyricModal?.('phrase_list')}
+      />
+
       {/* 1. DUAL-TRACK RUNWAY CANVAS + INTEGRATED KARAOKE & SECTION LOCATOR HUD */}
       <div className="w-full rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl">
         <KaraokeLyricHud
@@ -259,6 +279,8 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
           matchedTrackTitle={analysisResult.matchedTrackTitle}
           candidateWarning={analysisResult.candidateWarning}
           isLoopingActive={isLoopingActive}
+          audioBuffer={analysisResult.audioBuffer}
+          transposeSemitones={transposeSemitones}
           onSeek={onSeek}
           onLoopPhrase={onLoopPhrase}
           onOpenLyricModal={(mode) => onOpenLyricModal?.(mode)}
