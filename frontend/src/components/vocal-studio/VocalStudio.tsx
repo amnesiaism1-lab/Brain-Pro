@@ -39,7 +39,10 @@ import {
 import {
   getPitchFeedback,
   findClosestPitchPoint,
+  findPhraseAtTimeBinary,
+  findNoteBarAtTimeBinary,
 } from './utils/vocalHelpers';
+import { auditoryEngine } from '../../services/auditoryEngine';
 import {
   createSessionAccumulator,
   processPitchScoreFrame,
@@ -80,6 +83,20 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
   const lastStatsUiUpdateRef = useRef<number>(0);
   const lastFrameTimeRef = useRef<number>(0);
   const lastSingingStateRef = useRef<boolean>(false);
+  const activeGuideNoteFreqRef = useRef<number | null>(null);
+  const activeGuideBarIdRef = useRef<string | null>(null);
+
+  const stopActiveGuideNote = useCallback(() => {
+    if (activeGuideNoteFreqRef.current !== null) {
+      try {
+        auditoryEngine.stopNote(activeGuideNoteFreqRef.current, 0.08);
+      } catch {
+        // Ignore audio stop errors
+      }
+      activeGuideNoteFreqRef.current = null;
+    }
+    activeGuideBarIdRef.current = null;
+  }, []);
 
   // High-performance render state ref for 60fps Canvas
   const renderStateRef = useRef<RunwayRenderState>({
@@ -255,6 +272,36 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
           }
         }
 
+        // Optional real-time acoustic piano guide playing reference melody bars
+        const liveStore = useVocalStudioStore.getState();
+        if (liveStore.isMelodyGuideEnabled) {
+          const effectiveGuideMs = Math.max(
+            0,
+            renderStateRef.current.currentTimeMs - (renderStateRef.current.latencyOffsetMs ?? 45)
+          );
+          const guideBar = findNoteBarAtTimeBinary(
+            renderStateRef.current.noteBars,
+            effectiveGuideMs,
+            0
+          );
+          if (!guideBar) {
+            if (activeGuideBarIdRef.current !== null) stopActiveGuideNote();
+          } else if (guideBar.id !== activeGuideBarIdRef.current) {
+            stopActiveGuideNote();
+            const guideMidi = guideBar.midi + (liveStore.transposeSemitones || 0);
+            const guideFreq = 440 * Math.pow(2, (guideMidi - 69) / 12);
+            try {
+              auditoryEngine.startNote(guideFreq, 0.26, { timbrePreset: 'acoustic-piano' });
+              activeGuideNoteFreqRef.current = guideFreq;
+              activeGuideBarIdRef.current = guideBar.id;
+            } catch {
+              // Ignore audio synthesis errors
+            }
+          }
+        } else if (activeGuideBarIdRef.current !== null) {
+          stopActiveGuideNote();
+        }
+
         // Sync React store clock at ~4Hz (canvas & lyric HUD read renderStateRef directly at 60fps)
         if (now - lastClockUiUpdate > 240) {
           lastClockUiUpdate = now;
@@ -263,13 +310,17 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
       } else {
         perfAnchorMs = now;
         lastRawAudioMs = -1;
+        if (activeGuideBarIdRef.current !== null) stopActiveGuideNote();
       }
       animId = requestAnimationFrame(clockLoop);
     };
 
     animId = requestAnimationFrame(clockLoop);
-    return () => cancelAnimationFrame(animId);
-  }, [isOpen, store.isPlaying]);
+    return () => {
+      cancelAnimationFrame(animId);
+      stopActiveGuideNote();
+    };
+  }, [isOpen, store.isPlaying, stopActiveGuideNote]);
 
   // Microphone lifecycle & Real-time Pitch Worklet Subscription
   const handlePitchUpdate = useCallback(
@@ -283,11 +334,12 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
         effectiveMs
       );
 
-      // Identify active phrase, active word, and active NoteBar at effectiveMs
+      // Identify active phrase, active word, and active NoteBar in O(log N)
       let activePhraseIdx: number | null = null;
       let activeWordKey: string | null = null;
-      const activePhraseObj = store.analysisResult?.phrases.find(
-        (ph) => effectiveMs >= ph.startMs && effectiveMs <= ph.endMs
+      const activePhraseObj = findPhraseAtTimeBinary(
+        store.analysisResult?.phrases,
+        effectiveMs
       );
       const activeWordObj = activePhraseObj?.words?.find(
         (w) => effectiveMs >= w.startMs - 30 && effectiveMs <= w.endMs + 30
@@ -299,8 +351,10 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
         }
       }
 
-      const activeBar = store.analysisResult?.noteBars?.find(
-        (b) => effectiveMs >= b.startTimeMs - 35 && effectiveMs <= b.endTimeMs + 35
+      const activeBar = findNoteBarAtTimeBinary(
+        store.analysisResult?.noteBars,
+        effectiveMs,
+        35
       );
 
       // Compute cents diff with smart octave fold, transpose, and human micro-timing tolerance (±75ms)
@@ -582,7 +636,45 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     vocalPitchService.setLiveMonitoring(next);
   };
 
-  // Keyboard Shortcuts (Space, L, R, M, Arrow Keys)
+  const handleStepPhrase = useCallback(
+    (delta: -1 | 1) => {
+      const phrases = store.analysisResult?.phrases;
+      if (!phrases || phrases.length === 0) return;
+      const t = renderStateRef.current.currentTimeMs;
+      const current = findPhraseAtTimeBinary(phrases, t);
+
+      if (delta < 0) {
+        if (current && t - current.startMs > 1200) {
+          handleSeek(current.startMs);
+          return;
+        }
+        const curIdx = current ? phrases.indexOf(current) : -1;
+        if (curIdx > 0) {
+          handleSeek(phrases[curIdx - 1].startMs);
+          return;
+        }
+        let target = phrases[0];
+        for (let i = phrases.length - 1; i >= 0; i--) {
+          if (phrases[i].startMs < t - 200) {
+            target = phrases[i];
+            break;
+          }
+        }
+        handleSeek(target.startMs);
+      } else {
+        const curIdx = current ? phrases.indexOf(current) : -1;
+        if (curIdx >= 0 && curIdx + 1 < phrases.length) {
+          handleSeek(phrases[curIdx + 1].startMs);
+          return;
+        }
+        const next = phrases.find((p) => p.startMs > t + 80);
+        if (next) handleSeek(next.startMs);
+      }
+    },
+    [store.analysisResult?.phrases, handleSeek]
+  );
+
+  // Keyboard Shortcuts (Space, L, R, M, [, ], F, Arrow Keys)
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -602,6 +694,15 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
       } else if (e.code === 'ArrowRight') {
         e.preventDefault();
         handleSkip(3);
+      } else if (e.code === 'BracketLeft') {
+        e.preventDefault();
+        handleStepPhrase(-1);
+      } else if (e.code === 'BracketRight') {
+        e.preventDefault();
+        handleStepPhrase(1);
+      } else if (e.code === 'KeyF' && store.activeTab === 'sing_along') {
+        e.preventDefault();
+        store.setIsFocusStageMode(!store.isFocusStageMode);
       } else if (e.code === 'KeyL') {
         e.preventDefault();
         if (store.isLoopingActive) store.clearLoop();
@@ -609,7 +710,15 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, store.isPlaying, store.isLoopingActive, store.currentTimeMs]);
+  }, [
+    isOpen,
+    store.isPlaying,
+    store.isLoopingActive,
+    store.currentTimeMs,
+    store.activeTab,
+    store.isFocusStageMode,
+    handleStepPhrase,
+  ]);
 
   // File loading & Demo synthesis
   const loadAudioBlob = (blob: Blob, fileName: string, result: IVocalAnalysisResult) => {
@@ -866,14 +975,10 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
     isTargetNoteActive
   );
 
-  const activePhrase =
-    store.analysisResult?.phrases.find(
-      (p) =>
-        renderStateRef.current.currentTimeMs >= p.startMs &&
-        renderStateRef.current.currentTimeMs <= p.endMs
-    ) || null;
-
-  if (!isOpen) return null;
+  const activePhrase = findPhraseAtTimeBinary(
+    store.analysisResult?.phrases,
+    store.currentTimeMs
+  );
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col overflow-hidden text-slate-100 select-none">
@@ -1035,6 +1140,8 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             onTogglePlay={handleTogglePlay}
             onSeek={handleSeek}
             onSkip={handleSkip}
+            onPrevPhrase={() => handleStepPhrase(-1)}
+            onNextPhrase={() => handleStepPhrase(1)}
             playbackSpeed={store.playbackSpeed}
             onChangeSpeed={handleSpeedChange}
             musicVolume={store.musicVolume}
@@ -1110,6 +1217,10 @@ export const VocalStudio: React.FC<VocalStudioProps> = ({
             realtimeScorePct={store.realtimeScorePct}
             sessionStats={store.sessionStats}
             onLoopPhrase={handleLoopPhrase}
+            onPracticePhraseSlow={(phrase) => {
+              handleSpeedChange(0.85);
+              handleLoopPhrase(phrase);
+            }}
             onRestartFullSong={() => {
               store.resetSessionStats();
               handleSeek(0);

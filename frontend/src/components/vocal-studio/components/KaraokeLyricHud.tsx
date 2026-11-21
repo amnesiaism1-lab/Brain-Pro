@@ -18,7 +18,7 @@ import {
 } from '../../../services/lyricAlignmentService';
 import { auditoryEngine } from '../../../services/auditoryEngine';
 import { RunwayRenderState, SingSessionStats } from '../types';
-import { formatTimeMs } from '../utils/vocalHelpers';
+import { formatTimeMs, findPhraseAtTimeBinary } from '../utils/vocalHelpers';
 
 interface KaraokeLyricHudProps {
   phrases: IVocalPhrase[];
@@ -33,6 +33,8 @@ interface KaraokeLyricHudProps {
   isLoopingActive: boolean;
   audioBuffer?: AudioBuffer;
   transposeSemitones?: number;
+  isFocusStageMode?: boolean;
+  onToggleFocusStageMode?: () => void;
   onSeek: (timeMs: number) => void;
   onLoopPhrase: (phrase: IVocalPhrase) => void;
   onOpenLyricModal: (initialMode?: 'phrase_list' | 'bulk_paste' | 'cloud_search') => void;
@@ -80,6 +82,8 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = React.memo(({
   isLoopingActive,
   audioBuffer,
   transposeSemitones = 0,
+  isFocusStageMode = false,
+  onToggleFocusStageMode,
   onSeek,
   onLoopPhrase,
   onOpenLyricModal,
@@ -109,9 +113,19 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = React.memo(({
     const tick = () => {
       const t = renderStateRef.current?.currentTimeMs;
       if (typeof t === 'number') {
-        const ph = phrases.find((p) => t >= p.startMs && t <= p.endMs) || null;
-        const targetPh =
-          ph || phrases.find((p) => p.startMs > t) || phrases[phrases.length - 1] || null;
+        const ph = findPhraseAtTimeBinary(phrases, t);
+        let upcoming: IVocalPhrase | null = ph;
+        if (!upcoming && phrases.length > 0) {
+          let lo = 0;
+          let hi = phrases.length;
+          while (lo < hi) {
+            const mid = (lo + hi) >>> 1;
+            if (phrases[mid].startMs <= t) lo = mid + 1;
+            else hi = mid;
+          }
+          upcoming = lo < phrases.length ? phrases[lo] : phrases[phrases.length - 1];
+        }
+        const targetPh = upcoming;
         const pIdx = targetPh?.phraseIndex ?? -1;
         const wIdx = targetPh?.words ? findActiveWordIndexAtTime(targetPh.words, t) : -1;
         const waitTenth =
@@ -133,14 +147,14 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = React.memo(({
   const effectiveHudTimeMs = isPlaying && renderStateRef ? liveHudTimeMs : currentTimeMs;
 
   const currentOrUpcomingPhrase = React.useMemo(() => {
-    const activeByClock =
-      phrases.find((p) => effectiveHudTimeMs >= p.startMs && effectiveHudTimeMs <= p.endMs) ||
-      activePhrase;
+    const activeByClock = findPhraseAtTimeBinary(phrases, effectiveHudTimeMs) || activePhrase;
     if (activeByClock) return activeByClock;
     if (phrases.length === 0) return null;
     const upcoming = phrases.find((p) => p.startMs > effectiveHudTimeMs);
     return upcoming || phrases[phrases.length - 1];
   }, [activePhrase, phrases, effectiveHudTimeMs]);
+
+  const effectiveZenActive = onToggleFocusStageMode ? isFocusStageMode || isZenMode : isZenMode;
 
   const nextPhrase = React.useMemo(() => {
     if (!currentOrUpcomingPhrase) return null;
@@ -346,22 +360,28 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = React.memo(({
             </span>
           )}
 
-          {/* Zen Focus Mode Toggle */}
+          {/* Stage / Zen Focus Mode Toggle */}
           <button
             type="button"
-            onClick={() => setIsZenMode(!isZenMode)}
-            className={`px-2.5 py-1 rounded-xl border text-[11px] font-bold transition flex items-center gap-1 ${
-              isZenMode
+            onClick={() => {
+              if (onToggleFocusStageMode) {
+                onToggleFocusStageMode();
+              } else {
+                setIsZenMode(!isZenMode);
+              }
+            }}
+            className={`px-2.5 py-1 rounded-xl border text-[11px] font-bold transition flex items-center gap-1 cursor-pointer ${
+              effectiveZenActive
                 ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-sm'
                 : 'bg-slate-900 text-slate-300 border-slate-800 hover:text-white'
             }`}
-            title="Bật/Tắt chế độ Zen Focus: Chỉ hiện lời to rõ ràng, ẩn bớt thông số cao độ để ca sĩ tập trung hát"
+            title="Bật/Tắt chế độ Sân Khấu Tập Trung (Phím F): Mở rộng Runway & hiện lời 2 dòng to rõ ràng"
           >
-            <span>{isZenMode ? '✨ Zen Mode' : 'Studio'}</span>
+            <span>{effectiveZenActive ? '✨ Sân Khấu' : 'Studio'}</span>
           </button>
 
           {/* Display Mode Switcher */}
-          {!isZenMode && (
+          {!effectiveZenActive && (
             <div className="flex items-center bg-slate-900 p-0.5 rounded-xl border border-slate-800 text-[10px]">
               <button
                 type="button"
@@ -452,8 +472,29 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = React.memo(({
         </div>
       </div>
 
-      {/* Center Karaoke Line: Word-by-word synchronized display with Vowel & Pitch Trajectory */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-0.5">
+      {/* Entrance Countdown Progress Bar when waiting for upcoming phrase */}
+      {isWaitingForEntrance && !isEditingInline && (
+        <div className="w-full h-1 rounded-full bg-slate-800/80 overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-sky-400 via-cyan-300 to-emerald-400 transition-all duration-100 rounded-full"
+            style={{
+              width: `${Math.max(
+                4,
+                Math.min(
+                  100,
+                  100 -
+                    ((currentOrUpcomingPhrase.startMs - effectiveHudTimeMs) /
+                      Math.max(1500, currentOrUpcomingPhrase.startMs - (prevPhrase?.endMs ?? 0))) *
+                      100
+                )
+              )}%`,
+            }}
+          />
+        </div>
+      )}
+
+      {/* Center Karaoke Line: Word-by-word 2-line Teleprompter */}
+      <div className="flex flex-col gap-1.5 pt-0.5">
         {isEditingInline ? (
           <div className="flex-1 flex items-center gap-2">
             <input
@@ -613,7 +654,7 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = React.memo(({
                         style={{ width: `${activeProgressPct}%` }}
                       />
                     )}
-                    {!isZenMode && (displayMode === 'bilingual' || displayMode === 'vowel_trajectory') && (
+                    {!effectiveZenActive && (displayMode === 'bilingual' || displayMode === 'vowel_trajectory') && (
                       <span
                         className={`text-[9px] font-mono px-1.5 py-0 rounded border leading-tight mb-0.5 ${subBadgeClass}`}
                       >
@@ -622,14 +663,14 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = React.memo(({
                     )}
                     <span
                       className={`${
-                        isZenMode
+                        effectiveZenActive
                           ? 'text-lg sm:text-xl'
                           : displayMode === 'lyrics'
                           ? 'text-base sm:text-lg'
                           : 'text-sm sm:text-base'
                       } tracking-tight leading-snug`}
                     >
-                      {isZenMode ? word.text : primaryText}
+                      {effectiveZenActive ? word.text : primaryText}
                     </span>
                   </button>
                 );
@@ -651,29 +692,26 @@ export const KaraokeLyricHud: React.FC<KaraokeLyricHudProps> = React.memo(({
           </div>
         )}
 
-        {/* Next Phrase Preview on the right (anchored fixed width) */}
-        {nextPhrase && !isEditingInline ? (
-          <button
-            type="button"
-            onClick={() => onSeek(nextPhrase.startMs)}
-            className="text-left sm:text-right shrink-0 px-2.5 py-1 rounded-xl bg-slate-900/70 hover:bg-slate-800/80 border border-slate-800/80 transition w-44 sm:w-52 truncate hidden sm:block cursor-pointer"
-            title="Nhấn để chuyển tới câu tiếp theo"
-          >
-            <div className="text-[9px] font-mono uppercase text-slate-400 flex items-center sm:justify-end gap-1">
-              <Music className="w-2.5 h-2.5 text-sky-400" />
-              <span>
-                Tiếp: C{nextPhrase.phraseIndex} ({nextPhrase.sectionLabel || 'Khúc'})
+        {/* Second Line Teleprompter Preview directly underneath the current phrase */}
+        {nextPhrase &&
+          !isEditingInline &&
+          nextPhrase.lyricText &&
+          !nextPhrase.lyricText.startsWith('Nguyên âm:') && (
+            <button
+              type="button"
+              onClick={() => onSeek(nextPhrase.startMs)}
+              className="self-start flex items-center gap-2 px-2.5 py-0.5 rounded-lg bg-slate-900/55 hover:bg-slate-800/80 border border-slate-800/70 text-left transition cursor-pointer max-w-full"
+              title="Nhấn để chuyển tới câu tiếp theo (Phím ])"
+            >
+              <span className="text-[10px] font-mono uppercase text-sky-400 shrink-0 flex items-center gap-1">
+                <Music className="w-2.5 h-2.5" />
+                <span>Tiếp (C{nextPhrase.phraseIndex}):</span>
               </span>
-            </div>
-            <div className="text-xs text-slate-300 font-medium truncate">
-              {displayMode === 'solfege'
-                ? nextPhrase.solfegeText
-                : nextPhrase.lyricText || nextPhrase.solfegeText}
-            </div>
-          </button>
-        ) : (
-          <div className="w-44 sm:w-52 shrink-0 hidden sm:block" />
-        )}
+              <span className="text-xs sm:text-sm text-slate-400 font-medium truncate">
+                {displayMode === 'solfege' ? nextPhrase.solfegeText : nextPhrase.lyricText}
+              </span>
+            </button>
+          )}
       </div>
     </div>
   );

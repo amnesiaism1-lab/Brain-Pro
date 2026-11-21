@@ -5,13 +5,15 @@ import {
   RotateCcw,
   Rewind,
   FastForward,
+  SkipBack,
+  SkipForward,
+  Music2,
   Volume2,
   VolumeX,
   Repeat,
   Award,
   AppWindow,
 } from 'lucide-react';
-import { useVocalStudioStore } from '../../../store/vocalStudioStore';
 import { useAppStore } from '../../../store/useAppStore';
 import { SpeedControl } from './SpeedControl';
 import { SingOptionsPopover } from './SingOptionsPopover';
@@ -27,6 +29,8 @@ interface TransportBarProps {
   durationMs: number;
   onSeek: (ms: number) => void;
   onSkip: (seconds: number) => void;
+  onPrevPhrase?: () => void;
+  onNextPhrase?: () => void;
   playbackSpeed: number;
   onChangeSpeed: (spd: number) => void;
   musicVolume: number;
@@ -65,6 +69,8 @@ interface TransportBarProps {
   onChangeLatencyOffsetMs: (val: number) => void;
   isWindowLocked: boolean;
   onToggleWindowLock: () => void;
+  isMelodyGuideEnabled?: boolean;
+  onToggleMelodyGuide?: () => void;
 }
 
 function formatTime(ms: number): string {
@@ -115,6 +121,10 @@ export const TransportBar: React.FC<TransportBarProps> = React.memo(({
   onChangeLatencyOffsetMs,
   isWindowLocked,
   onToggleWindowLock,
+  onPrevPhrase,
+  onNextPhrase,
+  isMelodyGuideEnabled = false,
+  onToggleMelodyGuide,
 }) => {
   const openOfficePopUp = useAppStore((s) => s.openOfficePopUp);
 
@@ -155,6 +165,17 @@ export const TransportBar: React.FC<TransportBarProps> = React.memo(({
             <RotateCcw className="w-4 h-4" />
           </button>
 
+          {onPrevPhrase && (
+            <button
+              type="button"
+              onClick={onPrevPhrase}
+              className="p-2 sm:p-2.5 rounded-xl bg-slate-900 text-slate-300 hover:text-sky-300 hover:bg-slate-800 transition"
+              title="Câu trước (Phím [)"
+            >
+              <SkipBack className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => onSkip(-3)}
@@ -191,6 +212,17 @@ export const TransportBar: React.FC<TransportBarProps> = React.memo(({
           >
             <FastForward className="w-4 h-4" />
           </button>
+
+          {onNextPhrase && (
+            <button
+              type="button"
+              onClick={onNextPhrase}
+              className="p-2 sm:p-2.5 rounded-xl bg-slate-900 text-slate-300 hover:text-sky-300 hover:bg-slate-800 transition"
+              title="Câu tiếp theo (Phím ])"
+            >
+              <SkipForward className="w-4 h-4" />
+            </button>
+          )}
 
           <button
             type="button"
@@ -274,6 +306,23 @@ export const TransportBar: React.FC<TransportBarProps> = React.memo(({
             octaveConvention={octaveConvention}
             onChangeOctaveConvention={onChangeOctaveConvention}
           />
+
+          {/* Melody Piano Guide Toggle */}
+          {onToggleMelodyGuide && (
+            <button
+              type="button"
+              onClick={onToggleMelodyGuide}
+              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                isMelodyGuideEnabled
+                  ? 'bg-sky-500/20 border-sky-400/60 text-sky-300 shadow-sm shadow-sky-500/15'
+                  : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+              title="Bật/Tắt tiếng đàn Piano đánh theo giai điệu chuẩn (rất hữu ích khi tắt tiếng ca sĩ để tự tập hát)"
+            >
+              <Music2 className={`w-3.5 h-3.5 ${isMelodyGuideEnabled ? 'text-sky-400' : 'text-slate-400'}`} />
+              <span className="hidden md:inline">Đàn dẫn</span>
+            </button>
+          )}
 
           {/* View Report Button */}
           <button

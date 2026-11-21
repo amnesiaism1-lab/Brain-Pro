@@ -1,4 +1,4 @@
-import { IReferencePitchPoint } from '../../../services/vocalFileAnalysisService';
+import type { IReferencePitchPoint } from '../../../services/vocalFileAnalysisService';
 export { NOTE_NAMES, SOLFEGE_NAMES } from '@brain-exercises/shared';
 
 /**
@@ -36,6 +36,49 @@ export function findClosestPitchPoint(
   const diff2 = Math.abs(pitchTrack[idx2].timeMs - timeMs);
 
   return diff1 <= diff2 ? pitchTrack[idx1] : pitchTrack[idx2];
+}
+
+/**
+ * O(log N) binary search for the active vocal phrase at `timeMs`.
+ */
+export function findPhraseAtTimeBinary<T extends { startMs: number; endMs: number }>(
+  phrases: T[] | undefined,
+  timeMs: number
+): T | null {
+  if (!phrases || phrases.length === 0) return null;
+  let lo = 0;
+  let hi = phrases.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (phrases[mid].endMs < timeMs) lo = mid + 1;
+    else hi = mid;
+  }
+  for (let i = Math.max(0, lo - 1); i <= Math.min(phrases.length - 1, lo + 1); i++) {
+    const p = phrases[i];
+    if (timeMs >= p.startMs && timeMs <= p.endMs) return p;
+  }
+  return null;
+}
+
+/**
+ * O(log N) binary search for the active NoteBar at `timeMs` (with optional `marginMs`).
+ */
+export function findNoteBarAtTimeBinary<
+  T extends { startTimeMs: number; endTimeMs: number }
+>(noteBars: T[] | undefined, timeMs: number, marginMs = 35): T | null {
+  if (!noteBars || noteBars.length === 0) return null;
+  let lo = 0;
+  let hi = noteBars.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (noteBars[mid].endTimeMs + marginMs < timeMs) lo = mid + 1;
+    else hi = mid;
+  }
+  for (let i = Math.max(0, lo - 1); i <= Math.min(noteBars.length - 1, lo + 1); i++) {
+    const b = noteBars[i];
+    if (timeMs >= b.startTimeMs - marginMs && timeMs <= b.endTimeMs + marginMs) return b;
+  }
+  return null;
 }
 
 /**

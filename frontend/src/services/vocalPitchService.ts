@@ -865,8 +865,8 @@ class VocalPitchService {
       this.pitchHistory = [pitchToUse];
       this.pendingJumpFreq = 0;
       this.pendingJumpFrames = 0;
-    } else if (centsStep > 80) {
-      // LARGE PITCH TRANSITION (> 80 cents = nearly a whole tone):
+    } else if (centsStep > 85) {
+      // LARGE PITCH TRANSITION (> 85 cents):
       // Require multiple consecutive confirmation frames to prevent single-frame spikes.
       // This eliminates random 1-frame octave/harmonic glitches while still
       // allowing genuine note transitions to register within ~30ms.
@@ -893,10 +893,9 @@ class VocalPitchService {
         // Not yet confirmed: hold current smoothed frequency (reject the spike)
         pitchToUse = this.smoothedFreq;
       }
-    } else if (centsStep > 35) {
-      // MODERATE STEP (35-80 cents): Fast snap for musically meaningful transitions
-      // (e.g., moving from C4 to C#4 is 100 cents, D4 is 200 cents)
-      // Accept after 2 confirmation frames (~20ms) to filter random noise
+    } else if (centsStep > 58) {
+      // MODERATE STEP (58-85 cents): Fast snap for halftone/chromatic pitch transitions
+      // without clipping wide natural singing vibrato (±25-50 cents)
       const candidateCentsDiff = this.pendingJumpFreq > 0
         ? Math.abs(1200 * Math.log2(pitchToUse / this.pendingJumpFreq))
         : 999;
@@ -917,9 +916,8 @@ class VocalPitchService {
         pitchToUse = this.smoothedFreq;
       }
     } else {
-      // SINGER IS SUSTAINING THE SAME NOTE (within ±35 cents):
-      // Apply 5-sample median + responsive EMA (alpha = 0.45) to eliminate micro-jitter
-      // while keeping the pitch trace smooth and stable.
+      // SINGER IS SUSTAINING / VIBRATO (within ±58 cents):
+      // 5-sample median + velocity-adaptive EMA preserves organic vibrato without micro-jitter
       this.pendingJumpFreq = 0;
       this.pendingJumpFrames = 0;
 
@@ -929,10 +927,8 @@ class VocalPitchService {
       }
       const sorted = [...this.pitchHistory].sort((a, b) => a - b);
       const medianFreq = sorted[Math.floor(sorted.length / 2)];
-      
-      // Lower alpha = smoother but slightly more latency. 0.45 provides excellent
-      // stability for sustained notes with natural vibrato (3-7Hz, ±20 cents)
-      const alpha = 0.45;
+
+      const alpha = centsStep > 28 ? 0.64 : 0.42;
       this.smoothedFreq = alpha * medianFreq + (1 - alpha) * this.smoothedFreq;
     }
 

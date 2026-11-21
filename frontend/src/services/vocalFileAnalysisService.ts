@@ -220,6 +220,7 @@ class VocalFileAnalysisService {
     const notify = (pct: number, msg: string) => {
       if (onProgress) onProgress(pct, msg);
     };
+    const yieldToUi = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
     notify(5, 'Đang giải mã âm thanh file MP3/WAV...');
 
@@ -248,7 +249,7 @@ class VocalFileAnalysisService {
     const audioBuffer = await ctx.decodeAudioData(bufferCopy);
 
     notify(10, 'Giai đoạn 1/5: Tách kênh trung tâm Stereo Mid-Channel (Khử nhạc cụ biên)...');
-    await new Promise((resolve) => setTimeout(resolve, 320));
+    await yieldToUi();
 
     // 3. Offline Pitch Extraction using Mid-Channel Conditioning, 4th-Order Bandpass & Adaptive MPM
     const sampleRate = audioBuffer.sampleRate;
@@ -272,8 +273,8 @@ class VocalFileAnalysisService {
       rawMonoPcm.set(audioBuffer.getChannelData(0));
     }
 
-    notify(25, 'Giai đoạn 2/5: Lọc 4th-Order Biquad dải tần Vocal (95Hz - 880Hz, -24dB/oct)...');
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    notify(25, 'Giai đoạn 2/5: Lọc 4th-Order Biquad dải tần Vocal (80Hz - 1300Hz, -24dB/oct)...');
+    await yieldToUi();
 
     // Apply steep 4th-order Butterworth Biquad bandpass filter (95Hz to 880Hz) to kill kick drum rumble and cymbal sizzle
     const filteredPcm = this.applyVocalBandpassFilter(rawMonoPcm, sampleRate);
@@ -317,6 +318,7 @@ class VocalFileAnalysisService {
     const totalFrames = Math.floor((totalSamples - bufferSize) / hopSize);
     let frameCount = 0;
     const yieldInterval = Math.max(20, Math.floor(totalFrames / 45)); // ~45 smooth UI progress ticks
+    let lastYieldTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
     let prevHfDb = -100;
 
     while (sampleCursor + bufferSize <= totalSamples) {
@@ -408,26 +410,55 @@ class VocalFileAnalysisService {
       if (frameCount % yieldInterval === 0 && totalFrames > 0) {
         const pct = Math.min(75, 30 + Math.round((frameCount / totalFrames) * 45));
         notify(pct, `Giai đoạn 3/5: Quét phổ cao độ MPM độ phân giải cao (${Math.round((timeMs / 1000))}s / ${Math.round(durationMs / 1000)}s)...`);
-        await new Promise((resolve) => setTimeout(resolve, 25));
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        if (now - lastYieldTime >= 14) {
+          await yieldToUi();
+          lastYieldTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        }
       }
     }
 
-    notify(80, 'Giai đoạn 4/5: Cầu nối phụ âm & Triệt tiêu nhiễu kích âm NewTone...');
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    // 4. Post-MPM DSP Pipeline in strict acoustic order:
+    // Transient spike/sub-bass pruning -> Viterbi HMM octave correction -> consonant gap bridging -> median smoothing
+    notify(80, 'Giai đoạn 4/5: Triệt tiêu nhiễu kích âm & Giải mã quỹ đạo Viterbi HMM...');
+    await yieldToUi();
     this.pruneTransientSpikes(pitchTrack);
-    this.prunePitchValleys(pitchTrack);
-    this.bridgeMicroGaps(pitchTrack);
-
-    notify(88, 'Giai đoạn 5/5: Giải mã toàn cục Viterbi HMM & Phân đoạn Note Blocks...');
-    await new Promise((resolve) => setTimeout(resolve, 400));
     this.applyViterbiSmoothing(pitchTrack);
+
+    notify(88, 'Giai đoạn 5/5: Cầu nối phụ âm NewTone & Phân đoạn Note Blocks...');
+    await yieldToUi();
+    this.bridgeMicroGaps(pitchTrack);
     this.smoothPitchTrack(pitchTrack);
     const noteBars = this.segmentNoteBars(pitchTrack);
+    const phrases = this.segmentPhrases(pitchTrack);
+
+    // Prune stray pre-song noise from BOTH noteBars AND pitchTrack BEFORE computing Vocal Range & Key
+    if (phrases.length > 0) {
+      const firstPhraseStart = phrases[0].startMs;
+      for (let i = noteBars.length - 1; i >= 0; i--) {
+        if (noteBars[i].endTimeMs < firstPhraseStart - 100) {
+          noteBars.splice(i, 1);
+        }
+      }
+      for (let i = 0; i < pitchTrack.length; i++) {
+        if (pitchTrack[i].timeMs < firstPhraseStart - 100) {
+          if (pitchTrack[i].isVocal) {
+            pitchTrack[i].isVocal = false;
+            pitchTrack[i].freqHz = 0;
+            pitchTrack[i].midi = 0;
+            pitchTrack[i].noteName = '';
+            pitchTrack[i].solfegeName = '';
+          }
+        } else if (pitchTrack[i].timeMs >= firstPhraseStart) {
+          break;
+        }
+      }
+    }
 
     notify(92, 'Đang xác định âm giai và tối ưu lộ trình luyện tập...');
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await yieldToUi();
 
-    // 4. Robust Vocal Range & Statistics via 10th-90th percentile filtering
+    // 4B. Robust Vocal Range & Statistics via 8th-92nd percentile filtering on clean vocal points
     const vocalPoints = pitchTrack.filter((p) => p.isVocal && p.freqHz > 0);
     let lowestPoint: IReferencePitchPoint;
     let highestPoint: IReferencePitchPoint;
@@ -461,20 +492,7 @@ class VocalFileAnalysisService {
     const estimatedKey = keyAnalysis.estimatedKey;
     const topKeyCandidates = keyAnalysis.topCandidates;
 
-    notify(93, 'Đang phân đoạn câu hát và tối ưu lộ trình luyện tập...');
-
-    // 6. Phrase Segmentation (Tách từng câu hát)
-    const phrases = this.segmentPhrases(pitchTrack);
-
-    // Prune any stray noise noteBars that occurred before the first genuine singing phrase
-    if (phrases.length > 0) {
-      const firstPhraseStart = phrases[0].startMs;
-      for (let i = noteBars.length - 1; i >= 0; i--) {
-        if (noteBars[i].endTimeMs < firstPhraseStart - 100) {
-          noteBars.splice(i, 1);
-        }
-      }
-    }
+    notify(93, 'Đang đối chiếu lời hát & phân tích cấu trúc câu...');
 
     notify(94, 'Giai đoạn 6/7: Tự động đối chiếu lời hát & phân tích cấu trúc câu...');
     const lyricMeta = await populateAutomaticSongLyricsAndStructure({
@@ -530,13 +548,9 @@ class VocalFileAnalysisService {
 
     notify(100, 'Hoàn thành phân tích! Sẵn sàng vào phòng luyện.');
 
-    // 9. Detect Leading Silence & First Vocal Onset
-    const hasMelodicVariety = (p: IVocalPhrase) =>
-      (p.notes?.length || 0) >= 2 || p.lowestNote !== p.highestNote || (p.pitchJumpSemitones || 0) >= 2;
-
+    // 9. Detect Leading Silence & First Vocal Onset (trust articulation-filtered phrases[0])
     const firstVocalPhrase =
-      phrases.find((p) => !p.isInstrumentalOrVocalize && p.durationMs >= 400 && hasMelodicVariety(p)) ||
-      phrases.find((p) => !p.isInstrumentalOrVocalize && p.durationMs >= 400) ||
+      phrases.find((p) => !p.isInstrumentalOrVocalize && p.durationMs >= 450) ||
       phrases[0];
     const firstVocalOnsetMs = firstVocalPhrase
       ? firstVocalPhrase.startMs
@@ -592,13 +606,111 @@ class VocalFileAnalysisService {
   /**
    * Segment pitch timeline into discrete vocal phrases separated by breath pauses
    */
-  private segmentPhrases(pitchTrack: IReferencePitchPoint[]): IVocalPhrase[] {
+  public segmentPhrases(pitchTrack: IReferencePitchPoint[]): IVocalPhrase[] {
     const phrases: IVocalPhrase[] = [];
+    const phraseAcousticStats = new Map<
+      IVocalPhrase,
+      { avgClarity: number; volStdDb: number; onsetBursts: number }
+    >();
     let inPhrase = false;
     let currentPoints: IReferencePitchPoint[] = [];
     let phraseIndex = 1;
     let silenceCounter = 0;
     const maxSilenceFrames = 26; // ~300ms of true breath pause closes a phrase (avoids chopping consonant stops <=260ms)
+
+    const flushCurrentPhrase = () => {
+      // Finish current phrase if it lasted at least 30 frames (~350ms) and duration >= 350ms
+      // This eliminates beat/percussion transients (e.g. 0:07 - 0:07) that chop rap/RnB tracks into micro-phrases
+      const vocalOnly = currentPoints.filter((pt) => pt.isVocal && pt.freqHz > 0);
+      if (vocalOnly.length >= 30) {
+        const startMs = vocalOnly[0].timeMs;
+        const endMs = vocalOnly[vocalOnly.length - 1].timeMs;
+        const durationMs = endMs - startMs;
+
+        if (durationMs >= 350) {
+          const distinctNotes = Array.from(new Set(vocalOnly.map((pt) => pt.noteName)));
+          let lowestM = 999;
+          let highestM = -999;
+          let lowestN = vocalOnly[0].noteName;
+          let highestN = vocalOnly[0].noteName;
+          let midiSum = 0;
+          let maxLeap = 0;
+          let claritySum = 0;
+          let dbSum = 0;
+          let onsetBursts = 0;
+
+          for (let j = 0; j < vocalOnly.length; j++) {
+            const pt = vocalOnly[j];
+            midiSum += pt.midi;
+            claritySum += pt.clarity;
+            dbSum += pt.volumeDb;
+            if (
+              (pt.onsetStrength ?? 0) >= 2.0 ||
+              (j > 0 && Math.abs(pt.volumeDb - vocalOnly[j - 1].volumeDb) >= 2.8)
+            ) {
+              onsetBursts++;
+            }
+            if (pt.midi < lowestM) {
+              lowestM = pt.midi;
+              lowestN = pt.noteName;
+            }
+            if (pt.midi > highestM) {
+              highestM = pt.midi;
+              highestN = pt.noteName;
+            }
+            if (j > 0) {
+              const leap = Math.abs(pt.midi - vocalOnly[j - 1].midi);
+              if (leap > maxLeap && leap < 24) maxLeap = leap;
+            }
+          }
+
+          const avgClarity = claritySum / vocalOnly.length;
+          const meanDb = dbSum / vocalOnly.length;
+          let dbVar = 0;
+          for (let j = 0; j < vocalOnly.length; j++) {
+            const d = vocalOnly[j].volumeDb - meanDb;
+            dbVar += d * d;
+          }
+          const volStdDb = Math.sqrt(dbVar / vocalOnly.length);
+
+          const rangeSpan = Math.round(highestM - lowestM);
+          let difficulty: 'Dễ' | 'Trung bình' | 'Thử thách' = 'Dễ';
+          let diffScore = 3;
+
+          if (rangeSpan > 12 || maxLeap > 7 || durationMs > 5000) {
+            difficulty = 'Thử thách';
+            diffScore = 8;
+          } else if (rangeSpan > 7 || maxLeap > 4 || durationMs > 3000) {
+            difficulty = 'Trung bình';
+            diffScore = 5;
+          }
+
+          const phraseObj: IVocalPhrase = {
+            id: `phrase-${phraseIndex}`,
+            phraseIndex,
+            startMs,
+            endMs,
+            durationMs,
+            notes: distinctNotes.slice(0, 8),
+            lowestNote: lowestN,
+            highestNote: highestN,
+            avgPitchHz: Math.round(440 * Math.pow(2, (midiSum / vocalOnly.length - 69) / 12)),
+            avgMidi: Math.round((midiSum / vocalOnly.length) * 10) / 10,
+            pitchJumpSemitones: Math.round(maxLeap),
+            difficulty,
+            difficultyScore: diffScore,
+            pointsCount: vocalOnly.length,
+          };
+          phraseAcousticStats.set(phraseObj, { avgClarity, volStdDb, onsetBursts });
+          phrases.push(phraseObj);
+          phraseIndex++;
+        }
+      }
+
+      inPhrase = false;
+      currentPoints = [];
+      silenceCounter = 0;
+    };
 
     for (let i = 0; i < pitchTrack.length; i++) {
       const p = pitchTrack[i];
@@ -610,77 +722,12 @@ class VocalFileAnalysisService {
       } else if (inPhrase) {
         silenceCounter++;
         if (silenceCounter >= maxSilenceFrames || i === pitchTrack.length - 1) {
-          // Finish current phrase if it lasted at least 30 frames (~350ms) and duration >= 350ms
-          // This eliminates beat/percussion transients (e.g. 0:07 - 0:07) that chop rap/RnB tracks into 76 micro-phrases
-          const vocalOnly = currentPoints.filter((pt) => pt.isVocal && pt.freqHz > 0);
-          if (vocalOnly.length >= 30) {
-            const startMs = vocalOnly[0].timeMs;
-            const endMs = vocalOnly[vocalOnly.length - 1].timeMs;
-            const durationMs = endMs - startMs;
-
-            if (durationMs >= 350) {
-              const distinctNotes = Array.from(new Set(vocalOnly.map((pt) => pt.noteName)));
-              let lowestM = 999;
-              let highestM = -999;
-              let lowestN = vocalOnly[0].noteName;
-              let highestN = vocalOnly[0].noteName;
-              let midiSum = 0;
-              let maxLeap = 0;
-
-              for (let j = 0; j < vocalOnly.length; j++) {
-                const pt = vocalOnly[j];
-                midiSum += pt.midi;
-                if (pt.midi < lowestM) {
-                  lowestM = pt.midi;
-                  lowestN = pt.noteName;
-                }
-                if (pt.midi > highestM) {
-                  highestM = pt.midi;
-                  highestN = pt.noteName;
-                }
-                if (j > 0) {
-                  const leap = Math.abs(pt.midi - vocalOnly[j - 1].midi);
-                  if (leap > maxLeap && leap < 24) maxLeap = leap;
-                }
-              }
-
-              const rangeSpan = Math.round(highestM - lowestM);
-              let difficulty: 'Dễ' | 'Trung bình' | 'Thử thách' = 'Dễ';
-              let diffScore = 3;
-
-              if (rangeSpan > 12 || maxLeap > 7 || durationMs > 5000) {
-                difficulty = 'Thử thách';
-                diffScore = 8;
-              } else if (rangeSpan > 7 || maxLeap > 4 || durationMs > 3000) {
-                difficulty = 'Trung bình';
-                diffScore = 5;
-              }
-
-              phrases.push({
-                id: `phrase-${phraseIndex}`,
-                phraseIndex,
-                startMs,
-                endMs,
-                durationMs,
-                notes: distinctNotes.slice(0, 8),
-                lowestNote: lowestN,
-                highestNote: highestN,
-                avgPitchHz: Math.round(440 * Math.pow(2, (midiSum / vocalOnly.length - 69) / 12)),
-                avgMidi: Math.round((midiSum / vocalOnly.length) * 10) / 10,
-                pitchJumpSemitones: Math.round(maxLeap),
-                difficulty,
-                difficultyScore: diffScore,
-                pointsCount: vocalOnly.length,
-              });
-              phraseIndex++;
-            }
-          }
-
-          inPhrase = false;
-          currentPoints = [];
-          silenceCounter = 0;
+          flushCurrentPhrase();
         }
       }
+    }
+    if (inPhrase && currentPoints.length > 0) {
+      flushCurrentPhrase();
     }
 
     // Post-pass: Merge fragmented micro-phrases separated by <= 550ms when combined duration <= 5500ms
@@ -694,15 +741,26 @@ class VocalFileAnalysisService {
         combinedDur <= 5500 &&
         (curr.durationMs < 1600 || next.durationMs < 1600)
       ) {
+        const currPts = curr.pointsCount;
+        const nextPts = next.pointsCount;
+        const totalPts = currPts + nextPts;
+        const currStat = phraseAcousticStats.get(curr);
+        const nextStat = phraseAcousticStats.get(next);
+        if (currStat && nextStat) {
+          phraseAcousticStats.set(curr, {
+            avgClarity:
+              (currStat.avgClarity * currPts + nextStat.avgClarity * nextPts) /
+              Math.max(1, totalPts),
+            volStdDb: Math.max(currStat.volStdDb, nextStat.volStdDb),
+            onsetBursts: currStat.onsetBursts + nextStat.onsetBursts,
+          });
+        }
         curr.endMs = next.endMs;
         curr.durationMs = combinedDur;
         curr.notes = Array.from(new Set([...curr.notes, ...next.notes])).slice(0, 8);
-        const totalPts = curr.pointsCount + next.pointsCount;
         curr.avgMidi =
           Math.round(
-            ((curr.avgMidi * curr.pointsCount + next.avgMidi * next.pointsCount) /
-              Math.max(1, totalPts)) *
-              10
+            ((curr.avgMidi * currPts + next.avgMidi * nextPts) / Math.max(1, totalPts)) * 10
           ) / 10;
         curr.avgPitchHz = Math.round(440 * Math.pow(2, (curr.avgMidi - 69) / 12));
         curr.pointsCount = totalPts;
@@ -727,25 +785,49 @@ class VocalFileAnalysisService {
       return noteCount >= 2 || span || jump;
     };
 
-    // Eliminate all isolated pre-song noise / mic bump / monotone drone artifacts before genuine singing starts:
-    // Finds the first substantial musical phrase cluster (duration >= 1100ms with melodic movement, or paired with next phrase within <= 2800ms)
-    // Any isolated short phrases (< 850ms) or flat 0-semitone monotone hums are purged so they never steal the first lyric line!
+    const sortedMidisForMedian = phrases.map((p) => p.avgMidi).sort((a, b) => a - b);
+    const trackMedianMidi =
+      sortedMidisForMedian.length > 0
+        ? sortedMidisForMedian[Math.floor(sortedMidisForMedian.length / 2)]
+        : 60;
+
+    // Articulation-aware pre-song noise filter:
+    // Preserves legitimate monotone rap verses (syllabic energy/onset modulation) and dramatic ballad opening pickups,
+    // while pruning static monotone hums, short clicks, and isolated sub-bass intro bleed before the first real phrase.
     while (phrases.length >= 2) {
       const p0 = phrases[0];
       const p1 = phrases[1];
+      const gapToNext = p1.startMs - p0.endMs;
       const p0HasMelody = hasMelodicVariety(p0);
-      const isSubstantial = (p0.durationMs >= 1100 && p0HasMelody) || p0.pointsCount >= 70;
-      const isPairedWithNext =
-        p1.startMs - p0.endMs <= 2800 &&
-        p0.durationMs + p1.durationMs >= 1300 &&
-        (p0HasMelody || hasMelodicVariety(p1));
+      const stats = phraseAcousticStats.get(p0) ?? {
+        avgClarity: 0.7,
+        volStdDb: 2.5,
+        onsetBursts: 2,
+      };
 
-      if (p0HasMelody && (isSubstantial || isPairedWithNext)) {
-        break; // Reached the true start of the song
+      // 1. Genuine melodic opening phrase (including dramatic ballad pickups >= 550ms before a pause)
+      if (p0HasMelody && p0.durationMs >= 550 && stats.avgClarity >= 0.52) {
+        break;
       }
 
-      // If p0 is a monotone drone without melodic movement, or separated by a long gap, or short noise:
-      if (!p0HasMelody || p1.startMs - p0.endMs >= 2500 || p0.durationMs < 750) {
+      // 2. Genuine monotone rap / rhythmic chant opening (syllabic energy modulation or clear sustained vocal)
+      const isArticulatedRapOrChant =
+        p0.durationMs >= 550 &&
+        stats.avgClarity >= 0.56 &&
+        (stats.volStdDb >= 1.6 || stats.onsetBursts >= 2 || p0.pointsCount >= 45);
+      if (isArticulatedRapOrChant && !(p0.avgMidi < 47 && trackMedianMidi >= 54 && gapToNext >= 1800)) {
+        break;
+      }
+
+      // Otherwise prune pre-song static hum/drone, short click, or isolated sub-bass intro bleed
+      const isStaticDrone =
+        !p0HasMelody && stats.volStdDb < 1.5 && stats.onsetBursts <= 1 && stats.avgClarity < 0.72;
+      const isShortIsolatedBleed =
+        p0.durationMs < 650 && (gapToNext >= 2000 || stats.avgClarity < 0.60);
+      const isSubBassIntroBleed =
+        p0.avgMidi < 47 && trackMedianMidi >= 54 && gapToNext >= 1800;
+
+      if (isStaticDrone || isShortIsolatedBleed || isSubBassIntroBleed) {
         phrases.shift();
       } else {
         break;
@@ -796,32 +878,36 @@ class VocalFileAnalysisService {
       };
     };
 
-    const processStage = (signal: Float32Array, coeffs: { b0: number; b1: number; b2: number; a1: number; a2: number }) => {
-      const out = new Float32Array(signal.length);
+    const runBiquad = (
+      src: Float32Array,
+      dst: Float32Array,
+      coeffs: { b0: number; b1: number; b2: number; a1: number; a2: number }
+    ) => {
       const { b0, b1, b2, a1, a2 } = coeffs;
       let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-      for (let i = 0; i < signal.length; i++) {
-        const x = signal[i];
+      for (let i = 0; i < src.length; i++) {
+        const x = src[i];
         const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
         x2 = x1;
         x1 = x;
         y2 = y1;
         y1 = y;
-        out[i] = y;
+        dst[i] = y;
       }
-      return out;
     };
 
-    // 4th-order Butterworth cascade: Section 1 Q=0.5412, Section 2 Q=1.3066
+    // 4th-order Butterworth cascade (single output buffer allocation -> 75% less peak memory)
+    const out = new Float32Array(input.length);
     const hpf1 = createBiquadHPF(80, sampleRate, 0.5412);
     const hpf2 = createBiquadHPF(80, sampleRate, 1.3066);
     const lpf1 = createBiquadLPF(1300, sampleRate, 0.5412);
     const lpf2 = createBiquadLPF(1300, sampleRate, 1.3066);
 
-    const s1 = processStage(input, hpf1);
-    const s2 = processStage(s1, hpf2);
-    const s3 = processStage(s2, lpf1);
-    return processStage(s3, lpf2);
+    runBiquad(input, out, hpf1);
+    runBiquad(out, out, hpf2);
+    runBiquad(out, out, lpf1);
+    runBiquad(out, out, lpf2);
+    return out;
   }
 
   /**

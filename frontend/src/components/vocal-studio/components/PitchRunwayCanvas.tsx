@@ -88,6 +88,14 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
       currentMs: number;
     } | null = null;
     let hoveredBoundaryKey: string | null = null;
+    let lastLiveOrbState: {
+      displayMidi: number;
+      exactUserMidi: number;
+      octShift: number;
+      centsDiff: number;
+      inTune: boolean;
+      timestampMs: number;
+    } | null = null;
 
     const getCanvasMetrics = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -1002,41 +1010,69 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
         }
       }
 
-      // 6. User Sung Pitch Trail (O(log N) binary sliced)
+      // 6. User Sung Pitch Trail (Smooth connected ribbon + subtle keyframe markers, O(log N) sliced)
       if (userPitchTrail && userPitchTrail.length > 0) {
         const startTrailIdx = Math.max(
-          1,
-          lowerBoundIndex(userPitchTrail, (pt) => pt.timeMs, windowStartMs)
+          0,
+          lowerBoundIndex(userPitchTrail, (pt) => pt.timeMs, windowStartMs) - 1
         );
-        for (let i = startTrailIdx; i < userPitchTrail.length; i++) {
+
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 2.6;
+
+        // Connected anti-aliased fluid vocal ribbon
+        for (let i = startTrailIdx + 1; i < userPitchTrail.length; i++) {
+          const prev = userPitchTrail[i - 1];
           const pt = userPitchTrail[i];
           if (pt.timeMs > windowEndMs) break;
+          if (pt.timeMs - prev.timeMs > 95 || Math.abs(pt.midi - prev.midi) > 6) continue;
+
+          const x1 = playheadX + ((prev.timeMs - effectiveTimeMs) / totalWindowMs) * width;
+          const y1 = midiToY(prev.midi);
+          const x2 = playheadX + ((pt.timeMs - effectiveTimeMs) / totalWindowMs) * width;
+          const y2 = midiToY(pt.midi);
+
+          ctx.strokeStyle = pt.inTune ? '#10b981' : pt.centsDiff < 0 ? '#38bdf8' : '#fb7185';
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+
+        // Subtle keyframe markers along trail
+        for (let i = startTrailIdx; i < userPitchTrail.length; i += 2) {
+          const pt = userPitchTrail[i];
+          if (pt.timeMs > windowEndMs) break;
+          if (pt.timeMs < windowStartMs) continue;
           const x = playheadX + ((pt.timeMs - effectiveTimeMs) / totalWindowMs) * width;
           const y = midiToY(pt.midi);
 
-          const color = pt.inTune ? '#10b981' : pt.centsDiff < 0 ? '#f59e0b' : '#ef4444';
+          const color = pt.inTune ? '#10b981' : pt.centsDiff < 0 ? '#38bdf8' : '#fb7185';
           ctx.fillStyle = color;
 
           if (pt.inTune) {
             ctx.beginPath();
-            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.arc(x, y, 2.4, 0, Math.PI * 2);
             ctx.fill();
           } else if (pt.centsDiff > 0) {
             ctx.beginPath();
-            ctx.moveTo(x, y - 4);
-            ctx.lineTo(x - 3.5, y + 3);
-            ctx.lineTo(x + 3.5, y + 3);
+            ctx.moveTo(x, y - 3.5);
+            ctx.lineTo(x - 2.8, y + 2.5);
+            ctx.lineTo(x + 2.8, y + 2.5);
             ctx.closePath();
             ctx.fill();
           } else {
             ctx.beginPath();
-            ctx.moveTo(x, y + 4);
-            ctx.lineTo(x - 3.5, y - 3);
-            ctx.lineTo(x + 3.5, y - 3);
+            ctx.moveTo(x, y + 3.5);
+            ctx.lineTo(x - 2.8, y - 2.5);
+            ctx.lineTo(x + 2.8, y - 2.5);
             ctx.closePath();
             ctx.fill();
           }
         }
+        ctx.restore();
       }
 
       // 7. Target Hit-Box under Playhead (fast outer halo stroke, zero shadowBlur)
@@ -1070,7 +1106,11 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
         ctx.restore();
       }
 
-      // 8. Live Microphone Orb, Ghost Orb & Out-of-Bounds Indicators
+      // 8. Live Microphone Orb, Ghost Orb & Graceful 220ms Release Fade-Out
+      const nowFrameMs = performance.now();
+      let orbToRender: typeof lastLiveOrbState = null;
+      let orbAlpha = 1;
+
       if (userReading && userReading.isSinging && userReading.freqHz > 0) {
         const exactUserMidi = 12 * Math.log2(userReading.freqHz / 440) + 69;
         let displayMidi = exactUserMidi;
@@ -1082,7 +1122,33 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
           displayMidi = exactUserMidi - octShift * 12;
         }
 
+        lastLiveOrbState = {
+          displayMidi,
+          exactUserMidi,
+          octShift,
+          centsDiff: currentCentsDiff,
+          inTune: isInTuneNow,
+          timestampMs: nowFrameMs,
+        };
+        orbToRender = lastLiveOrbState;
+        orbAlpha = 1;
+      } else if (lastLiveOrbState) {
+        const elapsedSinceRelease = nowFrameMs - lastLiveOrbState.timestampMs;
+        if (elapsedSinceRelease < 220) {
+          orbToRender = lastLiveOrbState;
+          orbAlpha = Math.max(0, 1 - elapsedSinceRelease / 220);
+        } else {
+          lastLiveOrbState = null;
+        }
+      }
+
+      if (orbToRender && orbAlpha > 0.02) {
+        const { displayMidi, exactUserMidi, octShift, centsDiff: orbCentsDiff, inTune: orbInTune } =
+          orbToRender;
         const userY = midiToY(displayMidi);
+
+        ctx.save();
+        ctx.globalAlpha = orbAlpha;
 
         // Ghost Orb (real pitch location when folded)
         if (octShift !== 0) {
@@ -1102,14 +1168,14 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
 
         // Out-of-bounds indicators
         if (userY < 0) {
-          ctx.fillStyle = '#ef4444';
+          ctx.fillStyle = '#fb7185';
           ctx.beginPath();
           ctx.moveTo(playheadX, 6);
           ctx.lineTo(playheadX - 6, 16);
           ctx.lineTo(playheadX + 6, 16);
           ctx.fill();
         } else if (userY > height) {
-          ctx.fillStyle = '#f59e0b';
+          ctx.fillStyle = '#38bdf8';
           ctx.beginPath();
           ctx.moveTo(playheadX, height - 6);
           ctx.lineTo(playheadX - 6, height - 16);
@@ -1117,11 +1183,10 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
           ctx.fill();
         } else {
           // Primary Pulse Orb (concentric outer glow ring, zero Gaussian shadowBlur!)
-          ctx.save();
-          const orbColor = isInTuneNow ? '#10b981' : currentCentsDiff < 0 ? '#f59e0b' : '#ef4444';
-          const haloColor = isInTuneNow
+          const orbColor = orbInTune ? '#10b981' : orbCentsDiff < 0 ? '#f59e0b' : '#ef4444';
+          const haloColor = orbInTune
             ? 'rgba(16, 185, 129, 0.25)'
-            : currentCentsDiff < 0
+            : orbCentsDiff < 0
             ? 'rgba(245, 158, 11, 0.25)'
             : 'rgba(239, 68, 68, 0.25)';
           ctx.fillStyle = haloColor;
@@ -1143,7 +1208,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
           const userSemi = ((Math.round(displayMidi) % 12) + 12) % 12;
           const userOct = Math.floor(Math.round(displayMidi) / 12) - 1 + octOffset;
           const userNoteName = `${NOTE_NAMES[userSemi]}${userOct}`;
-          const centsLabel = currentCentsDiff > 0 ? `+${currentCentsDiff}c` : `${currentCentsDiff}c`;
+          const centsLabel = orbCentsDiff > 0 ? `+${orbCentsDiff}c` : `${orbCentsDiff}c`;
 
           ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
           ctx.strokeStyle = orbColor;
@@ -1161,8 +1226,9 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
           ctx.font = 'bold 9.5px monospace';
           ctx.textAlign = 'left';
           ctx.fillText(`${userNoteName} ${centsLabel}`, playheadX + 18, userY + 4);
-          ctx.restore();
         }
+
+        ctx.restore();
       }
 
       // 9. Playhead Guide Line
@@ -1174,6 +1240,38 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
       ctx.lineTo(playheadX, height);
       ctx.stroke();
       ctx.setLineDash([]);
+
+      // 9A. Upcoming Phrase Entrance Cue pill during >900ms silence gaps (within 3.2s before phrase start)
+      if ((!currentRefPoint || !currentRefPoint.isVocal) && state.phrases && state.phrases.length > 0) {
+        const nextIdx = lowerBoundIndex(state.phrases, (ph) => ph.startMs, effectiveTimeMs + 140);
+        const nextPh = nextIdx < state.phrases.length ? state.phrases[nextIdx] : null;
+        if (nextPh) {
+          const prevEnd = nextIdx > 0 ? state.phrases[nextIdx - 1].endMs : 0;
+          const silenceGapMs = nextPh.startMs - prevEnd;
+          const msUntil = nextPh.startMs - effectiveTimeMs;
+          if (effectiveTimeMs >= prevEnd - 50 && silenceGapMs >= 900 && msUntil >= 150 && msUntil <= 3200) {
+            const cueText = `🎤 Chuẩn bị Câu ${nextPh.phraseIndex}: ${(msUntil / 1000).toFixed(1)}s`;
+            ctx.save();
+            ctx.font = 'bold 10.5px ui-sans-serif, system-ui, sans-serif';
+            const cueW = ctx.measureText(cueText).width + 18;
+            const cueX = Math.min(width - cueW - 12, Math.max(pianoKeyWidth + 12, playheadX + 14));
+            const cueY = 26;
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(cueX, cueY, cueW, 24, 8);
+            else ctx.rect(cueX, cueY, cueW, 24);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#bae6fd';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(cueText, cueX + 9, cueY + 12);
+            ctx.restore();
+          }
+        }
+      }
 
       // 9B. Off-Screen Note Indicators (Prevent notes disappearing when moving outside vertical frame)
       if (highestOffscreenMidi > -Infinity) {
@@ -1270,8 +1368,8 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
         ctx.restore();
       }
 
-      // 11. Click to Seek Hover Time Guide Line
-      if (hoverXRef.current !== null && onSeek) {
+      // 11. Click to Seek Hover Time Guide Line (convert horizontal pixels -> ms)
+      if (hoverXRef.current !== null && hoverXRef.current > pianoKeyWidth && onSeek) {
         const hx = hoverXRef.current;
         const latencyOffsetMs = rawLatencyOffsetMs ?? 45;
         const effectiveTimeMs = Math.max(0, currentTimeMs - latencyOffsetMs);
@@ -1283,7 +1381,7 @@ export const PitchRunwayCanvas: React.FC<PitchRunwayCanvasProps> = React.memo(({
           0,
           Math.min(
             state.durationMs || 999999,
-            Math.round(effectiveTimeMs + ((hx - playheadX) / totalWindowMs) * totalWindowMs)
+            Math.round(effectiveTimeMs + ((hx - playheadX) / Math.max(1, width)) * totalWindowMs)
           )
         );
 

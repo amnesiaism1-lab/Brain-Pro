@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Upload,
   Sparkles,
@@ -15,10 +15,13 @@ import {
   X,
   AlertTriangle,
   ShieldCheck,
-  CheckCircle2,
   Radio,
+  Volume2,
+  Square,
+  Music,
 } from 'lucide-react';
 import { IVocalAnalysisResult, IVocalPhrase } from '../../../services/vocalFileAnalysisService';
+import { auditoryEngine } from '../../../services/auditoryEngine';
 import {
   realignStripTimestampsFromCurrentLyrics,
   searchAndTracePhrases,
@@ -66,6 +69,74 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
   const [showHelpGuide, setShowHelpGuide] = useState(false);
   const [lyricSearchQuery, setLyricSearchQuery] = useState('');
   const [showToneHarmonyDetails, setShowToneHarmonyDetails] = useState(false);
+  const [previewingPhraseId, setPreviewingPhraseId] = useState<string | null>(null);
+  const previewSourceRef = useRef<AudioBufferSourceNode | null>(null);
+
+  const stopPreviewSnippet = () => {
+    if (previewSourceRef.current) {
+      try {
+        previewSourceRef.current.stop();
+        previewSourceRef.current.disconnect();
+      } catch {
+        // Ignore stop errors if source already ended
+      }
+      previewSourceRef.current = null;
+    }
+    setPreviewingPhraseId(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (previewSourceRef.current) {
+        try {
+          previewSourceRef.current.stop();
+          previewSourceRef.current.disconnect();
+        } catch {
+          // Ignore unmount cleanup errors
+        }
+        previewSourceRef.current = null;
+      }
+    };
+  }, [analysisResult?.fileName]);
+
+  const handlePreviewPhraseSnippet = (phrase: IVocalPhrase) => {
+    if (previewingPhraseId === phrase.id) {
+      stopPreviewSnippet();
+      return;
+    }
+    stopPreviewSnippet();
+    const buf = analysisResult?.audioBuffer;
+    if (!buf) return;
+    try {
+      const ctx = auditoryEngine.initContext();
+      if (!ctx) return;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+      const startSec = Math.max(0, phrase.startMs / 1000);
+      const durSec = Math.max(0.25, (phrase.endMs - phrase.startMs) / 1000 + 0.08);
+      const source = ctx.createBufferSource();
+      source.buffer = buf;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.01, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.9, ctx.currentTime + 0.04);
+      gain.gain.setValueAtTime(0.9, ctx.currentTime + Math.max(0.05, durSec - 0.08));
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + durSec);
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      source.onended = () => {
+        if (previewSourceRef.current === source) {
+          previewSourceRef.current = null;
+          setPreviewingPhraseId(null);
+        }
+      };
+      previewSourceRef.current = source;
+      setPreviewingPhraseId(phrase.id);
+      source.start(0, startSec, durSec);
+    } catch {
+      stopPreviewSnippet();
+    }
+  };
 
   const tracedPhrases = useMemo(() => {
     if (!analysisResult) return [];
@@ -73,41 +144,44 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
   }, [analysisResult, lyricSearchQuery]);
 
   return (
-    <div className="w-full max-w-[1850px] mx-auto space-y-6 px-1 sm:px-3">
-      {/* 1. Drag & Drop Upload Card */}
-      <div
-        className={`relative rounded-3xl border-2 border-dashed p-6 text-center transition-all ${
-          isDraggingFile
-            ? 'border-sky-400 bg-sky-950/30'
-            : 'border-slate-700/80 bg-slate-950/40 hover:border-slate-600'
-        }`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDraggingFile(true);
-        }}
-        onDragLeave={() => setIsDraggingFile(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setIsDraggingFile(false);
-          if (e.dataTransfer.files?.[0]) onFileSelected(e.dataTransfer.files[0]);
-        }}
-      >
-        <div className="flex flex-col items-center justify-center gap-3">
-          <div className="w-14 h-14 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center">
-            <Upload className="w-7 h-7" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-white">
-              Kéo thả file âm thanh Vocal của bạn vào đây
-            </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Hỗ trợ các định dạng: MP3, WAV, M4A, OGG, FLAC (Tối đa 50MB)
-            </p>
+    <div className="w-full max-w-[1850px] mx-auto space-y-5 px-1 sm:px-3">
+      {/* 1. Compact File Switcher Bar when song is loaded OR Full Upload Card before load */}
+      {analysisResult ? (
+        <div
+          className={`rounded-2xl border px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 transition-all ${
+            isDraggingFile
+              ? 'border-sky-400 bg-sky-950/35'
+              : 'border-slate-800 bg-slate-950/75 hover:border-slate-700'
+          }`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDraggingFile(true);
+          }}
+          onDragLeave={() => setIsDraggingFile(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDraggingFile(false);
+            if (e.dataTransfer.files?.[0]) onFileSelected(e.dataTransfer.files[0]);
+          }}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-sky-500/15 text-sky-400 border border-sky-500/25 flex items-center justify-center shrink-0">
+              <Music className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                Đang mở bài hát (kéo thả file mới vào đây để đổi)
+              </div>
+              <div className="text-xs sm:text-sm font-bold text-white truncate">
+                {analysisResult.fileName}
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-3 mt-1">
-            <label className="cursor-pointer px-4 py-2 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs hover:bg-sky-400 transition shadow-md">
-              <span>Chọn file từ máy tính</span>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs hover:bg-sky-400 transition shadow-sm flex items-center gap-1.5">
+              <Upload className="w-3.5 h-3.5" />
+              <span>Chọn file khác</span>
               <input
                 type="file"
                 accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac"
@@ -121,98 +195,167 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
               />
             </label>
 
-            {/* Demo Tracks Picker */}
-            <div className="flex items-center gap-1.5 pl-3 border-l border-slate-800">
-              <span className="text-[11px] text-slate-400">Hoặc thử ngay bản mẫu:</span>
+            <button
+              type="button"
+              onClick={() => onLoadDemoTrack('ballad')}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800 text-slate-200 text-[11px] font-semibold hover:bg-slate-700 transition cursor-pointer"
+              title="Thử nhanh bản mẫu Pop Ballad"
+            >
+              Bản mẫu
+            </button>
+
+            {onOpenYouTubeBeat && (
               <button
                 type="button"
-                onClick={() => onLoadDemoTrack('scale')}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 text-[11px] font-semibold hover:bg-slate-700 transition"
+                onClick={onOpenYouTubeBeat}
+                className="px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer"
               >
-                Khởi Động Đô Trưởng
+                <Radio className="w-3.5 h-3.5" />
+                <span>Beat YouTube</span>
               </button>
-              <button
-                type="button"
-                onClick={() => onLoadDemoTrack('ballad')}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 text-[11px] font-semibold hover:bg-slate-700 transition"
-              >
-                Pop Ballad
-              </button>
-              <button
-                type="button"
-                onClick={() => onLoadDemoTrack('pentatonic')}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 text-[11px] font-semibold hover:bg-slate-700 transition"
-              >
-                Ngũ Cung
-              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div
+          className={`relative rounded-3xl border-2 border-dashed p-6 text-center transition-all ${
+            isDraggingFile
+              ? 'border-sky-400 bg-sky-950/30'
+              : 'border-slate-700/80 bg-slate-950/40 hover:border-slate-600'
+          }`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDraggingFile(true);
+          }}
+          onDragLeave={() => setIsDraggingFile(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDraggingFile(false);
+            if (e.dataTransfer.files?.[0]) onFileSelected(e.dataTransfer.files[0]);
+          }}
+        >
+          <div className="flex flex-col items-center justify-center gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center">
+              <Upload className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white">
+                Kéo thả file âm thanh Vocal của bạn vào đây
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Hỗ trợ các định dạng: MP3, WAV, M4A, OGG, FLAC (Tối đa 50MB)
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-1">
+              <label className="cursor-pointer px-4 py-2 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs hover:bg-sky-400 transition shadow-md">
+                <span>Chọn file từ máy tính</span>
+                <input
+                  type="file"
+                  accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac"
+                  className="hidden"
+                  onClick={(e) => {
+                    (e.target as HTMLInputElement).value = '';
+                  }}
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) onFileSelected(e.target.files[0]);
+                  }}
+                />
+              </label>
+
+              {/* Demo Tracks Picker */}
+              <div className="flex items-center gap-1.5 pl-3 border-l border-slate-800">
+                <span className="text-[11px] text-slate-400">Hoặc thử ngay bản mẫu:</span>
+                <button
+                  type="button"
+                  onClick={() => onLoadDemoTrack('scale')}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 text-[11px] font-semibold hover:bg-slate-700 transition"
+                >
+                  Khởi Động Đô Trưởng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onLoadDemoTrack('ballad')}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 text-[11px] font-semibold hover:bg-slate-700 transition"
+                >
+                  Pop Ballad
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onLoadDemoTrack('pentatonic')}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 text-[11px] font-semibold hover:bg-slate-700 transition"
+                >
+                  Ngũ Cung
+                </button>
+              </div>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Premium Multi-Stage DSP Pipeline Overlay */}
-        {isAnalyzing && (
-          <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center select-none animate-in fade-in duration-200">
-            <div className="max-w-md w-full p-6 sm:p-8 rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl space-y-6">
-              <div className="relative mx-auto w-16 h-16 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
-                <Loader2 className="w-8 h-8 text-white animate-spin" />
-                <div className="absolute -inset-1 rounded-2xl bg-sky-400/20 animate-pulse -z-10" />
+      {/* Multi-Stage DSP Pipeline Overlay (always available even when switching songs) */}
+      {isAnalyzing && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center select-none animate-in fade-in duration-200">
+          <div className="max-w-md w-full p-6 sm:p-8 rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl space-y-6">
+            <div className="relative mx-auto w-16 h-16 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+              <Loader2 className="w-8 h-8 text-white animate-spin" />
+              <div className="absolute -inset-1 rounded-2xl bg-sky-400/20 animate-pulse -z-10" />
+            </div>
+
+            <div>
+              <h3 className="text-lg font-bold text-white">AI Pitch Coach đang xử lý chuyên sâu</h3>
+              <p className="text-xs text-sky-400 font-medium mt-1 animate-pulse">
+                {analyzeStatusText}
+              </p>
+            </div>
+
+            {/* Glowing Progress Bar */}
+            <div className="space-y-2">
+              <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/60">
+                <div
+                  className="h-full bg-gradient-to-r from-sky-400 via-indigo-400 to-purple-400 rounded-full transition-all duration-300 shadow-md shadow-sky-400/30"
+                  style={{ width: `${Math.max(5, analyzeProgress)}%` }}
+                />
               </div>
-
-              <div>
-                <h3 className="text-lg font-bold text-white">AI Pitch Coach đang xử lý chuyên sâu</h3>
-                <p className="text-xs text-sky-400 font-medium mt-1 animate-pulse">
-                  {analyzeStatusText}
-                </p>
+              <div className="flex justify-between items-center text-[11px] font-mono text-slate-400">
+                <span>Tiến trình giải mã âm học NewTone</span>
+                <span className="font-bold text-sky-300">{analyzeProgress}%</span>
               </div>
+            </div>
 
-              {/* Glowing Progress Bar */}
-              <div className="space-y-2">
-                <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/60">
-                  <div
-                    className="h-full bg-gradient-to-r from-sky-400 via-indigo-400 to-purple-400 rounded-full transition-all duration-300 shadow-md shadow-sky-400/30"
-                    style={{ width: `${Math.max(5, analyzeProgress)}%` }}
-                  />
-                </div>
-                <div className="flex justify-between items-center text-[11px] font-mono text-slate-400">
-                  <span>Tiến trình giải mã âm học NewTone</span>
-                  <span className="font-bold text-sky-300">{analyzeProgress}%</span>
-                </div>
+            {/* Stage Checklist */}
+            <div className="bg-slate-950/60 rounded-2xl p-4 border border-slate-800/80 text-left space-y-2.5 text-xs font-mono">
+              <div className={`flex items-center gap-2 ${analyzeProgress >= 20 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
+                <span>{analyzeProgress >= 20 ? '✓' : '○'}</span>
+                <span>Tách kênh vocal trung tâm (Mid-Side Stereo)</span>
               </div>
-
-              {/* 5-Stage Checklist */}
-              <div className="bg-slate-950/60 rounded-2xl p-4 border border-slate-800/80 text-left space-y-2.5 text-xs font-mono">
-                <div className={`flex items-center gap-2 ${analyzeProgress >= 20 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
-                  <span>{analyzeProgress >= 20 ? '✓' : '○'}</span>
-                  <span>Tách kênh vocal trung tâm (Mid-Side Stereo)</span>
-                </div>
-                <div className={`flex items-center gap-2 ${analyzeProgress >= 30 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
-                  <span>{analyzeProgress >= 30 ? '✓' : '○'}</span>
-                  <span>Lọc 4th-Order Biquad dải tần (95Hz - 880Hz)</span>
-                </div>
-                <div className={`flex items-center gap-2 ${analyzeProgress >= 75 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
-                  <span>{analyzeProgress >= 75 ? '✓' : '○'}</span>
-                  <span>Quét phổ cao độ MPM độ phân giải cao (Hop 512)</span>
-                </div>
-                <div className={`flex items-center gap-2 ${analyzeProgress >= 85 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
-                  <span>{analyzeProgress >= 85 ? '✓' : '○'}</span>
-                  <span>Cầu nối phụ âm & Triệt tiêu nhiễu kích âm NewTone</span>
-                </div>
-                <div className={`flex items-center gap-2 ${analyzeProgress >= 92 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
-                  <span>{analyzeProgress >= 92 ? '✓' : '○'}</span>
-                  <span>Giải mã Viterbi HMM & Phân đoạn Note Blocks</span>
-                </div>
-                <div className={`flex items-center gap-2 ${analyzeProgress >= 96 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
-                  <span>{analyzeProgress >= 96 ? '✓' : '○'}</span>
-                  <span>Trích xuất lời hát (Auto-Lyric & Khẩu hình) & Định vị đoạn</span>
-                </div>
+              <div className={`flex items-center gap-2 ${analyzeProgress >= 30 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
+                <span>{analyzeProgress >= 30 ? '✓' : '○'}</span>
+                <span>Lọc 4th-Order Biquad dải tần Vocal (80Hz - 1300Hz)</span>
+              </div>
+              <div className={`flex items-center gap-2 ${analyzeProgress >= 75 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
+                <span>{analyzeProgress >= 75 ? '✓' : '○'}</span>
+                <span>Quét phổ cao độ MPM độ phân giải cao (Hop 512)</span>
+              </div>
+              <div className={`flex items-center gap-2 ${analyzeProgress >= 85 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
+                <span>{analyzeProgress >= 85 ? '✓' : '○'}</span>
+                <span>Triệt tiêu nhiễu kích âm &amp; Giải mã Viterbi HMM</span>
+              </div>
+              <div className={`flex items-center gap-2 ${analyzeProgress >= 92 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
+                <span>{analyzeProgress >= 92 ? '✓' : '○'}</span>
+                <span>Cầu nối phụ âm &amp; Phân đoạn Note Blocks</span>
+              </div>
+              <div className={`flex items-center gap-2 ${analyzeProgress >= 96 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
+                <span>{analyzeProgress >= 96 ? '✓' : '○'}</span>
+                <span>Đối chiếu lời hát &amp; Định vị câu</span>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Quick Entry: Hát với Beat YouTube (Virtual Mix) */}
-      {onOpenYouTubeBeat && (
+      {/* Quick Entry: Hát với Beat YouTube (Full promo only when no file loaded yet) */}
+      {!analysisResult && onOpenYouTubeBeat && (
         <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-rose-950/40 via-slate-900 to-indigo-950/40 border border-rose-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-rose-500 to-amber-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-rose-500/20">
@@ -635,27 +778,58 @@ export const AnalysisTab: React.FC<AnalysisTabProps> = ({
                     </span>
                   </div>
 
-                  <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800/70">
-                    <div className="text-xs font-bold text-slate-100 truncate" title={phrase.lyricText}>
+                  <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/70">
+                    <div
+                      className="text-sm sm:text-base font-bold text-slate-100 leading-snug line-clamp-2"
+                      title={phrase.lyricText}
+                    >
                       {phrase.lyricText || phrase.solfegeText}
                     </div>
-                    <div className="text-[10px] font-mono text-sky-400/90 truncate mt-0.5">
-                      ♫ {phrase.solfegeText}
-                    </div>
+                    {(!phrase.lyricText || phrase.lyricText.startsWith('Nguyên âm:')) && (
+                      <div className="text-[10px] font-mono text-sky-400/90 truncate mt-1">
+                        ♫ {phrase.solfegeText}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between gap-2 pt-0.5">
                     <span className="text-[10px] font-mono text-slate-400">
                       Quãng: <strong className="text-sky-300">{phrase.lowestNote}→{phrase.highestNote}</strong>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => onLoopPhrase(phrase)}
-                      className="px-2.5 py-1 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-[11px] font-bold flex items-center gap-1 transition"
-                    >
-                      <Repeat className="w-3 h-3" />
-                      <span>Tập Câu Này</span>
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {analysisResult.audioBuffer && (
+                        <button
+                          type="button"
+                          onClick={() => handlePreviewPhraseSnippet(phrase)}
+                          className={`px-2 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 transition cursor-pointer ${
+                            previewingPhraseId === phrase.id
+                              ? 'bg-sky-500 text-slate-950'
+                              : 'bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700'
+                          }`}
+                          title="Nghe thử đoạn hát gốc của câu này"
+                        >
+                          {previewingPhraseId === phrase.id ? (
+                            <>
+                              <Square className="w-2.5 h-2.5 fill-slate-950" />
+                              <span>Dừng</span>
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 className="w-3 h-3" />
+                              <span>Nghe mẫu</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onLoopPhrase(phrase)}
+                        className="px-2.5 py-1 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-[11px] font-bold flex items-center gap-1 transition cursor-pointer"
+                      >
+                        <Repeat className="w-3 h-3" />
+                        <span>Tập Câu Này</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

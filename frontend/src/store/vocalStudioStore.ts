@@ -6,7 +6,7 @@ import {
   MicStatus,
   SingSessionStats,
 } from '../components/vocal-studio/types';
-import { IVocalAnalysisResult, IVocalPhrase } from '../services/vocalFileAnalysisService';
+import { IVocalAnalysisResult } from '../services/vocalFileAnalysisService';
 
 export interface ISelectedKeyOverride {
   root: string;
@@ -28,6 +28,7 @@ export interface VocalStudioPreferences {
   snapToScale: boolean;
   transposeSemitones: number;
   octaveConvention: 'fl_studio' | 'international';
+  isMelodyGuideEnabled: boolean;
   officeLayout: 'card' | 'ribbon';
   officeTheme: 'spotify' | 'stealth-code';
   officeInputMode: 'humming' | 'silent-keyboard' | 'whistle';
@@ -53,6 +54,7 @@ function loadSavedPreferences(): VocalStudioPreferences {
     snapToScale: false,
     transposeSemitones: 0,
     octaveConvention: 'international',
+    isMelodyGuideEnabled: false,
     officeLayout: 'card',
     officeTheme: 'spotify',
     officeInputMode: 'humming',
@@ -111,6 +113,7 @@ export interface VocalStudioState extends VocalStudioPreferences {
 
   // Playback & Session
   isPlaying: boolean;
+  isFocusStageMode: boolean;
   currentTimeMs: number;
   isLoopingActive: boolean;
   loopStartMs: number | null;
@@ -157,6 +160,8 @@ export interface VocalStudioState extends VocalStudioPreferences {
   setSnapToScale: (val: boolean) => void;
   setTransposeSemitones: (val: number) => void;
   setOctaveConvention: (val: 'fl_studio' | 'international') => void;
+  setIsMelodyGuideEnabled: (val: boolean) => void;
+  setIsFocusStageMode: (val: boolean) => void;
 
   setAnalysisResult: (res: IVocalAnalysisResult | null) => void;
   setIsAnalyzing: (val: boolean) => void;
@@ -191,6 +196,7 @@ export const useVocalStudioStore = create<VocalStudioState>((set) => ({
   errorMessage: null,
 
   isPlaying: false,
+  isFocusStageMode: false,
   currentTimeMs: 0,
   isLoopingActive: false,
   loopStartMs: null,
@@ -402,6 +408,13 @@ export const useVocalStudioStore = create<VocalStudioState>((set) => ({
     savePreferences({ octaveConvention });
     set({ octaveConvention });
   },
+
+  setIsMelodyGuideEnabled: (isMelodyGuideEnabled) => {
+    savePreferences({ isMelodyGuideEnabled });
+    set({ isMelodyGuideEnabled });
+  },
+
+  setIsFocusStageMode: (isFocusStageMode) => set({ isFocusStageMode }),
 
   setAnalysisResult: (analysisResult) =>
     set({

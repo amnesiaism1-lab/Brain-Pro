@@ -34,6 +34,8 @@ interface SingAlongTabProps {
   onTogglePlay: () => void;
   onSeek: (ms: number) => void;
   onSkip: (sec: number) => void;
+  onPrevPhrase?: () => void;
+  onNextPhrase?: () => void;
   playbackSpeed: number;
   onChangeSpeed: (spd: number) => void;
   musicVolume: number;
@@ -112,6 +114,8 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   onTogglePlay,
   onSeek,
   onSkip,
+  onPrevPhrase,
+  onNextPhrase,
   playbackSpeed,
   onChangeSpeed,
   musicVolume,
@@ -177,7 +181,11 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   const [isSilenceBannerDismissed, setIsSilenceBannerDismissed] = useState(false);
   const [hasSungEver, setHasSungEver] = useState(false);
   const [showInitialMicTip, setShowInitialMicTip] = useState(false);
-  const micStatus = useVocalStudioStore(s => s.micStatus);
+  const micStatus = useVocalStudioStore((s) => s.micStatus);
+  const isFocusStageMode = useVocalStudioStore((s) => s.isFocusStageMode);
+  const setIsFocusStageMode = useVocalStudioStore((s) => s.setIsFocusStageMode);
+  const isMelodyGuideEnabled = useVocalStudioStore((s) => s.isMelodyGuideEnabled);
+  const setIsMelodyGuideEnabled = useVocalStudioStore((s) => s.setIsMelodyGuideEnabled);
 
   React.useEffect(() => {
     setIsSilenceBannerDismissed(false);
@@ -233,7 +241,8 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
   return (
     <div className="w-full max-w-[1850px] mx-auto space-y-4 px-1 sm:px-2">
       {/* Leading Silence / Blank Intro Banner */}
-      {analysisResult.hasLeadingSilence &&
+      {!isFocusStageMode &&
+        analysisResult.hasLeadingSilence &&
         analysisResult.leadingSilenceMs &&
         !isSilenceBannerDismissed && (
           <LeadingSilenceBanner
@@ -254,19 +263,21 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         )}
 
       {/* LRC Alignment Health / Missing Gaps / Mismatch Rescue Banner */}
-      <AlignmentHealthBanner
-        audit={analysisResult.alignmentAudit}
-        onAiFillMissingGaps={async () => {
-          const updated = await transcribeMissingGapsWithAI({ analysisResult });
-          onApplyUpdatedResult?.(updated);
-        }}
-        onStripTimestampsRealign={() => {
-          const updated = realignStripTimestampsFromCurrentLyrics(analysisResult);
-          onApplyUpdatedResult?.(updated);
-        }}
-        onOpenSongCandidateModal={onOpenSongCandidateModal}
-        onOpenLyricEditor={() => onOpenLyricModal?.('phrase_list')}
-      />
+      {!isFocusStageMode && (
+        <AlignmentHealthBanner
+          audit={analysisResult.alignmentAudit}
+          onAiFillMissingGaps={async () => {
+            const updated = await transcribeMissingGapsWithAI({ analysisResult });
+            onApplyUpdatedResult?.(updated);
+          }}
+          onStripTimestampsRealign={() => {
+            const updated = realignStripTimestampsFromCurrentLyrics(analysisResult);
+            onApplyUpdatedResult?.(updated);
+          }}
+          onOpenSongCandidateModal={onOpenSongCandidateModal}
+          onOpenLyricEditor={() => onOpenLyricModal?.('phrase_list')}
+        />
+      )}
 
       {/* 1. DUAL-TRACK RUNWAY CANVAS + INTEGRATED KARAOKE & SECTION LOCATOR HUD */}
       <div className="w-full rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl">
@@ -283,6 +294,8 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
           isLoopingActive={isLoopingActive}
           audioBuffer={analysisResult.audioBuffer}
           transposeSemitones={transposeSemitones}
+          isFocusStageMode={isFocusStageMode}
+          onToggleFocusStageMode={() => setIsFocusStageMode(!isFocusStageMode)}
           onSeek={onSeek}
           onLoopPhrase={onLoopPhrase}
           onOpenLyricModal={(mode) => onOpenLyricModal?.(mode)}
@@ -293,6 +306,11 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         <div className="relative w-full">
           <PitchRunwayCanvas
             renderStateRef={renderStateRef}
+            className={
+              isFocusStageMode
+                ? 'h-[380px] sm:h-[460px] md:h-[520px] lg:h-[560px]'
+                : ''
+            }
             onSeek={onSeek}
             onAdjustBarBoundary={onAdjustBarBoundary}
             onSplitBarAtMs={onSplitBarAtMs}
@@ -455,12 +473,14 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
       </div>
 
       {/* 2. MINI-KEYBOARD CHORDS & AUDITORY PREVIEW (Task 1.5) */}
-      <MiniKeyboardScale
-        scaleNotes={activeScaleNotes}
-        activeTargetNote={currentRefPoint?.isVocal ? currentRefPoint.noteName : null}
-        activeUserNote={userReading?.isSinging ? userReading.noteName : null}
-        currentOctave={currentTargetOctave}
-      />
+      {!isFocusStageMode && (
+        <MiniKeyboardScale
+          scaleNotes={activeScaleNotes}
+          activeTargetNote={currentRefPoint?.isVocal ? currentRefPoint.noteName : null}
+          activeUserNote={userReading?.isSinging ? userReading.noteName : null}
+          currentOctave={currentTargetOctave}
+        />
+      )}
 
       {/* 3. 3-TIER TRANSPORT & PLAYER CONTROLS DECK */}
       <TransportBar
@@ -470,6 +490,8 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         durationMs={analysisResult.durationMs}
         onSeek={onSeek}
         onSkip={onSkip}
+        onPrevPhrase={onPrevPhrase}
+        onNextPhrase={onNextPhrase}
         playbackSpeed={playbackSpeed}
         onChangeSpeed={onChangeSpeed}
         musicVolume={musicVolume}
@@ -504,6 +526,8 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
         onChangeLatencyOffsetMs={onChangeLatencyOffsetMs}
         isWindowLocked={isWindowLocked}
         onToggleWindowLock={onToggleWindowLock}
+        isMelodyGuideEnabled={isMelodyGuideEnabled}
+        onToggleMelodyGuide={() => setIsMelodyGuideEnabled(!isMelodyGuideEnabled)}
       />
 
       {/* 4. Keyboard hints */}
@@ -514,7 +538,9 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
           className="flex items-center gap-1.5 text-slate-400 hover:text-sky-300 transition"
         >
           <Keyboard className="w-3.5 h-3.5" />
-          <span>Phím tắt: Space (Hát/Dừng), L (Lặp A-B), R (Về đầu), M (Mute nhạc)</span>
+          <span>
+            Phím tắt: Space (Hát/Dừng), [ / ] (Chuyển câu), F (Sân khấu tập trung), L (Lặp A-B), R (Về đầu), M (Mute nhạc)
+          </span>
         </button>
 
         {isLoopingActive && (
@@ -529,28 +555,30 @@ export const SingAlongTab: React.FC<SingAlongTabProps> = ({
       </div>
 
       {/* 5. PHRASE NAVIGATOR DECK */}
-      <PhraseNavigatorDeck
-        phrases={analysisResult.phrases}
-        durationMs={analysisResult.durationMs}
-        currentTimeMs={currentTimeMs}
-        activePhraseIndex={activePhrase?.phraseIndex || null}
-        selectedPhraseIndex={selectedPhraseIndex}
-        isLoopingActive={isLoopingActive}
-        sessionStats={sessionStats}
-        onLoopPhrase={onLoopPhrase}
-        onSeekToPhrase={onSeek}
-        onClearLoop={onClearLoop}
-        onOpenLyricModal={onOpenLyricModal}
-        onUpdatePhraseLyric={onUpdatePhraseLyric}
-        onMergeNextPhrase={onMergeNextPhrase}
-        onSplitPhrase={onSplitPhrase}
-        playbackSpeed={playbackSpeed}
-        onChangeSpeed={onChangeSpeed}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onUndo={onUndo}
-        onRedo={onRedo}
-      />
+      {!isFocusStageMode && (
+        <PhraseNavigatorDeck
+          phrases={analysisResult.phrases}
+          durationMs={analysisResult.durationMs}
+          currentTimeMs={currentTimeMs}
+          activePhraseIndex={activePhrase?.phraseIndex || null}
+          selectedPhraseIndex={selectedPhraseIndex}
+          isLoopingActive={isLoopingActive}
+          sessionStats={sessionStats}
+          onLoopPhrase={onLoopPhrase}
+          onSeekToPhrase={onSeek}
+          onClearLoop={onClearLoop}
+          onOpenLyricModal={onOpenLyricModal}
+          onUpdatePhraseLyric={onUpdatePhraseLyric}
+          onMergeNextPhrase={onMergeNextPhrase}
+          onSplitPhrase={onSplitPhrase}
+          playbackSpeed={playbackSpeed}
+          onChangeSpeed={onChangeSpeed}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={onUndo}
+          onRedo={onRedo}
+        />
+      )}
     </div>
   );
 };

@@ -3,6 +3,10 @@ import { PitchDetector } from 'pitchy';
 import { freqToMidi, midiToNoteInfo } from '@brain-exercises/shared';
 import { generateSyntheticMelody } from './fixtures';
 import { vocalFileAnalysisService } from '../../../services/vocalFileAnalysisService';
+import {
+  findPhraseAtTimeBinary,
+  findNoteBarAtTimeBinary,
+} from '../utils/vocalHelpers';
 
 describe('Vocal File Analysis & Range Extraction', () => {
   it('TC-09 & DEF-04: C3 to G4 scale yields robust p5-p95 range of ~19 semitones (not 35)', () => {
@@ -958,5 +962,209 @@ describe('Vocal File Analysis & Range Extraction', () => {
     expect(noteBars[0].pointsCount).toBe(20);
     // Weighted average (3*60.4 + 17*60.0)/20 = 60.06, NOT unweighted (60.4+60.0)/2 = 60.20!
     expect(noteBars[0].exactMidi).toBeLessThan(60.12);
+  });
+
+  it('TC-44: segmentPhrases preserves articulated monotone rap opening verse ahead of distant chorus', () => {
+    const points: any[] = [];
+
+    // 1. Rap opening verse at 14,000ms (1200ms monotone A3 with syllabic energy modulation & onset bursts)
+    for (let i = 0; i < 80; i++) {
+      const modDb = i % 8 < 4 ? -12 : -20;
+      points.push({
+        timeMs: 14000 + i * 15,
+        freqHz: 220.0,
+        midi: 57.0,
+        noteName: 'A3',
+        solfegeName: 'La 3',
+        clarity: 0.82,
+        volumeDb: modDb,
+        isVocal: true,
+        onsetStrength: i % 8 === 0 ? 4.5 : 0.2,
+      });
+    }
+
+    // Long silence gap (42,000ms pause represented by >= 30 unvoiced frames)
+    for (let g = 0; g < 35; g++) {
+      points.push({
+        timeMs: 15250 + g * 1000,
+        freqHz: 0,
+        midi: 0,
+        noteName: '',
+        solfegeName: '',
+        clarity: 0,
+        volumeDb: -70,
+        isVocal: false,
+      });
+    }
+
+    // 2. Melodic chorus at 57,000ms (C4 -> E4 -> G4)
+    const chorusMidis = [60, 64, 67];
+    const chorusNames = ['C4', 'E4', 'G4'];
+    for (let c = 0; c < 60; c++) {
+      const seg = Math.floor(c / 20);
+      const m = chorusMidis[seg];
+      points.push({
+        timeMs: 57000 + c * 15,
+        freqHz: 440 * Math.pow(2, (m - 69) / 12),
+        midi: m,
+        noteName: chorusNames[seg],
+        solfegeName: '',
+        clarity: 0.90,
+        volumeDb: -11,
+        isVocal: true,
+      });
+    }
+
+    const phrases = vocalFileAnalysisService.segmentPhrases(points);
+    expect(phrases.length).toBe(2);
+    expect(phrases[0].startMs).toBe(14000);
+    expect(phrases[1].startMs).toBe(57000);
+  });
+
+  it('TC-45: segmentPhrases prunes short pre-song click but preserves dramatic ballad pickup across >2.8s pause', () => {
+    const points: any[] = [];
+
+    // 1. Static low-clarity sub-bass bleed at 1,200ms (~500ms = 34 frames, >=30 frames so it enters the phrase filter!)
+    for (let c = 0; c < 34; c++) {
+      points.push({
+        timeMs: 1200 + c * 15,
+        freqHz: 110.0,
+        midi: 45.0,
+        noteName: 'A2',
+        solfegeName: 'La 2',
+        clarity: 0.48,
+        volumeDb: -26,
+        isVocal: true,
+      });
+    }
+    for (let g = 0; g < 30; g++) {
+      points.push({
+        timeMs: 1750 + g * 250,
+        freqHz: 0,
+        midi: 0,
+        noteName: '',
+        solfegeName: '',
+        clarity: 0,
+        volumeDb: -70,
+        isVocal: false,
+      });
+    }
+
+    // 2. Dramatic melodic ballad opening pickup at 10,000ms (720ms, C4 -> D4, clarity 0.88)
+    for (let p = 0; p < 48; p++) {
+      const isSecond = p >= 24;
+      const m = isSecond ? 62 : 60;
+      points.push({
+        timeMs: 10000 + p * 15,
+        freqHz: isSecond ? 293.66 : 261.63,
+        midi: m,
+        noteName: isSecond ? 'D4' : 'C4',
+        solfegeName: isSecond ? 'Rê 4' : 'Đô 4',
+        clarity: 0.88,
+        volumeDb: -13,
+        isVocal: true,
+      });
+    }
+
+    // 3,500ms pause before Verse 1
+    for (let g = 0; g < 32; g++) {
+      points.push({
+        timeMs: 10750 + g * 85,
+        freqHz: 0,
+        midi: 0,
+        noteName: '',
+        solfegeName: '',
+        clarity: 0,
+        volumeDb: -70,
+        isVocal: false,
+      });
+    }
+
+    // 3. Verse 1 at 13,500ms (E4 -> F4)
+    for (let v = 0; v < 60; v++) {
+      const isSecond = v >= 30;
+      const m = isSecond ? 65 : 64;
+      points.push({
+        timeMs: 13500 + v * 15,
+        freqHz: isSecond ? 349.23 : 329.63,
+        midi: m,
+        noteName: isSecond ? 'F4' : 'E4',
+        solfegeName: '',
+        clarity: 0.90,
+        volumeDb: -12,
+        isVocal: true,
+      });
+    }
+
+    const phrases = vocalFileAnalysisService.segmentPhrases(points);
+    expect(phrases.length).toBe(2);
+    expect(phrases[0].startMs).toBe(10000);
+    expect(phrases[1].startMs).toBe(13500);
+  });
+
+  it('TC-46: post-Viterbi consonant gap bridging + O(log N) binary phrase/noteBar lookups', () => {
+    // Syllable 1: A3 (220Hz), 80ms consonant gap, Syllable 2: glitch-doubled A4 (440Hz) -> pulled down to A3 -> bridged smoothly!
+    const points: any[] = [];
+    for (let f = 0; f < 6; f++) {
+      points.push({
+        timeMs: f * 20,
+        freqHz: 220.0,
+        midi: 57.0,
+        noteName: 'A3',
+        solfegeName: 'La 3',
+        clarity: 0.90,
+        volumeDb: -14,
+        isVocal: true,
+      });
+    }
+    for (let g = 6; g < 10; g++) {
+      points.push({
+        timeMs: g * 20,
+        freqHz: 0,
+        midi: 0,
+        noteName: '',
+        solfegeName: '',
+        clarity: 0,
+        volumeDb: -40,
+        isVocal: false,
+      });
+    }
+    for (let f = 10; f < 16; f++) {
+      // Only 2 middle frames spike +12st to A4 inside A3 syllable 2
+      const isGlitch = f === 12 || f === 13;
+      points.push({
+        timeMs: f * 20,
+        freqHz: isGlitch ? 440.0 : 220.0,
+        midi: isGlitch ? 69.0 : 57.0,
+        noteName: isGlitch ? 'A4' : 'A3',
+        solfegeName: isGlitch ? 'La 4' : 'La 3',
+        clarity: 0.88,
+        volumeDb: -14,
+        isVocal: true,
+      });
+    }
+
+    vocalFileAnalysisService.applyViterbiSmoothing(points);
+    vocalFileAnalysisService.bridgeMicroGaps(points);
+    for (let i = 6; i < 10; i++) {
+      expect(points[i].isVocal).toBe(true);
+      expect(Math.round(points[i].midi)).toBe(57);
+    }
+
+    const phrases = [
+      { id: 'p1', phraseIndex: 1, startMs: 1000, endMs: 2500, durationMs: 1500 },
+      { id: 'p2', phraseIndex: 2, startMs: 4000, endMs: 5500, durationMs: 1500 },
+    ] as any[];
+    expect(findPhraseAtTimeBinary(phrases, 1800)?.id).toBe('p1');
+    expect(findPhraseAtTimeBinary(phrases, 3200)).toBeNull();
+    expect(findPhraseAtTimeBinary(phrases, 4200)?.id).toBe('p2');
+
+    const bars = [
+      { id: 'b1', startTimeMs: 1000, endTimeMs: 1400, durationMs: 400 },
+      { id: 'b2', startTimeMs: 1600, endTimeMs: 2100, durationMs: 500 },
+    ] as any[];
+    expect(findNoteBarAtTimeBinary(bars, 1420, 35)?.id).toBe('b1');
+    expect(findNoteBarAtTimeBinary(bars, 1800, 0)?.id).toBe('b2');
+    expect(findNoteBarAtTimeBinary(bars, 3000, 35)).toBeNull();
   });
 });
