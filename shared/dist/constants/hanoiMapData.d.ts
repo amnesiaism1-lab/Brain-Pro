@@ -1,13 +1,14 @@
 /**
- * DỮ LIỆU BẢN ĐỒ NHẬN THỨC VÀ ĐỊNH VỊ KHÔNG GIAN HÀ NỘI
- * Hệ sinh thái thực thể lõi, quan hệ hình học, quy luật mặt trời và lý thuyết tư duy định hướng
- * Chuẩn hóa theo mô hình 5 thành phần đô thị của Kevin Lynch (The Image of the City)
+ * DỮ LIỆU BẢN ĐỒ NHẬN THỨC VÀ ĐỊNH VỊ KHÔNG GIAN HÀ NỘI (V3.0 MASTER ATLAS)
+ * Hệ sinh thái thực thể lõi, cấu trúc đồng tâm - hướng tâm, mặt đồng hồ 12h,
+ * chuỗi cầu thượng lưu -> hạ lưu, 30 đơn vị hành chính, đường sắt đô thị,
+ * quy luật mặt trời 21.0285°N và giáo trình tư duy không gian chuyên nghiệp.
  */
 export interface IHanoiEntity {
     id: string;
     name: string;
     alias?: string;
-    type: 'river' | 'lake' | 'ring' | 'radial' | 'bridge' | 'landmark' | 'french_street' | 'junction' | 'old_quarter_street';
+    type: 'river' | 'lake' | 'ring' | 'radial' | 'bridge' | 'landmark' | 'french_street' | 'junction' | 'old_quarter_street' | 'metro_line';
     category: 'edge' | 'path' | 'landmark' | 'node' | 'district';
     district: string;
     coords: {
@@ -19,10 +20,11 @@ export interface IHanoiEntity {
     bearingDeg?: number;
     isOneWay?: boolean;
     oneWayDirection?: string;
-    ringTier?: 1 | 2 | 2.5 | 3;
+    ringTier?: 1 | 2 | 2.5 | 3 | 3.5 | 4;
     heightTier?: 'skyline' | 'local';
     connectedStreets?: string[];
     historicalEra?: 'ancient' | 'french_colonial' | 'modern';
+    practiceModeRecommended?: string;
 }
 export type RelationType = 'parallel' | 'perpendicular' | 'collinear_continuation' | 'ordered_along' | 'containment' | 'paired_oneway' | 'crosses_at';
 export interface IHanoiRelation {
@@ -36,6 +38,9 @@ export interface IHanoiRelation {
 }
 export declare const HANOI_WATER_EDGES: IHanoiEntity[];
 export declare const HANOI_BRIDGES: IHanoiEntity[];
+/**
+ * Chuỗi ID cầu nội đô chuẩn xác theo chiều dòng chảy Thượng lưu → Hạ lưu (Tây Bắc → Đông Nam)
+ */
 export declare const HANOI_BRIDGES_NORTH_TO_SOUTH: string[];
 export declare const HANOI_RING_ROADS: IHanoiEntity[];
 export declare const HANOI_RING_1_SEQUENCE: string[];
@@ -44,7 +49,8 @@ export declare const HANOI_RING_3_SEQUENCE: string[];
 export declare const HANOI_RADIAL_CORRIDORS: Array<{
     id: string;
     name: string;
-    direction: 'South-West' | 'South' | 'West-North' | 'West' | 'West-South-BRT' | 'North-East' | 'North-Airport';
+    clockPosition: string;
+    direction: 'South-West' | 'South' | 'West-North' | 'West' | 'West-South-BRT' | 'North-East' | 'North-Airport' | 'East-HaiPhong' | 'North-West-Ring3';
     bearingDeg: number;
     segments: string[];
     description: string;
@@ -54,32 +60,79 @@ export declare const HANOI_FRENCH_GRID_STREETS: IHanoiEntity[];
 export declare const HANOI_LANDMARKS: IHanoiEntity[];
 export declare const HANOI_JUNCTIONS: IHanoiEntity[];
 export declare const ALL_HANOI_ENTITIES: IHanoiEntity[];
-/**
- * Trả về góc phương vị mặt trời (Azimuth) tại Hà Nội theo giờ trong ngày (0 - 24)
- * 0° = Bắc, 90° = Đông, 180° = Nam, 270° = Tây
- */
+export interface IHanoiClockSpoke {
+    clockLabel: string;
+    angleDeg: number;
+    compassVi: string;
+    title: string;
+    streetChain: string[];
+    ringIntersections: string[];
+    externalGateway: string;
+    transitHighlight?: string;
+    memoryHook: string;
+}
+export declare const HANOI_CLOCK_RADIALS: IHanoiClockSpoke[];
+export interface IHanoiRingDetail {
+    id: string;
+    tierLabel: string;
+    name: string;
+    totalLengthKm: string;
+    loopStatus: 'closed' | 'completing' | 'under_construction';
+    loopStatusVi: string;
+    elevatedSectionVi: string;
+    motorbikeRuleVi: string;
+    riverBridges: string[];
+    colorHex: string;
+    nodesChain: Array<{
+        segmentName: string;
+        district: string;
+        junctionAfter?: string;
+        infraBadge?: 'overpass' | 'underpass' | 'elevated' | 'bridge';
+    }>;
+}
+export declare const HANOI_RING_DETAILS: IHanoiRingDetail[];
+export interface IHanoiBridgeMatrixRow {
+    order: number;
+    id: string;
+    name: string;
+    status: 'operational' | 'implementing';
+    statusVi: string;
+    ringOrAxis: string;
+    rightBankWestSouth: string;
+    leftBankNorthEast: string;
+    vehicleRule: string;
+}
+export declare const HANOI_BRIDGE_MATRIX: IHanoiBridgeMatrixRow[];
+export interface IHanoiAdminCluster {
+    id: string;
+    tierBadge: string;
+    title: string;
+    ringPosition: string;
+    summary: string;
+    units: Array<{
+        name: string;
+        unitType: 'Quận' | 'Thị xã' | 'Huyện';
+        compassDir: string;
+        identityTag: string;
+        keyAnchors: string[];
+    }>;
+}
+export declare const HANOI_ADMIN_CLUSTERS: IHanoiAdminCluster[];
+export interface IHanoiTransitLine {
+    id: string;
+    code: string;
+    name: string;
+    colorHex: string;
+    statusVi: string;
+    lengthKm: string;
+    corridorFollowed: string;
+    stations: string[];
+    wayfindingRule: string;
+}
+export declare const HANOI_TRANSIT_LINES: IHanoiTransitLine[];
 export declare function getHanoiSolarAzimuth(hour: number): number;
-/**
- * Trả về hướng bóng đổ của một tòa nhà hoặc người đứng
- * Hướng bóng luôn ngược 180° so với hướng mặt trời
- */
 export declare function getHanoiShadowBearing(hour: number): number;
-/**
- * Quy đổi góc phương vị (0 - 360) ra tên 8 hướng chính
- */
 export declare function bearingToCardinalName(bearing: number): string;
 export declare const HANOI_RELATIONS: IHanoiRelation[];
-export interface ITheoryChapter {
-    id: string;
-    chapterNumber: number;
-    title: string;
-    subtitle: string;
-    badge: string;
-    iconName: string;
-    readTimeMin: number;
-    contentMarkdown: string;
-    keyTakeaways: string[];
-    cognitiveMechanism: string;
-}
-export declare const HANOI_THEORY_CHAPTERS: ITheoryChapter[];
+export * from './hanoiCurriculumData';
 //# sourceMappingURL=hanoiMapData.d.ts.map

@@ -184,14 +184,14 @@ export const THEORY_MODULE_MAP: Record<TheoryModuleId, ITheoryModuleMeta> = {
     title: '10. Bản Đồ Nhận Thức Hà Nội',
     shortTitle: 'Bản Đồ Hà Nội',
     icon: '🗺️',
-    primaryEntity: 'Mạng lưới đô thị: 3 Vành đai, 8 Trục hướng tâm, Phố Pháp & Điểm neo',
+    primaryEntity: 'Mạng lưới đô thị: 6 Vành đai (1–4), Đồng hồ 12h, 13 Cầu, Phố Pháp & Metro',
     taughtAttributes: ['ringTier', 'bearingDeg', 'collinearChain', 'sunAzimuth', 'oneWayRule'],
     primaryRelation: 'TARGET_POSITION',
     secondaryRelations: ['SIMILARITY_DIFF', 'ORDER_SEQUENCE', 'RULE_ACTION'],
     primarySlug: 'hanoi-navigation',
     ctaLabelVi: 'Vào Luyện Tập Bản Đồ Hà Nội',
     relationBadgeVi: 'TARGET_POSITION · Định vị không gian đô thị',
-    descriptionVi: 'Mô hình 5 thành phần Kevin Lynch, hệ quy chiếu kép Allocentric/Egocentric, la bàn mặt trời và chiến thuật tránh bẫy 1 chiều.',
+    descriptionVi: 'Mô hình 5 thành phần Kevin Lynch, gom cụm 30 quận/huyện, mặt đồng hồ 12h, giải phẫu 6 vành đai, la bàn mặt trời và phá bẫy 1 chiều.',
     remediateTagVi: 'Bản đồ nhận thức, Vành đai & Hướng mặt trời'
   }
 };

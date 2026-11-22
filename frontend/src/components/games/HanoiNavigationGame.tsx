@@ -5,16 +5,12 @@ import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { PersonalAnchorsModal } from './PersonalAnchorsModal';
 import { 
   EXERCISES_METADATA, 
-  HANOI_COGNITIVE_GRAPH,
   PracticalGameMode,
-  IHanoiQuestion,
-  IPersonalAnchor,
-  bearingToCardinalName
+  IPersonalAnchor
 } from '@brain-exercises/shared';
 import { generatePracticalHanoiQuestion } from '../../services/hanoiQuestionGenerator';
 import { 
   Compass, 
-  Sun, 
   RotateCw, 
   Eye, 
   EyeOff, 
@@ -22,19 +18,14 @@ import {
   XCircle, 
   ArrowRight, 
   Sparkles, 
-  Navigation, 
   Clock, 
   Flame, 
   HelpCircle,
   MapPin,
-  Trophy,
   BookOpen,
   Route,
-  Layers,
   Bike,
-  ShieldAlert,
-  Home,
-  Briefcase
+  Home
 } from 'lucide-react';
 
 export type HanoiCurriculumType = 'practical' | 'classic_lynch';
@@ -81,9 +72,7 @@ interface IActiveQuestion {
 export const HanoiNavigationGame: React.FC = () => {
   const { 
     getExerciseLevel, 
-    setExerciseLevel, 
     playSound, 
-    autoDifficulty,
     enableHints,
     setActiveGameSlug,
     navigateToTheory,
@@ -107,11 +96,20 @@ export const HanoiNavigationGame: React.FC = () => {
   // Curriculum switch: Practical vs Classic Lynch
   const [curriculum, setCurriculum] = useState<HanoiCurriculumType>('practical');
   const [activePracticalMode, setActivePracticalMode] = useState<PracticalGameMode>('corridor_chain');
-  const [activeClassicMode, setActiveClassicMode] = useState<ClassicGameMode>('skeleton');
   const [selectedAnchorForDrill, setSelectedAnchorForDrill] = useState<IPersonalAnchor | null>(null);
 
   // Automatically adapt practical mode from difficulty level if user hasn't overridden
   useEffect(() => {
+    try {
+      const preferred = sessionStorage.getItem('be_hanoi_preferred_mode') as PracticalGameMode | null;
+      if (preferred) {
+        sessionStorage.removeItem('be_hanoi_preferred_mode');
+        setCurriculum('practical');
+        setActivePracticalMode(preferred);
+        return;
+      }
+    } catch {}
+
     if (selectedAnchorForDrill) {
       setActivePracticalMode('personal_anchor_drill');
       return;
@@ -205,40 +203,40 @@ export const HanoiNavigationGame: React.FC = () => {
             category: 'classic_lynch',
             modeCode: 'skeleton',
             title: 'Khung Xương: Chuỗi Cầu Sông Hồng',
-            prompt: 'Chuỗi Cầu Sông Hồng: Cây cầu nào nằm ngay phía BẮC của Cầu Long Biên?',
-            subPrompt: 'Theo thứ tự dòng chảy từ Tây Bắc xuống Đông Nam',
+            prompt: 'Theo dòng chảy Sông Hồng từ Thượng lưu xuống Hạ lưu, trong 6 cầu nội đô chính thì cây cầu nào nằm ngay phía THƯỢNG LƯU (Bắc) của Cầu Long Biên?',
+            subPrompt: 'Thứ tự chuẩn dòng chảy Tây Bắc → Đông Nam',
             options: [
               {
-                id: 'opt-tl',
-                label: 'Cầu Thăng Long',
-                subLabel: 'Cầu 2 tầng giàn thép (1985)',
+                id: 'opt-nt',
+                label: 'Cầu Nhật Tân',
+                subLabel: 'Cầu dây văng 5 trụ tháp (Vành đai 2)',
                 isCorrect: true,
-                explanation: 'Đúng! Thứ tự từ Bắc xuống Nam: Nhật Tân → Thăng Long → Long Biên → Chương Dương → Vĩnh Tuy → Thanh Trì.'
+                explanation: 'Đúng! Thứ tự chuẩn từ Thượng lưu xuống Hạ lưu: Thăng Long → Nhật Tân → Long Biên → Chương Dương → Vĩnh Tuy → Thanh Trì.'
               },
               {
                 id: 'opt-cd',
                 label: 'Cầu Chương Dương',
                 subLabel: 'Cầu thép huyết mạch nối Hoàn Kiếm',
                 isCorrect: false,
-                explanation: 'Sai! Cầu Chương Dương nằm ở phía NAM của cầu Long Biên.'
+                explanation: 'Sai! Cầu Chương Dương nằm ngay phía HẠ LƯU (Nam) của cầu Long Biên.'
               },
               {
                 id: 'opt-vt',
                 label: 'Cầu Vĩnh Tuy',
                 subLabel: 'Cầu 8 làn xe Vành đai 2',
                 isCorrect: false,
-                explanation: 'Sai! Cầu Vĩnh Tuy nằm xa hơn về phía Đông Nam.'
+                explanation: 'Sai! Cầu Vĩnh Tuy nằm xa hơn về phía hạ lưu Đông Nam.'
               },
               {
                 id: 'opt-tt',
                 label: 'Cầu Thanh Trì',
                 subLabel: 'Cầu bê tông Vành đai 3',
                 isCorrect: false,
-                explanation: 'Sai! Cầu Thanh Trì là cầu cực Nam trong hệ thống cầu chính.'
+                explanation: 'Sai! Cầu Thanh Trì là cầu cực Nam trong 6 cầu nội đô chính.'
               }
             ],
-            hint: 'Chuỗi cầu: Nhật Tân → Thăng Long → Long Biên → Chương Dương...',
-            cognitiveLesson: '6 cây cầu sông Hồng là các cửa khẩu bắt buộc để kết nối hai bờ Tây - Đông của Thủ đô.'
+            hint: 'Khẩu quyết 6 cầu: Thăng – Nhật – Long – Chương – Vĩnh – Thanh.',
+            cognitiveLesson: '6 cây cầu nội đô sông Hồng phân bố đối xứng: Thăng Long & Thanh Trì khóa VĐ3; Nhật Tân & Vĩnh Tuy khóa VĐ2; Long Biên & Chương Dương nối lõi Hoàn Kiếm.'
           });
         } else {
           list.push({
@@ -575,15 +573,15 @@ export const HanoiNavigationGame: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         
         {/* Left Column: Interactive Vector Map & Context Display */}
-        <div className="lg:col-span-5 bg-white/95 dark:bg-slate-950 rounded-3xl p-4 border border-[#D5CBB9] dark:border-slate-800 shadow-xl flex flex-col justify-between relative overflow-hidden min-h-[380px]">
+        <div className="lg:col-span-5 bg-[#0B1120] rounded-3xl p-4 border border-[#D5CBB9] dark:border-slate-800 shadow-xl flex flex-col justify-between relative overflow-hidden min-h-[380px]">
           
           {/* Context Badge on top of map */}
-          <div className="flex items-center justify-between text-xs bg-slate-50/90 dark:bg-slate-900/90 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 mb-2 z-10 shadow-xs">
-            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold">
+          <div className="flex items-center justify-between text-xs bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 mb-2 z-10 shadow-xs">
+            <div className="flex items-center gap-2 text-amber-400 font-bold">
               <Compass className="w-4 h-4" />
-              <span>Bản Đồ 12 Quận Hà Nội</span>
+              <span>Bản Đồ Radar 12 Quận Hà Nội</span>
             </div>
-            <div className="text-[11px] text-cyan-600 dark:text-cyan-400 font-mono flex items-center gap-1 font-bold">
+            <div className="text-[11px] text-cyan-400 font-mono flex items-center gap-1 font-bold">
               <MapPin className="w-3 h-3" />
               {currentQuestion.contextInfo?.district || 'Hà Nội'}
             </div>
