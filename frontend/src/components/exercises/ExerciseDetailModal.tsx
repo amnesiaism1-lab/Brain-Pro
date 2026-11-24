@@ -20,6 +20,36 @@ import { getTheoryModuleForSlug, THEORY_MODULE_MAP } from '../learn/theoryExerci
 import { CustomizePanel } from '../customize/CustomizePanel';
 import { OfficePopUpLauncher } from '../vocal-studio/pop-up/OfficePopUpLauncher';
 
+const BOARD_MATRIX_SLUGS = new Set([
+  'schulte-table',
+  'card-flip',
+  'word-search',
+  'find-number',
+  'find-letter',
+  'text-scanning'
+]);
+
+const getSavedSessionRoundsForExercise = (slug: string | null): number => {
+  const isBoardExercise = Boolean(slug && BOARD_MATRIX_SLUGS.has(slug));
+  const fallback = isBoardExercise ? 1 : 10;
+  if (!slug || typeof localStorage === 'undefined') return fallback;
+  try {
+    const perExercise = localStorage.getItem(`be_pref_rounds_${slug}`);
+    if (perExercise) {
+      const parsed = parseInt(perExercise, 10);
+      if (Number.isFinite(parsed) && parsed >= 1) return parsed;
+    }
+    if (!isBoardExercise) {
+      const legacy = localStorage.getItem('be_pref_peripheral_rounds');
+      if (legacy) {
+        const parsedLegacy = parseInt(legacy, 10);
+        if (Number.isFinite(parsedLegacy) && parsedLegacy >= 1) return parsedLegacy;
+      }
+    }
+  } catch {}
+  return fallback;
+};
+
 export const ExerciseDetailModal: React.FC = () => {
   const { 
     selectedExerciseSlug, 
@@ -49,14 +79,17 @@ export const ExerciseDetailModal: React.FC = () => {
     return 'letters';
   });
 
-  // Session rounds preference (6, 10, 15 rounds)
-  const [sessionRounds, setSessionRounds] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem('be_pref_peripheral_rounds');
-      if (saved) return parseInt(saved, 10);
-    } catch {}
-    return 10;
-  });
+  // Session rounds preference synced per-exercise & propagated to store
+  const [sessionRounds, setSessionRounds] = useState<number>(() =>
+    getSavedSessionRoundsForExercise(selectedExerciseSlug)
+  );
+
+  useEffect(() => {
+    if (!selectedExerciseSlug) return;
+    const saved = getSavedSessionRoundsForExercise(selectedExerciseSlug);
+    setSessionRounds(saved);
+    setLadderSessionRounds(saved);
+  }, [selectedExerciseSlug, setLadderSessionRounds]);
 
   // Test flash preview state
   const [isPreviewFlashing, setIsPreviewFlashing] = useState(false);
@@ -66,6 +99,7 @@ export const ExerciseDetailModal: React.FC = () => {
   const exercise = EXERCISES_METADATA.find(e => e.slug === selectedExerciseSlug);
   if (!exercise) return null;
 
+  const isBoardExercise = BOARD_MATRIX_SLUGS.has(exercise.slug);
   const exerciseLevel = getExerciseLevel(exercise.slug);
   const currentConfig = exercise.levelConfigs.find(c => c.level === exerciseLevel) || exercise.levelConfigs[0];
   const rationale = useMemo(() => getExerciseRationale(exercise.slug), [exercise.slug]);
@@ -109,8 +143,12 @@ export const ExerciseDetailModal: React.FC = () => {
   const handleRoundsChange = (rounds: number) => {
     playSound('click');
     setSessionRounds(rounds);
+    setLadderSessionRounds(rounds);
     try {
-      localStorage.setItem('be_pref_peripheral_rounds', String(rounds));
+      localStorage.setItem(`be_pref_rounds_${exercise.slug}`, String(rounds));
+      if (!isBoardExercise) {
+        localStorage.setItem('be_pref_peripheral_rounds', String(rounds));
+      }
     } catch {}
   };
 
@@ -172,6 +210,73 @@ export const ExerciseDetailModal: React.FC = () => {
         stageDesc: 'Khám phá chiều không gian nhận thức vô hạn: Song ngữ VI/EN, biến thể quan hệ thực thể, API thời gian thực và xung đột đa giác quan.'
       };
     }
+
+    if (exercise.categoryCode === 'MEMORY') {
+      if (exerciseLevel >= 8) {
+        return {
+          name: 'Giai đoạn III: Điều Hành & Biến Đổi',
+          badgeColor: 'bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border-purple-300',
+          stageDesc: 'Kích hoạt vỏ não trước trán lưng bên (dlPFC): đảo ngược thứ tự, sắp xếp tăng dần, cộng nhẩm trung gian và xoay bản đồ tâm trí.'
+        };
+      }
+      if (exerciseLevel >= 5) {
+        return {
+          name: 'Giai đoạn II: Mở Rộng Dung Lượng (Miller 7±2)',
+          badgeColor: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 border-amber-300',
+          stageDesc: 'Kéo giãn sức chứa trí nhớ làm việc lên 7–9 đơn vị bằng kỹ thuật phân nhóm nhịp (Chunking) và mã hóa không gian.'
+        };
+      }
+      return {
+        name: 'Giai đoạn I: Nạp Nhớ Nền Tảng',
+        badgeColor: 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border-emerald-300',
+        stageDesc: 'Thiết lập nhịp mã hóa ổn định (3–6 đơn vị), củng cố vòng lặp âm vị và bảng phác thảo thị giác-không gian.'
+      };
+    }
+
+    if (exercise.categoryCode === 'AUDITORY_MEMORY') {
+      if (exerciseLevel >= 9) {
+        return {
+          name: 'Giai đoạn III: Đa Thanh & Hòa Âm Sâu',
+          badgeColor: 'bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border-purple-300',
+          stageDesc: 'Phân tách bè đa thanh, cảm âm hợp âm phức tạp, họa âm Fourier và giữ ổn định cao độ thanh quản tinh vi.'
+        };
+      }
+      if (exerciseLevel >= 5) {
+        return {
+          name: 'Giai đoạn II: Phân Biệt Quãng & Âm Sắc',
+          badgeColor: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 border-amber-300',
+          stageDesc: 'Nâng độ phân giải thính giác lên bán âm, nhận diện cấu trúc quãng đi lên/xuống/đồng thời và phổ màu âm.'
+        };
+      }
+      return {
+        name: 'Giai đoạn I: Định Chuẩn Thính Giác',
+        badgeColor: 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border-emerald-300',
+        stageDesc: 'Thiết lập neo âm chủ (Tonic Anchor), cảm nhận quãng thuận cơ bản và độ ổn định cao độ nền.'
+      };
+    }
+
+    if (exercise.categoryCode === 'ATTENTION' || exercise.categoryCode === 'REACTION') {
+      if (exerciseLevel >= 9) {
+        return {
+          name: 'Giai đoạn III: Linh Hoạt Điều Hành & Ức Chế',
+          badgeColor: 'bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border-purple-300',
+          stageDesc: 'Đảo quy tắc đột ngột, xung đột Stroop đa kênh và dập tắt phản xạ quán tính ở tốc độ phản ứng dưới 400ms.'
+        };
+      }
+      if (exerciseLevel >= 5) {
+        return {
+          name: 'Giai đoạn II: Kháng Nhiễu Tập Trung',
+          badgeColor: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 border-amber-300',
+          stageDesc: 'Duy trì chú ý chọn lọc dưới áp lực thời gian và loại bỏ nhiễu phân tâm ngữ nghĩa – hình học.'
+        };
+      }
+      return {
+        name: 'Giai đoạn I: Khởi Động Phản Xạ',
+        badgeColor: 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border-emerald-300',
+        stageDesc: 'Củng cố tốc độ xử lý sơ cấp và phản ứng chính xác theo quy luật mục tiêu đơn.'
+      };
+    }
+
     if (exerciseLevel >= 9) {
       return {
         name: 'Giai đoạn III: Siêu Phàm (Biến Thể Đột Phá)',
@@ -191,7 +296,7 @@ export const ExerciseDetailModal: React.FC = () => {
       badgeColor: 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border-emerald-300',
       stageDesc: 'Rèn luyện khả năng khóa chặt con ngươi tại tâm, ngăn chặn phản xạ đảo mắt vô thức.'
     };
-  }, [exerciseLevel]);
+  }, [exerciseLevel, exercise.categoryCode]);
 
   // Specific visual parameters for Peripheral Vision & Vocal Match
   const isPeripheral = exercise.slug === 'peripheral-vision';
@@ -268,7 +373,17 @@ export const ExerciseDetailModal: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2.5">
               <div className="p-2.5 rounded-2xl bg-brand-500 text-white shadow-md shadow-brand-500/25">
-                <Eye className="w-6 h-6" />
+                {exercise.categoryCode === 'MEMORY' ? (
+                  <Brain className="w-6 h-6" />
+                ) : exercise.categoryCode === 'AUDITORY_MEMORY' ? (
+                  <Music className="w-6 h-6" />
+                ) : exercise.categoryCode === 'REACTION' ? (
+                  <Zap className="w-6 h-6" />
+                ) : exercise.categoryCode === 'ATTENTION' ? (
+                  <Target className="w-6 h-6" />
+                ) : (
+                  <Eye className="w-6 h-6" />
+                )}
               </div>
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -723,16 +838,20 @@ export const ExerciseDetailModal: React.FC = () => {
               </div>
             )}
 
-            {/* Stage III Breakthrough Variant Banner (Standard Levels 9-12) */}
+            {/* Stage III Breakthrough Variant Banner (Standard Levels 8-12) */}
             {exerciseLevel <= 12 && currentConfig.variantName && (
               <div className="p-3.5 rounded-2xl bg-purple-50 dark:bg-purple-950/50 border border-purple-300 dark:border-purple-800 flex items-center gap-2.5 animate-scale-up">
                 <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0" />
                 <div>
                   <span className="text-xs font-black text-purple-900 dark:text-purple-200 block">
-                    Đột Phá Cấp Cao: {currentConfig.variantName}
+                    Biến Thể Nâng Cao: {currentConfig.variantName}
                   </span>
                   <span className="text-[11px] text-purple-700 dark:text-purple-300 opacity-90">
-                    Yêu cầu kết hợp xử lý thị giác song song, không chuyển trục mắt sang hai bên.
+                    {exercise.categoryCode === 'MEMORY'
+                      ? 'Kích hoạt vùng điều hành trước trán để biến đổi, đảo ngược hoặc sắp xếp lại thông tin ngay trong trí nhớ làm việc.'
+                      : exercise.categoryCode === 'AUDITORY_MEMORY'
+                        ? 'Tăng cường phân tách phổ tần số, quãng nhạc tinh vi và hòa âm trong vỏ não thính giác.'
+                        : 'Yêu cầu phối hợp ức chế nhiễu và xử lý song song ở cường độ tập trung cao.'}
                   </span>
                 </div>
               </div>
@@ -798,18 +917,75 @@ export const ExerciseDetailModal: React.FC = () => {
                     Quy Mô & Cấu Trúc Đề Bài
                   </h4>
                 </div>
-                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs space-y-1">
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs space-y-1.5">
                   {currentConfig.gridRows && currentConfig.gridCols && (
                     <div className="flex justify-between">
                       <span className="text-slate-500">Kích thước ma trận:</span>
                       <strong className="text-slate-800 dark:text-white">{currentConfig.gridRows} × {currentConfig.gridCols} ô</strong>
                     </div>
                   )}
-                  {currentConfig.targetItemCount && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Số mục tiêu cần tìm:</span>
-                      <strong className="text-brand-600 dark:text-brand-400">{currentConfig.targetItemCount} mục tiêu</strong>
-                    </div>
+                  {exercise.slug === 'digit-span' ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Độ dài chuỗi ghi nhớ:</span>
+                        <strong className="text-brand-600 dark:text-brand-400">{currentConfig.targetItemCount} ký tự</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Quy tắc tái hiện:</span>
+                        <strong className="text-purple-600 dark:text-purple-400">
+                          {(currentConfig.parametersJson as any)?.reverseMode
+                            ? 'Đảo ngược thứ tự'
+                            : (currentConfig.parametersJson as any)?.sortAscending
+                              ? 'Sắp xếp tăng dần (0 → 9)'
+                              : (currentConfig.parametersJson as any)?.mathAddOne
+                                ? 'Cộng nhẩm +1 từng số'
+                                : (currentConfig.parametersJson as any)?.alphanumericMode
+                                  ? 'Song thức Số & Chữ'
+                                  : 'Xuôi chiều chuẩn'}
+                        </strong>
+                      </div>
+                      {(currentConfig.parametersJson as any)?.flashDurationMs && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Thời gian hiển thị mẫu:</span>
+                          <strong className="text-amber-600 dark:text-amber-400">
+                            {((currentConfig.parametersJson as any).flashDurationMs / 1000).toFixed(1)} giây
+                          </strong>
+                        </div>
+                      )}
+                    </>
+                  ) : exercise.slug === 'spatial-memory' ? (
+                    <>
+                      {currentConfig.targetItemCount && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Độ dài chuỗi ô sáng:</span>
+                          <strong className="text-brand-600 dark:text-brand-400">{currentConfig.targetItemCount} ô</strong>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Quy tắc chạm lại:</span>
+                        <strong className="text-purple-600 dark:text-purple-400">
+                          {(currentConfig.parametersJson as any)?.reverseOrder
+                            ? 'Ngược chiều (Cuối → Đầu)'
+                            : (currentConfig.parametersJson as any)?.rotateAfterFlash
+                              ? 'Xoay bảng 90°'
+                              : 'Xuôi chiều chuẩn'}
+                        </strong>
+                      </div>
+                    </>
+                  ) : exercise.slug === 'card-flip' ? (
+                    currentConfig.targetItemCount && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Số cặp / bộ thẻ:</span>
+                        <strong className="text-brand-600 dark:text-brand-400">{currentConfig.targetItemCount} cặp</strong>
+                      </div>
+                    )
+                  ) : (
+                    currentConfig.targetItemCount && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Số mục tiêu mỗi màn:</span>
+                        <strong className="text-brand-600 dark:text-brand-400">{currentConfig.targetItemCount} mục tiêu</strong>
+                      </div>
+                    )
                   )}
                   {currentConfig.speedWpm && (
                     <div className="flex justify-between">
@@ -843,7 +1019,7 @@ export const ExerciseDetailModal: React.FC = () => {
                     <strong className="text-slate-800 dark:text-white font-mono text-sm">{currentConfig.timeLimitSec} giây</strong>
                   </div>
                   {/* Explanation for time-compression difficulty step */}
-                  {[4, 6, 8, 11].includes(currentConfig.level) && (
+                  {exercise.categoryCode === 'SPEED_READING' && [4, 6, 8, 11].includes(currentConfig.level) && (
                     <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-500" />
                       <span>Cấp độ tăng khó bằng cách siết thời gian mục tiêu nhằm kích hoạt phản xạ ức chế đọc thầm và đẩy tốc độ quét nhanh hơn.</span>
@@ -862,15 +1038,25 @@ export const ExerciseDetailModal: React.FC = () => {
                 </h4>
               </div>
               <p className="text-xs text-slate-500">
-                Chọn số lượt thử thách cho phiên rèn luyện này:
+                {isBoardExercise
+                  ? 'Chọn số bàn chơi hoàn chỉnh cho phiên rèn luyện này:'
+                  : 'Chọn số lượt thử thách cho phiên rèn luyện này:'}
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                {[
-                  { count: 1, label: 'Nhanh', sub: '1 lượt lẻ' },
-                  { count: 6, label: 'Khởi động', sub: '6 lượt' },
-                  { count: 10, label: 'Tiêu chuẩn', sub: '10 lượt' },
-                  { count: 15, label: 'Chuyên sâu', sub: '15 lượt' }
-                ].map(r => (
+                {(isBoardExercise
+                  ? [
+                      { count: 1, label: 'Tiêu chuẩn', sub: '1 bàn trọn vẹn' },
+                      { count: 2, label: 'Khởi động', sub: '2 bàn' },
+                      { count: 3, label: 'Bền bỉ', sub: '3 bàn' },
+                      { count: 5, label: 'Chuyên sâu', sub: '5 bàn' }
+                    ]
+                  : [
+                      { count: 1, label: 'Nhanh', sub: '1 lượt lẻ' },
+                      { count: 6, label: 'Khởi động', sub: '6 lượt' },
+                      { count: 10, label: 'Tiêu chuẩn', sub: '10 lượt' },
+                      { count: 15, label: 'Chuyên sâu', sub: '15 lượt' }
+                    ]
+                ).map(r => (
                   <button
                     key={r.count}
                     onClick={() => handleRoundsChange(r.count)}
@@ -1210,7 +1396,7 @@ export const ExerciseDetailModal: React.FC = () => {
                 {exercise.title}
               </span>
               <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
-                Cấp {exerciseLevel <= 12 ? exerciseLevel : `${getInfinityLabel(exerciseLevel)}`} • {sessionRounds} lượt rèn luyện
+                Cấp {exerciseLevel <= 12 ? exerciseLevel : `${getInfinityLabel(exerciseLevel)}`} • {sessionRounds} {isBoardExercise ? 'bàn' : 'lượt'} rèn luyện
               </span>
             </div>
           </div>

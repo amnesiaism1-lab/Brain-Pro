@@ -34,7 +34,7 @@ export const DIRECTION_OPTIONS = [
 ];
 
 export const StroopClashGame: React.FC = () => {
-  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused, ladderSessionRounds } = useAppStore();
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     return () => {
@@ -51,11 +51,14 @@ export const StroopClashGame: React.FC = () => {
   const infinityTier = isInfinity ? getInfinityTier(effectiveLevel) : 0;
 
   const totalTrials = useMemo(() => {
-    if (isCustom && sessionConfig.rounds && sessionConfig.rounds > 0) {
+    if (sessionConfig.rounds && sessionConfig.rounds > 0) {
       return sessionConfig.rounds;
     }
+    if (ladderSessionRounds && ladderSessionRounds > 0) {
+      return ladderSessionRounds;
+    }
     return effectiveLevel >= 13 ? 20 : 15;
-  }, [isCustom, sessionConfig.rounds, effectiveLevel]);
+  }, [sessionConfig.rounds, ladderSessionRounds, effectiveLevel]);
 
   const [trialIndex, setTrialIndex] = useState(0);
   const [wordItem, setWordItem] = useState<{

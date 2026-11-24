@@ -24,7 +24,8 @@ export const IntervalIdentifyGame: React.FC = () => {
     enableAmbientDrone,
     setEnableAmbientDrone,
     earConfusionMatrix,
-    recordEarConfusion
+    recordEarConfusion,
+    ladderSessionRounds
   } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const { trackWrongAnswer } = useWrongAnswerTracker('interval-identify');
@@ -57,7 +58,7 @@ export const IntervalIdentifyGame: React.FC = () => {
 
   // Game state
   const [round, setRound] = useState(1);
-  const maxRounds = 5;
+  const maxRounds = ladderSessionRounds > 0 ? ladderSessionRounds : 5;
   const [question, setQuestion] = useState<ReturnType<typeof generateIntervalQuestion> | null>(null);
   const [selectedOption, setSelectedOption] = useState<IIntervalInfo | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);

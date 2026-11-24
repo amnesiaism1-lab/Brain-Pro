@@ -16,7 +16,8 @@ export function useExerciseSessionConfig<P = Record<string, unknown>>(
   const { 
     getExerciseLevel, 
     activeSessionSource, 
-    getActiveCustomPreset 
+    getActiveCustomPreset,
+    ladderSessionRounds
   } = useAppStore();
 
   const currentLevel = getExerciseLevel(exerciseSlug) || 1;
@@ -24,8 +25,15 @@ export function useExerciseSessionConfig<P = Record<string, unknown>>(
   const customPreset = isCustomMode ? getActiveCustomPreset(exerciseSlug) : null;
 
   const sessionConfig = useMemo(() => {
-    return resolveSessionConfig<P>(exerciseSlug, currentLevel, customPreset);
-  }, [exerciseSlug, currentLevel, customPreset]);
+    const resolved = resolveSessionConfig<P>(exerciseSlug, currentLevel, customPreset);
+    if (resolved.source === 'ladder' && ladderSessionRounds > 0) {
+      return {
+        ...resolved,
+        rounds: ladderSessionRounds
+      };
+    }
+    return resolved;
+  }, [exerciseSlug, currentLevel, customPreset, ladderSessionRounds]);
 
   return {
     sessionConfig,

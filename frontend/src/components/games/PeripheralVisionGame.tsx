@@ -8,7 +8,7 @@ import { PERIPHERAL_FLASH_WORDS } from '../../services/readingContentService';
 import { infinityApiService, shuffleArray } from '../../services/infinityApiService';
 
 export const PeripheralVisionGame: React.FC = () => {
-  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused, ladderSessionRounds } = useAppStore();
   const { sessionConfig, isCustom } = useExerciseSessionConfig('peripheral-vision');
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -71,15 +71,18 @@ export const PeripheralVisionGame: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
 
   const maxRounds = useMemo(() => {
-    if (isCustom && sessionConfig.rounds && sessionConfig.rounds > 0) {
+    if (sessionConfig.rounds && sessionConfig.rounds > 0) {
       return sessionConfig.rounds;
+    }
+    if (ladderSessionRounds && ladderSessionRounds > 0) {
+      return ladderSessionRounds;
     }
     try {
       const saved = localStorage.getItem('be_pref_peripheral_rounds');
       if (saved) return parseInt(saved, 10);
     } catch {}
     return effectiveLevel >= 9 ? 10 : 8;
-  }, [isCustom, sessionConfig.rounds, effectiveLevel]);
+  }, [sessionConfig.rounds, ladderSessionRounds, effectiveLevel]);
 
   const nextRound = useCallback(() => {
     const shuffledPool = shuffleArray(pool);

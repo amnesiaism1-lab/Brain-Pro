@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 export const VoiceTrackGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory, ladderSessionRounds } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
 
   const effectiveLevel = getExerciseLevel('voice-track') || currentLevel || 1;
@@ -32,7 +32,7 @@ export const VoiceTrackGame: React.FC = () => {
 
   // Level configuration
   const voicesCount: 2 | 3 = (effectiveLevel >= 7 || isInfinity) ? 3 : 2;
-  const maxRounds = 5;
+  const maxRounds = ladderSessionRounds > 0 ? ladderSessionRounds : 5;
 
   // Game state
   const [round, setRound] = useState(1);

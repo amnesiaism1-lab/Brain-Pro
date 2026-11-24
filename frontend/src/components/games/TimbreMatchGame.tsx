@@ -80,7 +80,7 @@ const FILTER_OPTIONS: ITimbreOption[] = [
 ];
 
 export const TimbreMatchGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory, ladderSessionRounds } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const { trackWrongAnswer } = useWrongAnswerTracker('timbre-match');
   const sessionIdRef = useRef<string>(`session-timbre-${Date.now()}`);
@@ -97,7 +97,7 @@ export const TimbreMatchGame: React.FC = () => {
 
   // Game state
   const [round, setRound] = useState(1);
-  const maxRounds = 5;
+  const maxRounds = ladderSessionRounds > 0 ? ladderSessionRounds : 5;
   const [targetOption, setTargetOption] = useState<ITimbreOption | null>(null);
   const [currentOptions, setCurrentOptions] = useState<ITimbreOption[]>([]);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);

@@ -290,6 +290,13 @@ export const useAppStore = create<AppState>((set, get) => {
   const savedAmbientDrone = safeGetStorage('be_ambient_drone') === 'true';
   const savedAutoHints = safeGetStorage('be_auto_hints') === 'true'; // Mặc định tắt hoàn toàn (false)
   const savedEnableHints = safeGetStorage('be_enable_hints') !== 'false';
+  const savedSessionRoundsRaw =
+    safeGetStorage('be_pref_session_rounds') || safeGetStorage('be_pref_peripheral_rounds');
+  const parsedSessionRounds = parseInt(savedSessionRoundsRaw, 10);
+  const initialSessionRounds =
+    Number.isFinite(parsedSessionRounds) && parsedSessionRounds >= 1
+      ? parsedSessionRounds
+      : (typeof localStorage !== 'undefined' ? 6 : 1);
 
   let initialEarConfusion: Record<string, number> = {};
   try {
@@ -581,8 +588,16 @@ export const useAppStore = create<AppState>((set, get) => {
     isGamePaused: false,
     setIsGamePaused: (paused) => set({ isGamePaused: paused }),
 
-    ladderSessionRounds: 1,
-    setLadderSessionRounds: (rounds) => set({ ladderSessionRounds: Math.max(1, rounds) }),
+    ladderSessionRounds: initialSessionRounds,
+    setLadderSessionRounds: (rounds) => {
+      const safe = Math.max(1, Math.round(Number.isFinite(rounds) ? rounds : 1));
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('be_pref_session_rounds', String(safe));
+        }
+      } catch { }
+      set({ ladderSessionRounds: safe });
+    },
 
     lastLevelUpEvent: null,
     clearLevelUpEvent: () => set({ lastLevelUpEvent: null }),

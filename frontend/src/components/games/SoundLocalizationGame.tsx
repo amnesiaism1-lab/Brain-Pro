@@ -9,7 +9,7 @@ import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { Navigation, Volume2, Headphones, RotateCcw, Play, Sparkles, BookOpen } from 'lucide-react';
 
 export const SoundLocalizationGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory, ladderSessionRounds } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const { trackWrongAnswer } = useWrongAnswerTracker('sound-localization');
   const sessionIdRef = useRef<string>(`session-sound-loc-${Date.now()}`);
@@ -29,7 +29,7 @@ export const SoundLocalizationGame: React.FC = () => {
 
   // Game state
   const [round, setRound] = useState(1);
-  const maxRounds = 5;
+  const maxRounds = ladderSessionRounds > 0 ? ladderSessionRounds : 5;
   const [availableTargets, setAvailableTargets] = useState<ISpatialTarget[]>([]);
   const [currentTarget, setCurrentTarget] = useState<ISpatialTarget | null>(null);
   const [selectedTargetId, setSelectedOptionId] = useState<string | null>(null);

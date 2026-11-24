@@ -20,7 +20,7 @@ import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { Music, Volume2, RotateCcw, CheckCircle2, XCircle, Play, GraduationCap, Zap, Anchor, GitCommit, BookOpen } from 'lucide-react';
 
 export const ChordIdentifyGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory, enableTonicAnchor, setEnableTonicAnchor } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory, enableTonicAnchor, setEnableTonicAnchor, ladderSessionRounds } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const { trackWrongAnswer } = useWrongAnswerTracker('chord-identify');
   const sessionIdRef = useRef<string>(`session-chord-${Date.now()}`);
@@ -49,7 +49,7 @@ export const ChordIdentifyGame: React.FC = () => {
 
   // Game state
   const [round, setRound] = useState(1);
-  const maxRounds = 5;
+  const maxRounds = ladderSessionRounds > 0 ? ladderSessionRounds : 5;
   const [question, setQuestion] = useState<ReturnType<typeof generateChordQuestion> | null>(null);
   const [selectedOption, setSelectedOption] = useState<IChordTypeInfo | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);

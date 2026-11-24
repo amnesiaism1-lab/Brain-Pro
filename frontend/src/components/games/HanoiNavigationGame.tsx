@@ -79,7 +79,8 @@ export const HanoiNavigationGame: React.FC = () => {
     personalAnchors,
     isPersonalAnchorsOpen,
     setIsPersonalAnchorsOpen,
-    isGamePaused
+    isGamePaused,
+    ladderSessionRounds
   } = useAppStore();
 
   const currentLevel = getExerciseLevel('hanoi-navigation') || 1;
@@ -142,7 +143,7 @@ export const HanoiNavigationGame: React.FC = () => {
   }, [currentLevel]);
 
   // Game session states
-  const [totalQuestions] = useState(6);
+  const totalQuestions = Math.max(1, ladderSessionRounds || 6);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
@@ -168,7 +169,7 @@ export const HanoiNavigationGame: React.FC = () => {
   const regenerateQuestions = useCallback(() => {
     const list: IActiveQuestion[] = [];
 
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < totalQuestions; i++) {
       if (curriculum === 'practical') {
         const pQ = generatePracticalHanoiQuestion(activePracticalMode, currentLevel, personalAnchors);
         list.push({
@@ -287,7 +288,7 @@ export const HanoiNavigationGame: React.FC = () => {
     setCurrentQuestionIndex(0);
     setSelectedOptionId(null);
     setIsAnswerSubmitted(false);
-  }, [curriculum, activePracticalMode, currentLevel, personalAnchors]);
+  }, [curriculum, activePracticalMode, currentLevel, personalAnchors, totalQuestions]);
 
   // Initial generation and whenever mode changes
   useEffect(() => {

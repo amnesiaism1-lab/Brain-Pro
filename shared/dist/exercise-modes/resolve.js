@@ -113,7 +113,44 @@ function resolveSessionConfig(exerciseSlug, ladderLevel, customPreset) {
     };
     const modeId = inferModeIdForLadderLevel(exerciseSlug, levelConfig);
     const mode = (0, registry_1.getExerciseMode)(exerciseSlug, modeId);
-    const { params } = (0, schema_1.validateAndSanitizeParams)(mode.schema, levelConfig.parametersJson);
+    let rawLadderParams = {
+        ...(levelConfig.parametersJson || {})
+    };
+    if (exerciseSlug === 'digit-span') {
+        const rawRule = rawLadderParams.rule;
+        const recallRule = rawRule === 'reverse' || rawLadderParams.reverseMode
+            ? 'reverse'
+            : rawRule === 'sort-asc' || rawLadderParams.sortAscending
+                ? 'sort-asc'
+                : rawRule === 'plus-one' || rawLadderParams.mathAddOne
+                    ? 'plus-one'
+                    : 'forward';
+        const stimulusType = rawLadderParams.alphanumericMode
+            ? 'alphanumeric'
+            : rawLadderParams.stimulusType || 'digits';
+        const seqLen = levelConfig.targetItemCount ?? 6;
+        const flashMs = typeof rawLadderParams.flashDurationMs === 'number'
+            ? Math.round(rawLadderParams.flashDurationMs / Math.max(1, seqLen))
+            : 420;
+        rawLadderParams = {
+            ...rawLadderParams,
+            sequenceLength: seqLen,
+            recallRule,
+            stimulusType,
+            flashPerItemMs: flashMs,
+            chunkingGuide: true
+        };
+    }
+    else if (exerciseSlug === 'spatial-memory') {
+        rawLadderParams = {
+            ...rawLadderParams,
+            gridSize: String(levelConfig.gridRows || 4),
+            sequenceLength: levelConfig.targetItemCount ?? 5,
+            recallOrder: rawLadderParams.reverseOrder ? 'reverse' : 'forward',
+            rotateBoard: Boolean(rawLadderParams.rotateAfterFlash)
+        };
+    }
+    const { params } = (0, schema_1.validateAndSanitizeParams)(mode.schema, rawLadderParams);
     return {
         source: 'ladder',
         exerciseSlug,

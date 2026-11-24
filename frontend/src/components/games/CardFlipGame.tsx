@@ -2,21 +2,14 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useAppStore } from '../../store/useAppStore';
 import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { GameResultModal } from './GameResultModal';
-import { 
-  Brain, Zap, Sparkles, Star, Flame, Eye, Target, Compass, 
+import {
+  Brain, Zap, Sparkles, Star, Flame, Eye, Target, Compass,
   Heart, Gem, Sun, Moon, Rocket, Feather, Crown, RefreshCw,
-  Infinity as InfinityIcon, Globe
+  Infinity as InfinityIcon, XCircle, CheckCircle2
 } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
-import { 
-  infinityApiService, 
-  BILINGUAL_WORD_PAIRS, 
-  EMOJI_WORD_PAIRS, 
-  SYNONYM_PAIRS, 
-  POS_TRIADS, 
-  NASA_OFFLINE_CARDS 
-} from '../../services/infinityApiService';
-import { INFINITY_ROMAN_NUMERALS, getInfinityTier, getInfinityLabel } from '@brain-exercises/shared';
+import { infinityApiService } from '../../services/infinityApiService';
+import { getInfinityLabel } from '@brain-exercises/shared';
 
 interface CardItem {
   id: string;
@@ -51,7 +44,14 @@ const CARD_ICONS = [
 ];
 
 export const CardFlipGame: React.FC = () => {
-  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const {
+    currentLevel: storeLevel,
+    getExerciseLevel,
+    setActiveGameSlug,
+    playSound,
+    isGamePaused,
+    ladderSessionRounds
+  } = useAppStore();
   const { sessionConfig, isCustom } = useExerciseSessionConfig('card-flip');
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const lastMatchTimeRef = useRef<number>(Date.now());
@@ -59,9 +59,15 @@ export const CardFlipGame: React.FC = () => {
   const playedLevelRef = useRef<number>(isCustom ? 0 : ladderLvl);
   const effectiveLevel = isCustom ? 0 : playedLevelRef.current;
 
+  const totalBoards = useMemo(() => {
+    if (sessionConfig.rounds && sessionConfig.rounds > 0) {
+      return Math.max(1, Math.min(8, sessionConfig.rounds));
+    }
+    return Math.max(1, Math.min(8, ladderSessionRounds || 2));
+  }, [sessionConfig.rounds, ladderSessionRounds]);
+
   // Level-specific mode flags
   const isInfinity = effectiveLevel >= 13;
-  const infinityTier = getInfinityTier(effectiveLevel);
 
   // Standard modes
   const isTripleMatch = effectiveLevel === 9 || effectiveLevel === 15 || effectiveLevel === 17; // Level 9, ∞-III (Triad Concept) or ∞-V (POS Triad)
@@ -85,23 +91,33 @@ export const CardFlipGame: React.FC = () => {
     if (effectiveLevel <= 4) return 50;
     if (effectiveLevel <= 6) return 60;
     if (effectiveLevel <= 8) return 75;
-    if (effectiveLevel >= 13) return 85;
     return 85;
   }, [effectiveLevel]);
 
   const [cards, setCards] = useState<CardItem[]>([]);
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
+  const [wrongPairIndices, setWrongPairIndices] = useState<number[]>([]);
+  const [mismatchFeedback, setMismatchFeedback] = useState<{ cardLabels: string[] } | null>(null);
+  const [boardClearedBanner, setBoardClearedBanner] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentBoard, setCurrentBoard] = useState(1);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [flipsCount, setFlipsCount] = useState(0);
+  const [totalFlipsAcc, setTotalFlipsAcc] = useState(0);
   const [matchedPairsCount, setMatchedPairsCount] = useState(0);
+  const [totalMatchedAcc, setTotalMatchedAcc] = useState(0);
   const [timeLeft, setTimeLeft] = useState(initialTimeLimit);
+  const [totalTimeSpentAcc, setTotalTimeSpentAcc] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [sonarPulsesLeft, setSonarPulsesLeft] = useState(2);
   const [isSonaring, setIsSonaring] = useState(false);
+  const timeLeftRef = useRef<number>(initialTimeLimit);
+  useEffect(() => {
+    timeLeftRef.current = timeLeft;
+  }, [timeLeft]);
 
-  const initGame = useCallback(() => {
+  const dealBoard = useCallback(() => {
     const cardDeck: CardItem[] = [];
 
     if (!isInfinity) {
@@ -528,16 +544,28 @@ export const CardFlipGame: React.FC = () => {
 
     setCards(cardDeck);
     setFlippedIndices([]);
+    setWrongPairIndices([]);
+    setMismatchFeedback(null);
+    setBoardClearedBanner(false);
     setIsProcessing(false);
     setMatchedPairsCount(0);
     setFlipsCount(0);
     setCombo(0);
-    setScore(0);
     setTimeLeft(initialTimeLimit);
-    setIsFinished(false);
     setSonarPulsesLeft(2);
     setIsSonaring(false);
   }, [pairCount, initialTimeLimit, isTripleMatch, isInfinity, effectiveLevel]);
+
+  const initGame = useCallback(() => {
+    resetSession();
+    setCurrentBoard(1);
+    setScore(0);
+    setTotalMatchedAcc(0);
+    setTotalFlipsAcc(0);
+    setTotalTimeSpentAcc(0);
+    setIsFinished(false);
+    dealBoard();
+  }, [resetSession, dealBoard]);
 
   useEffect(() => {
     initGame();
@@ -545,7 +573,7 @@ export const CardFlipGame: React.FC = () => {
 
   // Countdown timer & Shuffle Trap / Matrix Drift / Orbiting Rows
   useEffect(() => {
-    if (isFinished || isGamePaused) return;
+    if (isFinished || isGamePaused || boardClearedBanner) return;
     const timer = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) {
@@ -596,7 +624,7 @@ export const CardFlipGame: React.FC = () => {
   }, [isFinished, isGamePaused, isShuffleTrap, isOrbiting]);
 
   const handleTriggerSonar = () => {
-    if (sonarPulsesLeft <= 0 || isProcessing || isSonaring || isFinished) return;
+    if (sonarPulsesLeft <= 0 || isProcessing || isSonaring || isFinished || isGamePaused || boardClearedBanner) return;
     playSound('click');
     setSonarPulsesLeft(p => p - 1);
     setIsSonaring(true);
@@ -635,11 +663,12 @@ export const CardFlipGame: React.FC = () => {
   const requiredMatches = isTripleMatch ? 3 : 2;
 
   const handleCardClick = (index: number) => {
-    if (isProcessing || isFinished) return;
+    if (isProcessing || isFinished || isGamePaused || boardClearedBanner) return;
     const card = cards[index];
     if (card.isFlipped || card.isMatched) return;
 
     playSound('click');
+    setMismatchFeedback(null);
     const newCards = [...cards];
     newCards[index].isFlipped = true;
     setCards(newCards);
@@ -649,7 +678,8 @@ export const CardFlipGame: React.FC = () => {
 
     if (newFlipped.length === requiredMatches) {
       setIsProcessing(true);
-      setFlipsCount(c => c + 1);
+      const updatedBoardFlips = flipsCount + 1;
+      setFlipsCount(updatedBoardFlips);
 
       const firstKey = newCards[newFlipped[0]].matchKey;
       const isAllMatched = newFlipped.every(idx => newCards[idx].matchKey === firstKey);
@@ -692,13 +722,32 @@ export const CardFlipGame: React.FC = () => {
 
           const totalRequiredSets = isTripleMatch ? Math.floor(cards.length / 3) : Math.floor(cards.length / 2);
           if (nextMatchedCount >= totalRequiredSets) {
-            setIsFinished(true);
+            if (currentBoard < totalBoards) {
+              playSound('victory');
+              setTotalMatchedAcc(a => a + nextMatchedCount);
+              setTotalFlipsAcc(a => a + updatedBoardFlips);
+              setTotalTimeSpentAcc(a => a + Math.max(1, initialTimeLimit - timeLeftRef.current));
+              setBoardClearedBanner(true);
+              setTimeout(() => {
+                setCurrentBoard(b => b + 1);
+                dealBoard();
+              }, 900);
+            } else {
+              setIsFinished(true);
+            }
           }
         }, 400);
       } else {
         // MISMATCH
         playSound('wrong');
         setCombo(0);
+        const cardLabels = newFlipped.map(idx =>
+          newCards[idx].emoji
+            ? `${newCards[idx].emoji} ${newCards[idx].displayText}`
+            : newCards[idx].displayText
+        );
+        setWrongPairIndices(newFlipped);
+        setMismatchFeedback({ cardLabels });
         setTimeout(() => {
           setCards(prev => {
             const updated = [...prev];
@@ -708,8 +757,10 @@ export const CardFlipGame: React.FC = () => {
             return updated;
           });
           setFlippedIndices([]);
+          setWrongPairIndices([]);
+          setMismatchFeedback(null);
           setIsProcessing(false);
-        }, 850);
+        }, 1050);
       }
     }
   };
@@ -722,9 +773,12 @@ export const CardFlipGame: React.FC = () => {
     return 'grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-8';
   }, [cards.length]);
 
-  const accuracyRate = flipsCount > 0 
-    ? Math.min(100, Math.round((matchedPairsCount / flipsCount) * 100)) 
+  const allMatched = totalMatchedAcc + matchedPairsCount;
+  const allFlips = totalFlipsAcc + flipsCount;
+  const accuracyRate = allFlips > 0
+    ? Math.min(100, Math.round((allMatched / allFlips) * 100))
     : 100;
+  const totalElapsedSec = Math.max(1, totalTimeSpentAcc + (initialTimeLimit - timeLeft));
 
   const totalRequiredSets = isTripleMatch ? Math.floor(cards.length / 3) : Math.floor(cards.length / 2);
 
@@ -733,8 +787,13 @@ export const CardFlipGame: React.FC = () => {
       {/* Top HUD */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md">
         <div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs sm:text-sm text-slate-500 font-semibold">Điểm số</span>
+            {totalBoards > 1 && (
+              <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-700">
+                Bàn {currentBoard}/{totalBoards}
+              </span>
+            )}
             {isInfinity && (
               <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white flex items-center gap-1">
                 <InfinityIcon className="w-3 h-3" />
@@ -805,11 +864,27 @@ export const CardFlipGame: React.FC = () => {
         )}
       </div>
 
+      {/* Prominent Mismatch / Board Transition Banner */}
+      {mismatchFeedback && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/55 border-2 border-rose-400 dark:border-rose-500/70 text-rose-700 dark:text-rose-200 flex items-center justify-center gap-2.5 text-sm sm:text-base font-black shadow-md animate-fade-in">
+          <XCircle className="w-5 h-5 text-rose-500 shrink-0" />
+          <span>✕ Chưa khớp: {mismatchFeedback.cardLabels.join(' ≠ ')}</span>
+        </div>
+      )}
+
+      {boardClearedBanner && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/55 border-2 border-emerald-400 dark:border-emerald-500/70 text-emerald-700 dark:text-emerald-200 flex items-center justify-center gap-2.5 text-sm sm:text-base font-black shadow-md animate-fade-in">
+          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+          <span>✓ Hoàn tất Bàn {currentBoard}/{totalBoards}! Đang chia bàn tiếp theo...</span>
+        </div>
+      )}
+
       {/* 3D Card Grid */}
       <div className={`grid ${gridColsClass} gap-2.5 sm:gap-4 perspective-1000`}>
         {cards.map((card, idx) => {
           const iconMeta = CARD_ICONS[card.symbolIndex % CARD_ICONS.length];
           const IconComp = iconMeta.icon;
+          const isWrongCard = wrongPairIndices.includes(idx);
 
           return (
             <div
@@ -818,7 +893,7 @@ export const CardFlipGame: React.FC = () => {
               className="relative aspect-square cursor-pointer select-none group"
               style={{ perspective: '1000px' }}
             >
-              <div 
+              <div
                 className={`w-full h-full rounded-2xl sm:rounded-3xl transition-transform duration-500 shadow-md ${
                   card.isFlipped || card.isMatched ? 'rotate-y-180' : ''
                 }`}
@@ -828,9 +903,9 @@ export const CardFlipGame: React.FC = () => {
                 }}
               >
                 {/* Back of Card (Hidden Face) */}
-                <div 
+                <div
                   className={`absolute inset-0 rounded-2xl sm:rounded-3xl flex items-center justify-center border-2 border-brand-200 dark:border-brand-900/60 text-white font-black shadow-lg backface-hidden ${
-                    isInfinity 
+                    isInfinity
                       ? 'bg-gradient-to-br from-purple-700 via-purple-600 to-pink-600'
                       : 'bg-gradient-to-br from-brand-500 via-brand-600 to-indigo-600'
                   } ${!card.isMatched && 'hover:scale-[1.04] active:scale-95 transition-transform'}`}
@@ -844,19 +919,21 @@ export const CardFlipGame: React.FC = () => {
                 </div>
 
                 {/* Front of Card (Revealed Symbol / Text / Emoji) */}
-                <div 
+                <div
                   className={`absolute inset-0 rounded-2xl sm:rounded-3xl flex items-center justify-center p-2 border-2 shadow-lg backface-hidden transition-all ${
-                    card.isMatched 
-                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 opacity-90' 
+                    isWrongCard
+                      ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/60 ring-4 ring-rose-500/35 scale-95'
+                      : card.isMatched
+                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 opacity-90'
                       : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
                   }`}
-                  style={{ 
+                  style={{
                     backfaceVisibility: 'hidden',
                     transform: 'rotateY(180deg)'
                   }}
                 >
                   {card.cardType === 'icon' ? (
-                    <IconComp className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 ${card.isMatched ? 'text-emerald-500 scale-110' : iconMeta.color} transition-transform`} />
+                    <IconComp className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 ${isWrongCard ? 'text-rose-500' : card.isMatched ? 'text-emerald-500 scale-110' : iconMeta.color} transition-transform`} />
                   ) : card.cardType === 'emoji' ? (
                     <div className="flex flex-col items-center justify-center text-center">
                       <span className="text-3xl sm:text-4xl">{card.emoji}</span>
@@ -870,8 +947,10 @@ export const CardFlipGame: React.FC = () => {
                     <div className="flex flex-col items-center justify-center text-center px-1">
                       {card.emoji && <span className="text-xl sm:text-2xl mb-0.5">{card.emoji}</span>}
                       <span className={`font-black text-xs sm:text-sm tracking-tight leading-tight uppercase ${
-                        card.isMatched 
-                          ? 'text-emerald-600 dark:text-emerald-400' 
+                        isWrongCard
+                          ? 'text-rose-600 dark:text-rose-300'
+                          : card.isMatched
+                          ? 'text-emerald-600 dark:text-emerald-400'
                           : 'text-slate-800 dark:text-white'
                       }`}>
                         {card.displayText}
@@ -893,7 +972,7 @@ export const CardFlipGame: React.FC = () => {
       {/* Quick Action Button */}
       <div className="flex justify-center pt-2">
         <button
-          onClick={initGame}
+          onClick={dealBoard}
           className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 transition-colors"
         >
           <RefreshCw className="w-3.5 h-3.5" />
@@ -905,12 +984,11 @@ export const CardFlipGame: React.FC = () => {
         <GameResultModal
           score={score}
           accuracyRate={accuracyRate}
-          timeSpentSec={initialTimeLimit - timeLeft}
+          timeSpentSec={totalElapsedSec}
           playedLevel={effectiveLevel || 1}
           isCustom={isCustom}
           rawMetricsJson={getRawMetricsJson()}
           onRestart={() => {
-            resetSession();
             initGame();
           }}
           onClose={() => setActiveGameSlug(null)}

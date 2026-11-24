@@ -12,7 +12,7 @@ import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 import { Activity, Play, RotateCcw, Drum, Volume2, BookOpen } from 'lucide-react';
 
 export const RhythmRecallGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, navigateToTheory, ladderSessionRounds } = useAppStore();
   const { resetSession, emitTrialEvent, getRawMetricsJson } = useRelationSession();
   const { trackWrongAnswer } = useWrongAnswerTracker('rhythm-recall');
   const sessionIdRef = useRef<string>(`session-rhythm-${Date.now()}`);
@@ -35,7 +35,7 @@ export const RhythmRecallGame: React.FC = () => {
 
   // Game state
   const [round, setRound] = useState(1);
-  const maxRounds = 4;
+  const maxRounds = ladderSessionRounds > 0 ? ladderSessionRounds : 4;
   const [patternData, setPatternData] = useState<ReturnType<typeof generateRhythmPattern> | null>(null);
   const [phase, setPhase] = useState<'listen' | 'ready-to-tap' | 'tapping' | 'feedback'>('listen');
   const [currentPlayStep, setCurrentPlayStep] = useState<number>(-1);

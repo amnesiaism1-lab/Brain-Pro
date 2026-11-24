@@ -22,10 +22,10 @@ import {
 } from 'lucide-react';
 
 export const RuleMutationClashGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused, ladderSessionRounds } = useAppStore();
   const effectiveLevel = getExerciseLevel('rule-mutation-clash') || currentLevel || 1;
 
-  const totalRounds = 8;
+  const totalRounds = Math.max(1, ladderSessionRounds || 8);
   const [trials, setTrials] = useState<IRuleMutationTrial[]>(() =>
     generateRuleMutationTrials(effectiveLevel, totalRounds)
   );
@@ -59,7 +59,7 @@ export const RuleMutationClashGame: React.FC = () => {
     preMutationLatenciesRef.current = [];
     postMutationLatenciesRef.current = [];
     relationEventsRef.current = [];
-  }, [effectiveLevel]);
+  }, [effectiveLevel, totalRounds]);
 
   useEffect(() => {
     initGame();

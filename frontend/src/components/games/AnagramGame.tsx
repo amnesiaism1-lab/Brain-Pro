@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
+import { analyzeSequenceDiff } from '../../utils/memoryDiffAnalysis';
 import { readingContentService, THEMED_VOCABULARY } from '../../services/readingContentService';
 import { 
   infinityApiService,
@@ -47,7 +48,16 @@ interface IWordDebriefData {
 }
 
 export const AnagramGame: React.FC = () => {
-  const { currentLevel: storeLevel, getExerciseLevel, setActiveGameSlug, enableHints, playSound, isGamePaused, setIsGamePaused } = useAppStore();
+  const {
+    currentLevel: storeLevel,
+    getExerciseLevel,
+    setActiveGameSlug,
+    enableHints,
+    playSound,
+    isGamePaused,
+    setIsGamePaused,
+    ladderSessionRounds
+  } = useAppStore();
   const { sessionConfig, isCustom } = useExerciseSessionConfig('anagram');
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const { trackWrongAnswer } = useWrongAnswerTracker('anagram');
@@ -65,16 +75,19 @@ export const AnagramGame: React.FC = () => {
     return exerciseMeta?.levelConfigs.find(c => c.level === (sessionLevel || 1));
   }, [exerciseMeta, sessionLevel]);
 
-  // Round count based on config: Custom preset rounds || standard level targetItemCount (L1:3 -> L12:9)
+  // Round count based on config: sessionConfig.rounds (carries Custom preset or ladderSessionRounds)
   const maxRounds = useMemo(() => {
-    if (isCustom && sessionConfig.rounds && sessionConfig.rounds > 0) {
+    if (sessionConfig.rounds && sessionConfig.rounds > 0) {
       return sessionConfig.rounds;
     }
+    if (ladderSessionRounds && ladderSessionRounds > 0) {
+      return ladderSessionRounds;
+    }
     if (isInfinity) {
-      return sessionLevel === 22 ? 25 : 5;
+      return sessionLevel === 22 ? 25 : 6;
     }
     return standardLevelConfig?.targetItemCount || (sessionLevel <= 2 ? 3 : sessionLevel <= 5 ? 4 : sessionLevel <= 8 ? 5 : sessionLevel <= 11 ? 7 : 9);
-  }, [isCustom, sessionConfig.rounds, isInfinity, sessionLevel, standardLevelConfig]);
+  }, [sessionConfig.rounds, ladderSessionRounds, isInfinity, sessionLevel, standardLevelConfig]);
 
   // Time limit based on config (countdown)
   const initialTimeLimit = useMemo(() => {
@@ -175,6 +188,7 @@ export const AnagramGame: React.FC = () => {
   const [roundFails, setRoundFails] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [isShakeError, setIsShakeError] = useState(false);
+  const [slotErrorStatuses, setSlotErrorStatuses] = useState<Array<'exact' | 'transposed' | 'wrong'> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Spaced Repetition / Missed Word Queue
@@ -529,6 +543,17 @@ export const AnagramGame: React.FC = () => {
         setIsSubmitting(false);
       } else {
         playSound('wrong');
+        const diffRes = analyzeSequenceDiff({
+          rawStimulus: targetClean,
+          expected: targetClean,
+          userTyped: formedWord,
+          rule: 'forward'
+        });
+        setSlotErrorStatuses(
+          diffRes.items.map(it =>
+            it.status === 'exact' ? 'exact' : it.status === 'transposed' ? 'transposed' : 'wrong'
+          )
+        );
         setIsShakeError(true);
         setMissCount(m => m + 1);
         setRoundFails(f => f + 1);
@@ -543,13 +568,14 @@ export const AnagramGame: React.FC = () => {
           userAnswer: { label: formedWord, code: formedWord }
         });
 
-        // Soft reset after 550ms shake animation without freezing input races
+        // Hold color-coded slot diff for 950ms so user sees exact / transposed / wrong slots before clearing
         setTimeout(() => {
           setIsShakeError(false);
+          setSlotErrorStatuses(null);
           setIsSubmitting(false);
           setSelectedLetters([]);
           setAvailableTiles(prev => prev.map(t => ({ ...t, used: false })));
-        }, 550);
+        }, 950);
       }
     }
   }, [
@@ -778,21 +804,38 @@ export const AnagramGame: React.FC = () => {
           )}
         </div>
 
+        {/* Color-Coded Error Diff Legend when incorrect */}
+        {slotErrorStatuses && (
+          <div className="flex flex-wrap items-center justify-center gap-2 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-500/50 text-[11px] font-bold">
+            <span className="text-emerald-700 dark:text-emerald-300">● Xanh = Đúng vị trí</span>
+            <span className="text-slate-400">•</span>
+            <span className="text-amber-700 dark:text-amber-300">● Vàng = Đúng chữ sai chỗ</span>
+            <span className="text-slate-400">•</span>
+            <span className="text-rose-700 dark:text-rose-300">● Đỏ = Thừa / Sai</span>
+          </div>
+        )}
+
         {/* Answer Slots: Click to remove/unselect individual letter */}
         <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
           {Array.from({ length: targetWord.length }).map((_, idx) => {
             const letter = selectedLetters[idx];
+            const errStatus = slotErrorStatuses?.[idx];
+            const slotClass = errStatus === 'exact'
+              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/35'
+              : errStatus === 'transposed'
+              ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 ring-2 ring-amber-500/35'
+              : errStatus === 'wrong'
+              ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 ring-2 ring-rose-500/35'
+              : letter
+              ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-300 scale-105 cursor-pointer hover:border-rose-400 hover:text-rose-600'
+              : 'border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-900/50 cursor-default';
             return (
               <button
                 key={idx}
                 type="button"
                 onClick={() => handleUnselectSlot(idx)}
                 title={letter ? "Bấm vào để gỡ ký tự này" : undefined}
-                className={`w-12 h-14 sm:w-14 sm:h-16 rounded-2xl border-2 flex items-center justify-center font-mono font-black text-2xl sm:text-3xl transition-all shadow-sm ${
-                  letter
-                    ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-300 scale-105 cursor-pointer hover:border-rose-400 hover:text-rose-600'
-                    : 'border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-900/50 cursor-default'
-                }`}
+                className={`w-12 h-14 sm:w-14 sm:h-16 rounded-2xl border-2 flex items-center justify-center font-mono font-black text-2xl sm:text-3xl transition-all shadow-sm ${slotClass}`}
               >
                 {letter || ''}
               </button>

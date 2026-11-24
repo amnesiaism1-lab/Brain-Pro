@@ -6,6 +6,8 @@ import { INTERVAL_IDENTIFY_MODES } from './modes/interval-identify';
 import { CHORD_IDENTIFY_MODES } from './modes/chord-identify';
 import { RHYTHM_RECALL_MODES } from './modes/rhythm-recall';
 import { SCHULTE_TABLE_MODES } from './modes/schulte-table';
+import { DIGIT_SPAN_MODES } from './modes/digit-span';
+import { SPATIAL_MEMORY_MODES } from './modes/spatial-memory';
 import { createDefaultExerciseMode } from './modes/default';
 
 export const EXERCISE_MODE_REGISTRY: Partial<Record<ExerciseSlug, IExerciseModeDefinition[]>> = {
@@ -14,7 +16,9 @@ export const EXERCISE_MODE_REGISTRY: Partial<Record<ExerciseSlug, IExerciseModeD
   'interval-identify': INTERVAL_IDENTIFY_MODES,
   'chord-identify': CHORD_IDENTIFY_MODES,
   'rhythm-recall': RHYTHM_RECALL_MODES,
-  'schulte-table': SCHULTE_TABLE_MODES
+  'schulte-table': SCHULTE_TABLE_MODES,
+  'digit-span': DIGIT_SPAN_MODES,
+  'spatial-memory': SPATIAL_MEMORY_MODES
 };
 
 /**

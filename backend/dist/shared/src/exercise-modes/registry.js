@@ -9,6 +9,8 @@ const interval_identify_1 = require("./modes/interval-identify");
 const chord_identify_1 = require("./modes/chord-identify");
 const rhythm_recall_1 = require("./modes/rhythm-recall");
 const schulte_table_1 = require("./modes/schulte-table");
+const digit_span_1 = require("./modes/digit-span");
+const spatial_memory_1 = require("./modes/spatial-memory");
 const default_1 = require("./modes/default");
 exports.EXERCISE_MODE_REGISTRY = {
     'vocal-pitch-match': vocal_pitch_match_1.VOCAL_PITCH_MATCH_MODES,
@@ -16,7 +18,9 @@ exports.EXERCISE_MODE_REGISTRY = {
     'interval-identify': interval_identify_1.INTERVAL_IDENTIFY_MODES,
     'chord-identify': chord_identify_1.CHORD_IDENTIFY_MODES,
     'rhythm-recall': rhythm_recall_1.RHYTHM_RECALL_MODES,
-    'schulte-table': schulte_table_1.SCHULTE_TABLE_MODES
+    'schulte-table': schulte_table_1.SCHULTE_TABLE_MODES,
+    'digit-span': digit_span_1.DIGIT_SPAN_MODES,
+    'spatial-memory': spatial_memory_1.SPATIAL_MEMORY_MODES
 };
 function getExerciseModes(slug) {
     const registered = exports.EXERCISE_MODE_REGISTRY[slug];
