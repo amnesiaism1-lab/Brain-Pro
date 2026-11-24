@@ -21,7 +21,8 @@ import {
   Info,
   AlertTriangle,
   ChevronRight,
-  EyeOff
+  EyeOff,
+  Crosshair
 } from 'lucide-react';
 import { useRelationSession } from '../../hooks/useRelationSession';
 import { numberToRoman } from '../../services/infinityApiService';
@@ -29,6 +30,38 @@ import { useExerciseSessionConfig } from '../../hooks/useExerciseSessionConfig';
 import { useWrongAnswerTracker } from '../../hooks/useWrongAnswerTracker';
 
 export type SchulteMode = 'standard' | 'gorbov' | 'reverse' | 'alphabet' | 'fading' | 'rotating';
+
+export interface ISchulteCenterFixationConfig {
+  activeSize: number;
+  isOddGrid: boolean;
+  centerIndex: number | null;
+  reticleMode: 'corner-brackets' | 'gap-intersection';
+}
+
+/**
+ * Determines how the Schulte center fixation reticle should be rendered so it
+ * anchors peripheral vision without occluding the center cell's glyph.
+ */
+export const getSchulteCenterFixationConfig = (
+  mode: string,
+  gridSize: number
+): ISchulteCenterFixationConfig => {
+  const activeSize = mode === 'gorbov' ? 7 : Math.max(3, Math.floor(gridSize || 5));
+  const isOddGrid = activeSize % 2 === 1;
+  return {
+    activeSize,
+    isOddGrid,
+    centerIndex: isOddGrid ? Math.floor(activeSize / 2) : null,
+    reticleMode: isOddGrid ? 'corner-brackets' : 'gap-intersection',
+  };
+};
+
+/**
+ * Counter-rotates cell glyphs when the rotating Schulte board turns so digits
+ * like 6 and 9 or 16 and 91 never invert into one another.
+ */
+export const getCounterRotationDeg = (rotationDeg: number): number =>
+  rotationDeg === 0 ? 0 : -rotationDeg;
 
 interface GorbovCell {
   num: number;
@@ -905,7 +938,7 @@ export const SchulteTableGame: React.FC = () => {
           </div>
 
           {/* Quick Config Toggles */}
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:ml-auto">
             {/* Alphabet Type selector when in alphabet mode */}
             {mode === 'alphabet' && (
               <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold">
@@ -943,14 +976,14 @@ export const SchulteTableGame: React.FC = () => {
                 <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">(Gorbov 49 ô cố định)</span>
               </div>
             ) : (
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold overflow-x-auto max-w-[200px] sm:max-w-none">
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold overflow-x-auto max-w-full sm:max-w-none">
                 {[3, 4, 5, 6, 7, 8, 9].map(s => (
                   <button
                     key={s}
                     onClick={() => {
                       safeAlterBoard(() => setGridSize(s), `Đổi kích thước lưới thành ${s}×${s}`);
                     }}
-                    className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${
+                    className={`px-2 py-1 rounded-lg transition-all cursor-pointer shrink-0 ${
                       gridSize === s
                         ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 shadow-sm'
                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -979,14 +1012,15 @@ export const SchulteTableGame: React.FC = () => {
             {/* Center Focus Toggle */}
             <button
               onClick={() => setShowCenterGuide(prev => !prev)}
-              title={showCenterGuide ? 'Tắt tâm hội tụ' : 'Bật tâm hội tụ (Mở rộng thị giác ngoại biên)'}
-              className={`p-2 rounded-xl transition-all border cursor-pointer ${
+              title={showCenterGuide ? 'Tắt tâm ngắm hội tụ' : 'Bật tâm ngắm hội tụ (Mở rộng thị giác ngoại biên)'}
+              className={`px-2.5 py-1.5 rounded-xl transition-all border text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
                 showCenterGuide 
-                  ? 'bg-amber-500/10 border-amber-400/40 text-amber-600 dark:text-amber-400' 
-                  : 'bg-slate-100 dark:bg-slate-800 border-transparent text-slate-400'
+                  ? 'bg-rose-500/10 border-rose-400/40 text-rose-600 dark:text-rose-400 shadow-sm' 
+                  : 'bg-slate-100 dark:bg-slate-800 border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
               }`}
             >
-              <Eye className="w-4 h-4" />
+              <Crosshair className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Tâm ngắm</span>
             </button>
 
             {/* Sound Toggle */}
@@ -996,22 +1030,6 @@ export const SchulteTableGame: React.FC = () => {
               className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
             >
               {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
-            </button>
-
-            {/* Auto-Hint Toggle */}
-            <button
-              onClick={() => {
-                playSound('click');
-                setAutoHintEnabled(!autoHintEnabled);
-              }}
-              title={autoHintEnabled ? 'Tự động gợi ý: ĐANG BẬT (Bấm để TẮT hoàn toàn)' : 'Tự động gợi ý: ĐANG TẮT (Bấm để BẬT)'}
-              className={`p-2 rounded-xl transition-all border cursor-pointer ${
-                autoHintEnabled 
-                  ? 'bg-amber-500/15 border-amber-400 text-amber-600 dark:text-amber-400 shadow-sm' 
-                  : 'bg-slate-100 dark:bg-slate-800 border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
-              }`}
-            >
-              <EyeOff className="w-4 h-4" />
             </button>
 
             {/* Reset Board Button */}
@@ -1187,7 +1205,7 @@ export const SchulteTableGame: React.FC = () => {
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-600 dark:hover:text-slate-200'
               }`}
             >
-              <EyeOff className="w-2.5 h-2.5" />
+              {autoHintEnabled ? <Sparkles className="w-2.5 h-2.5" /> : <EyeOff className="w-2.5 h-2.5" />}
               <span>{autoHintEnabled ? 'Tự gợi ý: BẬT' : 'Tự gợi ý: TẮT'}</span>
             </button>
           </div>
@@ -1213,164 +1231,228 @@ export const SchulteTableGame: React.FC = () => {
               ? `Bảng tự xoay 90° sau mỗi ${rotateInterval} giây để rèn luyện tái định hướng không gian thị giác.`
               : mode === 'fading'
               ? 'Biến thể Ghost Ẩn hiện: Sau 2.5s đầu các ô sẽ ẩn mờ dần, yêu cầu bạn ghi nhớ bản đồ không gian và quét định vị.'
-              : 'Quy tắc: Giữ ánh mắt nhìn vào giao điểm tâm lưới. Dùng tầm nhìn ngoại vi mở rộng để nhận diện mục tiêu!'}
+              : 'Quy tắc: Giữ ánh mắt nhìn vào tâm lưới. Dùng tầm nhìn ngoại vi mở rộng để nhận diện mục tiêu!'}
           </span>
         </div>
         {showCenterGuide && (
-          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/40 px-2 py-0.5 rounded-lg shrink-0">
-            <Eye className="w-3 h-3" /> Tâm nhìn ngoại vi
+          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 bg-rose-100/70 dark:bg-rose-950/40 px-2 py-0.5 rounded-lg shrink-0">
+            <Crosshair className="w-3 h-3" /> Tâm nhìn ngoại vi
           </span>
         )}
       </div>
 
       {/* Schulte Grid Matrix Container */}
-      <div className="relative w-full max-w-[440px] sm:max-w-[500px] md:max-w-[560px] mx-auto select-none">
-        {/* Glow backdrop aura */}
-        <div className="absolute -inset-2 bg-gradient-to-r from-brand-500/10 via-purple-500/10 to-amber-500/10 rounded-3xl blur-xl opacity-70 pointer-events-none" />
+      {(() => {
+        const fixationConfig = getSchulteCenterFixationConfig(mode, gridSize);
+        const counterRotation = getCounterRotationDeg(rotationDeg);
+        const counterStyle = counterRotation !== 0 ? { transform: `rotate(${counterRotation}deg)` } : undefined;
+        const renderCenterCellReticle = () => (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-10 rounded-xl sm:rounded-2xl ring-2 ring-inset ring-rose-500/45 dark:ring-rose-400/45"
+          >
+            {/* 4 optical corner viewfinder brackets — locks foveal gaze without occluding the cell glyph */}
+            <span className="absolute top-1 left-1 w-2 h-2 sm:w-2.5 sm:h-2.5 border-t-2 border-l-2 border-rose-500 dark:border-rose-400 rounded-tl-[2px]" />
+            <span className="absolute top-1 right-1 w-2 h-2 sm:w-2.5 sm:h-2.5 border-t-2 border-r-2 border-rose-500 dark:border-rose-400 rounded-tr-[2px]" />
+            <span className="absolute bottom-1 left-1 w-2 h-2 sm:w-2.5 sm:h-2.5 border-b-2 border-l-2 border-rose-500 dark:border-rose-400 rounded-bl-[2px]" />
+            <span className="absolute bottom-1 right-1 w-2 h-2 sm:w-2.5 sm:h-2.5 border-b-2 border-r-2 border-rose-500 dark:border-rose-400 rounded-br-[2px]" />
+            {/* Hairline midpoint edge ticks */}
+            <span className="absolute top-0.5 left-1/2 -translate-x-1/2 w-[1.5px] h-1 bg-rose-500/75 dark:bg-rose-400/75 rounded-full" />
+            <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-[1.5px] h-1 bg-rose-500/75 dark:bg-rose-400/75 rounded-full" />
+            <span className="absolute left-0.5 top-1/2 -translate-y-1/2 h-[1.5px] w-1 bg-rose-500/75 dark:bg-rose-400/75 rounded-full" />
+            <span className="absolute right-0.5 top-1/2 -translate-y-1/2 h-[1.5px] w-1 bg-rose-500/75 dark:bg-rose-400/75 rounded-full" />
+          </span>
+        );
 
-        <div
-          className="relative w-full aspect-square bg-[#F5EFE6] dark:bg-slate-800/95 p-3 sm:p-5 rounded-3xl border-2 border-[#D5CBB9] dark:border-slate-700 shadow-2xl transition-transform duration-700 ease-in-out grid gap-2 sm:gap-2.5"
-          style={{
-            gridTemplateColumns: `repeat(${mode === 'gorbov' ? 7 : gridSize}, minmax(0, 1fr))`,
-            transform: `rotate(${rotationDeg}deg)`
-          }}
-        >
-          {/* High-contrast precision center fixation reticle (z-30, never washed out) */}
-          {showCenterGuide && (
-            <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-30">
-              <div className="relative flex items-center justify-center">
-                <div className="absolute w-10 h-[1.5px] bg-red-500/80 shadow-sm" />
-                <div className="absolute h-10 w-[1.5px] bg-red-500/80 shadow-sm" />
-                <div className="relative w-3.5 h-3.5 rounded-full bg-red-600 border-2 border-white shadow-[0_0_10px_rgba(239,68,68,0.95)] flex items-center justify-center">
-                  <div className="w-1 h-1 rounded-full bg-white" />
+        return (
+          <div className="relative w-full max-w-[440px] sm:max-w-[500px] md:max-w-[560px] mx-auto select-none">
+            {/* Glow backdrop aura */}
+            <div className="absolute -inset-2 bg-gradient-to-r from-brand-500/10 via-purple-500/10 to-amber-500/10 rounded-3xl blur-xl opacity-70 pointer-events-none" />
+
+            <div
+              className="relative w-full aspect-square bg-[#F5EFE6] dark:bg-slate-800/95 p-3 sm:p-5 rounded-3xl border-2 border-[#D5CBB9] dark:border-slate-700 shadow-2xl transition-transform duration-700 ease-in-out grid gap-2 sm:gap-2.5"
+              style={{
+                gridTemplateColumns: `repeat(${fixationConfig.activeSize}, minmax(0, 1fr))`,
+                transform: `rotate(${rotationDeg}deg)`
+              }}
+            >
+              {/* Even grids only: compact inter-cell gap micro-reticle strictly at gap intersection */}
+              {showCenterGuide && fixationConfig.reticleMode === 'gap-intersection' && (
+                <div aria-hidden="true" className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
+                  <div className="relative flex items-center justify-center">
+                    <div className="absolute w-4 sm:w-5 h-[1.5px] bg-rose-500/75 rounded-full" />
+                    <div className="absolute h-4 sm:h-5 w-[1.5px] bg-rose-500/75 rounded-full" />
+                    <div className="relative w-2.5 h-2.5 rounded-full border-2 border-rose-500 bg-white/95 dark:bg-slate-900/95 shadow-[0_0_8px_rgba(244,63,94,0.65)]" />
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Render cells according to mode */}
+              {mode === 'gorbov' ? (
+                gorbovGrid.map((row, r) =>
+                  row.map((cell, c) => {
+                    const key = `g-${r}-${c}`;
+                    const isFound = foundKeys.has(key);
+                    const isHint = hintActive === key;
+                    const isAutoRadar = autoRadarActive === key;
+                    const effect = clickEffects[key];
+                    const isCenterCell =
+                      showCenterGuide &&
+                      fixationConfig.reticleMode === 'corner-brackets' &&
+                      r === fixationConfig.centerIndex &&
+                      c === fixationConfig.centerIndex;
+
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => handleGorbovCellClick(cell, key)}
+                        disabled={isFound}
+                        className={`flex items-center justify-center font-black rounded-xl sm:rounded-2xl transition-all duration-150 relative text-sm sm:text-lg md:text-xl lg:text-2xl shadow-sm cursor-pointer ${
+                          isFound
+                            ? isClassicMode
+                              ? cell.color === 'red'
+                                ? 'bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 border-2 border-red-200 dark:border-red-900/60 cursor-default opacity-90'
+                                : 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 border-2 border-slate-300 dark:border-slate-600 cursor-default opacity-90'
+                              : 'bg-slate-200/40 dark:bg-slate-700/20 text-slate-300 dark:text-slate-600 scale-95 cursor-default'
+                            : isCenterCell
+                            ? cell.color === 'red'
+                              ? 'bg-rose-50/70 dark:bg-slate-700 text-red-600 dark:text-red-400 border-2 border-rose-300 dark:border-rose-700/70 hover:shadow-lg hover:scale-105 active:scale-95'
+                              : 'bg-rose-50/70 dark:bg-slate-700 text-slate-900 dark:text-slate-100 border-2 border-rose-300 dark:border-rose-700/70 hover:shadow-lg hover:scale-105 active:scale-95'
+                            : cell.color === 'red'
+                            ? 'bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 border-2 border-red-200 dark:border-red-900/60 hover:shadow-lg hover:scale-105 active:scale-95'
+                            : 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 border-2 border-slate-300 dark:border-slate-600 hover:shadow-lg hover:scale-105 active:scale-95'
+                        } ${
+                          isHint ? 'ring-4 ring-amber-400 scale-110 z-10 animate-bounce' : ''
+                        } ${
+                          isAutoRadar ? 'ring-2 ring-amber-400/80 animate-pulse' : ''
+                        } ${
+                          effect === 'correct' ? 'ring-4 ring-emerald-500 scale-105' : effect === 'wrong' ? 'ring-4 ring-rose-500 animate-pulse' : ''
+                        }`}
+                      >
+                        {isCenterCell && renderCenterCellReticle()}
+                        <span
+                          className="relative z-0 inline-block transition-transform duration-700 ease-in-out"
+                          style={counterStyle}
+                        >
+                          {cell.num}
+                        </span>
+                      </button>
+                    );
+                  })
+                )
+              ) : mode === 'alphabet' ? (
+                alphabetLetters.map((row, r) =>
+                  row.map((letter, c) => {
+                    const key = `a-${r}-${c}`;
+                    const isFound = foundKeys.has(key);
+                    const isHint = hintActive === key;
+                    const isAutoRadar = autoRadarActive === key;
+                    const effect = clickEffects[key];
+                    const isCenterCell =
+                      showCenterGuide &&
+                      fixationConfig.reticleMode === 'corner-brackets' &&
+                      r === fixationConfig.centerIndex &&
+                      c === fixationConfig.centerIndex;
+
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => handleAlphabetCellClick(letter, key)}
+                        disabled={isFound}
+                        className={`flex items-center justify-center font-black rounded-xl sm:rounded-2xl transition-all duration-150 relative shadow-sm cursor-pointer ${
+                          gridSize >= 7 ? 'text-xs sm:text-base' : gridSize >= 6 ? 'text-sm sm:text-lg' : gridSize === 5 ? 'text-lg sm:text-2xl' : 'text-2xl sm:text-4xl'
+                        } ${
+                          isFound
+                            ? isClassicMode
+                              ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 cursor-default opacity-90'
+                              : 'bg-slate-200/40 dark:bg-slate-700/20 text-slate-300 dark:text-slate-600 scale-95 cursor-default'
+                            : isFading && isPhantomFaded
+                            ? 'bg-white/80 dark:bg-slate-700/80 text-slate-800/20 dark:text-white/20 border border-slate-200/50 dark:border-slate-600/50 hover:text-slate-800 dark:hover:text-white hover:scale-105'
+                            : isCenterCell
+                            ? 'bg-rose-50/55 dark:bg-rose-950/20 text-slate-800 dark:text-white border border-rose-300/80 dark:border-rose-700/70 hover:bg-brand-50 hover:border-brand-500 hover:shadow-lg hover:scale-105 active:scale-95'
+                            : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 hover:bg-brand-50 hover:border-brand-500 hover:shadow-lg hover:scale-105 active:scale-95'
+                        } ${
+                          isHint ? 'ring-4 ring-amber-400 scale-110 z-10 animate-bounce' : ''
+                        } ${
+                          isAutoRadar ? 'ring-2 ring-amber-400/80 animate-pulse' : ''
+                        } ${
+                          effect === 'correct' ? 'ring-4 ring-emerald-500 scale-105' : effect === 'wrong' ? 'ring-4 ring-rose-500 animate-pulse' : ''
+                        }`}
+                      >
+                        {isCenterCell && renderCenterCellReticle()}
+                        <span
+                          className="relative z-0 inline-block transition-transform duration-700 ease-in-out"
+                          style={counterStyle}
+                        >
+                          {letter}
+                        </span>
+                      </button>
+                    );
+                  })
+                )
+              ) : (
+                standardNumbers.map((row, r) =>
+                  row.map((num, c) => {
+                    const key = `${r}-${c}`;
+                    const isFound = foundKeys.has(key);
+                    const isHint = hintActive === key;
+                    const isAutoRadar = autoRadarActive === key;
+                    const effect = clickEffects[key];
+                    const isCenterCell =
+                      showCenterGuide &&
+                      fixationConfig.reticleMode === 'corner-brackets' &&
+                      r === fixationConfig.centerIndex &&
+                      c === fixationConfig.centerIndex;
+
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => handleStandardCellClick(num, key)}
+                        disabled={isFound}
+                        className={`flex items-center justify-center font-black rounded-xl sm:rounded-2xl transition-all duration-150 relative shadow-sm cursor-pointer ${
+                          gridSize >= 8
+                            ? 'text-xs sm:text-sm md:text-base'
+                            : gridSize >= 7
+                            ? 'text-xs sm:text-base md:text-xl'
+                            : gridSize === 6
+                            ? 'text-sm sm:text-lg md:text-2xl'
+                            : gridSize === 5
+                            ? 'text-base sm:text-2xl md:text-3xl'
+                            : 'text-2xl sm:text-4xl md:text-5xl'
+                        } ${
+                          isFound
+                            ? isClassicMode
+                              ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 cursor-default opacity-90'
+                              : 'bg-slate-200/40 dark:bg-slate-700/20 text-slate-300 dark:text-slate-600 scale-95 cursor-default'
+                            : isFading && isPhantomFaded
+                            ? 'bg-white/80 dark:bg-slate-700/80 text-slate-800/20 dark:text-white/20 border border-slate-200/50 dark:border-slate-600/50 hover:text-slate-800 dark:hover:text-white hover:scale-105'
+                            : isCenterCell
+                            ? 'bg-rose-50/55 dark:bg-rose-950/20 text-slate-800 dark:text-white border border-rose-300/80 dark:border-rose-700/70 hover:bg-brand-50 hover:border-brand-500 hover:shadow-lg hover:scale-105 active:scale-95'
+                            : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 hover:bg-brand-50 hover:border-brand-500 hover:shadow-lg hover:scale-105 active:scale-95'
+                        } ${
+                          isHint ? 'ring-4 ring-amber-400 scale-110 z-10 animate-bounce' : ''
+                        } ${
+                          isAutoRadar ? 'ring-2 ring-amber-400/80 animate-pulse' : ''
+                        } ${
+                          effect === 'correct' ? 'ring-4 ring-emerald-500 scale-105' : effect === 'wrong' ? 'ring-4 ring-rose-500 animate-pulse' : ''
+                        }`}
+                      >
+                        {isCenterCell && renderCenterCellReticle()}
+                        <span
+                          className="relative z-0 inline-block transition-transform duration-700 ease-in-out"
+                          style={counterStyle}
+                        >
+                          {isRomanMode ? numberToRoman(num) : num}
+                        </span>
+                      </button>
+                    );
+                  })
+                )
+              )}
             </div>
-          )}
-
-          {/* Render cells according to mode */}
-          {mode === 'gorbov' ? (
-            gorbovGrid.map((row, r) =>
-              row.map((cell, c) => {
-                const key = `g-${r}-${c}`;
-                const isFound = foundKeys.has(key);
-                const isHint = hintActive === key;
-                const isAutoRadar = autoRadarActive === key;
-                const effect = clickEffects[key];
-
-                return (
-                  <button
-                    key={key}
-                    onClick={() => handleGorbovCellClick(cell, key)}
-                    disabled={isFound}
-                    className={`flex items-center justify-center font-black rounded-xl sm:rounded-2xl transition-all duration-150 relative text-sm sm:text-lg md:text-xl lg:text-2xl shadow-sm cursor-pointer ${
-                      isFound
-                        ? isClassicMode
-                          ? cell.color === 'red'
-                            ? 'bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 border-2 border-red-200 dark:border-red-900/60 cursor-default opacity-90'
-                            : 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 border-2 border-slate-300 dark:border-slate-600 cursor-default opacity-90'
-                          : 'bg-slate-200/40 dark:bg-slate-700/20 text-slate-300 dark:text-slate-600 scale-95 cursor-default'
-                        : cell.color === 'red'
-                        ? 'bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 border-2 border-red-200 dark:border-red-900/60 hover:shadow-lg hover:scale-105 active:scale-95'
-                        : 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 border-2 border-slate-300 dark:border-slate-600 hover:shadow-lg hover:scale-105 active:scale-95'
-                    } ${
-                      isHint ? 'ring-4 ring-amber-400 scale-110 z-10 animate-bounce' : ''
-                    } ${
-                      isAutoRadar ? 'ring-2 ring-amber-400/80 animate-pulse' : ''
-                    } ${
-                      effect === 'correct' ? 'ring-4 ring-emerald-500 scale-105' : effect === 'wrong' ? 'ring-4 ring-rose-500 animate-pulse' : ''
-                    }`}
-                  >
-                    {cell.num}
-                  </button>
-                );
-              })
-            )
-          ) : mode === 'alphabet' ? (
-            alphabetLetters.map((row, r) =>
-              row.map((letter, c) => {
-                const key = `a-${r}-${c}`;
-                const isFound = foundKeys.has(key);
-                const isHint = hintActive === key;
-                const isAutoRadar = autoRadarActive === key;
-                const effect = clickEffects[key];
-
-                return (
-                  <button
-                    key={key}
-                    onClick={() => handleAlphabetCellClick(letter, key)}
-                    disabled={isFound}
-                    className={`flex items-center justify-center font-black rounded-xl sm:rounded-2xl transition-all duration-150 relative shadow-sm cursor-pointer ${
-                      gridSize >= 7 ? 'text-xs sm:text-base' : gridSize >= 6 ? 'text-sm sm:text-lg' : gridSize === 5 ? 'text-lg sm:text-2xl' : 'text-2xl sm:text-4xl'
-                    } ${
-                      isFound
-                        ? isClassicMode
-                          ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 cursor-default opacity-90'
-                          : 'bg-slate-200/40 dark:bg-slate-700/20 text-slate-300 dark:text-slate-600 scale-95 cursor-default'
-                        : isFading && isPhantomFaded
-                        ? 'bg-white/80 dark:bg-slate-700/80 text-slate-800/20 dark:text-white/20 border border-slate-200/50 dark:border-slate-600/50 hover:text-slate-800 dark:hover:text-white hover:scale-105'
-                        : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 hover:bg-brand-50 hover:border-brand-500 hover:shadow-lg hover:scale-105 active:scale-95'
-                    } ${
-                      isHint ? 'ring-4 ring-amber-400 scale-110 z-10 animate-bounce' : ''
-                    } ${
-                      isAutoRadar ? 'ring-2 ring-amber-400/80 animate-pulse' : ''
-                    } ${
-                      effect === 'correct' ? 'ring-4 ring-emerald-500 scale-105' : effect === 'wrong' ? 'ring-4 ring-rose-500 animate-pulse' : ''
-                    }`}
-                  >
-                    {letter}
-                  </button>
-                );
-              })
-            )
-          ) : (
-            standardNumbers.map((row, r) =>
-              row.map((num, c) => {
-                const key = `${r}-${c}`;
-                const isFound = foundKeys.has(key);
-                const isHint = hintActive === key;
-                const isAutoRadar = autoRadarActive === key;
-                const effect = clickEffects[key];
-
-                return (
-                  <button
-                    key={key}
-                    onClick={() => handleStandardCellClick(num, key)}
-                    disabled={isFound}
-                    className={`flex items-center justify-center font-black rounded-xl sm:rounded-2xl transition-all duration-150 relative shadow-sm cursor-pointer ${
-                      gridSize >= 8
-                        ? 'text-xs sm:text-sm md:text-base'
-                        : gridSize >= 7
-                        ? 'text-xs sm:text-base md:text-xl'
-                        : gridSize === 6
-                        ? 'text-sm sm:text-lg md:text-2xl'
-                        : gridSize === 5
-                        ? 'text-base sm:text-2xl md:text-3xl'
-                        : 'text-2xl sm:text-4xl md:text-5xl'
-                    } ${
-                      isFound
-                        ? isClassicMode
-                          ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 cursor-default opacity-90'
-                          : 'bg-slate-200/40 dark:bg-slate-700/20 text-slate-300 dark:text-slate-600 scale-95 cursor-default'
-                        : isFading && isPhantomFaded
-                        ? 'bg-white/80 dark:bg-slate-700/80 text-slate-800/20 dark:text-white/20 border border-slate-200/50 dark:border-slate-600/50 hover:text-slate-800 dark:hover:text-white hover:scale-105'
-                        : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 hover:bg-brand-50 hover:border-brand-500 hover:shadow-lg hover:scale-105 active:scale-95'
-                    } ${
-                      isHint ? 'ring-4 ring-amber-400 scale-110 z-10 animate-bounce' : ''
-                    } ${
-                      isAutoRadar ? 'ring-2 ring-amber-400/80 animate-pulse' : ''
-                    } ${
-                      effect === 'correct' ? 'ring-4 ring-emerald-500 scale-105' : effect === 'wrong' ? 'ring-4 ring-rose-500 animate-pulse' : ''
-                    }`}
-                  >
-                    {isRomanMode ? numberToRoman(num) : num}
-                  </button>
-                );
-              })
-            )
-          )}
-        </div>
-      </div>
+          </div>
+        );
+      })()}
 
       {/* Confirmation Modal when Altering In-Progress Board */}
       {showResetConfirm && (

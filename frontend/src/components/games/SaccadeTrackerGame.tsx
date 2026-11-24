@@ -74,8 +74,8 @@ export const SaccadeTrackerGame: React.FC = () => {
 
   // Jump loop
   const jumpTarget = useCallback(() => {
-    const newX = 10 + Math.random() * 80;
-    const newY = 10 + Math.random() * 80;
+    const newX = 15 + Math.random() * 70;
+    const newY = 15 + Math.random() * 70;
 
     let isTargetNow = Math.random() < 0.32;
     let symbol = '';
@@ -279,19 +279,27 @@ export const SaccadeTrackerGame: React.FC = () => {
       {/* Top HUD */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-rose-500 text-white font-black text-2xl flex items-center justify-center shadow-lg shadow-rose-500/30">
-            {isVowelTrigger ? 'V' : targetSymbol}
+          <div className="w-12 h-12 rounded-2xl bg-rose-500 text-white font-black text-xl sm:text-2xl flex items-center justify-center shadow-lg shadow-rose-500/30 shrink-0">
+            {isVowelTrigger ? 'AEI' : isParityTrigger ? '2·4' : isAntiSaccade ? '⇄' : targetSymbol}
           </div>
           <div>
             <span className="text-xs sm:text-sm text-slate-500 font-semibold block">Mục tiêu bắt buộc</span>
             <span className="text-sm sm:text-base font-black text-rose-600 dark:text-rose-400">
-              {isVowelTrigger ? 'Nguyên âm (A, E, I, O, U)' : `Ký tự "${targetSymbol}"`}
+              {isVowelTrigger
+                ? 'Nguyên âm (A, E, I, O, U)'
+                : isParityTrigger
+                ? 'Số chẵn (0, 2, 4, 6, 8)'
+                : isAntiSaccade
+                ? 'Bấm hướng NGƯỢC vị trí mục tiêu'
+                : isColorGated
+                ? `Ký tự "${targetSymbol}" khi có MÀU ĐỎ`
+                : `Ký tự "${targetSymbol}"`}
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          {!isVowelTrigger && (
+          {!isVowelTrigger && !isParityTrigger && !isAntiSaccade && (
             <button
               onClick={handleNewTarget}
               className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 transition-all btn-press"
@@ -319,8 +327,18 @@ export const SaccadeTrackerGame: React.FC = () => {
 
       {/* Instruction Tip */}
       <div className="text-center text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium flex items-center justify-center gap-2">
-        <Eye className="w-5 h-5 text-brand-500" />
-        <span>Di chuyển mắt theo mục tiêu. Bấm phản xạ ngay khi thấy {isVowelTrigger ? <strong className="text-rose-600 font-black">Nguyên âm (A, E, I, O, U)</strong> : <strong className="text-rose-600 font-black">"{targetSymbol}"</strong>}!</span>
+        <Eye className="w-5 h-5 text-brand-500 shrink-0" />
+        <span>
+          {isAntiSaccade ? (
+            <>Nhìn chớp mục tiêu ✦ và bấm nút <strong className="text-rose-600 font-black">ĐỐI DIỆN</strong> (Trái ⇄ Phải) thật nhanh!</>
+          ) : isParityTrigger ? (
+            <>Di chuyển mắt theo mục tiêu. Bấm phản xạ ngay khi thấy <strong className="text-rose-600 font-black">Số chẵn (0, 2, 4, 6, 8)</strong>!</>
+          ) : isColorGated ? (
+            <>Di chuyển mắt theo mục tiêu. Chỉ bấm khi <strong className="text-rose-600 font-black">"{targetSymbol}" có MÀU ĐỎ</strong>!</>
+          ) : (
+            <>Di chuyển mắt theo mục tiêu. Bấm phản xạ ngay khi thấy {isVowelTrigger ? <strong className="text-rose-600 font-black">Nguyên âm (A, E, I, O, U)</strong> : <strong className="text-rose-600 font-black">"{targetSymbol}"</strong>}!</>
+          )}
+        </span>
       </div>
 
       {/* Ocular Tracking Arena */}

@@ -136,6 +136,20 @@ export const RsvpSpeedReaderGame: React.FC = () => {
     };
   }, [isPlaying, isGamePaused, wpm, words.length, userChunkSize, effectiveLevel, currentArticle.title, currentArticle.questions, emitTrialEvent]);
 
+  // Keyboard Spacebar shortcut to play/pause RSVP reader
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (isSourceModalOpen || showComprehensionQuiz || isFinished || isGamePaused) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setIsPlaying(p => !p);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSourceModalOpen, showComprehensionQuiz, isFinished, isGamePaused]);
+
   // Handle words to display
   const rawWord = words[wordIndex] || 'START';
   const chunkWords = userChunkSize === 3 
@@ -284,14 +298,14 @@ export const RsvpSpeedReaderGame: React.FC = () => {
               {chunkWords}
             </div>
           ) : (
-            <div className="w-full max-w-xl mx-auto flex items-center justify-center font-mono text-3xl sm:text-5xl md:text-6xl font-black tracking-tight select-none">
-              <div className="flex-1 text-right text-slate-800 dark:text-white truncate pr-1">
+            <div className="w-full max-w-2xl mx-auto flex items-center justify-center font-mono text-2xl sm:text-5xl md:text-6xl font-black tracking-normal select-none">
+              <div className="flex-1 text-right text-slate-800 dark:text-white truncate">
                 {partLeft}
               </div>
-              <div className="w-10 sm:w-14 text-center text-rose-500 dark:text-rose-400 shrink-0 font-black">
+              <div className="w-[1ch] text-center text-rose-500 dark:text-rose-400 shrink-0 font-black relative">
                 {orpChar}
               </div>
-              <div className="flex-1 text-left text-slate-800 dark:text-white truncate pl-1">
+              <div className="flex-1 text-left text-slate-800 dark:text-white truncate">
                 {partRight}
               </div>
             </div>

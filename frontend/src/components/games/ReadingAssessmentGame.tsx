@@ -8,7 +8,7 @@ import { ReadingTextSourceModal } from '../common/ReadingTextSourceModal';
 import { readingContentService } from '../../services/readingContentService';
 
 export const ReadingAssessmentGame: React.FC = () => {
-  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound } = useAppStore();
+  const { currentLevel, getExerciseLevel, setActiveGameSlug, playSound, isGamePaused } = useAppStore();
   const { emitTrialEvent, getRawMetricsJson, resetSession } = useRelationSession();
   const lastAnsTimeRef = useRef<number>(Date.now());
   const effectiveLevel = getExerciseLevel('reading-assessment') || currentLevel;
@@ -40,15 +40,19 @@ export const ReadingAssessmentGame: React.FC = () => {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const start = Date.now();
+    if (phase !== 'reading' || isGamePaused || isFinished) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+
     timerRef.current = setInterval(() => {
-      setReadingTimeSec(Math.round((Date.now() - start) / 1000));
+      setReadingTimeSec(s => s + 1);
     }, 1000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, []);
+  }, [phase, isGamePaused, isFinished, currentArticle]);
 
   const handleFinishReading = () => {
     playSound('click');

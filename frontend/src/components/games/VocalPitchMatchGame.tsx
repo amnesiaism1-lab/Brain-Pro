@@ -535,34 +535,34 @@ export const VocalPitchMatchGame: React.FC = () => {
       />
 
       {/* Top Header Bar */}
-      <div className="w-full flex items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-200 dark:border-slate-800/80">
+      <div className="w-full flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-200 dark:border-slate-800/80">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
             <Mic className="w-5 h-5 text-slate-950" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
                 Cảm Âm & Dò Cao Độ Giọng Hát
               </h2>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                 isCustom
-                  ? 'bg-violet-950 text-violet-300 border border-violet-500/50'
+                  ? 'bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-500/50'
                   : isInfinity
-                    ? 'bg-purple-950 text-purple-300 border border-purple-500/50'
-                    : 'bg-emerald-950 text-emerald-300 border border-emerald-500/50'
+                    ? 'bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-500/50'
+                    : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/50'
               }`}>
                 {isCustom ? 'Tùy chỉnh' : isInfinity ? `Tier ${INFINITY_ROMAN_NUMERALS[infinityTier || 1]}` : `Cấp ${currentLevel}`}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Vòng {currentRound}/{totalRounds} • Ngưỡng sai số: ±{toleranceCents} cents • Giữ {requiredHoldMs / 1000}s
             </p>
           </div>
         </div>
 
         {/* Timer & Score Readout + Studio MP3 Launcher */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 ml-auto">
           <button
             onClick={() => setShowStudioModal(true)}
             className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 border border-indigo-400/40 transition hover:scale-105 active:scale-95"
@@ -573,16 +573,16 @@ export const VocalPitchMatchGame: React.FC = () => {
             <span className="sm:hidden">Studio MP3</span>
           </button>
 
-          <div className="flex flex-col items-end pl-3 border-l border-slate-800">
-            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Thời gian</span>
-            <span className={`text-base font-mono font-bold ${!isFreePlay && timeLeft <= 10 ? 'text-rose-400 animate-pulse' : 'text-slate-200'}`}>
+          <div className="flex flex-col items-end pl-3 border-l border-slate-200 dark:border-slate-800">
+            <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 uppercase tracking-wider">Thời gian</span>
+            <span className={`text-base font-mono font-bold ${!isFreePlay && timeLeft <= 10 ? 'text-rose-500 dark:text-rose-400 animate-pulse' : 'text-slate-800 dark:text-slate-200'}`}>
               {isFreePlay ? '∞' : `${timeLeft}s`}
             </span>
           </div>
 
-          <div className="flex flex-col items-end pl-3 border-l border-slate-800">
-            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Điểm</span>
-            <span className="text-base font-mono font-black text-amber-400">
+          <div className="flex flex-col items-end pl-3 border-l border-slate-200 dark:border-slate-800">
+            <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 uppercase tracking-wider">Điểm</span>
+            <span className="text-base font-mono font-black text-amber-600 dark:text-amber-400">
               {score}
             </span>
           </div>
@@ -682,9 +682,9 @@ export const VocalPitchMatchGame: React.FC = () => {
       </div>
 
       {/* Bottom Status / Advice Footer */}
-      <div className="w-full flex items-center justify-between text-xs text-slate-400 pt-3 border-t border-slate-800/80">
+      <div className="w-full flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400 pt-3 border-t border-slate-200 dark:border-slate-800/80">
         <div className="flex items-center gap-2">
-          <Headphones className="w-4 h-4 text-indigo-400" />
+          <Headphones className="w-4 h-4 text-indigo-500 dark:text-indigo-400 shrink-0" />
           <span>Mẹo: Thả lỏng cơ hàm và lấy hơi từ bụng để giữ cao độ ổn định.</span>
         </div>
 

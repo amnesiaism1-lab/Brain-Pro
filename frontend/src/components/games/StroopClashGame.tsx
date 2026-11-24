@@ -496,7 +496,9 @@ export const StroopClashGame: React.FC = () => {
       {wordItem && (
         <div 
           className={`h-52 sm:h-60 rounded-3xl flex flex-col items-center justify-center relative shadow-xl transition-all duration-300 select-none overflow-hidden ${
-            wordItem.borderColor ? `border-8 ${wordItem.borderColor.twBorder}` : 'border-4 border-slate-200 dark:border-slate-700'
+            (isTripleStroop || isChaosStroop || currentTargetType === 'BORDER') && wordItem.borderColor
+              ? `border-8 ${wordItem.borderColor.twBorder}`
+              : 'border-2 border-slate-200 dark:border-slate-700'
           } ${
             flashFeedback === 'CORRECT' 
               ? 'bg-emerald-50 dark:bg-emerald-950/40 ring-4 ring-emerald-500' 
@@ -509,11 +511,10 @@ export const StroopClashGame: React.FC = () => {
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-100 dark:bg-slate-800 overflow-hidden">
             <div 
               key={trialIndex}
-              className="h-full bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500 animate-[linear_shrink]"
+              className="h-full bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500 animate-timer-shrink"
               style={{
                 animationDuration: `${reactionWindowMs}ms`,
-                animationFillMode: 'forwards',
-                animationTimingFunction: 'linear'
+                animationPlayState: isGamePaused ? 'paused' : 'running'
               }}
             />
           </div>
@@ -522,13 +523,13 @@ export const StroopClashGame: React.FC = () => {
           <div
             className={`transition-all duration-300 ${
               isDirectionalStroop && wordItem.spatialPos === 'UP'
-                ? 'absolute top-4 left-1/2 -translate-x-1/2'
+                ? 'absolute top-5 left-1/2 -translate-x-1/2'
                 : isDirectionalStroop && wordItem.spatialPos === 'DOWN'
-                ? 'absolute bottom-4 left-1/2 -translate-x-1/2'
+                ? 'absolute bottom-11 left-1/2 -translate-x-1/2'
                 : isDirectionalStroop && wordItem.spatialPos === 'LEFT'
-                ? 'absolute left-8 top-1/2 -translate-y-1/2'
+                ? 'absolute left-6 sm:left-8 top-1/2 -translate-y-1/2'
                 : isDirectionalStroop && wordItem.spatialPos === 'RIGHT'
-                ? 'absolute right-8 top-1/2 -translate-y-1/2'
+                ? 'absolute right-6 sm:right-8 top-1/2 -translate-y-1/2'
                 : 'flex flex-col items-center justify-center'
             }`}
             style={isMotionStroop && wordItem.motionOffset ? {
@@ -546,7 +547,7 @@ export const StroopClashGame: React.FC = () => {
           </div>
 
           {flashFeedback && (
-            <div className={`text-xs font-black px-3 py-1 rounded-full mt-3 uppercase tracking-widest absolute bottom-3 ${
+            <div className={`text-xs font-black px-3 py-1 rounded-full uppercase tracking-widest absolute bottom-2.5 z-10 ${
               flashFeedback === 'CORRECT' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
             }`}>
               {flashFeedback === 'CORRECT' ? 'CHÍNH XÁC +1' : flashFeedback === 'TIMEOUT' ? 'HẾT THỜI GIAN!' : 'BỊ LỪA RỒI!'}

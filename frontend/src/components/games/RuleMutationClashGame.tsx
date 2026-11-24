@@ -107,7 +107,7 @@ export const RuleMutationClashGame: React.FC = () => {
       setStatusMessage('Phản xạ chính xác!');
     } else {
       playSound('wrong');
-      setStatusMessage(`Sai quy tắc! Mục tiêu yêu cầu: ${currentTrial.correctAction}`);
+      setStatusMessage(`Sai quy tắc! Đáp án đúng là: ${currentTrial.correctAction === 'ATTACK' ? 'TẤN CÔNG' : 'PHÒNG THỦ'}`);
     }
 
     relationEventsRef.current.push({
@@ -166,13 +166,46 @@ export const RuleMutationClashGame: React.FC = () => {
 
   const accuracyRate = Math.round((correctCount / totalRounds) * 100);
 
-  // Helper color map
-  const colorBgMap: Record<string, string> = {
-    red: 'bg-rose-500 shadow-rose-500/40',
-    blue: 'bg-cyan-500 shadow-cyan-500/40',
-    green: 'bg-emerald-500 shadow-emerald-500/40',
-    amber: 'bg-amber-500 shadow-amber-500/40'
+  const COLOR_LABEL_VI: Record<string, string> = {
+    red: 'Đỏ',
+    blue: 'Xanh dương',
+    green: 'Xanh lá',
+    amber: 'Vàng'
   };
+  const SHAPE_LABEL_VI: Record<string, string> = {
+    circle: 'Hình tròn',
+    square: 'Hình vuông',
+    triangle: 'Tam giác',
+    diamond: 'Hình thoi'
+  };
+  const SHAPE_FILL_HEX: Record<string, string> = {
+    red: '#f43f5e',
+    blue: '#06b6d4',
+    green: '#10b981',
+    amber: '#f59e0b'
+  };
+  const SHAPE_STROKE_HEX: Record<string, string> = {
+    red: '#fda4af',
+    blue: '#67e8f9',
+    green: '#6ee7b7',
+    amber: '#fcd34d'
+  };
+  const formatRuleAttributeVi = (attr: string): string => {
+    const map: Record<string, string> = {
+      'color:red | shape:square': 'Đỏ / Vuông',
+      'color:green | shape:triangle': 'Xanh lá / Tam giác',
+      'color:red': 'Màu Đỏ',
+      others: 'Các hình khác'
+    };
+    return map[attr] || attr;
+  };
+  const formatRuleActionVi = (action: string): string =>
+    action === 'ATTACK' ? 'TẤN CÔNG' : action === 'DEFEND' ? 'PHÒNG THỦ' : action;
+
+  const stimColor = currentTrial.stimulus.color;
+  const stimShape = currentTrial.stimulus.shape;
+  const fillHex = SHAPE_FILL_HEX[stimColor] || '#475569';
+  const strokeHex = SHAPE_STROKE_HEX[stimColor] || '#94a3b8';
 
   return (
     <div className="relative w-full max-w-4xl mx-auto flex flex-col items-center justify-center p-3 sm:p-4">
@@ -212,15 +245,15 @@ export const RuleMutationClashGame: React.FC = () => {
         </div>
 
         {/* Current Active Rule Badge */}
-        <div className="flex flex-col items-end text-xs">
-          <span className="text-slate-400 font-medium text-[11px] mb-1">Quy tắc hiện hành:</span>
+        <div className="flex flex-col items-start sm:items-end text-xs">
+          <span className="text-slate-500 dark:text-slate-400 font-medium text-[11px] mb-1">Quy tắc hiện hành:</span>
           <div className="flex items-center gap-1.5 flex-wrap">
             {currentTrial.activeRules.map((r, i) => (
               <span
                 key={i}
-                className="bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded text-[11px] font-mono text-amber-300"
+                className="bg-amber-50 dark:bg-slate-800/80 border border-amber-200 dark:border-slate-700/80 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold text-amber-900 dark:text-amber-300"
               >
-                {r.attribute} ➔ <b className="text-white">{r.action}</b>
+                {formatRuleAttributeVi(r.attribute)} ➔ <b className={r.action === 'ATTACK' ? 'text-rose-600 dark:text-rose-400' : 'text-cyan-700 dark:text-cyan-300'}>{formatRuleActionVi(r.action)}</b>
               </span>
             ))}
           </div>
@@ -228,29 +261,33 @@ export const RuleMutationClashGame: React.FC = () => {
       </div>
 
       {/* Stimulus Showcase Card */}
-      <div className="relative w-full aspect-[4/3] max-w-[600px] rounded-2xl overflow-hidden border border-rose-500/30 shadow-[0_0_30px_rgba(244,63,94,0.12)] bg-slate-950 p-6 flex flex-col justify-between items-center select-none">
+      <div className="relative w-full min-h-[340px] sm:aspect-[4/3] max-w-[600px] rounded-2xl overflow-hidden border border-rose-500/30 shadow-[0_0_30px_rgba(244,63,94,0.12)] bg-slate-950 p-4 sm:p-6 flex flex-col justify-between items-center gap-4 select-none">
         {/* Status ticker */}
-        <div className="text-xs text-slate-300 bg-slate-900/90 border border-slate-800 px-4 py-1.5 rounded-full flex items-center gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+        <div className="text-xs text-slate-300 bg-slate-900/90 border border-slate-800 px-4 py-1.5 rounded-full flex items-center gap-2 text-center">
+          <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           <span>{statusMessage}</span>
         </div>
 
-        {/* Dynamic Stimulus Object */}
-        <div className="flex flex-col items-center justify-center my-auto space-y-4">
-          <div
-            className={`w-28 h-28 flex items-center justify-center shadow-2xl transition-all duration-300 ${
-              colorBgMap[currentTrial.stimulus.color] || 'bg-slate-700'
-            } ${
-              currentTrial.stimulus.shape === 'circle' ? 'rounded-full' :
-              currentTrial.stimulus.shape === 'triangle' ? 'rounded-lg rotate-45' : 'rounded-2xl'
-            }`}
-          >
-            <span className="text-2xl font-black text-white drop-shadow">
+        {/* Dynamic Geometric Stimulus Object */}
+        <div className="flex flex-col items-center justify-center my-auto space-y-3">
+          <div className="relative w-32 h-32 flex items-center justify-center">
+            <svg viewBox="0 0 120 120" className="w-full h-full drop-shadow-[0_0_18px_rgba(255,255,255,0.18)]">
+              {stimShape === 'circle' ? (
+                <circle cx="60" cy="60" r="48" fill={fillHex} stroke={strokeHex} strokeWidth="3" />
+              ) : stimShape === 'triangle' ? (
+                <polygon points="60,10 112,104 8,104" fill={fillHex} stroke={strokeHex} strokeWidth="3" strokeLinejoin="round" />
+              ) : stimShape === 'diamond' ? (
+                <polygon points="60,8 112,60 60,112 8,60" fill={fillHex} stroke={strokeHex} strokeWidth="3" strokeLinejoin="round" />
+              ) : (
+                <rect x="14" y="14" width="92" height="92" rx="16" fill={fillHex} stroke={strokeHex} strokeWidth="3" />
+              )}
+            </svg>
+            <span className={`absolute text-2xl font-black text-white drop-shadow pointer-events-none ${stimShape === 'triangle' ? 'pt-5' : ''}`}>
               {currentTrial.stimulus.soundPitch || '★'}
             </span>
           </div>
           <div className="text-xs font-mono text-slate-400">
-            Màu: <b className="text-slate-200 capitalize">{currentTrial.stimulus.color}</b> • Hình: <b className="text-slate-200 capitalize">{currentTrial.stimulus.shape}</b>
+            Màu: <b className="text-slate-100">{COLOR_LABEL_VI[stimColor] || stimColor}</b> • Hình: <b className="text-slate-100">{SHAPE_LABEL_VI[stimShape] || stimShape}</b>
           </div>
         </div>
 

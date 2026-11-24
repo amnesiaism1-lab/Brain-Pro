@@ -303,24 +303,24 @@ export const CausalCascadeGame: React.FC = () => {
       </div>
 
       {/* Circuit Board Container */}
-      <div className="relative w-full aspect-[4/3] max-w-[600px] rounded-2xl overflow-hidden border border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.12)] bg-slate-950 p-6 flex flex-col justify-between select-none">
+      <div className="relative w-full max-w-[600px] rounded-2xl overflow-hidden border border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.12)] bg-slate-950 p-4 sm:p-6 flex flex-col gap-3 select-none">
         {/* Status banner */}
-        <div className="text-xs text-slate-300 bg-slate-900/90 border border-slate-800 px-3.5 py-2 rounded-xl flex items-center justify-between">
+        <div className="text-xs text-slate-300 bg-slate-900/90 border border-slate-800 px-3.5 py-2 rounded-xl flex items-center justify-between gap-2">
           <span className="flex items-center gap-2">
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
-            {statusMessage}
+            <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>{statusMessage}</span>
           </span>
           {isSimulating && (
-            <span className="text-[11px] font-bold text-cyan-400 animate-pulse">
+            <span className="text-[11px] font-bold text-cyan-400 animate-pulse shrink-0">
               Đang lan truyền xung...
             </span>
           )}
         </div>
 
-        {/* Interactive Circuit Nodes */}
-        <div className="relative w-full h-[320px]">
+        {/* Interactive Circuit Nodes (Responsive 600x360 coordinate space) */}
+        <div className="relative w-full aspect-[5/3] min-h-[230px] sm:min-h-[320px] my-1">
           {/* SVG Connection Lines */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          <svg viewBox="0 0 600 360" preserveAspectRatio="none" className="absolute inset-0 w-full h-full pointer-events-none">
             {connections.map(c => {
               const src = nodes.find(n => n.id === c.fromNodeId);
               const tgt = nodes.find(n => n.id === c.toNodeId);
@@ -330,10 +330,10 @@ export const CausalCascadeGame: React.FC = () => {
               return (
                 <g key={c.id}>
                   <line
-                    x1={src.position.x + 35}
-                    y1={src.position.y + 25}
-                    x2={tgt.position.x + 35}
-                    y2={tgt.position.y + 25}
+                    x1={src.position.x + 60}
+                    y1={src.position.y + 30}
+                    x2={tgt.position.x + 60}
+                    y2={tgt.position.y + 30}
                     stroke={isFlowing ? '#38bdf8' : '#334155'}
                     strokeWidth={isFlowing ? 3 : 2}
                     strokeDasharray={isFlowing ? '6 4' : undefined}
@@ -350,13 +350,13 @@ export const CausalCascadeGame: React.FC = () => {
             const isClickable = node.type === 'LEVER' || node.type === 'INVERTER';
 
             let bgColor = 'bg-slate-900 border-slate-700 text-slate-400';
-            if (node.type === 'SOURCE') bgColor = 'bg-emerald-950/80 border-emerald-500 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]';
+            if (node.type === 'SOURCE') bgColor = 'bg-emerald-950/90 border-emerald-500 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]';
             else if (node.type === 'TARGET') {
               bgColor = isOn
-                ? 'bg-cyan-950/80 border-cyan-400 text-cyan-200 shadow-[0_0_20px_rgba(6,182,212,0.4)]'
-                : 'bg-slate-900/90 border-slate-700 text-slate-300';
+                ? 'bg-cyan-950/90 border-cyan-400 text-cyan-200 shadow-[0_0_20px_rgba(6,182,212,0.4)]'
+                : 'bg-slate-900/95 border-slate-700 text-slate-300';
             } else if (isOn) {
-              bgColor = 'bg-amber-950/80 border-amber-400 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)]';
+              bgColor = 'bg-amber-950/90 border-amber-400 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)]';
             }
 
             return (
@@ -364,25 +364,26 @@ export const CausalCascadeGame: React.FC = () => {
                 key={node.id}
                 onClick={() => handleToggleNode(node)}
                 style={{
-                  left: `${node.position.x}px`,
-                  top: `${node.position.y}px`
+                  left: `${((node.position.x + 60) / 600) * 100}%`,
+                  top: `${((node.position.y + 30) / 360) * 100}%`,
+                  transform: 'translate(-50%, -50%)'
                 }}
-                className={`absolute w-[120px] rounded-xl border p-2.5 flex flex-col items-center justify-center transition-all ${bgColor} ${
+                className={`absolute w-[96px] sm:w-[126px] rounded-xl border p-1.5 sm:p-2.5 flex flex-col items-center justify-center transition-all ${bgColor} ${
                   isClickable ? 'cursor-pointer hover:scale-105 active:scale-95' : ''
                 }`}
               >
-                <div className="flex items-center gap-1.5 text-xs font-bold mb-1">
-                  {node.type === 'LEVER' && <Power className="w-3.5 h-3.5" />}
-                  {node.type === 'GATE_AND' && <span className="text-[10px] bg-slate-800 px-1 rounded">&</span>}
-                  {node.type === 'INVERTER' && <span className="text-[10px] bg-slate-800 px-1 rounded">NOT</span>}
+                <div className="flex items-center justify-center gap-1 text-[10px] sm:text-xs font-bold mb-0.5 max-w-full">
+                  {node.type === 'LEVER' && <Power className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />}
+                  {node.type === 'GATE_AND' && <span className="text-[9px] sm:text-[10px] bg-slate-800 px-1 rounded shrink-0">&</span>}
+                  {node.type === 'INVERTER' && <span className="text-[9px] sm:text-[10px] bg-slate-800 px-1 rounded shrink-0">NOT</span>}
                   <span className="truncate">{node.label}</span>
                 </div>
-                <div className="text-[10px] font-semibold flex items-center gap-1">
+                <div className="text-[9px] sm:text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap">
                   <span className={`w-2 h-2 rounded-full ${isOn ? 'bg-emerald-400 animate-ping' : 'bg-slate-600'}`} />
-                  <span>{isOn ? 'KÍCH HOẠT (ON)' : 'NGẮT (OFF)'}</span>
+                  <span>{isOn ? 'BẬT (ON)' : 'NGẮT (OFF)'}</span>
                 </div>
                 {node.ruleVi && (
-                  <span className="text-[9px] text-slate-400 mt-1 text-center line-clamp-1">
+                  <span className="text-[8px] sm:text-[9px] text-slate-400 mt-0.5 text-center line-clamp-1 hidden sm:block">
                     {node.ruleVi}
                   </span>
                 )}
@@ -392,9 +393,9 @@ export const CausalCascadeGame: React.FC = () => {
         </div>
 
         {/* Footer instruction helper */}
-        <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900/80 px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 flex justify-between items-center">
-          <span>Click vào Cần Gạt (Lever) để đổi trạng thái ON/OFF</span>
-          <span>Bấm Trigger để bắt đầu phản ứng</span>
+        <div className="text-[11px] text-slate-300 bg-slate-900/90 px-3.5 py-2 rounded-lg border border-slate-800 flex flex-wrap justify-between items-center gap-1.5">
+          <span>Nhấn Cần Gạt (Lever) để bật/tắt</span>
+          <span>Bấm Kích Hoạt Chuỗi để mô phỏng</span>
         </div>
       </div>
 

@@ -193,15 +193,19 @@ export const GraphMemoryMatrixGame: React.FC = () => {
         </div>
 
         {/* Phase Indicator Badge */}
-        <div className="flex items-center gap-2 bg-slate-800/60 border border-slate-700/50 rounded-xl px-4 py-2 text-xs">
+        <div className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs border ${
+          phase === 'MEMORIZING'
+            ? 'bg-amber-50 dark:bg-slate-800/70 border-amber-300 dark:border-slate-700/60'
+            : 'bg-cyan-50 dark:bg-slate-800/70 border-cyan-300 dark:border-slate-700/60'
+        }`}>
           {phase === 'MEMORIZING' ? (
-            <span className="flex items-center gap-1.5 text-amber-300 font-bold animate-pulse">
-              <Eye className="w-4 h-4" />
+            <span className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 font-bold animate-pulse">
+              <Eye className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               ĐANG HIỂN THỊ MẠNG ({memorizeCountdown}s)
             </span>
           ) : (
-            <span className="flex items-center gap-1.5 text-cyan-300 font-bold">
-              <EyeOff className="w-4 h-4 text-cyan-400" />
+            <span className="flex items-center gap-1.5 text-cyan-800 dark:text-cyan-300 font-bold">
+              <EyeOff className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
               ĐÃ ẨN ĐƯỜNG NỐI (TRUY VẤN TRÍ NHỚ)
             </span>
           )}
@@ -212,9 +216,9 @@ export const GraphMemoryMatrixGame: React.FC = () => {
       <div className="relative w-full max-w-[600px] rounded-2xl border border-purple-500/30 shadow-[0_0_30px_rgba(168,85,247,0.15)] bg-slate-950 p-4 sm:p-6 flex flex-col gap-4 select-none">
         {/* Responsive SVG Graph Canvas */}
         <div className="relative w-full">
-          <svg viewBox="0 0 600 260" className="w-full h-auto max-h-[260px]">
+          <svg viewBox="0 0 600 320" className="w-full h-auto max-h-[300px]">
             <defs>
-              <marker id="graph-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <marker id="graph-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                 <path d="M 0 1 L 10 5 L 0 9 z" fill="#e879f9" />
               </marker>
             </defs>
@@ -226,10 +230,18 @@ export const GraphMemoryMatrixGame: React.FC = () => {
               if (!src || !tgt) return null;
 
               const isVisible = phase === 'MEMORIZING';
-              const x1 = src.position.x + 21;
-              const y1 = src.position.y + 21;
-              const x2 = tgt.position.x + 21;
-              const y2 = tgt.position.y + 21;
+              const cx1 = src.position.x + 28;
+              const cy1 = src.position.y + 21;
+              const cx2 = tgt.position.x + 28;
+              const cy2 = tgt.position.y + 21;
+              const dx = cx2 - cx1;
+              const dy = cy2 - cy1;
+              const dist = Math.hypot(dx, dy) || 1;
+              const padEnd = edge.isDirected ? 26 : 0;
+              const x1 = cx1 + (dx / dist) * 22;
+              const y1 = cy1 + (dy / dist) * 22;
+              const x2 = cx2 - (dx / dist) * padEnd;
+              const y2 = cy2 - (dy / dist) * padEnd;
 
               return (
                 <g key={edge.id} className="transition-opacity duration-700">
@@ -238,34 +250,31 @@ export const GraphMemoryMatrixGame: React.FC = () => {
                     y1={y1}
                     x2={x2}
                     y2={y2}
-                    stroke={isVisible ? '#a855f7' : 'rgba(168, 85, 247, 0.06)'}
+                    stroke={isVisible ? '#a855f7' : 'rgba(168, 85, 247, 0.08)'}
                     strokeWidth={isVisible ? 3 : 1}
                     strokeDasharray={isVisible && edge.isDirected ? '6 3' : undefined}
+                    markerEnd={isVisible && edge.isDirected ? 'url(#graph-arrow)' : undefined}
                   />
-                  {isVisible && edge.isDirected && (
-                    <circle
-                      cx={(x1 + x2) / 2}
-                      cy={(y1 + y2) / 2}
-                      r={4}
-                      fill="#e879f9"
-                    />
-                  )}
                 </g>
               );
             })}
 
             {/* Nodes */}
             {challenge.nodes.map(node => {
-              const cx = node.position.x + 21;
+              const cx = node.position.x + 28;
               const cy = node.position.y + 21;
+              const pillW = Math.max(58, node.label.length * 8.5 + 22);
+              const pillH = 38;
               return (
                 <g key={node.id}>
-                  <circle
-                    cx={cx}
-                    cy={cy}
-                    r={22}
+                  <rect
+                    x={cx - pillW / 2}
+                    y={cy - pillH / 2}
+                    width={pillW}
+                    height={pillH}
+                    rx={pillH / 2}
                     fill="#0f172a"
-                    stroke="#a855f7"
+                    stroke={node.color || '#a855f7'}
                     strokeWidth={2.5}
                   />
                   <text

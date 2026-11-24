@@ -293,7 +293,7 @@ export const GreenDotGame: React.FC = () => {
       )}
 
       {/* Top HUD */}
-      <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center">
             <Eye className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
@@ -369,7 +369,7 @@ export const GreenDotGame: React.FC = () => {
             {activeDataset.options.map((opt, idx) => {
               const isSelected = selectedAnswer === idx;
               const isRight = idx === activeDataset.correctIndex;
-              let btnClass = 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:bg-emerald-50/50';
+              let btnClass = 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-emerald-500 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30';
 
               if (selectedAnswer !== null) {
                 if (isRight) btnClass = 'bg-emerald-500 text-white border-emerald-600 ring-2 ring-emerald-300 shadow-lg';

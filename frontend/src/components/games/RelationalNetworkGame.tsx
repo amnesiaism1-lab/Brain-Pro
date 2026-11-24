@@ -681,7 +681,7 @@ export const RelationalNetworkGame: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full max-w-4xl mx-auto flex flex-col items-center justify-center p-3 sm:p-4 text-slate-100">
+    <div className="relative w-full max-w-4xl mx-auto flex flex-col items-center justify-center p-3 sm:p-4 text-slate-800 dark:text-slate-100">
       {/* Prediction Gate Overlay */}
       {showPredictionGate && challenge.predictionPrompt && (
         <PredictionGateOverlay
@@ -726,10 +726,10 @@ export const RelationalNetworkGame: React.FC = () => {
               setShowOnboardingTutorial(true);
               playSound('click');
             }}
-            className="px-3 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+            className="px-3 py-1.5 rounded-xl border border-amber-400/50 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
             title="Xem hướng dẫn nhanh 15 giây cách nối và cắt dây"
           >
-            <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+            <HelpCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
             <span>Hướng dẫn 15s</span>
           </button>
 
@@ -739,14 +739,14 @@ export const RelationalNetworkGame: React.FC = () => {
               setIsSoundNetworkMode(!isSoundNetworkMode);
               playSound('click');
             }}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               isSoundNetworkMode
-                ? 'bg-purple-600/25 border-purple-500/60 text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.35)]'
-                : 'bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
+                ? 'bg-purple-100 dark:bg-purple-600/25 border-purple-400 dark:border-purple-500/60 text-purple-800 dark:text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.25)]'
+                : 'bg-slate-100 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-400 hover:bg-slate-200 dark:hover:text-slate-200'
             }`}
             title="Kích hoạt chế độ Cảm Âm & Hòa Âm (Sound Network Mode)"
           >
-            <Music className="w-3.5 h-3.5 text-purple-400" />
+            <Music className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
             <span>Mạng Hòa Âm {isSoundNetworkMode ? 'BẬT' : 'TẮT'}</span>
           </button>
 
@@ -756,10 +756,10 @@ export const RelationalNetworkGame: React.FC = () => {
               initLevel();
               playSound('click');
             }}
-            className="px-3 py-1.5 rounded-xl border border-slate-700/60 bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all"
+            className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
             title="Chơi lại màn này"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+            <RotateCcw className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
             <span>Chơi lại</span>
           </button>
 
@@ -768,9 +768,9 @@ export const RelationalNetworkGame: React.FC = () => {
             onClick={() => {
               guideSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
             }}
-            className="px-3 py-1.5 rounded-xl border border-cyan-500/40 bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-[0_0_10px_rgba(6,182,212,0.15)]"
+            className="px-3 py-1.5 rounded-xl border border-cyan-300 dark:border-cyan-500/40 bg-cyan-50 dark:bg-cyan-950/40 hover:bg-cyan-100 dark:hover:bg-cyan-900/60 text-cyan-800 dark:text-cyan-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
           >
-            <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
+            <BookOpen className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
             <span>Hướng Dẫn & Ý Nghĩa</span>
           </button>
         </div>
@@ -885,7 +885,7 @@ export const RelationalNetworkGame: React.FC = () => {
         </div>
 
         {/* Guide Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-6 overflow-x-auto">
+        <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 mb-6 overflow-x-auto">
           {[
             { id: 'meaning', label: '🧠 Ý Nghĩa Khoa Học', desc: 'Tại sao cần luyện tập?' },
             { id: 'controls', label: '🕹️ Cẩm Nang Điều Khiển', desc: 'Quy luật Xúc Tu & Cắt' },
@@ -895,10 +895,10 @@ export const RelationalNetworkGame: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveGuideTab(tab.id as any)}
-              className={`px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all whitespace-nowrap flex items-center gap-2 ${
+              className={`px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
                 activeGuideTab === tab.id
-                  ? 'bg-gradient-to-r from-cyan-500/20 to-blue-600/20 border border-cyan-400 text-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.25)]'
-                  : 'bg-slate-800/40 border border-slate-700/50 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  ? 'bg-gradient-to-r from-cyan-500/15 to-blue-600/15 dark:from-cyan-500/20 dark:to-blue-600/20 border border-cyan-500/60 dark:border-cyan-400 text-cyan-800 dark:text-cyan-200 shadow-sm dark:shadow-[0_0_15px_rgba(6,182,212,0.25)]'
+                  : 'bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800'
               }`}
             >
               <span>{tab.label}</span>
@@ -908,37 +908,37 @@ export const RelationalNetworkGame: React.FC = () => {
 
         {/* Tab 1: Ý Nghĩa Khoa Học & Giá Trị Nhận Thức */}
         {activeGuideTab === 'meaning' && (
-          <div className="space-y-6 text-slate-300 text-xs sm:text-sm leading-relaxed animate-in fade-in">
-            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 sm:p-5">
-              <h4 className="text-base font-bold text-cyan-300 mb-2 flex items-center gap-2">
-                <Brain className="w-5 h-5 text-cyan-400" />
+          <div className="space-y-6 text-slate-700 dark:text-slate-300 text-xs sm:text-sm leading-relaxed animate-in fade-in">
+            <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4 sm:p-5">
+              <h4 className="text-base font-bold text-cyan-700 dark:text-cyan-300 mb-2 flex items-center gap-2">
+                <Brain className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
                 1. Tại Sao Chức Năng Này Có Giá Trị Nhận Thức Vượt Trội?
               </h4>
-              <p className="text-slate-300 mb-3">
-                Trong các ứng dụng luyện não truyền thống (như bấm số nhanh, lật thẻ, nhớ ô màu), não bạn chỉ hoạt động theo cơ chế <strong className="text-cyan-300">Kích thích $\rightarrow$ Phản xạ (Stimulus-Response)</strong>. Chơi nhiều chỉ giúp bạn quen tay (học vẹt / overfitting) mà không giúp não thông minh hơn trong đời thực.
+              <p className="text-slate-700 dark:text-slate-300 mb-3">
+                Trong các ứng dụng luyện não truyền thống (như bấm số nhanh, lật thẻ, nhớ ô màu), não bạn chỉ hoạt động theo cơ chế <strong className="text-cyan-700 dark:text-cyan-300">Kích thích → Phản xạ (Stimulus-Response)</strong>. Chơi nhiều chỉ giúp bạn quen tay (học vẹt / overfitting) mà không giúp não thông minh hơn trong đời thực.
               </p>
-              <p className="text-slate-300">
-                <strong>Mạng Lưới Quan Hệ Động Học (Relational Dynamics)</strong> mang lại bước nhảy vọt nhận thức: Nó yêu cầu não bộ thực hiện <strong className="text-emerald-300">Mô Phỏng Tư Duy (Mental Simulation)</strong> dựa trên nguyên lý <strong className="text-emerald-300">Predictive Coding (Mã Hóa Dự Đoán)</strong>. Trước khi ra tay, não bạn buộc phải "chạy thử kịch bản" trong đầu: <em>Dòng năng lượng sẽ đổ về đâu? Nút nào là trọng yếu? Nhát cắt ở đâu sẽ tạo ra phản ứng dây chuyền thuận lợi?</em>
+              <p className="text-slate-700 dark:text-slate-300">
+                <strong>Mạng Lưới Quan Hệ Động Học (Relational Dynamics)</strong> mang lại bước nhảy vọt nhận thức: Nó yêu cầu não bộ thực hiện <strong className="text-emerald-700 dark:text-emerald-300">Mô Phỏng Tư Duy (Mental Simulation)</strong> dựa trên nguyên lý <strong className="text-emerald-700 dark:text-emerald-300">Predictive Coding (Mã Hóa Dự Đoán)</strong>. Trước khi ra tay, não bạn buộc phải "chạy thử kịch bản" trong đầu: <em>Dòng năng lượng sẽ đổ về đâu? Nút nào là trọng yếu? Nhát cắt ở đâu sẽ tạo ra phản ứng dây chuyền thuận lợi?</em>
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4">
-                <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-400/30 flex items-center justify-center text-cyan-400 mb-3 font-bold">
+              <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4">
+                <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-400/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 mb-3 font-bold">
                   <TrendingUp className="w-4 h-4" />
                 </div>
-                <h5 className="font-bold text-white text-sm mb-1.5">Tư Duy Hệ Thống & Đòn Bẩy (Leverage Points)</h5>
-                <p className="text-slate-400 text-xs leading-relaxed">
+                <h5 className="font-bold text-slate-900 dark:text-white text-sm mb-1.5">Tư Duy Hệ Thống & Đòn Bẩy (Leverage Points)</h5>
+                <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
                   Trong kinh doanh, lập trình hay cuộc sống, người xuất sắc không lao vào xử lý mọi tiểu tiết. Họ tìm ra <strong>Nút Thắt Cổ Chai (Bottleneck)</strong> hoặc <strong>Nút Lõi (Core Node)</strong> để can thiệp tối thiểu mà tạo ra kết quả tối đa. Màn chơi Core Dominance rèn luyện chính xác năng lực này.
                 </p>
               </div>
 
-              <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-400/30 flex items-center justify-center text-emerald-400 mb-3 font-bold">
+              <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-400/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-3 font-bold">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
-                <h5 className="font-bold text-white text-sm mb-1.5">Đo Lường Sai Số Dự Đoán (Prediction Error)</h5>
-                <p className="text-slate-400 text-xs leading-relaxed">
+                <h5 className="font-bold text-slate-900 dark:text-white text-sm mb-1.5">Đo Lường Sai Số Dự Đoán (Prediction Error)</h5>
+                <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
                   Pha dự đoán (Prediction Gate) ghi nhận chính xác sai số giữa trực giác của bạn và quy luật vật lý thực tế của hệ thống. Qua từng màn, sai số dự đoán giảm dần, chứng minh khả năng phán đoán và độ nhạy bén của bạn đã được nâng cấp thực chất.
                 </p>
               </div>
@@ -948,36 +948,36 @@ export const RelationalNetworkGame: React.FC = () => {
 
         {/* Tab 2: Cẩm Nang Điều Khiển & Cơ Chế Hoạt Động */}
         {activeGuideTab === 'controls' && (
-          <div className="space-y-6 text-slate-300 text-xs sm:text-sm leading-relaxed animate-in fade-in">
+          <div className="space-y-6 text-slate-700 dark:text-slate-300 text-xs sm:text-sm leading-relaxed animate-in fade-in">
             {/* Control 1: Drag to connect */}
-            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 sm:p-5">
-              <h4 className="text-base font-bold text-cyan-300 mb-2 flex items-center gap-2">
-                <Zap className="w-5 h-5 text-cyan-400" />
+            <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4 sm:p-5">
+              <h4 className="text-base font-bold text-cyan-700 dark:text-cyan-300 mb-2 flex items-center gap-2">
+                <Zap className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
                 Thao Tác 1: Kéo Nối Xúc Tu (Drag to Connect)
               </h4>
               <p className="mb-3">
-                <strong>Cách làm:</strong> Nhấn giữ chuột hoặc ngón tay vào <span className="text-cyan-400 font-semibold">Nút Xanh (Quân Ta)</span>, kéo đường đứt đoạn sang một nút khác rồi nhả tay.
+                <strong>Cách làm:</strong> Nhấn giữ chuột hoặc ngón tay vào <span className="text-cyan-700 dark:text-cyan-400 font-semibold">Nút Xanh (Quân Ta)</span>, kéo đường đứt đoạn sang một nút khác rồi nhả tay.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                <div className="bg-slate-900/60 p-3 rounded-lg border border-rose-500/30">
-                  <span className="font-bold text-rose-400 block mb-1">⚔️ Nối sang Đồn Địch (Đỏ):</span>
+                <div className="bg-white dark:bg-slate-900/60 p-3 rounded-lg border border-rose-200 dark:border-rose-500/30">
+                  <span className="font-bold text-rose-600 dark:text-rose-400 block mb-1">⚔️ Nối sang Đồn Địch (Đỏ):</span>
                   <span>Tự động kích hoạt đòn hút năng lượng. HP của địch sẽ tụt dần cho tới khi chuyển thành quân ta!</span>
                 </div>
-                <div className="bg-slate-900/60 p-3 rounded-lg border border-amber-500/30">
-                  <span className="font-bold text-amber-400 block mb-1">🔄 Nối sang Trung Lập (Vàng):</span>
+                <div className="bg-white dark:bg-slate-900/60 p-3 rounded-lg border border-amber-200 dark:border-amber-500/30">
+                  <span className="font-bold text-amber-600 dark:text-amber-400 block mb-1">🔄 Nối sang Trung Lập (Vàng):</span>
                   <span>Tiếp quản trạm trung chuyển để mở rộng tầm với hoặc luồn lách qua chướng ngại vật.</span>
                 </div>
-                <div className="bg-slate-900/60 p-3 rounded-lg border border-cyan-500/30">
-                  <span className="font-bold text-cyan-400 block mb-1">🛡️ Nối sang Đồng Minh (Xanh):</span>
+                <div className="bg-white dark:bg-slate-900/60 p-3 rounded-lg border border-cyan-200 dark:border-cyan-500/30">
+                  <span className="font-bold text-cyan-600 dark:text-cyan-400 block mb-1">🛡️ Nối sang Đồng Minh (Xanh):</span>
                   <span>Dồn dòng năng lượng hồi máu và chi viện cho các căn cứ đang cạn kiệt HP.</span>
                 </div>
               </div>
             </div>
 
             {/* Control 2: Surgical Cut */}
-            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 sm:p-5">
-              <h4 className="text-base font-bold text-rose-300 mb-2 flex items-center gap-2">
-                <Scissors className="w-5 h-5 text-rose-400" />
+            <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4 sm:p-5">
+              <h4 className="text-base font-bold text-rose-700 dark:text-rose-300 mb-2 flex items-center gap-2">
+                <Scissors className="w-5 h-5 text-rose-600 dark:text-rose-400" />
                 Thao Tác 2: Cắt Laser Phẫu Thuật (Surgical Cut - Tuyệt Kỹ Lật Kèo)
               </h4>
               <p className="mb-3">
@@ -985,23 +985,23 @@ export const RelationalNetworkGame: React.FC = () => {
               </p>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                <div className="bg-emerald-950/40 border border-emerald-500/40 p-3 rounded-lg">
-                  <span className="font-bold text-emerald-400 block mb-1">⚡ CẮT SÁT GỐC NHÀ (&lt;35%):</span>
-                  <p className="text-slate-300">
-                    Năng lượng phóng đi bị chặn ở đầu cuống, lập tức dội ngược về củng cố căn cứ nhà, <strong className="text-emerald-300">HỒI PHỤC +30% HP</strong>! Cứu nguy thần kỳ khi sắp thua.
+                <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/40 p-3 rounded-lg">
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400 block mb-1">⚡ CẮT SÁT GỐC NHÀ (&lt;35%):</span>
+                  <p className="text-slate-700 dark:text-slate-300">
+                    Năng lượng phóng đi bị chặn ở đầu cuống, lập tức dội ngược về củng cố căn cứ nhà, <strong className="text-emerald-700 dark:text-emerald-300">HỒI PHỤC +30% HP</strong>! Cứu nguy thần kỳ khi sắp thua.
                   </p>
                 </div>
 
-                <div className="bg-rose-950/40 border border-rose-500/40 p-3 rounded-lg">
-                  <span className="font-bold text-rose-400 block mb-1">💥 CẮT SÁT ĐỒN ĐỊCH (&gt;65%):</span>
-                  <p className="text-slate-300">
-                    Xung lực nén chặt ở sát cửa ngõ đối phương bị phóng thích tạo thành cú sốc phản vệ, <strong className="text-rose-300">GÂY NỔ -35% HP ĐỊCH</strong>! Hạ gục tiền đồn chỉ trong chớp mắt.
+                <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-500/40 p-3 rounded-lg">
+                  <span className="font-bold text-rose-700 dark:text-rose-400 block mb-1">💥 CẮT SÁT ĐỒN ĐỊCH (&gt;65%):</span>
+                  <p className="text-slate-700 dark:text-slate-300">
+                    Xung lực nén chặt ở sát cửa ngõ đối phương bị phóng thích tạo thành cú sốc phản vệ, <strong className="text-rose-700 dark:text-rose-300">GÂY NỔ -35% HP ĐỊCH</strong>! Hạ gục tiền đồn chỉ trong chớp mắt.
                   </p>
                 </div>
 
-                <div className="bg-slate-900/60 border border-slate-700/60 p-3 rounded-lg">
-                  <span className="font-bold text-slate-300 block mb-1">✂️ CẮT Ở ĐOẠN GIỮA (35% - 65%):</span>
-                  <p className="text-slate-400">
+                <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/60 p-3 rounded-lg">
+                  <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">✂️ CẮT Ở ĐOẠN GIỮA (35% - 65%):</span>
+                  <p className="text-slate-600 dark:text-slate-400">
                     Hủy liên kết bình thường mà không gây sốc, giúp giải phóng xúc tu để kết nối với các mục tiêu chiến lược mới.
                   </p>
                 </div>
@@ -1010,20 +1010,20 @@ export const RelationalNetworkGame: React.FC = () => {
 
             {/* Control 3: Core & Walls */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4">
-                <h5 className="font-bold text-amber-300 text-sm mb-2 flex items-center gap-1.5">
+              <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4">
+                <h5 className="font-bold text-amber-700 dark:text-amber-300 text-sm mb-2 flex items-center gap-1.5">
                   <span>👑 Quy Luật Nút Lõi (Core Dominance)</span>
                 </h5>
-                <p className="text-xs text-slate-300 leading-relaxed">
+                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
                   Nút Lõi (CORE) có vòng viền kim loại dày và kích thước lớn hơn. Khi bạn tập trung toàn lực đánh sập Nút Lõi, <strong>toàn bộ các nút con phụ thuộc sẽ tự động đầu hàng đổi phe</strong> về phía bạn ngay lập tức!
                 </p>
               </div>
 
-              <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4">
-                <h5 className="font-bold text-rose-300 text-sm mb-2 flex items-center gap-1.5">
+              <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4">
+                <h5 className="font-bold text-rose-700 dark:text-rose-300 text-sm mb-2 flex items-center gap-1.5">
                   <span>🧱 Tường Năng Lượng (Obstacle)</span>
                 </h5>
-                <p className="text-xs text-slate-300 leading-relaxed">
+                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
                   Tia xúc tu không thể xuyên qua tường đỏ. Bạn phải bắc cầu qua các Nút Trung Chuyển (Màu Vàng) để lượn vòng qua tường và tiếp cận cứ điểm đối phương.
                 </p>
               </div>
@@ -1033,10 +1033,10 @@ export const RelationalNetworkGame: React.FC = () => {
 
         {/* Tab 3: Mạng Hòa Âm Thính Giác */}
         {activeGuideTab === 'sound' && (
-          <div className="space-y-6 text-slate-300 text-xs sm:text-sm leading-relaxed animate-in fade-in">
-            <div className="bg-slate-800/40 border border-purple-500/30 rounded-xl p-4 sm:p-5">
-              <h4 className="text-base font-bold text-purple-300 mb-2 flex items-center gap-2">
-                <Music className="w-5 h-5 text-purple-400" />
+          <div className="space-y-6 text-slate-700 dark:text-slate-300 text-xs sm:text-sm leading-relaxed animate-in fade-in">
+            <div className="bg-slate-50 dark:bg-slate-800/40 border border-purple-200 dark:border-purple-500/30 rounded-xl p-4 sm:p-5">
+              <h4 className="text-base font-bold text-purple-700 dark:text-purple-300 mb-2 flex items-center gap-2">
+                <Music className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                 Mạng Hòa Âm Thính Giác (Harmonic Sound Network)
               </h4>
               <p className="mb-3">
@@ -1044,12 +1044,12 @@ export const RelationalNetworkGame: React.FC = () => {
               </p>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs mt-3">
-                <div className="bg-slate-900/60 p-3 rounded-lg border border-purple-500/40">
-                  <span className="font-bold text-purple-300 block mb-1">🎵 Hợp Âm Thuận (Consonance - C-E-G):</span>
+                <div className="bg-white dark:bg-slate-900/60 p-3 rounded-lg border border-purple-200 dark:border-purple-500/40">
+                  <span className="font-bold text-purple-700 dark:text-purple-300 block mb-1">🎵 Hợp Âm Thuận (Consonance - C-E-G):</span>
                   <span>Tạo ra âm thanh êm dịu, hài hòa, đồng thời gia tăng tốc độ truyền dẫn hạt năng lượng lên gấp đôi!</span>
                 </div>
-                <div className="bg-slate-900/60 p-3 rounded-lg border border-rose-500/40">
-                  <span className="font-bold text-rose-300 block mb-1">⚡ Nghịch Âm (Dissonance - Quãng 3 Cung Tritone):</span>
+                <div className="bg-white dark:bg-slate-900/60 p-3 rounded-lg border border-rose-200 dark:border-rose-500/40">
+                  <span className="font-bold text-rose-700 dark:text-rose-300 block mb-1">⚡ Nghịch Âm (Dissonance - Quãng 3 Cung Tritone):</span>
                   <span>Tạo ra xung âm hưởng đối kháng, giúp bạn cảm nhận sự căng thẳng hài âm ngay bằng đôi tai.</span>
                 </div>
               </div>
@@ -1059,8 +1059,8 @@ export const RelationalNetworkGame: React.FC = () => {
 
         {/* Tab 4: Chiến Thuật 12 Màn */}
         {activeGuideTab === 'levels' && (
-          <div className="space-y-3 text-slate-300 text-xs sm:text-sm animate-in fade-in">
-            <p className="text-slate-400 text-xs mb-3">
+          <div className="space-y-3 text-slate-700 dark:text-slate-300 text-xs sm:text-sm animate-in fade-in">
+            <p className="text-slate-500 dark:text-slate-400 text-xs mb-3">
               Mỗi cấp độ được thiết kế để huấn luyện một khía cạnh nhận thức độc lập:
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -1082,11 +1082,11 @@ export const RelationalNetworkGame: React.FC = () => {
                   key={item.lvl} 
                   className={`p-3 rounded-xl border text-xs ${
                     item.lvl === currentLevel 
-                      ? 'bg-cyan-950/60 border-cyan-400 text-cyan-200 shadow-[0_0_10px_rgba(6,182,212,0.2)]' 
-                      : 'bg-slate-800/40 border-slate-700/50 text-slate-300'
+                      ? 'bg-cyan-50 dark:bg-cyan-950/60 border-cyan-400 text-cyan-900 dark:text-cyan-200 shadow-sm dark:shadow-[0_0_10px_rgba(6,182,212,0.2)]' 
+                      : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/50 text-slate-700 dark:text-slate-300'
                   }`}
                 >
-                  <div className="flex items-center justify-between font-bold text-white mb-1">
+                  <div className="flex items-center justify-between font-bold text-slate-900 dark:text-white mb-1">
                     <span>Màn {item.lvl}: {item.title}</span>
                     {item.lvl === currentLevel && (
                       <span className="text-[10px] bg-cyan-500 text-slate-950 px-1.5 py-0.2 rounded font-black">
@@ -1094,7 +1094,7 @@ export const RelationalNetworkGame: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <p className="text-slate-400 text-[11px] leading-relaxed">
+                  <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
                     💡 {item.tip}
                   </p>
                 </div>

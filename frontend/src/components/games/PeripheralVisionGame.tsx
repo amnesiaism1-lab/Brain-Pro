@@ -244,50 +244,60 @@ export const PeripheralVisionGame: React.FC = () => {
       </p>
 
       {/* Crosshair Viewbox */}
-      <div className="h-64 sm:h-72 rounded-3xl bg-slate-900 border-2 border-brand-500/80 shadow-2xl relative overflow-hidden flex items-center">
-        {/* Left peripheral target zone */}
-        <div className="absolute left-0 top-0 bottom-0 flex items-center justify-center" style={{ width: `calc(50% - 48px)` }}>
-          {phase === 'flash' && (
-            <span
-              key={`left-${round}`}
-              className={`font-black text-cyan-400 select-none animate-scale-up tracking-wider ${
-                contentMode === 'words' ? 'text-2xl sm:text-3xl' : 'font-mono text-4xl sm:text-5xl'
-              }`}
+      {(() => {
+        const dynamicOffsetPx = Math.round(effectiveSpan * 0.45);
+        return (
+          <div className="h-64 sm:h-72 rounded-3xl bg-slate-900 border-2 border-brand-500/80 shadow-2xl relative overflow-hidden flex items-center">
+            {/* Left peripheral target zone positioned by dynamic span */}
+            <div
+              className="absolute top-1/2 -translate-y-1/2 flex items-center justify-end pointer-events-none max-w-[42%]"
+              style={{ right: `calc(50% + clamp(24px, ${dynamicOffsetPx}px, 30%))` }}
             >
-              {pair[0]}
-            </span>
-          )}
-        </div>
+              {phase === 'flash' && (
+                <span
+                  key={`left-${round}`}
+                  className={`font-black text-cyan-400 select-none animate-scale-up tracking-wide text-right truncate ${
+                    contentMode === 'words' ? 'text-lg sm:text-2xl md:text-3xl' : 'font-mono text-3xl sm:text-5xl'
+                  }`}
+                >
+                  {pair[0]}
+                </span>
+              )}
+            </div>
 
-        {/* Center fixation point */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-          {/* Subtle hairline crosshair – guides eye without blocking targets */}
-          <div className="relative flex items-center justify-center" style={{ opacity: 0.35 }}>
-            <div className="absolute w-7 h-[1px] bg-slate-300" />
-            <div className="absolute h-7 w-[1px] bg-slate-300" />
-            <div className="absolute w-[4px] h-[4px] rounded-full bg-rose-400" />
+            {/* Center fixation point (unmistakable red foveal target) */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center z-10 pointer-events-none">
+              <div className="relative flex items-center justify-center">
+                <div className="absolute w-7 h-[1px] bg-slate-400/50" />
+                <div className="absolute h-7 w-[1px] bg-slate-400/50" />
+                <div className="relative w-3 h-3 rounded-full bg-rose-500 ring-4 ring-rose-500/25 shadow-[0_0_10px_rgba(244,63,94,0.85)]" />
+              </div>
+            </div>
+
+            {/* Right peripheral target zone positioned by dynamic span */}
+            <div
+              className="absolute top-1/2 -translate-y-1/2 flex items-center justify-start pointer-events-none max-w-[42%]"
+              style={{ left: `calc(50% + clamp(24px, ${dynamicOffsetPx}px, 30%))` }}
+            >
+              {phase === 'flash' && (
+                <span
+                  key={`right-${round}`}
+                  className={`font-black text-cyan-400 select-none animate-scale-up tracking-wide text-left truncate ${
+                    contentMode === 'words' ? 'text-lg sm:text-2xl md:text-3xl' : 'font-mono text-3xl sm:text-5xl'
+                  }`}
+                >
+                  {pair[1]}
+                </span>
+              )}
+            </div>
+
+            {/* Peripheral span indicator line */}
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-10">
+              <div className="w-full h-px bg-cyan-400" />
+            </div>
           </div>
-        </div>
-
-        {/* Right peripheral target zone */}
-        <div className="absolute right-0 top-0 bottom-0 flex items-center justify-center" style={{ width: `calc(50% - 48px)` }}>
-          {phase === 'flash' && (
-            <span
-              key={`right-${round}`}
-              className={`font-black text-cyan-400 select-none animate-scale-up tracking-wider ${
-                contentMode === 'words' ? 'text-2xl sm:text-3xl' : 'font-mono text-4xl sm:text-5xl'
-              }`}
-            >
-              {pair[1]}
-            </span>
-          )}
-        </div>
-
-        {/* Peripheral span indicator lines */}
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-10">
-          <div className="w-full h-px bg-cyan-400" />
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Guess Buttons */}
       <div className="space-y-3">

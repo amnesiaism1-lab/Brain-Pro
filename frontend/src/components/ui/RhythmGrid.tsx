@@ -35,7 +35,17 @@ export const RhythmGrid: React.FC<IRhythmGridProps> = ({
       </div>
 
       {/* Grid of steps */}
-      <div className="grid grid-cols-4 sm:grid-cols-8 md:grid-cols-16 gap-2">
+      <div
+        className={`grid gap-2 ${
+          steps.length <= 6
+            ? 'grid-cols-3 sm:grid-cols-6'
+            : steps.length <= 8
+            ? 'grid-cols-4 sm:grid-cols-8'
+            : steps.length <= 12
+            ? 'grid-cols-4 sm:grid-cols-6 md:grid-cols-12'
+            : 'grid-cols-4 sm:grid-cols-8 md:grid-cols-16'
+        }`}
+      >
         {steps.map((step, idx) => {
           const isCurrent = currentPlayStep === idx;
           const isUserTapped = userTaps.includes(idx);

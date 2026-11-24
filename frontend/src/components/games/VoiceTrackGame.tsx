@@ -340,7 +340,9 @@ export const VoiceTrackGame: React.FC = () => {
                         )}
                       </div>
                       <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                        {voice.notes.map(n => n.note).join(' → ')}
+                        {isAnswered
+                          ? voice.notes.map(n => n.note).join(' → ')
+                          : `${voice.notes.map(() => '♪').join(' → ')} (${voice.notes.length} nốt — nghe để nhận diện)`}
                       </span>
                     </div>
                   </div>
